@@ -3,7 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
-import { FileText, Search, MessageSquare, RefreshCw, Loader2, ImageIcon, CheckCircle2, XCircle } from "lucide-react";
+import { FileText, Search, MessageSquare, RefreshCw, Loader2, ImageIcon, CheckCircle2, XCircle, Eye } from "lucide-react";
+import { ArticleContent } from "@/components/public/ArticleContent";
 import type { ArticleData } from "@/utils/streamArticle";
 import type { ContentImage, ImageGenerationProgress } from "@/utils/generateContentImages";
 
@@ -69,51 +70,6 @@ export function ArticlePreview({
   }
 
   if (!article) return null;
-
-  // Convert markdown content to HTML-like structure for preview
-  const formatContent = (content: string) => {
-    const lines = content.split('\n');
-    const elements: JSX.Element[] = [];
-    let h2Count = 0;
-
-    lines.forEach((line, i) => {
-      if (line.startsWith('### ')) {
-        elements.push(<h3 key={i} className="text-lg font-semibold mt-6 mb-2">{line.slice(4)}</h3>);
-      } else if (line.startsWith('## ')) {
-        h2Count++;
-        elements.push(<h2 key={i} className="text-xl font-bold mt-8 mb-3">{line.slice(3)}</h2>);
-        
-        // Insert content image after specific H2 sections
-        const imageForSection = contentImages.find(img => img.after_section === h2Count);
-        if (imageForSection) {
-          elements.push(
-            <div key={`img-${i}`} className="my-6 rounded-xl overflow-hidden shadow-lg">
-              <img 
-                src={imageForSection.url} 
-                alt={`Ilustração: ${contextLabels[imageForSection.context]}`}
-                className="w-full h-auto object-cover"
-              />
-              <p className="text-xs text-muted-foreground text-center py-2 bg-muted/30">
-                {contextLabels[imageForSection.context]}
-              </p>
-            </div>
-          );
-        }
-      } else if (line.startsWith('# ')) {
-        elements.push(<h1 key={i} className="text-2xl font-bold mt-4 mb-4">{line.slice(2)}</h1>);
-      } else if (line.startsWith('- ') || line.startsWith('* ')) {
-        elements.push(<li key={i} className="ml-4">{line.slice(2)}</li>);
-      } else if (line.match(/^\d+\. /)) {
-        elements.push(<li key={i} className="ml-4 list-decimal">{line.replace(/^\d+\. /, '')}</li>);
-      } else if (line.trim() === '') {
-        elements.push(<br key={i} />);
-      } else {
-        elements.push(<p key={i} className="mb-3 leading-relaxed">{line}</p>);
-      }
-    });
-
-    return elements;
-  };
 
   return (
     <Card className="h-full overflow-auto">
@@ -207,10 +163,19 @@ export function ArticlePreview({
           </div>
         </div>
       </CardHeader>
+
       <CardContent className="pt-6">
-        <div className="prose prose-sm max-w-none text-foreground">
-          {formatContent(article.content)}
+        {/* Badge de Simulação */}
+        <div className="flex items-center justify-center gap-2 mb-6 text-xs text-muted-foreground bg-muted/30 py-2 rounded-lg">
+          <Eye className="h-3.5 w-3.5" />
+          <span>Simulação do post publicado</span>
         </div>
+        
+        {/* Usar o mesmo componente do blog público */}
+        <ArticleContent 
+          content={article.content} 
+          contentImages={contentImages} 
+        />
 
         {article.faq && article.faq.length > 0 && (
           <div className="mt-8 pt-6 border-t">

@@ -39,9 +39,19 @@ import {
   Calendar,
   Clock,
   Eye,
-  Edit3
+  Edit3,
+  Monitor,
+  Smartphone,
+  Columns
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
+
+interface ContentImage {
+  context: string;
+  url: string;
+  after_section: number;
+}
 
 interface Article {
   id: string;
@@ -61,6 +71,7 @@ interface Article {
   faq: { question: string; answer: string }[] | null;
   blog_id: string;
   scheduled_at: string | null;
+  content_images?: ContentImage[] | null;
 }
 
 export default function EditArticle() {
@@ -75,7 +86,19 @@ export default function EditArticle() {
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [streamingText, setStreamingText] = useState("");
   const [blogData, setBlogData] = useState<{ slug: string; custom_domain: string | null; domain_verified: boolean | null } | null>(null);
-  const [activeTab, setActiveTab] = useState<"editor" | "preview">("editor");
+  const [activeTab, setActiveTab] = useState<"editor" | "preview" | "split">(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem("article-editor-tab");
+      if (saved === "preview" || saved === "split") return saved as "editor" | "preview" | "split";
+    }
+    return "editor";
+  });
+  const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
+
+  // Persist active tab preference
+  useEffect(() => {
+    localStorage.setItem("article-editor-tab", activeTab);
+  }, [activeTab]);
 
 
   // Generation progress states
@@ -199,11 +222,12 @@ export default function EditArticle() {
         setExistingTranslations(translations.map(t => t.language_code));
       }
 
-      // Parse FAQ
+      // Parse FAQ and content_images
       const parsedArticle = {
         ...data,
-        faq: typeof data.faq === 'string' ? JSON.parse(data.faq) : data.faq
-      };
+        faq: typeof data.faq === 'string' ? JSON.parse(data.faq) : data.faq,
+        content_images: Array.isArray(data.content_images) ? (data.content_images as unknown as ContentImage[]) : []
+      } as Article;
 
       setArticle(parsedArticle);
       setTitle(data.title || "");
@@ -1296,7 +1320,7 @@ export default function EditArticle() {
         <div className="flex-1 flex flex-col overflow-hidden border-r">
           {/* Tabs */}
           <div className="border-b px-4 py-2 bg-muted/30">
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "editor" | "preview")}>
+            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "editor" | "preview" | "split")}>
               <TabsList className="h-9">
                 <TabsTrigger value="editor" className="gap-2">
                   <Edit3 className="h-4 w-4" />
@@ -1306,13 +1330,17 @@ export default function EditArticle() {
                   <Eye className="h-4 w-4" />
                   Preview
                 </TabsTrigger>
+                <TabsTrigger value="split" className="gap-2">
+                  <Columns className="h-4 w-4" />
+                  Lado a Lado
+                </TabsTrigger>
               </TabsList>
             </Tabs>
           </div>
 
           {/* Content Area */}
           <div className="flex-1 overflow-auto p-4">
-            {activeTab === "editor" ? (
+            {activeTab === "editor" && (
               <div className="space-y-4 max-w-4xl mx-auto">
                 {/* Title */}
                 <div className="space-y-2">
@@ -1381,19 +1409,94 @@ export default function EditArticle() {
                   />
                 )}
               </div>
-            ) : (
+            )}
+            
+            {activeTab === "preview" && (
               <div className="max-w-4xl mx-auto">
-                <ArticlePreview
-                  article={article ? {
-                    title,
-                    excerpt,
-                    meta_description: metaDescription,
-                    content: article.content || "",
-                    faq: article.faq || []
-                  } : null}
-                  streamingText={streamingText}
-                  isStreaming={isRegenerating}
-                />
+                {/* Toggle Desktop/Mobile */}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <Button
+                    variant={previewMode === "desktop" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPreviewMode("desktop")}
+                    className="gap-1.5"
+                  >
+                    <Monitor className="h-4 w-4" />
+                    Desktop
+                  </Button>
+                  <Button
+                    variant={previewMode === "mobile" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPreviewMode("mobile")}
+                    className="gap-1.5"
+                  >
+                    <Smartphone className="h-4 w-4" />
+                    Mobile
+                  </Button>
+                </div>
+
+                {/* Preview Container com largura condicional */}
+                <div className={cn(
+                  "mx-auto transition-all duration-300",
+                  previewMode === "mobile" 
+                    ? "max-w-[375px] border rounded-3xl shadow-lg p-2 bg-background" 
+                    : "max-w-4xl"
+                )}>
+                  <ArticlePreview
+                    article={article ? {
+                      title,
+                      excerpt,
+                      meta_description: metaDescription,
+                      content: article.content || "",
+                      faq: article.faq || []
+                    } : null}
+                    streamingText={streamingText}
+                    isStreaming={isRegenerating}
+                    featuredImage={featuredImage}
+                    contentImages={article?.content_images as any[] || []}
+                  />
+                </div>
+              </div>
+            )}
+            
+            {activeTab === "split" && (
+              <div className="grid grid-cols-2 gap-4 h-full">
+                {/* Editor lado esquerdo */}
+                <div className="overflow-auto space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="title-split">Título</Label>
+                    <Input
+                      id="title-split"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      disabled={isRegenerating}
+                      className="text-lg font-semibold"
+                    />
+                  </div>
+                  <RichTextEditor
+                    value={article?.content || ""}
+                    onChange={handleContentUpdate}
+                    disabled={isRegenerating}
+                    placeholder="Escreva o conteúdo do artigo..."
+                  />
+                </div>
+                
+                {/* Preview lado direito */}
+                <div className="overflow-auto border-l pl-4">
+                  <ArticlePreview
+                    article={article ? {
+                      title,
+                      excerpt,
+                      meta_description: metaDescription,
+                      content: article.content || "",
+                      faq: article.faq || []
+                    } : null}
+                    streamingText={streamingText}
+                    isStreaming={isRegenerating}
+                    featuredImage={featuredImage}
+                    contentImages={article?.content_images as any[] || []}
+                  />
+                </div>
               </div>
             )}
           </div>

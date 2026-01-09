@@ -281,7 +281,7 @@ export default function Strategy() {
                   <div className="text-left">
                     <span className="font-medium">Configurações Avançadas de SEO</span>
                     <p className="text-xs text-muted-foreground font-normal">
-                      Google Search Console, análise de palavras-chave, concorrentes e biblioteca
+                      SEO técnico para usuários avançados. Não é obrigatório para gerar artigos.
                     </p>
                   </div>
                 </div>
