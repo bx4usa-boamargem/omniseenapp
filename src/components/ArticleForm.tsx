@@ -13,7 +13,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import { X, Sparkles, Loader2, ImageIcon, Images, FileText, LayoutList, Bot, Zap } from "lucide-react";
+import { X, Sparkles, Loader2, ImageIcon, Images, FileText, LayoutList, Bot, Zap, TrendingUp } from "lucide-react";
+import { FunnelModeSelector, type FunnelMode, type ArticleGoal } from "@/components/article/FunnelModeSelector";
 
 interface ArticleFormProps {
   onGenerate: (data: {
@@ -30,6 +31,8 @@ interface ArticleFormProps {
     includeConclusion: boolean;
     includeVisualBlocks: boolean;
     optimizeForAI: boolean;
+    funnelMode: FunnelMode;
+    articleGoal: ArticleGoal | null;
   }) => void;
   isGenerating: boolean;
   initialTheme?: string;
@@ -55,6 +58,10 @@ export function ArticleForm({ onGenerate, isGenerating, initialTheme, initialKey
   const [includeConclusion, setIncludeConclusion] = useState(true);
   const [includeVisualBlocks, setIncludeVisualBlocks] = useState(true);
   const [optimizeForAI, setOptimizeForAI] = useState(false);
+  
+  // Funnel mode and article goal (Universal Prompt Type)
+  const [funnelMode, setFunnelMode] = useState<FunnelMode>('middle');
+  const [articleGoal, setArticleGoal] = useState<ArticleGoal | null>(null);
 
   // Update theme when initialTheme changes (e.g., from YouTube import)
   useEffect(() => {
@@ -118,7 +125,9 @@ export function ArticleForm({ onGenerate, isGenerating, initialTheme, initialKey
       includeFaq,
       includeConclusion,
       includeVisualBlocks,
-      optimizeForAI
+      optimizeForAI,
+      funnelMode,
+      articleGoal
     });
   };
 
@@ -219,6 +228,25 @@ export function ArticleForm({ onGenerate, isGenerating, initialTheme, initialKey
             disabled={isGenerating}
           />
         </div>
+      </div>
+
+      {/* Funnel Mode & Article Goal Section */}
+      <div className="space-y-4 p-4 rounded-lg bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
+        <div className="flex items-center gap-2 mb-2">
+          <TrendingUp className="h-5 w-5 text-primary" />
+          <span className="font-medium text-sm">Estratégia do Artigo</span>
+          <Badge variant="secondary" className="text-xs">
+            Prompt Type V1.0
+          </Badge>
+        </div>
+        
+        <FunnelModeSelector
+          funnelMode={funnelMode}
+          onFunnelModeChange={setFunnelMode}
+          articleGoal={articleGoal}
+          onArticleGoalChange={setArticleGoal}
+          disabled={isGenerating}
+        />
       </div>
 
       {/* Word Count Section */}

@@ -549,6 +549,7 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          article_goal: string | null
           blog_id: string
           category: string | null
           content: string | null
@@ -560,6 +561,7 @@ export type Database = {
           faq: Json | null
           featured_image_alt: string | null
           featured_image_url: string | null
+          funnel_mode: string | null
           funnel_stage: string | null
           generation_source: string | null
           highlights: Json | null
@@ -583,6 +585,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          article_goal?: string | null
           blog_id: string
           category?: string | null
           content?: string | null
@@ -594,6 +597,7 @@ export type Database = {
           faq?: Json | null
           featured_image_alt?: string | null
           featured_image_url?: string | null
+          funnel_mode?: string | null
           funnel_stage?: string | null
           generation_source?: string | null
           highlights?: Json | null
@@ -617,6 +621,7 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          article_goal?: string | null
           blog_id?: string
           category?: string | null
           content?: string | null
@@ -628,6 +633,7 @@ export type Database = {
           faq?: Json | null
           featured_image_alt?: string | null
           featured_image_url?: string | null
+          funnel_mode?: string | null
           funnel_stage?: string | null
           generation_source?: string | null
           highlights?: Json | null
@@ -1147,6 +1153,74 @@ export type Database = {
             foreignKeyName: "client_reviews_blog_id_fkey"
             columns: ["blog_id"]
             isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_strategy: {
+        Row: {
+          acao_desejada: string | null
+          blog_id: string | null
+          canal_cta: string | null
+          created_at: string | null
+          desejo_principal: string | null
+          diferenciais: string[] | null
+          dor_principal: string | null
+          empresa_nome: string | null
+          id: string
+          nivel_conhecimento: string | null
+          nivel_consciencia: string | null
+          o_que_oferece: string | null
+          principais_beneficios: string[] | null
+          regiao_atuacao: string | null
+          tipo_negocio: string | null
+          tipo_publico: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          acao_desejada?: string | null
+          blog_id?: string | null
+          canal_cta?: string | null
+          created_at?: string | null
+          desejo_principal?: string | null
+          diferenciais?: string[] | null
+          dor_principal?: string | null
+          empresa_nome?: string | null
+          id?: string
+          nivel_conhecimento?: string | null
+          nivel_consciencia?: string | null
+          o_que_oferece?: string | null
+          principais_beneficios?: string[] | null
+          regiao_atuacao?: string | null
+          tipo_negocio?: string | null
+          tipo_publico?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          acao_desejada?: string | null
+          blog_id?: string | null
+          canal_cta?: string | null
+          created_at?: string | null
+          desejo_principal?: string | null
+          diferenciais?: string[] | null
+          dor_principal?: string | null
+          empresa_nome?: string | null
+          id?: string
+          nivel_conhecimento?: string | null
+          nivel_consciencia?: string | null
+          o_que_oferece?: string | null
+          principais_beneficios?: string[] | null
+          regiao_atuacao?: string | null
+          tipo_negocio?: string | null
+          tipo_publico?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_strategy_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: true
             referencedRelation: "blogs"
             referencedColumns: ["id"]
           },
@@ -2706,6 +2780,30 @@ export type Database = {
           updated_at?: string
           user_id?: string
           user_type?: string | null
+        }
+        Relationships: []
+      }
+      prompt_type_config: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          prompt_content: Json
+          version: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          prompt_content: Json
+          version?: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          prompt_content?: Json
+          version?: string
         }
         Relationships: []
       }

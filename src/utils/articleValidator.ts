@@ -35,6 +35,29 @@ const CRITERIA_WEIGHTS = {
   FEATURED_IMAGE: 5,
 };
 
+// Generic introductions to BLOCK (Quality Gate)
+const GENERIC_INTRODUCTIONS = [
+  /^no mundo de hoje/i,
+  /^atualmente/i,
+  /^é comum que/i,
+  /^nos dias atuais/i,
+  /^em um mundo cada vez/i,
+  /^vivemos em uma era/i,
+  /^com o avanço da tecnologia/i,
+  /^na sociedade moderna/i,
+];
+
+export function hasGenericIntroduction(content: string): boolean {
+  const firstParagraph = content.split('\n\n').find(p => {
+    const t = p.trim();
+    return t && !t.startsWith('#') && !t.startsWith('-') && !t.startsWith('*') && !t.startsWith('>');
+  });
+  
+  if (!firstParagraph) return false;
+  
+  return GENERIC_INTRODUCTIONS.some(pattern => pattern.test(firstParagraph.trim()));
+}
+
 export function countH2Sections(content: string): number {
   const h2Matches = content.match(/^## /gm);
   return h2Matches?.length || 0;
@@ -246,6 +269,19 @@ export function validateArticle(
   const autoFixApplied: string[] = [];
   let score = 100;
   
+  // 0. QUALITY GATE: Generic introduction check (BLOCKING)
+  if (hasGenericIntroduction(content)) {
+    issues.push({
+      type: 'critical',
+      code: 'GENERIC_INTRODUCTION',
+      field: 'content',
+      message: 'Introdução genérica detectada (ex: "No mundo de hoje...", "Atualmente..."). Reescreva com abertura específica.',
+      canAutoFix: false,
+      weight: 20,
+    });
+    score -= 20;
+  }
+
   // 1. H2 Count validation
   const h2Count = countH2Sections(content);
   if (h2Count < 7) {
