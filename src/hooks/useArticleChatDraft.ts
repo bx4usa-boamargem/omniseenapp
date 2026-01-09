@@ -74,7 +74,12 @@ export function useArticleChatDraft(blogId: string): UseArticleChatDraftReturn {
           .maybeSingle();
 
         if (error && error.code !== 'PGRST116') {
-          console.error('Error loading draft:', error);
+          console.error('Error loading draft:', {
+            message: error?.message,
+            code: error?.code,
+            details: error?.details,
+            hint: error?.hint
+          });
         }
 
         if (data) {
@@ -99,7 +104,17 @@ export function useArticleChatDraft(blogId: string): UseArticleChatDraftReturn {
 
   // Função de salvamento
   const saveDraft = useCallback(async (data: ChatDraft) => {
-    if (!blogId || !user?.id) return;
+    if (!blogId || !user?.id) {
+      console.warn('saveDraft: Missing blogId or user.id', { blogId, userId: user?.id });
+      return;
+    }
+    
+    // Validar que blogId é um UUID válido
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(blogId)) {
+      console.error('saveDraft: Invalid blogId format', { blogId });
+      return;
+    }
     
     // Não salvar se só tem a mensagem inicial do assistente
     if (data.messages.length <= 1 && !data.currentInput && !data.generatedArticle) {
@@ -149,12 +164,18 @@ export function useArticleChatDraft(blogId: string): UseArticleChatDraftReturn {
 
       setLastSaved(new Date());
       hasChangesRef.current = false;
-    } catch (error) {
-      console.error('Error saving draft:', error);
+    } catch (error: any) {
+      console.error('Error saving draft:', {
+        message: error?.message,
+        code: error?.code,
+        details: error?.details,
+        hint: error?.hint,
+        fullError: error
+      });
       toast({
         variant: "destructive",
         title: "Erro ao salvar rascunho",
-        description: "Não foi possível salvar o progresso do chat."
+        description: error?.message || "Não foi possível salvar o progresso do chat."
       });
     } finally {
       setIsSaving(false);
