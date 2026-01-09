@@ -60,13 +60,15 @@ export function useOnboarding(page: keyof OnboardingState) {
             const mergedProgress = { ...DEFAULT_STATE, ...dbProgress };
             setProgress(mergedProgress);
             localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mergedProgress));
+            localProgress = mergedProgress;
           }
         } catch (error) {
           console.error("Error loading onboarding progress:", error);
         }
       }
 
-      // Determine if we should show onboarding for this page
+      // Only show onboarding automatically if page has never been completed
+      // This ensures tour only appears on FIRST access, never again automatically
       const pageCompleted = localProgress[page];
       setShowOnboarding(!pageCompleted);
       setLoading(false);
@@ -140,9 +142,30 @@ export function useOnboarding(page: keyof OnboardingState) {
     }
   }, [user]);
 
-  // Skip onboarding without marking complete (for current session only)
-  const skipOnboarding = useCallback(() => {
+  // Skip onboarding AND persist as completed (won't reopen automatically)
+  const skipOnboarding = useCallback(async () => {
     setShowOnboarding(false);
+    
+    // Mark as completed so it doesn't reopen automatically
+    const newProgress = { ...progress, [page]: true };
+    setProgress(newProgress);
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newProgress));
+
+    if (user) {
+      try {
+        await supabase
+          .from("profiles")
+          .update({ onboarding_progress: newProgress as unknown as null })
+          .eq("user_id", user.id);
+      } catch (error) {
+        console.error("Error saving onboarding skip:", error);
+      }
+    }
+  }, [progress, page, user]);
+
+  // Manually start tour (for "Tour" button) - opens from step 1
+  const startTour = useCallback(() => {
+    setShowOnboarding(true);
   }, []);
 
   return {
@@ -153,5 +176,6 @@ export function useOnboarding(page: keyof OnboardingState) {
     resetOnboarding,
     resetAllOnboarding,
     skipOnboarding,
+    startTour,
   };
 }
