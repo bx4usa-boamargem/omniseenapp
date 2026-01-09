@@ -9,11 +9,38 @@ const corsHeaders = {
 
 interface FunnelRequest {
   blogId: string;
-  personaId: string;
+  personaId: string | null;
   topOfFunnel: number;
   middleOfFunnel: number;
   bottomOfFunnel: number;
+  useGenericPersona?: boolean;
 }
+
+// Generic persona fallback
+const GENERIC_PERSONA = {
+  name: "Público Geral",
+  problems: [
+    "Falta de tempo para tarefas do dia a dia",
+    "Dificuldade em encontrar soluções confiáveis",
+    "Custos elevados sem retorno garantido",
+    "Falta de conhecimento técnico",
+    "Processos manuais e ineficientes"
+  ],
+  solutions: [
+    "Automatização de processos repetitivos",
+    "Ferramentas digitais acessíveis",
+    "Metodologias comprovadas de produtividade",
+    "Capacitação e treinamento prático",
+    "Suporte especializado e personalizado"
+  ],
+  objections: [
+    "E se não funcionar para o meu caso?",
+    "Quanto tempo leva para ver resultados?",
+    "O investimento vale a pena?",
+    "Preciso de conhecimento técnico?",
+    "Como garantir que é seguro e confiável?"
+  ]
+};
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -21,31 +48,36 @@ serve(async (req) => {
   }
 
   try {
-    const { blogId, personaId, topOfFunnel, middleOfFunnel, bottomOfFunnel }: FunnelRequest = await req.json();
+    const { blogId, personaId, topOfFunnel, middleOfFunnel, bottomOfFunnel, useGenericPersona }: FunnelRequest = await req.json();
 
-    console.log(`Generating funnel articles for blog ${blogId}, persona ${personaId}`);
+    console.log(`Generating funnel articles for blog ${blogId}, persona ${personaId || 'generic'}`);
     console.log(`Counts: top=${topOfFunnel}, middle=${middleOfFunnel}, bottom=${bottomOfFunnel}`);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch persona data
-    const { data: persona, error: personaError } = await supabase
-      .from('personas')
-      .select('name, problems, solutions, objections')
-      .eq('id', personaId)
-      .single();
+    // Fetch persona data or use generic
+    let persona = GENERIC_PERSONA;
+    
+    if (personaId && !useGenericPersona) {
+      const { data: personaData, error: personaError } = await supabase
+        .from('personas')
+        .select('name, problems, solutions, objections')
+        .eq('id', personaId)
+        .single();
 
-    if (personaError || !persona) {
-      console.error('Error fetching persona:', personaError);
-      return new Response(
-        JSON.stringify({ error: 'Persona not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (!personaError && personaData) {
+        persona = personaData;
+        console.log(`Using persona: ${persona.name}`);
+      } else {
+        console.log('Persona not found, using generic persona');
+      }
+    } else {
+      console.log('Using generic persona (fallback)');
     }
 
-    console.log(`Persona found: ${persona.name}`);
+    console.log(`Problems: ${persona.problems?.length || 0}, Solutions: ${persona.solutions?.length || 0}, Objections: ${persona.objections?.length || 0}`);
     console.log(`Problems: ${persona.problems?.length || 0}, Solutions: ${persona.solutions?.length || 0}, Objections: ${persona.objections?.length || 0}`);
 
     // Fetch editorial template if exists
