@@ -617,16 +617,43 @@ serve(async (req) => {
     
     // Use word_count from request or fallback to preferences
     const targetWordCount = word_count || defaultWordCount;
-    // Ensure image count is valid (1-5)
-    const targetImageCount = Math.min(Math.max(image_count || 3, 1), 5);
     
-    console.log(`Target word count: ${targetWordCount}, Target image count: ${targetImageCount}`);
+    // ============ EDITORIAL MODEL CONFIGURATION ============
+    const MODEL_CONFIG = {
+      traditional: {
+        sections: { min: 5, max: 7, default: 6 },
+        imageFrequency: 3,   // 1 image per 3 H2s
+        visualBlocks: { min: 2, max: 3, types: ['💡', '⚠️', '📌'] }
+      },
+      strategic: {
+        sections: { min: 5, max: 9, default: 7 },
+        imageFrequency: 2,   // 1 image per 2 H2s
+        visualBlocks: { min: 5, max: 7, types: ['💡', '⚠️', '📌', '✅', '❝'] }
+      },
+      visual_guided: {
+        sections: { min: 5, max: 6, default: 5 },
+        imageFrequency: 1,   // 1 image per H2
+        visualBlocks: { min: 3, max: 4, types: ['💡', '📌', '✅'] }
+      }
+    };
+    
+    const modelConfig = MODEL_CONFIG[editorial_model] || MODEL_CONFIG.traditional;
+    const modelInstructions = EDITORIAL_MODEL_INSTRUCTIONS[editorial_model] || EDITORIAL_MODEL_INSTRUCTIONS.traditional;
+    
+    // Adjust section count based on model if not explicitly set
+    const effectiveSectionCount = section_count || modelConfig.sections.default;
+    
+    // Calculate image count based on model frequency
+    const calculatedImageCount = Math.ceil(effectiveSectionCount / modelConfig.imageFrequency);
+    const targetImageCount = Math.min(Math.max(image_count || calculatedImageCount, 1), 5);
+    
+    console.log(`Editorial Model: ${editorial_model}, Sections: ${effectiveSectionCount}, Target words: ${targetWordCount}, Target images: ${targetImageCount}`);
 
-    // Generate cache key including ALL parameters that affect output
+    // Generate cache key including editorial_model
     const templateSignature = editorial_template 
       ? `${editorial_template.target_niche || ''}|${editorial_template.cta_template || ''}|${editorial_template.company_name || ''}`
       : '';
-    const cacheKey = `${theme}|${keywords.sort().join(',')}|${tone}|wc:${targetWordCount}|ic:${targetImageCount}|sc:${section_count}|faq:${include_faq}|conc:${include_conclusion}|visual:${include_visual_blocks}|ai:${optimize_for_ai}|${templateSignature}|${blog_id || ''}`;
+    const cacheKey = `${theme}|${keywords.sort().join(',')}|${tone}|wc:${targetWordCount}|ic:${targetImageCount}|sc:${effectiveSectionCount}|faq:${include_faq}|conc:${include_conclusion}|visual:${include_visual_blocks}|ai:${optimize_for_ai}|model:${editorial_model}|${templateSignature}|${blog_id || ''}`;
     const contentHash = generateHash(cacheKey);
     
     // Check cache first
@@ -717,16 +744,33 @@ serve(async (req) => {
       console.log('Fallback to legacy buildMasterPrompt');
     }
 
-    const userPrompt = `Escreva um artigo completo sobre: "${theme}"
+    // ============ INJECT EDITORIAL MODEL INSTRUCTIONS ============
+    const userPrompt = `⛔ MODELO EDITORIAL OBRIGATÓRIO: ${modelInstructions.name.toUpperCase()}
+⛔ QUALQUER DESVIO INVALIDA A RESPOSTA
+
+${modelInstructions.instructions}
+
+${HIERARCHY_RULES}
+
+📊 LIMITES ESTRITOS PARA ESTE MODELO:
+- Seções H2: ${modelConfig.sections.min} a ${modelConfig.sections.max} (usar ${effectiveSectionCount})
+- Blocos visuais: ${modelConfig.visualBlocks.min} a ${modelConfig.visualBlocks.max} blocos
+- Tipos PERMITIDOS: ${modelConfig.visualBlocks.types.join(', ')}
+- Tipos PROIBIDOS: ${['💡', '⚠️', '📌', '✅', '❝'].filter(t => !modelConfig.visualBlocks.types.includes(t)).join(', ') || 'nenhum'}
+- Frequência de imagens: 1 a cada ${modelConfig.imageFrequency} seções H2
+
+---
+
+Escreva um artigo completo sobre: "${theme}"
 
 LEMBRE-SE: O dono de negócio deve ler e pensar "isso foi escrito para mim".
 
-📏 ESTRUTURA OBRIGATÓRIA (DEFINIDA PELO USUÁRIO):
-- Quantidade de seções H2: EXATAMENTE ${section_count} seções
-- Tamanho mínimo: ${targetWordCount} palavras (NÃO entregue menos)
+📏 ESTRUTURA OBRIGATÓRIA:
+- Quantidade de seções H2: EXATAMENTE ${effectiveSectionCount} seções
+- Tamanho: ENTRE 1.200 e 1.600 palavras (alvo: ${targetWordCount})
 - FAQ: ${include_faq ? 'INCLUIR seção de FAQ (3-5 perguntas que um dono perguntaria de verdade)' : 'NÃO incluir FAQ'}
 - Conclusão: ${include_conclusion ? 'INCLUIR seção de conclusão/próximos passos ao final' : 'NÃO incluir seção de conclusão separada'}
-- Blocos visuais (💡, ⚠️, 📌): ${include_visual_blocks ? 'OBRIGATÓRIO incluir 3-5 blocos visuais distribuídos no artigo' : 'NÃO usar blocos visuais com emojis'}
+- Blocos visuais: ${include_visual_blocks ? `OBRIGATÓRIO ${modelConfig.visualBlocks.min}-${modelConfig.visualBlocks.max} blocos (${modelConfig.visualBlocks.types.join(', ')})` : 'NÃO usar blocos visuais com emojis'}
 ${optimize_for_ai ? `
 🤖 OTIMIZAÇÃO PARA IAs (GEO/AEO):
 - Estruture o conteúdo para ser facilmente citado por ChatGPT, Perplexity, etc.
@@ -739,22 +783,24 @@ O artigo deve ter:
 1. Título atraente que fala diretamente com o dono (50-60 caracteres)
 2. Meta description focada na dor do dono (até 160 caracteres)
 3. Excerpt/resumo que gera identificação (2-3 frases curtas)
-4. Conteúdo completo com EXATAMENTE ${section_count} seções H2 (${targetWordCount}+ palavras)
+4. Conteúdo completo com EXATAMENTE ${effectiveSectionCount} seções H2 (${targetWordCount} palavras)
 ${include_faq ? '5. 3-5 FAQs que um dono perguntaria de verdade (respostas máx 4 linhas)' : ''}
 6. Tempo estimado de leitura
 
-FORMATO AUTOMARTICLES:
+FORMATO AUTOMARTICLES (MOBILE-FIRST):
 - Parágrafos de 1-3 linhas MÁXIMO
-- Frases curtas e diretas
+- Frases curtas (máx. 2 linhas)
 - Listas com bullets frequentes
 - 1-2 blockquotes (>) para insights importantes
 - Negrito estratégico
 ${include_visual_blocks ? `
-BLOCOS VISUAIS OBRIGATÓRIOS (3-5 no total):
-Use estes emojis no INÍCIO de parágrafos para criar destaque:
-- 💡 Verdade Dura (insight importante)
-- ⚠️ Alerta (erro ou risco)  
-- 📌 Dica Prática (ação imediata)
+📝 BLOCOS VISUAIS (${modelConfig.visualBlocks.min}-${modelConfig.visualBlocks.max} no total):
+APENAS ESTES TIPOS PERMITIDOS para ${modelInstructions.name}:
+${modelConfig.visualBlocks.types.includes('💡') ? '- 💡 Insight (verdade ou descoberta importante)' : ''}
+${modelConfig.visualBlocks.types.includes('⚠️') ? '- ⚠️ Alerta (erro ou risco)' : ''}
+${modelConfig.visualBlocks.types.includes('📌') ? '- 📌 Destaque (dica prática)' : ''}
+${modelConfig.visualBlocks.types.includes('✅') ? '- ✅ Resumo Rápido (pontos-chave)' : ''}
+${modelConfig.visualBlocks.types.includes('❝') ? '- ❝ Citação Destacada (frase impactante)' : ''}
 ` : ''}
 
 📋 SEÇÃO DE RESUMO OBRIGATÓRIA (penúltima H2):
@@ -762,13 +808,6 @@ Use estes emojis no INÍCIO de parágrafos para criar destaque:
 - Lista em bullets de TODOS os pontos principais do artigo
 - Uma linha por ponto, máximo 10 palavras
 - Formato de checklist visual
-- EXEMPLO:
-  ## Resumo: 5 dicas para nunca perder cliente
-  - Responda em menos de 5 minutos
-  - Tenha atendimento fora do horário comercial
-  - Personalize cada mensagem
-  - Acompanhe o histórico de conversas
-  - Peça feedback após cada atendimento
 
 🎯 SEÇÃO DE CTA NATURAL (última H2 - OBRIGATÓRIA):
 - Título: "Direto ao ponto: Por onde começar?" ou similar
@@ -780,12 +819,21 @@ Use estes emojis no INÍCIO de parágrafos para criar destaque:
 - Último parágrafo com CTA em **NEGRITO**:
 ${editorial_template?.cta_template ? `  **${editorial_template.cta_template}**` : '  **Teste agora e veja a diferença no seu negócio.**'}
 
-🖼️ IMAGENS - GERE EXATAMENTE ${targetImageCount} PROMPT(S):
-${targetImageCount >= 1 ? '- "problem": Dono estressado, telefone tocando, no trabalho real' : ''}
-${targetImageCount >= 2 ? '- "solution": Dono trabalhando tranquilo, atendimento automático' : ''}
-${targetImageCount >= 3 ? '- "result": Dono satisfeito vendo resultados no celular' : ''}
-${targetImageCount >= 4 ? '- "insight": Dono focado analisando documento ou celular' : ''}
-${targetImageCount >= 5 ? '- "cta": Dono confiante pronto para ação' : ''}
+🖼️ IMAGENS CONTEXTUALIZADAS (${targetImageCount} prompts):
+Cada imagem DEVE ser baseada no CONTEÚDO ESPECÍFICO da seção correspondente.
+Frequência: 1 imagem a cada ${modelConfig.imageFrequency} seções H2.
+Formato obrigatório para cada imagem:
+- section_title: Título EXATO do H2 que ilustra
+- section_index: Número da seção (1, 2, 3...)
+- visual_concept: Conceito visual da IDEIA CENTRAL da seção
+- description: Descrição detalhada baseada no TEXTO ESPECÍFICO
+- style: "fotografia realista profissional"
+
+${targetImageCount >= 1 ? '- Imagem 1: Representa o PROBLEMA central do artigo' : ''}
+${targetImageCount >= 2 ? '- Imagem 2: Representa a SOLUÇÃO ou caminho' : ''}
+${targetImageCount >= 3 ? '- Imagem 3: Representa o RESULTADO ou benefício' : ''}
+${targetImageCount >= 4 ? '- Imagem 4: Representa INSIGHT específico de uma seção' : ''}
+${targetImageCount >= 5 ? '- Imagem 5: Representa o CTA ou próximo passo' : ''}
 
 Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporativos.`;
 
@@ -991,6 +1039,41 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
     }
     
     console.log('Images block validated successfully: cover + 3 content images');
+    
+    // ============ VALIDATE EDITORIAL MODEL COMPLIANCE ============
+    const contentText = articleData.content as string;
+    
+    // Count H2 sections
+    const h2Count = (contentText.match(/^## /gm) || []).length;
+    if (h2Count < modelConfig.sections.min || h2Count > modelConfig.sections.max) {
+      console.warn(`EDITORIAL MODEL WARNING: Article has ${h2Count} H2s, model ${editorial_model} expects ${modelConfig.sections.min}-${modelConfig.sections.max}`);
+    }
+    
+    // Count visual blocks
+    const blockMatches = contentText.match(/^[💡⚠️📌✅❝]/gm) || [];
+    const blockCount = blockMatches.length;
+    
+    if (blockCount < modelConfig.visualBlocks.min) {
+      console.warn(`EDITORIAL MODEL WARNING: Article has ${blockCount} visual blocks, minimum for ${editorial_model} is ${modelConfig.visualBlocks.min}`);
+    }
+    if (blockCount > modelConfig.visualBlocks.max) {
+      console.warn(`EDITORIAL MODEL WARNING: Article has ${blockCount} visual blocks, maximum for ${editorial_model} is ${modelConfig.visualBlocks.max}`);
+    }
+    
+    // Check for forbidden block types
+    const allowedTypes = new Set(modelConfig.visualBlocks.types);
+    for (const block of blockMatches) {
+      if (!allowedTypes.has(block)) {
+        console.warn(`EDITORIAL MODEL WARNING: Block type "${block}" is not allowed for model ${editorial_model}. Allowed: ${modelConfig.visualBlocks.types.join(', ')}`);
+      }
+    }
+    
+    // Check for forbidden words
+    if (/conclusão|considerações finais/i.test(contentText)) {
+      console.warn('EDITORIAL MODEL WARNING: Article contains "Conclusão" or "Considerações Finais" - should use "Direto ao ponto"');
+    }
+    
+    console.log(`EDITORIAL MODEL VALIDATION: Model=${editorial_model}, H2s=${h2Count}, Blocks=${blockCount}`);
 
     // Validate word count using source-specific rules
     const rules = sourceValidationRules[source] || sourceValidationRules.form;
