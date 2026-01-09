@@ -136,18 +136,23 @@ export default function NewArticleChat() {
             <Button 
               variant="ghost" 
               size="icon"
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/app/articles/new')}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-xl font-bold flex items-center gap-2">
-                <MessageCircle className="h-5 w-5 text-primary" />
-                Criar Artigo com IA
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold flex items-center gap-2">
+                  <MessageCircle className="h-5 w-5 text-primary" />
+                  Chat com IA
+                </h1>
+                <span className="text-xs bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-2 py-0.5 rounded-full font-medium">
+                  até ~800 palavras
+                </span>
+              </div>
               <div className="flex items-center gap-2">
                 <p className="text-sm text-muted-foreground flex items-center gap-1">
-                  Converse naturalmente — digite ou use o microfone
+                  Artigos rápidos — digite ou use o microfone
                   <Mic className="h-3 w-3" />
                 </p>
                 {/* Auto-save indicator */}

@@ -1,10 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import { ChatMessage } from "./ChatMessage";
@@ -15,8 +13,7 @@ import {
   Mic,
   MicOff,
   FileText,
-  Sparkles,
-  Info
+  Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -233,17 +230,6 @@ export function ArticleChatInterface({
 
   return (
     <div className={cn("flex flex-col bg-card rounded-xl border shadow-sm", className)}>
-      {/* Informative banner about chat article limits */}
-      <Alert className="m-4 mb-0 border-amber-500/30 bg-amber-50 dark:bg-amber-950/20">
-        <Info className="h-4 w-4 text-amber-600" />
-        <AlertDescription className="text-sm text-amber-800 dark:text-amber-200">
-          <strong>Artigos pelo chat são mais curtos</strong> (até 800 palavras) devido ao conteúdo de referência limitado. 
-          Para artigos com 1500-3000 palavras, use{" "}
-          <Link to="/app/articles/new" className="underline font-medium hover:text-amber-900 dark:hover:text-amber-100">
-            importação de PDF, YouTube ou URL
-          </Link>.
-        </AlertDescription>
-      </Alert>
 
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b">
