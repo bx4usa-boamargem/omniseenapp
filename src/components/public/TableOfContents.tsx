@@ -114,7 +114,7 @@ export const TableOfContents = ({ content, primaryColor }: TableOfContentsProps)
         >
           <span className="flex items-center gap-2">
             <List className="h-4 w-4" style={{ color: primaryColor }} />
-            Neste artigo ({headings.length} tópicos)
+            Neste artigo ({headings.length} seções)
           </span>
           {isExpanded ? (
             <ChevronUp className="h-4 w-4 text-muted-foreground" />
@@ -126,12 +126,12 @@ export const TableOfContents = ({ content, primaryColor }: TableOfContentsProps)
         {isExpanded && (
           <div className="border-t border-border/50 p-2">
             <nav className="space-y-1">
-              {headings.map((heading) => (
+              {headings.map((heading, index) => (
                 <button
                   key={heading.id}
                   onClick={() => scrollToHeading(heading.id)}
                   className={cn(
-                    "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors",
+                    "w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2",
                     activeId === heading.id
                       ? "bg-primary/10 font-medium"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -140,6 +140,9 @@ export const TableOfContents = ({ content, primaryColor }: TableOfContentsProps)
                     color: activeId === heading.id ? primaryColor : undefined,
                   }}
                 >
+                  <span className="text-xs text-muted-foreground min-w-[3rem]">
+                    {index + 1} de {headings.length}
+                  </span>
                   {heading.text}
                 </button>
               ))}
