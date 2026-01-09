@@ -6,8 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useBlog } from "@/hooks/useBlog";
 import { toast } from "sonner";
-import { Loader2, Building2, BookOpen, User, Globe, Target } from "lucide-react";
+import { Loader2, Building2, BookOpen, User, Globe, Target, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { UniversalStrategyTab } from "@/components/strategy/UniversalStrategyTab";
 import { BusinessTab } from "@/components/strategy/BusinessTab";
 import { LibraryTab } from "@/components/strategy/LibraryTab";
 import { AudienceTab } from "@/components/strategy/AudienceTab";
@@ -239,18 +240,22 @@ export default function Strategy() {
           </p>
         </div>
 
-        <Tabs defaultValue="business" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:inline-grid">
+        <Tabs defaultValue="universal" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
+            <TabsTrigger value="universal" className="gap-2">
+              <Sparkles className="h-4 w-4" />
+              <span className="hidden sm:inline">Estratégia</span>
+              <Badge variant="secondary" className="ml-1 hidden lg:inline-flex text-xs px-1.5 py-0">
+                V1.0
+              </Badge>
+            </TabsTrigger>
             <TabsTrigger value="business" className="gap-2">
               <Building2 className="h-4 w-4" />
               <span className="hidden sm:inline">Meu Negócio</span>
             </TabsTrigger>
             <TabsTrigger value="library" className="gap-2">
               <BookOpen className="h-4 w-4" />
-              <span className="hidden sm:inline">Minha Biblioteca</span>
-              <Badge variant="secondary" className="ml-1 hidden lg:inline-flex text-xs px-1.5 py-0">
-                Novo
-              </Badge>
+              <span className="hidden sm:inline">Biblioteca</span>
             </TabsTrigger>
             <TabsTrigger value="audience" className="gap-2">
               <User className="h-4 w-4" />
@@ -270,6 +275,11 @@ export default function Strategy() {
               )}
             </TabsTrigger>
           </TabsList>
+
+          {/* Estratégia Universal Tab */}
+          <TabsContent value="universal">
+            {blogId && <UniversalStrategyTab blogId={blogId} />}
+          </TabsContent>
 
           {/* Meu Negócio Tab */}
           <TabsContent value="business">
