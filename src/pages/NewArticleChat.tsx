@@ -114,7 +114,7 @@ export default function NewArticleChat() {
         description: `"${generatedArticle.title}" foi ${status === 'published' ? 'publicado' : 'salvo'} com sucesso.`
       });
 
-      navigate(`/blog/${blog.id}/articles/${data.id}`);
+      navigate(`/app/articles/${data.id}/edit`);
     } catch (error) {
       console.error('Error saving article:', error);
       toast({
