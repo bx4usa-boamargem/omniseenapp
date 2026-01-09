@@ -395,7 +395,7 @@ export default function Performance() {
 
         {/* Link to detailed analytics */}
         <div className="mt-6 text-center">
-          <Button variant="outline" onClick={() => navigate("/analytics")}>
+          <Button variant="outline" onClick={() => navigate("/app/analytics")}>
             <BarChart3 className="h-4 w-4 mr-2" />
             Ver Analytics Detalhado
           </Button>
