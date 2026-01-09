@@ -49,7 +49,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { blog, loading: blogLoading, role, isPlatformAdmin, refetch: refetchBlog } = useBlog();
-  const { showOnboarding, completeOnboarding, skipOnboarding } = useOnboarding('dashboard');
+  const { showOnboarding, completeOnboarding, skipOnboarding, startTour } = useOnboarding('dashboard');
   const [articles, setArticles] = useState<Article[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadingData, setLoadingData] = useState(true);
@@ -238,7 +238,7 @@ export default function Dashboard() {
       <div className="container py-8">
         {/* Quick Access Grid */}
         <div className="mb-6">
-          <DashboardQuickGrid blogSlug={blog.slug} isPlatformAdmin={isPlatformAdmin} />
+          <DashboardQuickGrid blogSlug={blog.slug} isPlatformAdmin={isPlatformAdmin} onStartTour={startTour} />
         </div>
 
         {/* Admin Mode Banner */}

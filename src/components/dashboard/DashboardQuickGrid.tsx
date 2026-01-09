@@ -8,12 +8,14 @@ import {
   Zap, 
   Settings, 
   HelpCircle,
-  ShieldCheck
+  ShieldCheck,
+  PlayCircle
 } from "lucide-react";
 
 interface DashboardQuickGridProps {
   blogSlug?: string;
   isPlatformAdmin?: boolean;
+  onStartTour?: () => void;
 }
 
 const gridItems = [
@@ -34,19 +36,30 @@ const adminItem = {
   color: "bg-destructive/10 text-destructive" 
 };
 
-export function DashboardQuickGrid({ isPlatformAdmin }: DashboardQuickGridProps) {
+const tourItem = { 
+  icon: PlayCircle, 
+  label: "Tour", 
+  route: "", 
+  color: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" 
+};
+
+export function DashboardQuickGrid({ isPlatformAdmin, onStartTour }: DashboardQuickGridProps) {
   const navigate = useNavigate();
 
-  const items = isPlatformAdmin ? [...gridItems, adminItem] : gridItems;
+  const items = isPlatformAdmin 
+    ? [...gridItems, adminItem, tourItem] 
+    : [...gridItems, tourItem];
 
   return (
     <div className="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-8 lg:grid-cols-9 gap-2 md:gap-3">
       {items.map((item) => {
         const Icon = item.icon;
+        const isTour = item.label === "Tour";
+        
         return (
           <button
-            key={item.route}
-            onClick={() => navigate(item.route)}
+            key={item.label}
+            onClick={() => isTour ? onStartTour?.() : navigate(item.route)}
             className="flex flex-col items-center justify-center gap-1.5 p-3 md:p-4 rounded-xl border bg-card hover:bg-accent/50 hover:border-primary/30 transition-colors group"
           >
             <div className={`p-2 md:p-2.5 rounded-lg ${item.color} transition-transform group-hover:scale-110`}>
