@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Clock, CheckCircle, XCircle, Loader2, FileText, RefreshCw, RotateCcw, ExternalLink, Trash2 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Clock, CheckCircle, XCircle, Loader2, FileText, RefreshCw, RotateCcw, ExternalLink, Trash2, List } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "react-router-dom";
 
 interface QueueItem {
   id: string;
@@ -25,6 +26,7 @@ interface ArticleQueueProps {
 }
 
 export function ArticleQueue({ blogId }: ArticleQueueProps) {
+  const navigate = useNavigate();
   const [items, setItems] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState<string | null>(null);
@@ -41,7 +43,7 @@ export function ArticleQueue({ blogId }: ArticleQueueProps) {
         .select("*")
         .eq("blog_id", blogId)
         .order("scheduled_for", { ascending: true })
-        .limit(10);
+        .limit(50);
 
       if (error) throw error;
       setItems((data || []) as QueueItem[]);
@@ -89,7 +91,6 @@ export function ArticleQueue({ blogId }: ArticleQueueProps) {
   const handleRetry = async (itemId: string) => {
     setRetrying(itemId);
     try {
-      // Reset the item to pending with immediate schedule
       const { error: updateError } = await supabase
         .from("article_queue")
         .update({
@@ -101,7 +102,6 @@ export function ArticleQueue({ blogId }: ArticleQueueProps) {
 
       if (updateError) throw updateError;
 
-      // Trigger the process-queue function using SDK
       const { error: invokeError } = await supabase.functions.invoke('process-queue', {
         body: {}
       });
@@ -184,6 +184,12 @@ export function ArticleQueue({ blogId }: ArticleQueueProps) {
     }
   };
 
+  const handleItemClick = (item: QueueItem) => {
+    if (item.article_id) {
+      navigate(`/app/articles/${item.article_id}/edit`);
+    }
+  };
+
   const publishedCount = items.filter(item => item.status === 'published').length;
 
   const getStatusIcon = (status: string) => {
@@ -255,6 +261,15 @@ export function ArticleQueue({ blogId }: ArticleQueueProps) {
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Fila de Artigos</CardTitle>
         <div className="flex items-center gap-2">
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="h-8 px-2 text-xs"
+            onClick={() => navigate("/app/articles/queue")}
+          >
+            <List className="h-3 w-3 mr-1" />
+            Ver fila completa
+          </Button>
           {publishedCount > 0 && (
             <Button 
               variant="ghost" 
@@ -268,7 +283,7 @@ export function ArticleQueue({ blogId }: ArticleQueueProps) {
               ) : (
                 <Trash2 className="h-3 w-3 mr-1" />
               )}
-              Limpar publicados ({publishedCount})
+              Limpar ({publishedCount})
             </Button>
           )}
           <Button variant="ghost" size="icon" onClick={fetchQueue}>
@@ -289,15 +304,25 @@ export function ArticleQueue({ blogId }: ArticleQueueProps) {
               {items.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                  className={`flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors ${
+                    item.article_id || item.status === 'generating' ? 'cursor-pointer' : ''
+                  }`}
+                  onClick={() => (item.article_id || item.status === 'generating') && handleItemClick(item)}
                 >
                   <div className="mt-0.5">
                     {getStatusIcon(item.status)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {item.suggested_theme}
-                    </p>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <p className="text-sm font-medium line-clamp-2 leading-snug">
+                          {item.suggested_theme}
+                        </p>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs">
+                        <p>{item.suggested_theme}</p>
+                      </TooltipContent>
+                    </Tooltip>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge variant={getStatusVariant(item.status)} className="text-xs">
                         {getStatusLabel(item.status)}
@@ -318,7 +343,10 @@ export function ArticleQueue({ blogId }: ArticleQueueProps) {
                             variant="ghost"
                             size="sm"
                             className="h-6 px-2 text-xs"
-                            onClick={() => handleRetry(item.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRetry(item.id);
+                            }}
                             disabled={retrying === item.id}
                           >
                             {retrying === item.id ? (
@@ -332,7 +360,10 @@ export function ArticleQueue({ blogId }: ArticleQueueProps) {
                             variant="ghost"
                             size="sm"
                             className="h-6 px-2 text-xs text-destructive hover:text-destructive"
-                            onClick={() => handleDelete(item.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(item.id);
+                            }}
                             disabled={deleting === item.id}
                           >
                             {deleting === item.id ? (
@@ -349,13 +380,20 @@ export function ArticleQueue({ blogId }: ArticleQueueProps) {
                           variant="ghost"
                           size="sm"
                           className="h-6 px-2 text-xs"
-                          asChild
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/app/articles/${item.article_id}/edit`);
+                          }}
                         >
-                          <Link to={`/articles/${item.article_id}`}>
-                            <ExternalLink className="h-3 w-3 mr-1" />
-                            Ver artigo
-                          </Link>
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          Ver artigo
                         </Button>
+                      )}
+                      {item.status === 'generating' && (
+                        <span className="text-xs text-blue-500 flex items-center gap-1">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          Clique para acompanhar
+                        </span>
                       )}
                     </div>
                   </div>

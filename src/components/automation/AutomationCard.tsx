@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface AutomationCardProps {
   blogId: string;
+  compact?: boolean;
 }
 
 interface AutomationSettings {
@@ -26,7 +27,7 @@ type QueueSummary = {
   lastArticleId: string | null;
 };
 
-export function AutomationCard({ blogId }: AutomationCardProps) {
+export function AutomationCard({ blogId, compact = false }: AutomationCardProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [automation, setAutomation] = useState<AutomationSettings | null>(null);
@@ -268,6 +269,44 @@ export function AutomationCard({ blogId }: AutomationCardProps) {
       <Card>
         <CardContent className="py-6">
           <div className="animate-pulse h-20 bg-muted rounded" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Compact version for dashboard 70/30 layout
+  if (compact) {
+    return (
+      <Card className={automation?.is_active ? "border-primary/50 bg-primary/5" : ""}>
+        <CardContent className="py-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Zap className={`h-4 w-4 ${automation?.is_active ? "text-primary" : "text-muted-foreground"}`} />
+              <span className="font-medium text-sm">Automação</span>
+            </div>
+            {automation && (
+              <Badge variant={automation.is_active ? "default" : "secondary"} className="text-xs">
+                {automation.is_active ? "Ativa" : "Pausada"}
+              </Badge>
+            )}
+          </div>
+          
+          {queueSummary.active && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin text-primary" />
+              <span className="truncate">{queueSummary.activeLabel}</span>
+            </div>
+          )}
+          
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="w-full text-xs"
+            onClick={() => navigate("/app/automation")}
+          >
+            <Settings className="h-3 w-3 mr-1" />
+            Configurar Automação
+          </Button>
         </CardContent>
       </Card>
     );

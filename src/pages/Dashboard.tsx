@@ -451,9 +451,9 @@ export default function Dashboard() {
 
         {/* Automation Section - Hidden for editors and viewers */}
         <PermissionGate permission="blog.settings">
-          <div className="grid gap-4 md:grid-cols-2 mb-8">
-            <AutomationCard blogId={blog.id} />
+          <div className="grid gap-4 grid-cols-1 md:grid-cols-[70%_30%] mb-8">
             <ArticleQueue blogId={blog.id} />
+            <AutomationCard blogId={blog.id} compact />
           </div>
         </PermissionGate>
 

@@ -54,6 +54,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Integrations from "./pages/Integrations";
 import GoogleIntegration from "./pages/GoogleIntegration";
 import GoogleOAuthCallback from "./pages/GoogleOAuthCallback";
+import ArticleQueuePage from "./pages/ArticleQueuePage";
 
 const queryClient = new QueryClient();
 
@@ -99,6 +100,7 @@ const UserRoutes = () => (
       <Route path="landing" element={<LandingPageInternal />} />
       <Route path="integrations" element={<Integrations />} />
       <Route path="integrations/google" element={<GoogleIntegration />} />
+      <Route path="articles/queue" element={<ArticleQueuePage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   </UserGuard>

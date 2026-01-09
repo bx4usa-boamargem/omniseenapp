@@ -36,7 +36,7 @@ serve(async (req) => {
     const { blogId, userId } = await req.json();
     
     // Use fixed redirect URI from environment variable
-    const PUBLIC_APP_URL = Deno.env.get('PUBLIC_APP_URL') || 'https://app.omniseen.com';
+    const PUBLIC_APP_URL = Deno.env.get('PUBLIC_APP_URL') || 'https://omniseenteste.lovable.app';
     const redirectUri = `${PUBLIC_APP_URL}/oauth/google/callback`;
     
     const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
