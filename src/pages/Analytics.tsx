@@ -139,10 +139,44 @@ export default function Analytics() {
     }
   }, [user, period]);
 
+  // TODO: Connect to useSubscription hook for plan control
+  // const { isPremium } = useSubscription();
+  const isPremium = true; // Placeholder for future monetization
+
   if (loading || loadingData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Elegant empty state when no blog is found
+  if (!blog) {
+    return (
+      <div className="min-h-screen bg-background">
+        <header className="border-b border-border">
+          <div className="container flex h-16 items-center">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/app/dashboard")}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Dashboard
+            </Button>
+          </div>
+        </header>
+        <main className="container py-16">
+          <div className="max-w-md mx-auto text-center">
+            <div className="p-4 rounded-full bg-muted/50 w-fit mx-auto mb-6">
+              <FileText className="h-12 w-12 text-muted-foreground" />
+            </div>
+            <h2 className="text-2xl font-bold mb-3">Nenhum blog encontrado</h2>
+            <p className="text-muted-foreground mb-6">
+              Crie seu primeiro blog para acessar o analytics detalhado.
+            </p>
+            <Button onClick={() => navigate("/app/dashboard")}>
+              Ir para Dashboard
+            </Button>
+          </div>
+        </main>
       </div>
     );
   }

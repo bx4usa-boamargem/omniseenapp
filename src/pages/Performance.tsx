@@ -1,28 +1,15 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useBlog } from "@/hooks/useBlog";
-import { useGSCConnection } from "@/hooks/useGSCConnection";
-import { useGSCAnalytics, GSCDataPoint, PeriodComparison } from "@/hooks/useGSCAnalytics";
-import { Loader2, Eye, BarChart3, Sparkles } from "lucide-react";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { toast } from "sonner";
+import { Loader2, Eye, BarChart3, Sparkles, Target, FileText, Link as LinkIcon } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-import { GSCConnectionCard } from "@/components/seo/GSCConnectionCard";
-import { GSCOverviewCards } from "@/components/seo/GSCOverviewCards";
-import { GSCTrendChart } from "@/components/seo/GSCTrendChart";
-import { GSCRankingEvolution } from "@/components/seo/GSCRankingEvolution";
-import { GSCTopQueries } from "@/components/seo/GSCTopQueries";
-import { GSCTopPages } from "@/components/seo/GSCTopPages";
-import { GSCPeriodComparison } from "@/components/seo/GSCPeriodComparison";
-import { GSCAlertManager } from "@/components/seo/GSCAlertManager";
-import { GSCDateRangeSelector } from "@/components/seo/GSCDateRangeSelector";
 import { ArticleSEOList, ArticleSEOItem } from "@/components/seo/ArticleSEOList";
 import { SEOAnalysisModal } from "@/components/seo/SEOAnalysisModal";
-import { ContentSuggestionsCard } from "@/components/seo/ContentSuggestionsCard";
 import { SEOScoreGauge } from "@/components/seo/SEOScoreGauge";
 
 interface BlogStats {
@@ -30,32 +17,22 @@ interface BlogStats {
   totalShares: number;
   avgReadTime: number;
   topArticles: { id: string; title: string; view_count: number }[];
+  publishedCount: number;
 }
 
 export default function Performance() {
   const { user } = useAuth();
   const { blog, loading: blogLoading } = useBlog();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState(28);
   const [stats, setStats] = useState<BlogStats>({
     totalViews: 0,
     totalShares: 0,
     avgReadTime: 0,
     topArticles: [],
+    publishedCount: 0,
   });
-
-  // GSC Hooks
-  const { connection, isLoading: gscLoading, isConnecting, connect, disconnect, refetch, handleCallback } = useGSCConnection(blog?.id);
-  const { isLoading: analyticsLoading, fetchAnalytics, fetchPeriodComparison, fetchHistoricalData, fetchTopQueries, fetchTopPages } = useGSCAnalytics(blog?.id);
-
-  // GSC Data States
-  const [gscDataLoading, setGscDataLoading] = useState(false);
-  const [historicalData, setHistoricalData] = useState<GSCDataPoint[]>([]);
-  const [topQueries, setTopQueries] = useState<GSCDataPoint[]>([]);
-  const [topPages, setTopPages] = useState<GSCDataPoint[]>([]);
-  const [periodComparison, setPeriodComparison] = useState<PeriodComparison | null>(null);
+  const [avgReadRate, setAvgReadRate] = useState(0);
 
   // SEO Analysis States
   const [selectedArticleForSEO, setSelectedArticleForSEO] = useState<ArticleSEOItem | null>(null);
@@ -64,18 +41,6 @@ export default function Performance() {
   const [avgSEOScore, setAvgSEOScore] = useState(0);
   const [totalPublishedArticles, setTotalPublishedArticles] = useState(0);
   const [isRecalculatingScore, setIsRecalculatingScore] = useState(false);
-
-  // Handle GSC OAuth callback
-  useEffect(() => {
-    const code = searchParams.get("code");
-    const state = searchParams.get("state");
-    if (code && state) {
-      handleCallback(code, state).then(() => {
-        toast.success("Google Search Console conectado com sucesso!");
-        window.history.replaceState({}, document.title, window.location.pathname);
-      });
-    }
-  }, [searchParams, handleCallback]);
 
   // Fetch blog stats
   useEffect(() => {
@@ -98,6 +63,13 @@ export default function Performance() {
             ? Math.round(articlesData.reduce((sum, a) => sum + (a.reading_time || 0), 0) / articlesData.length)
             : 0;
 
+          // Get total published articles count
+          const { count: publishedCount } = await supabase
+            .from("articles")
+            .select("id", { count: "exact", head: true })
+            .eq("blog_id", blog.id)
+            .eq("status", "published");
+
           setStats({
             totalViews,
             totalShares,
@@ -107,7 +79,20 @@ export default function Performance() {
               title: a.title,
               view_count: a.view_count || 0,
             })),
+            publishedCount: publishedCount || 0,
           });
+        }
+
+        // Fetch funnel data to calculate read rate
+        const { data: funnelData } = await supabase
+          .from('funnel_events')
+          .select('event_type')
+          .eq('blog_id', blog.id);
+
+        if (funnelData) {
+          const pageEnters = funnelData.filter(e => e.event_type === 'page_enter').length;
+          const scroll100 = funnelData.filter(e => e.event_type === 'scroll_100').length;
+          setAvgReadRate(pageEnters > 0 ? Math.round((scroll100 / pageEnters) * 100) : 0);
         }
       } catch (error) {
         console.error("Error fetching data:", error);
@@ -122,46 +107,6 @@ export default function Performance() {
       setLoading(false);
     }
   }, [user, blog, blogLoading]);
-
-  // Fetch GSC data when connected
-  const loadGSCData = useCallback(async () => {
-    if (!connection || !blog) return;
-
-    setGscDataLoading(true);
-    try {
-      // Fetch all data in parallel
-      const [analyticsResult, comparisonResult, historicalResult, queriesResult, pagesResult] = await Promise.all([
-        fetchAnalytics("date", undefined, undefined, dateRange),
-        fetchPeriodComparison(dateRange),
-        fetchHistoricalData(dateRange),
-        fetchTopQueries(10),
-        fetchTopPages(10),
-      ]);
-
-      if (historicalResult) setHistoricalData(historicalResult);
-      if (comparisonResult) setPeriodComparison(comparisonResult);
-      if (queriesResult) setTopQueries(queriesResult);
-      if (pagesResult) setTopPages(pagesResult);
-    } catch (error) {
-      console.error("Error loading GSC data:", error);
-    } finally {
-      setGscDataLoading(false);
-    }
-  }, [connection, blog, dateRange, fetchAnalytics, fetchPeriodComparison, fetchHistoricalData, fetchTopQueries, fetchTopPages]);
-
-  useEffect(() => {
-    if (connection) {
-      loadGSCData();
-    }
-  }, [connection, loadGSCData]);
-
-  const handleRefresh = async () => {
-    await refetch();
-    if (connection) {
-      await loadGSCData();
-    }
-    toast.success("Dados atualizados");
-  };
 
   if (loading || blogLoading) {
     return (
@@ -183,8 +128,8 @@ export default function Performance() {
           </p>
         </div>
 
-        {/* Quick Stats with SEO Gauge */}
-        <div className="grid gap-4 md:grid-cols-5 mb-8">
+        {/* Quick Stats with SEO Gauge - 6 columns */}
+        <div className="grid gap-4 md:grid-cols-6 mb-8">
           {/* SEO Score Gauge */}
           <Card className={`border-primary/20 bg-gradient-to-br from-primary/5 to-transparent transition-opacity duration-300 ${isRecalculatingScore ? 'opacity-50' : ''}`}>
             <CardHeader className="pb-2 text-center">
@@ -244,69 +189,54 @@ export default function Performance() {
             </CardContent>
           </Card>
 
+          {/* New: Taxa de Leitura Completa */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Top Artigos</CardTitle>
+              <CardTitle className="text-sm font-medium">Taxa de Leitura</CardTitle>
+              <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.topArticles.length}</div>
-              <p className="text-xs text-muted-foreground">Artigos publicados</p>
+              <div className="text-2xl font-bold">{avgReadRate}%</div>
+              <p className="text-xs text-muted-foreground">Leitura completa</p>
+            </CardContent>
+          </Card>
+
+          {/* Renamed: Artigos Publicados */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Artigos Publicados</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.publishedCount}</div>
+              <p className="text-xs text-muted-foreground">Total publicado</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Google Search Console Section */}
-        <div className="space-y-6 mb-8">
-          <GSCConnectionCard
-            connection={connection}
-            isLoading={gscLoading}
-            isConnecting={isConnecting}
-            onConnect={connect}
-            onDisconnect={disconnect}
-            onRefresh={handleRefresh}
-          />
-
-          {connection && (
-            <>
-              {/* Date Range Selector */}
-              <div className="flex justify-end">
-                <GSCDateRangeSelector value={dateRange} onChange={setDateRange} />
+        {/* Integration Status Card */}
+        <Card className="mb-8 border-primary/20">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-muted">
+                <LinkIcon className="h-5 w-5 text-muted-foreground" />
               </div>
-
-              {/* GSC Overview Cards */}
-              <GSCOverviewCards
-                aggregated={periodComparison?.current || null}
-                comparison={periodComparison}
-                isLoading={gscDataLoading}
-              />
-
-              {/* Period Comparison */}
-              <GSCPeriodComparison
-                comparison={periodComparison}
-                isLoading={gscDataLoading}
-                periodDays={dateRange}
-              />
-
-              {/* Trend Charts */}
-              <div className="grid gap-6 lg:grid-cols-2">
-                <GSCTrendChart data={historicalData} isLoading={gscDataLoading} />
-                <GSCRankingEvolution data={historicalData} isLoading={gscDataLoading} />
+              <div>
+                <CardTitle className="text-sm">Integrações Google</CardTitle>
+                <CardDescription className="text-xs">
+                  GSC, GA4, GTM e mais
+                </CardDescription>
               </div>
-
-              {/* Top Queries and Pages */}
-              <div className="grid gap-6 lg:grid-cols-2">
-                <GSCTopQueries queries={topQueries} isLoading={gscDataLoading} />
-                <GSCTopPages pages={topPages} isLoading={gscDataLoading} />
-              </div>
-
-              {/* Alert Manager */}
-              {blog && <GSCAlertManager blogId={blog.id} />}
-
-              {/* Content Suggestions based on GSC */}
-              <ContentSuggestionsCard blogId={blog?.id || ""} topQueries={topQueries} />
-            </>
-          )}
-        </div>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => navigate("/app/integrations")}
+            >
+              Ir para Integrações
+            </Button>
+          </CardHeader>
+        </Card>
 
         {/* AI SEO Analysis Section */}
         <div className="space-y-6 mb-8">
