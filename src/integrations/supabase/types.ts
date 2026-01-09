@@ -2203,6 +2203,7 @@ export type Database = {
           blog_id: string
           connected_at: string | null
           created_at: string
+          google_email: string | null
           id: string
           is_active: boolean | null
           last_sync_at: string | null
@@ -2216,6 +2217,7 @@ export type Database = {
           blog_id: string
           connected_at?: string | null
           created_at?: string
+          google_email?: string | null
           id?: string
           is_active?: boolean | null
           last_sync_at?: string | null
@@ -2229,6 +2231,7 @@ export type Database = {
           blog_id?: string
           connected_at?: string | null
           created_at?: string
+          google_email?: string | null
           id?: string
           is_active?: boolean | null
           last_sync_at?: string | null
