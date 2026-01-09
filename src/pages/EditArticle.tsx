@@ -439,24 +439,45 @@ export default function EditArticle() {
     }
   };
 
-  // Apply pending change
-  const handleKeepChange = () => {
+  // Apply pending change and persist to database
+  const handleKeepChange = async () => {
     if (!pendingChange || !article) return;
+
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
 
     switch (pendingChange.type) {
       case 'title':
         setTitle(pendingChange.newValue);
+        updateData.title = pendingChange.newValue;
         break;
       case 'meta':
         setMetaDescription(pendingChange.newValue);
+        updateData.meta_description = pendingChange.newValue;
         break;
       case 'content':
       case 'density':
         setArticle(prev => prev ? { ...prev, content: pendingChange.newValue } : null);
+        updateData.content = pendingChange.newValue;
         break;
     }
 
-    toast({ title: "SEO otimizado com sucesso!" });
+    const { error } = await supabase
+      .from("articles")
+      .update(updateData)
+      .eq("id", article.id);
+
+    if (error) {
+      toast({
+        variant: "destructive",
+        title: "Erro ao salvar otimização",
+        description: error.message,
+      });
+      return;
+    }
+
+    toast({ title: "SEO otimizado e salvo!" });
     setShowComparison(false);
     setPendingChange(null);
     setComparisonData(null);
@@ -587,6 +608,18 @@ export default function EditArticle() {
         const { improvedValue } = response.data;
 
         if (improvedValue) {
+          const dbField = itemType === 'title' ? 'title' : 
+                          itemType === 'meta' ? 'meta_description' : 'content';
+          
+          // Persist to database immediately
+          await supabase
+            .from("articles")
+            .update({ 
+              [dbField]: improvedValue,
+              updated_at: new Date().toISOString()
+            })
+            .eq("id", article.id);
+
           switch (itemType) {
             case 'title':
               setTitle(improvedValue);
@@ -819,10 +852,21 @@ export default function EditArticle() {
     setKeywords(keywords.filter(k => k !== keyword));
   };
 
-  const addSuggestedKeyword = (keyword: string) => {
-    if (!keywords.includes(keyword) && keywords.length < 5) {
-      setKeywords([...keywords, keyword]);
-    }
+  const addSuggestedKeyword = async (keyword: string) => {
+    if (!article || keywords.includes(keyword) || keywords.length >= 5) return;
+    
+    const newKeywords = [...keywords, keyword];
+    setKeywords(newKeywords);
+    
+    await supabase
+      .from("articles")
+      .update({ 
+        keywords: newKeywords,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", article.id);
+      
+    toast({ title: `Palavra-chave "${keyword}" adicionada!` });
   };
 
   const handleSuggestKeywords = async () => {
