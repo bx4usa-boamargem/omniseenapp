@@ -161,7 +161,7 @@ export function Sidebar({ blogSlug, onSignOut, userRole }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "h-screen bg-sidebar border-r border-sidebar-border flex flex-col transition-all duration-300 sticky top-0 overflow-hidden",
+        "h-screen bg-sidebar border-r border-sidebar-border flex flex-col transition-all duration-300 sticky top-0",
         collapsed ? "w-16" : "w-64"
       )}
     >
@@ -202,7 +202,7 @@ export function Sidebar({ blogSlug, onSignOut, userRole }: SidebarProps) {
       </nav>
 
       {/* Bottom Navigation - Fixed */}
-      <div className="shrink-0 bg-sidebar px-3 pb-4 space-y-1 border-t border-sidebar-border pt-4 relative z-10">
+      <div className="shrink-0 max-h-[40vh] overflow-y-auto bg-sidebar px-3 pb-4 space-y-1 border-t border-sidebar-border pt-4 relative z-10">
         {bottomNavItems.map((item) => (
           <NavButton key={item.path} item={item} />
         ))}
@@ -234,7 +234,7 @@ export function Sidebar({ blogSlug, onSignOut, userRole }: SidebarProps) {
       </div>
 
       {/* Language Switcher */}
-      <div className="px-3 py-2 border-t border-sidebar-border bg-sidebar relative z-10">
+      <div className="shrink-0 px-3 py-2 border-t border-sidebar-border bg-sidebar relative z-10">
         <LanguageSwitcher 
           showName={!collapsed} 
           variant="ghost" 
@@ -244,7 +244,7 @@ export function Sidebar({ blogSlug, onSignOut, userRole }: SidebarProps) {
       </div>
 
       {/* Collapse Toggle */}
-      <div className="p-3 border-t border-sidebar-border bg-sidebar relative z-10">
+      <div className="shrink-0 p-3 border-t border-sidebar-border bg-sidebar relative z-10">
         <Button
           variant="ghost"
           size="sm"

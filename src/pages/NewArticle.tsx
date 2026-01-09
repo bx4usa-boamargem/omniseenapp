@@ -45,6 +45,8 @@ interface GenerationParams {
   includeConclusion: boolean;
   includeVisualBlocks: boolean;
   optimizeForAI: boolean;
+  funnelMode?: 'top' | 'middle' | 'bottom';
+  articleGoal?: 'educar' | 'autoridade' | 'apoiar_vendas' | 'converter' | null;
 }
 
 interface Opportunity {
@@ -552,6 +554,8 @@ export default function NewArticle() {
       includeVisualBlocks: params.includeVisualBlocks,
       optimizeForAI: params.optimizeForAI,
       source: generationSource,
+      funnelMode: params.funnelMode || 'middle',
+      articleGoal: params.articleGoal || null,
       onDelta: (text) => {
         setStreamingText((prev) => prev + text);
       },
