@@ -198,9 +198,9 @@ export function UniversalStrategyTab({ blogId }: UniversalStrategyTabProps) {
       }
 
       toast.success("Estratégia salva com sucesso!");
-    } catch (error) {
-      console.error("Error saving strategy:", error);
-      toast.error("Erro ao salvar estratégia");
+    } catch (error: any) {
+      console.error("Save strategy error:", error);
+      toast.error(error?.message || "Erro ao salvar estratégia");
     } finally {
       setSaving(false);
     }
