@@ -16,6 +16,7 @@ import { InternalLinkingTab } from "@/components/content/InternalLinkingTab";
 import { ClientAreaTab } from "@/components/content/ClientAreaTab";
 import { SalesFunnelTab } from "@/components/content/SalesFunnelTab";
 import { PermissionGate } from "@/components/auth/PermissionGate";
+import { CreateContentModal } from "@/components/content/CreateContentModal";
 
 export default function Articles() {
   const navigate = useNavigate();
@@ -24,6 +25,7 @@ export default function Articles() {
   const { hasPermission, loading: roleLoading } = useCurrentUserRole();
   
   const [opportunitiesCount, setOpportunitiesCount] = useState(0);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   useEffect(() => {
     async function fetchOpportunities() {
@@ -83,7 +85,7 @@ export default function Articles() {
                 <Pencil className="h-4 w-4 mr-2" />
                 Escrever manualmente
               </Button>
-              <Button className="gradient-primary" onClick={() => navigate('/articles/new')}>
+              <Button className="gradient-primary" onClick={() => setCreateModalOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Criar conteúdo
               </Button>
@@ -153,6 +155,13 @@ export default function Articles() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Create Content Modal */}
+      <CreateContentModal
+        open={createModalOpen}
+        onOpenChange={setCreateModalOpen}
+        blogId={blogId}
+      />
     </DashboardLayout>
   );
 }

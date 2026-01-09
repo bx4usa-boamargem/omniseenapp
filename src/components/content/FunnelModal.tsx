@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { AlertCircle, Loader2, ArrowRight, Plus } from "lucide-react";
+import { Info, Loader2, ArrowRight, Plus, Sparkles } from "lucide-react";
 
 interface FunnelModalProps {
   open: boolean;
@@ -38,6 +38,15 @@ interface Persona {
   solutions: string[];
   objections: string[];
 }
+
+// Persona genérica para fallback
+const GENERIC_PERSONA: Persona = {
+  id: "generic",
+  name: "Público Geral",
+  problems: ["Problemas comuns do mercado"],
+  solutions: ["Soluções disponíveis"],
+  objections: ["Dúvidas frequentes"],
+};
 
 export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelModalProps) {
   const [personas, setPersonas] = useState<Persona[]>([]);
@@ -62,26 +71,25 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
       .select("id, name, problems, solutions, objections")
       .eq("blog_id", blogId);
 
-    if (data) {
+    if (data && data.length > 0) {
       setPersonas(data);
-      if (data.length > 0) {
-        setSelectedPersona(data[0].id);
-      }
+      setSelectedPersona(data[0].id);
+    } else {
+      // Use generic persona as fallback
+      setPersonas([GENERIC_PERSONA]);
+      setSelectedPersona(GENERIC_PERSONA.id);
     }
     setLoading(false);
   }
 
-  const selectedPersonaData = personas.find(p => p.id === selectedPersona);
+  const selectedPersonaData = personas.find(p => p.id === selectedPersona) || GENERIC_PERSONA;
+  const isUsingGenericPersona = selectedPersona === "generic";
   
-  const hasProblems = selectedPersonaData?.problems && selectedPersonaData.problems.length > 0;
-  const hasSolutions = selectedPersonaData?.solutions && selectedPersonaData.solutions.length > 0;
-  const hasObjections = selectedPersonaData?.objections && selectedPersonaData.objections.length > 0;
-  
-  const canContinue = selectedPersona && (hasProblems || hasSolutions || hasObjections);
-  const totalArticles = (hasProblems ? topCount : 0) + (hasSolutions ? middleCount : 0) + (hasObjections ? bottomCount : 0);
+  // Always allow generation with fallback
+  const totalArticles = topCount + middleCount + bottomCount;
 
   const handleContinue = async () => {
-    if (!canContinue || totalArticles === 0) return;
+    if (totalArticles === 0) return;
     
     setGenerating(true);
 
@@ -89,10 +97,11 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
       const { data, error } = await supabase.functions.invoke('generate-funnel-articles', {
         body: {
           blogId,
-          personaId: selectedPersona,
-          topOfFunnel: hasProblems ? topCount : 0,
-          middleOfFunnel: hasSolutions ? middleCount : 0,
-          bottomOfFunnel: hasObjections ? bottomCount : 0,
+          personaId: isUsingGenericPersona ? null : selectedPersona,
+          topOfFunnel: topCount,
+          middleOfFunnel: middleCount,
+          bottomOfFunnel: bottomCount,
+          useGenericPersona: isUsingGenericPersona,
         }
       });
 
@@ -100,7 +109,7 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
 
       toast({
         title: "Artigos na fila!",
-        description: `${data.count} artigos foram adicionados à fila de automação.`,
+        description: `${data?.count || totalArticles} artigos foram adicionados à fila de automação.`,
       });
 
       onContinue({
@@ -135,15 +144,21 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
-        ) : personas.length === 0 ? (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Você ainda não tem personas cadastradas. Acesse a área de Estratégia para criar suas personas.
-            </AlertDescription>
-          </Alert>
         ) : (
           <div className="space-y-6 py-4">
+            {/* Informative notice when using generic persona */}
+            {isUsingGenericPersona && (
+              <Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950">
+                <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <AlertDescription className="text-blue-800 dark:text-blue-200">
+                  Não encontramos personas configuradas.
+                  <span className="block mt-1 text-sm opacity-80">
+                    Vamos usar padrões inteligentes automaticamente. Você pode personalizar depois.
+                  </span>
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Persona Selection */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -165,16 +180,22 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
                   {personas.map((persona) => (
                     <SelectItem key={persona.id} value={persona.id}>
                       {persona.name}
+                      {persona.id === "generic" && (
+                        <span className="text-xs text-muted-foreground ml-2">(padrão)</span>
+                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Opcional. Se não preencher, o sistema usa um padrão inteligente.
+              </p>
             </div>
 
             {/* Funnel Stages */}
             <div className="grid gap-4">
               {/* Top of Funnel */}
-              <Card className={!hasProblems ? "opacity-50" : ""}>
+              <Card>
                 <CardContent className="pt-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-2 flex-1">
@@ -187,11 +208,6 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
                       <p className="text-sm text-muted-foreground">
                         Aborda os problemas e desafios que a persona enfrenta, educando sobre as causas e consequências.
                       </p>
-                      {!hasProblems && (
-                        <p className="text-xs text-destructive">
-                          Você precisa preencher os problemas desta persona na página de 'Estratégia' para criar conteúdo topo de funil.
-                        </p>
-                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <Label className="text-xs text-muted-foreground">Qtd.</Label>
@@ -202,7 +218,6 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
                         value={topCount}
                         onChange={(e) => setTopCount(parseInt(e.target.value) || 0)}
                         className="w-16 h-8"
-                        disabled={!hasProblems}
                       />
                     </div>
                   </div>
@@ -210,7 +225,7 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
               </Card>
 
               {/* Middle of Funnel */}
-              <Card className={!hasSolutions ? "opacity-50" : ""}>
+              <Card>
                 <CardContent className="pt-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-2 flex-1">
@@ -223,11 +238,6 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
                       <p className="text-sm text-muted-foreground">
                         Apresenta e compara soluções disponíveis, mostrando como resolver os problemas identificados.
                       </p>
-                      {!hasSolutions && (
-                        <p className="text-xs text-destructive">
-                          Você precisa preencher as soluções desta persona na página de 'Estratégia' para criar conteúdo meio de funil.
-                        </p>
-                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <Label className="text-xs text-muted-foreground">Qtd.</Label>
@@ -238,7 +248,6 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
                         value={middleCount}
                         onChange={(e) => setMiddleCount(parseInt(e.target.value) || 0)}
                         className="w-16 h-8"
-                        disabled={!hasSolutions}
                       />
                     </div>
                   </div>
@@ -246,7 +255,7 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
               </Card>
 
               {/* Bottom of Funnel */}
-              <Card className={!hasObjections ? "opacity-50" : ""}>
+              <Card>
                 <CardContent className="pt-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="space-y-2 flex-1">
@@ -259,11 +268,6 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
                       <p className="text-sm text-muted-foreground">
                         Responde às objeções e dúvidas finais, ajudando na decisão de compra ou contratação.
                       </p>
-                      {!hasObjections && (
-                        <p className="text-xs text-destructive">
-                          Você precisa preencher as objeções desta persona na página de 'Estratégia' para criar conteúdo fundo de funil.
-                        </p>
-                      )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <Label className="text-xs text-muted-foreground">Qtd.</Label>
@@ -274,7 +278,6 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
                         value={bottomCount}
                         onChange={(e) => setBottomCount(parseInt(e.target.value) || 0)}
                         className="w-16 h-8"
-                        disabled={!hasObjections}
                       />
                     </div>
                   </div>
@@ -282,22 +285,22 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
               </Card>
             </div>
 
-            {!canContinue && selectedPersona && (
-              <Alert>
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  A persona selecionada não tem problemas, soluções ou objeções cadastradas. 
-                  Acesse a área de Estratégia para completar o perfil da persona.
-                </AlertDescription>
-              </Alert>
+            {/* Summary */}
+            {totalArticles > 0 && (
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span>
+                  {totalArticles} artigo{totalArticles !== 1 ? 's' : ''} será{totalArticles !== 1 ? 'ão' : ''} gerado{totalArticles !== 1 ? 's' : ''}
+                </span>
+              </div>
             )}
           </div>
         )}
 
         <Button 
           onClick={handleContinue} 
-          disabled={!canContinue || loading || generating || totalArticles === 0}
-          className="w-full"
+          disabled={generating || totalArticles === 0}
+          className="w-full gradient-primary"
         >
           {generating ? (
             <>
@@ -306,7 +309,7 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
             </>
           ) : (
             <>
-              Gerar {totalArticles} artigo{totalArticles !== 1 ? 's' : ''}
+              Gerar {totalArticles > 0 ? `${totalArticles} artigo${totalArticles !== 1 ? 's' : ''}` : 'artigos'}
               <ArrowRight className="h-4 w-4 ml-2" />
             </>
           )}

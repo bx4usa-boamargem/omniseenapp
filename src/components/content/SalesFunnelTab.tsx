@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Loader2, Target, Eye, TrendingUp, MousePointerClick, BarChart3, FileText } from "lucide-react";
+import { Loader2, Target, Eye, TrendingUp, MousePointerClick, BarChart3, FileText, Sparkles } from "lucide-react";
 import { FunnelStageCard } from "./FunnelStageCard";
 import { FunnelModal } from "./FunnelModal";
 import { FunnelPerformanceComparison } from "./FunnelPerformanceComparison";
@@ -133,14 +133,20 @@ export function SalesFunnelTab({ blogId }: SalesFunnelTabProps) {
         <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
           <Target className="h-8 w-8 text-primary" />
         </div>
-        <h3 className="text-xl font-semibold mb-2">Nenhum artigo no funil de vendas</h3>
-        <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-          Crie artigos estratégicos organizados por etapa do funil para guiar seus leitores da consciência até a decisão de compra.
+        <h3 className="text-xl font-semibold mb-2">Comece seu Funil de Vendas</h3>
+        <p className="text-muted-foreground mb-2 max-w-md mx-auto">
+          Crie artigos organizados por etapa do funil para guiar seus leitores da consciência até a decisão de compra.
+        </p>
+        <p className="text-sm text-primary mb-6">
+          Não é necessário configurar persona ou estratégia antes.
         </p>
         <Button onClick={() => setFunnelModalOpen(true)} className="gradient-primary">
-          <Target className="h-4 w-4 mr-2" />
+          <Sparkles className="h-4 w-4 mr-2" />
           Criar artigos pelo Funil
         </Button>
+        <p className="text-xs text-muted-foreground mt-4">
+          O sistema usa padrões inteligentes se você não tiver configurações.
+        </p>
         <FunnelModal 
           open={funnelModalOpen} 
           onOpenChange={setFunnelModalOpen}
