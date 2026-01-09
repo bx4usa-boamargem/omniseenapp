@@ -27,6 +27,7 @@ import {
   Camera
 } from "lucide-react";
 import { AvatarUploadDialog } from "@/components/profile/AvatarUploadDialog";
+import { ChangePasswordCard } from "@/components/profile/ChangePasswordCard";
 import { TeamRole } from "@/hooks/useTeam";
 
 interface BlogAccess {
@@ -396,6 +397,9 @@ export default function Profile() {
             </CardContent>
           </Card>
         )}
+
+        {/* Change Password Card */}
+        <ChangePasswordCard />
 
         <AvatarUploadDialog
           open={showAvatarUpload}
