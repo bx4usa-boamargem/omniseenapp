@@ -55,6 +55,8 @@ export interface StreamArticleOptions {
   includeVisualBlocks?: boolean;
   optimizeForAI?: boolean;
   source?: 'chat' | 'instagram' | 'youtube' | 'pdf' | 'url' | 'form';
+  funnelMode?: 'top' | 'middle' | 'bottom';
+  articleGoal?: 'educar' | 'autoridade' | 'apoiar_vendas' | 'converter' | null;
   onDelta: (text: string) => void;
   onDone: (article: ArticleData | null) => void;
   onError: (error: string) => void;
@@ -116,7 +118,7 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
   const { 
     theme, keywords, tone, category, blogId, imageCount, wordCount,
     sectionCount, includeFaq, includeConclusion, includeVisualBlocks, optimizeForAI,
-    source, onDelta, onDone, onError, onStage, onProgress 
+    source, funnelMode, articleGoal, onDelta, onDone, onError, onStage, onProgress 
   } = options;
 
   try {
@@ -157,7 +159,10 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
         include_conclusion: includeConclusion,
         include_visual_blocks: includeVisualBlocks,
         optimize_for_ai: optimizeForAI,
-        source: source || 'form'
+        source: source || 'form',
+        blog_id: blogId,
+        funnel_mode: funnelMode || 'middle',
+        article_goal: articleGoal || null
       }),
     });
 

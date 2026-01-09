@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { buildUniversalPrompt, type ClientStrategy, type FunnelMode, type ArticleGoal } from '../_shared/promptTypeCore.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -408,8 +409,10 @@ serve(async (req) => {
       include_conclusion = true,
       include_visual_blocks = true,
       optimize_for_ai = false,
-      source = 'form'
-    }: ArticleRequest = await req.json();
+      source = 'form',
+      funnel_mode = 'middle',
+      article_goal = null
+    }: ArticleRequest & { funnel_mode?: FunnelMode; article_goal?: ArticleGoal | null } = await req.json();
 
     if (!theme) {
       return new Response(
@@ -507,8 +510,39 @@ serve(async (req) => {
 
     console.log(`Cache MISS - Generating structured article for theme: ${theme}`, editorial_template ? '(with template)' : '');
 
-    // Build the master system prompt with editorial framework and configurable tone
-    const systemPrompt = buildMasterPrompt(editorial_template || null, theme, keywords, tone);
+    // Fetch client_strategy for Universal Prompt Type (if exists)
+    let clientStrategy: ClientStrategy | null = null;
+    if (blog_id) {
+      const { data: strategy } = await supabase
+        .from('client_strategy')
+        .select('*')
+        .eq('blog_id', blog_id)
+        .maybeSingle();
+      
+      if (strategy) {
+        clientStrategy = strategy as ClientStrategy;
+        console.log('Found client_strategy - will use Universal Prompt Type');
+      }
+    }
+
+    // Build the system prompt - Universal Prompt Type if client_strategy exists, otherwise legacy
+    let systemPrompt: string;
+    
+    if (clientStrategy) {
+      // 🔥 NEW PATH — UNIVERSAL PROMPT TYPE
+      systemPrompt = buildUniversalPrompt(
+        clientStrategy,
+        funnel_mode as FunnelMode,
+        article_goal as ArticleGoal | null,
+        theme,
+        keywords
+      );
+      console.log(`Universal Prompt Type: funnel=${funnel_mode}, goal=${article_goal}`);
+    } else {
+      // 🧯 FALLBACK — LEGACY buildMasterPrompt (unchanged)
+      systemPrompt = buildMasterPrompt(editorial_template || null, theme, keywords, tone);
+      console.log('Fallback to legacy buildMasterPrompt');
+    }
 
     const userPrompt = `Escreva um artigo completo sobre: "${theme}"
 
