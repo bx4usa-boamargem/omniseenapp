@@ -147,6 +147,127 @@ const SIZE_CONTROL = {
   filler: "Zero encheção de linguiça"
 };
 
+// CAMADA 9: Instruções Visuais Obrigatórias (IMAGENS)
+const VISUAL_INSTRUCTIONS = {
+  cover_image: {
+    description: "Representa o PROBLEMA CENTRAL do artigo",
+    style: "Fotografia realista e profissional (NÃO ilustração)",
+    requirements: [
+      "Apelo emocional moderado (problema real, não exagerado)",
+      "Adequada para uso em blog corporativo",
+      "Considerar contexto local quando aplicável (cidade/região)"
+    ]
+  },
+  content_images: {
+    count: 3,
+    description: "Vinculadas a seções-chave do artigo",
+    requirements: [
+      "Reforçar o argumento do texto",
+      "Não usar imagens genéricas de banco",
+      "Não usar ilustrações cartunizadas",
+      "Priorizar cenas reais de ambientes, pessoas ou situações do setor"
+    ]
+  },
+  niche_styles: {
+    servicos: {
+      label: "Serviços (controle de pragas, limpeza, manutenção, construção, HVAC)",
+      guidelines: [
+        "Ambientes reais (casas, empresas, obras, cozinhas, fachadas)",
+        "Profissionais uniformizados em ação",
+        "Situações de problema vs. solução",
+        "Estilo: fotografia realista, luz natural"
+      ]
+    },
+    saude: {
+      label: "Clínicas, saúde, estética",
+      guidelines: [
+        "Ambientes limpos e organizados",
+        "Pessoas reais (pacientes ou profissionais)",
+        "Sensação de segurança e cuidado",
+        "Estilo: clean, profissional, acolhedor"
+      ]
+    },
+    b2b: {
+      label: "Negócios B2B / Escritórios / Consultoria",
+      guidelines: [
+        "Escritórios reais, reuniões, profissionais trabalhando",
+        "Linguagem visual sóbria",
+        "Estilo: corporativo, moderno, confiável"
+      ]
+    },
+    comercio: {
+      label: "Restaurantes, hotéis, comércio local",
+      guidelines: [
+        "Ambientes reais do estabelecimento",
+        "Foco em higiene, organização e experiência do cliente",
+        "Estilo: realista, iluminação quente, convidativo"
+      ]
+    }
+  }
+};
+
+/**
+ * Detecta o estilo visual baseado no tipo de negócio
+ */
+function detectNicheStyle(tipoNegocio: string): keyof typeof VISUAL_INSTRUCTIONS.niche_styles {
+  const lowerType = (tipoNegocio || '').toLowerCase();
+  
+  if (/praga|limpeza|manutencao|construcao|hvac|eletrica|hidraulica|reforma|pintura|dedetiza/.test(lowerType)) return 'servicos';
+  if (/clinica|saude|estetica|medico|odonto|fisio|psico|nutri|hospital|laboratorio/.test(lowerType)) return 'saude';
+  if (/consultoria|b2b|escritorio|advocacia|contabil|tecnologia|software|marketing|agencia/.test(lowerType)) return 'b2b';
+  if (/restaurante|hotel|comercio|loja|bar|cafe|padaria|mercado|varejo/.test(lowerType)) return 'comercio';
+  
+  return 'servicos'; // Default
+}
+
+/**
+ * Gera a seção de instruções visuais para o prompt
+ */
+function buildVisualInstructionsPrompt(tipoNegocio: string): string {
+  const nicheKey = detectNicheStyle(tipoNegocio);
+  const nicheStyle = VISUAL_INSTRUCTIONS.niche_styles[nicheKey];
+  
+  return `
+---
+
+## INSTRUÇÕES VISUAIS OBRIGATÓRIAS (IMAGENS)
+
+### IMAGEM DE CAPA (OBRIGATÓRIA)
+Gere uma descrição detalhada de uma imagem de capa que:
+- ${VISUAL_INSTRUCTIONS.cover_image.description}
+- ${VISUAL_INSTRUCTIONS.cover_image.style}
+${VISUAL_INSTRUCTIONS.cover_image.requirements.map(r => `- ${r}`).join('\n')}
+
+### IMAGENS DE APOIO (3 IMAGENS OBRIGATÓRIAS)
+Gere 3 descrições de imagens vinculadas a seções-chave do artigo:
+${VISUAL_INSTRUCTIONS.content_images.requirements.map(r => `- ${r}`).join('\n')}
+
+### PADRÃO VISUAL DETECTADO: ${nicheStyle.label.toUpperCase()}
+${nicheStyle.guidelines.map(g => `- ${g}`).join('\n')}
+
+### FORMATO DO BLOCO IMAGES (OBRIGATÓRIO NO JSON):
+{
+  "images": {
+    "cover_image": {
+      "description": "Descrição detalhada da imagem de capa representando o problema central",
+      "style": "fotografia realista, profissional",
+      "use_case": "capa do artigo"
+    },
+    "content_images": [
+      {
+        "section": "Nome da seção H2 relacionada",
+        "description": "Descrição detalhada da imagem de apoio",
+        "style": "fotografia realista",
+        "use_case": "imagem de apoio"
+      },
+      // ... mais 2 imagens (total 3)
+    ]
+  }
+}
+
+⚠️ O bloco "images" é OBRIGATÓRIO. Sem ele, o output é INVÁLIDO.`;
+}
+
 /**
  * Constrói o prompt universal baseado na estratégia do cliente, modo de funil e objetivo
  */
@@ -263,6 +384,8 @@ ${QUALITY_RULES.never.map(r => `- ${r}`).join('\n')}
 - ${SIZE_CONTROL.density}
 - ${SIZE_CONTROL.filler}
 
+${buildVisualInstructionsPrompt(tipoNegocio)}
+
 ---
 
 ## TAREFA
@@ -277,6 +400,7 @@ Crie um artigo completo sobre: **"${theme}"**
 - Excerpt: Resumo atraente (máximo 200 caracteres)
 - Conteúdo: Markdown com H2 e H3, listas, blockquotes
 - FAQ: 3-5 perguntas frequentes
+- Images: Bloco obrigatório com capa + 3 imagens de apoio
 
 ### CTA Final:
 O artigo deve terminar com um CTA que convide o leitor a: **${acaoDesejada}** via **${canalCta}**
@@ -291,6 +415,7 @@ Antes de finalizar, verifique:
 3. Não há introduções genéricas?
 4. Existe CTA alinhado ao funil?
 5. Parágrafos têm no máximo 3 linhas?
+6. O bloco "images" está presente com capa + 3 imagens de apoio?
 
 Se qualquer validação falhar → REFAZER.
 
@@ -305,7 +430,34 @@ Se qualquer validação falhar → REFAZER.
   "faq": [
     {"question": "Pergunta 1?", "answer": "Resposta 1"},
     {"question": "Pergunta 2?", "answer": "Resposta 2"}
-  ]
+  ],
+  "images": {
+    "cover_image": {
+      "description": "Descrição detalhada da imagem de capa",
+      "style": "fotografia realista, profissional",
+      "use_case": "capa do artigo"
+    },
+    "content_images": [
+      {
+        "section": "Seção relacionada do artigo",
+        "description": "Descrição detalhada da imagem",
+        "style": "fotografia realista",
+        "use_case": "imagem de apoio"
+      },
+      {
+        "section": "Seção relacionada do artigo",
+        "description": "Descrição detalhada da imagem",
+        "style": "fotografia realista",
+        "use_case": "imagem de apoio"
+      },
+      {
+        "section": "Seção relacionada do artigo",
+        "description": "Descrição detalhada da imagem",
+        "style": "fotografia realista",
+        "use_case": "imagem de apoio"
+      }
+    ]
+  }
 }`;
 }
 

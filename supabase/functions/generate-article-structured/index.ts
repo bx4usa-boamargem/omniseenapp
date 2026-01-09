@@ -623,7 +623,7 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
       type: 'function' as const,
       function: {
         name: 'create_article',
-        description: 'Creates a complete SEO-optimized blog article written for business owners, with realistic image prompts',
+        description: 'Creates a complete SEO-optimized blog article written for business owners, with realistic image prompts and mandatory image descriptions',
         parameters: {
           type: 'object',
           properties: {
@@ -683,9 +683,42 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
               },
               minItems: targetImageCount,
               maxItems: targetImageCount
+            },
+            images: {
+              type: 'object',
+              description: 'MANDATORY block with detailed image descriptions for cover and content images. Must follow niche-specific visual guidelines.',
+              properties: {
+                cover_image: {
+                  type: 'object',
+                  description: 'Cover image representing the central problem of the article',
+                  properties: {
+                    description: { type: 'string', description: 'Detailed description of the cover image showing the main problem. Must be realistic photography, professional style.' },
+                    style: { type: 'string', description: 'Visual style: realistic photography, professional, natural lighting' },
+                    use_case: { type: 'string', enum: ['capa do artigo'] }
+                  },
+                  required: ['description', 'style', 'use_case']
+                },
+                content_images: {
+                  type: 'array',
+                  description: 'Exactly 3 support images linked to key article sections',
+                  minItems: 3,
+                  maxItems: 3,
+                  items: {
+                    type: 'object',
+                    properties: {
+                      section: { type: 'string', description: 'H2 section name this image relates to' },
+                      description: { type: 'string', description: 'Detailed description of the image reinforcing the section argument. Must be realistic, not stock photos or cartoons.' },
+                      style: { type: 'string', description: 'Visual style: realistic photography, natural lighting, professional' },
+                      use_case: { type: 'string', enum: ['imagem de apoio'] }
+                    },
+                    required: ['section', 'description', 'style', 'use_case']
+                  }
+                }
+              },
+              required: ['cover_image', 'content_images']
             }
           },
-          required: ['title', 'meta_description', 'excerpt', 'content', 'faq', 'reading_time', 'image_prompts'],
+          required: ['title', 'meta_description', 'excerpt', 'content', 'faq', 'reading_time', 'image_prompts', 'images'],
           additionalProperties: false
         }
       }
@@ -754,6 +787,38 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
       throw new Error('AI_OUTPUT_INVALID: Content too short (characters)');
     }
     
+    // Validate mandatory images block
+    if (!articleData.images || typeof articleData.images !== 'object') {
+      console.error('AI_OUTPUT_INVALID: Missing images block');
+      throw new Error('AI_OUTPUT_INVALID: Bloco "images" obrigatório não foi gerado. O artigo precisa incluir descrições de imagens.');
+    }
+
+    const imagesBlock = articleData.images as { 
+      cover_image?: { description?: string; style?: string; use_case?: string }; 
+      content_images?: Array<{ section?: string; description?: string; style?: string; use_case?: string }> 
+    };
+    
+    if (!imagesBlock.cover_image || !imagesBlock.cover_image.description) {
+      console.error('AI_OUTPUT_INVALID: Missing or invalid cover_image');
+      throw new Error('AI_OUTPUT_INVALID: Imagem de capa (cover_image) obrigatória não foi gerada corretamente.');
+    }
+    
+    if (!Array.isArray(imagesBlock.content_images) || imagesBlock.content_images.length < 3) {
+      console.error('AI_OUTPUT_INVALID: Invalid content_images - expected 3, got:', imagesBlock.content_images?.length || 0);
+      throw new Error('AI_OUTPUT_INVALID: São necessárias exatamente 3 imagens de apoio (content_images). Geradas: ' + (imagesBlock.content_images?.length || 0));
+    }
+    
+    // Validate each content image has required fields
+    for (let i = 0; i < imagesBlock.content_images.length; i++) {
+      const img = imagesBlock.content_images[i];
+      if (!img.description || !img.section) {
+        console.error(`AI_OUTPUT_INVALID: content_images[${i}] missing required fields`);
+        throw new Error(`AI_OUTPUT_INVALID: Imagem de apoio ${i + 1} está incompleta (falta description ou section).`);
+      }
+    }
+    
+    console.log('Images block validated successfully: cover + 3 content images');
+
     // Validate word count using source-specific rules
     const rules = sourceValidationRules[source] || sourceValidationRules.form;
     
@@ -880,7 +945,8 @@ REGRAS IMPORTANTES:
       content: (articleData.content as string).trim(),
       faq: Array.isArray(articleData.faq) ? articleData.faq : [],
       reading_time: (articleData.reading_time as number) || Math.ceil((articleData.content as string).split(' ').length / 200),
-      image_prompts: imagePrompts
+      image_prompts: imagePrompts,
+      images: articleData.images // NEW: Bloco obrigatório de descrições de imagens
     };
 
     console.log(`Article generated successfully: "${article.title}" (${article.content.length} chars, ${article.image_prompts.length} image prompts)`);
