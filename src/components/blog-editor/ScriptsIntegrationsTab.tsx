@@ -17,6 +17,7 @@ import {
   Chrome
 } from "lucide-react";
 import { useGSCConnection } from "@/hooks/useGSCConnection";
+import { SectionHelper } from "./SectionHelper";
 
 interface TrackingConfig {
   ga_id?: string;
@@ -62,13 +63,12 @@ export function ScriptsIntegrationsTab({
     <div className="space-y-8">
       {/* Manual Scripts Section */}
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Code className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">Scripts Manuais</h3>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Adicione scripts personalizados para pixels de rastreamento, widgets de chat, etc.
-        </p>
+        <SectionHelper
+          title="Scripts Manuais"
+          description="Adicione códigos personalizados como pixels de rastreamento, widgets de chat ou scripts de terceiros que não estão nas integrações padrão."
+          action="Cole o código HTML/JavaScript na área correspondente (head, body ou footer)."
+          warning="Scripts mal configurados podem afetar o funcionamento ou a velocidade do seu blog. Insira apenas códigos de fontes confiáveis e testados."
+        />
 
         <div className="space-y-4">
           <div className="space-y-2">
@@ -108,13 +108,11 @@ export function ScriptsIntegrationsTab({
 
       {/* Standard Integrations */}
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Target className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">Integrações Padrão</h3>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Configure os principais serviços de rastreamento e análise.
-        </p>
+        <SectionHelper
+          title="Integrações Padrão"
+          description="Configure rapidamente os principais serviços de rastreamento e análise sem precisar colar scripts manualmente. O sistema cuida da implementação técnica."
+          action="Insira apenas o ID de cada serviço (não o script completo). Encontre esses IDs no painel de cada plataforma."
+        />
 
         <div className="grid gap-4">
           {/* Google Search Console */}

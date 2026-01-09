@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { SectionHelper } from "./SectionHelper";
 
 interface Category {
   id: string;
@@ -207,15 +208,20 @@ export function CategoriesManager({ blogId, onCategoriesChange }: CategoriesMana
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <Label className="text-base font-medium">Categorias do Blog</Label>
+    <div className="space-y-6">
+      {/* Section Header */}
+      <div className="flex items-start justify-between gap-4">
+        <SectionHelper
+          title="Categorias do Blog"
+          description="Categorias ajudam a organizar seu conteúdo e facilitam a navegação dos leitores. Elas também melhoram o SEO do seu blog ao criar páginas temáticas."
+          action="Crie categorias que representem os principais temas do seu negócio. Exemplo: 'Marketing Digital', 'Vendas', 'Dicas'."
+        />
         {!showAddForm && (
           <Button
             size="sm"
             variant="outline"
             onClick={() => setShowAddForm(true)}
-            className="gap-2"
+            className="gap-2 shrink-0"
           >
             <Plus className="h-4 w-4" />
             Adicionar

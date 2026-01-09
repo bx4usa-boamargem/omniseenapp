@@ -19,6 +19,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DnsCheckPanel } from "@/components/domains/DnsCheckPanel";
+import { SectionHelper } from "./SectionHelper";
 
 interface DomainTabProps {
   blogId: string;
@@ -140,10 +141,13 @@ export function DomainTab({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Current URL */}
-      <div className="space-y-2">
-        <Label>URL padrão do blog</Label>
+      <div className="space-y-4">
+        <SectionHelper
+          title="URL Padrão do Blog"
+          description="Esta é a URL gratuita do seu blog, hospedada na plataforma. Você pode usar esta URL imediatamente ou configurar um domínio personalizado para maior profissionalismo."
+        />
         <div className="flex gap-2">
           <Input value={defaultBlogUrl} readOnly className="flex-1 bg-muted" />
           <Button
@@ -158,10 +162,11 @@ export function DomainTab({
 
       {/* Integration Type Selection */}
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Globe className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">Tipo de Integração</h3>
-        </div>
+        <SectionHelper
+          title="Tipo de Integração"
+          description="Escolha como seu blog será acessado pelos visitantes: em um subdomínio exclusivo (blog.seusite.com) ou integrado ao seu site existente (seusite.com/blog)."
+          action="Selecione o tipo de integração que melhor se adapta à estrutura atual do seu site."
+        />
 
         <RadioGroup
           value={integrationType}
@@ -199,12 +204,14 @@ export function DomainTab({
 
       {/* Custom Domain */}
       <div className="space-y-4">
-        <div className="flex items-center gap-2">
-          <h3 className="font-semibold">
-            {integrationType === "subdomain" ? "Subdomínio Personalizado" : "Domínio para Integração"}
-          </h3>
+        <div className="flex items-start justify-between gap-4">
+          <SectionHelper
+            title="Domínio Personalizado"
+            description="Um domínio próprio transmite mais profissionalismo e melhora o SEO do seu blog, consolidando a autoridade do seu site."
+            action="Digite seu domínio e siga as instruções para configurar os registros DNS."
+          />
           {domainVerified && (
-            <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+            <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 shrink-0">
               <CheckCircle2 className="h-3 w-3 mr-1" />
               Verificado
             </Badge>

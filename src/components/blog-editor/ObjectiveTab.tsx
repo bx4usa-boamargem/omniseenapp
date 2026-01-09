@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ImageUpload } from "@/components/onboarding/ImageUpload";
+import { SectionHelper } from "./SectionHelper";
 
 interface ObjectiveTabProps {
   ctaType: string;
@@ -133,14 +134,13 @@ export function ObjectiveTab({
 
   return (
     <div className="space-y-8">
-      {/* Logo Upload - Quick access */}
+      {/* Logo Upload */}
       <div className="space-y-4">
-        <div>
-          <h3 className="font-semibold mb-1">Logo da Empresa</h3>
-          <p className="text-sm text-muted-foreground">
-            Sua marca aparecerá no cabeçalho e rodapé do blog
-          </p>
-        </div>
+        <SectionHelper
+          title="Logo da Empresa"
+          description="Sua marca será exibida no cabeçalho e rodapé do blog. Uma logo profissional aumenta a credibilidade e reconhecimento da sua empresa."
+          action="Faça upload de uma imagem PNG com fundo transparente para melhor resultado."
+        />
         
         <ImageUpload
           label="Logo principal"
@@ -148,19 +148,18 @@ export function ObjectiveTab({
           onChange={onLogoUrlChange}
           userId={userId}
           folder={`logo-${blogId}`}
-          hint="PNG transparente recomendado. Também editável na aba Design"
+          hint="Também editável na aba Design"
           aspectRatio="aspect-[3/1]"
         />
       </div>
 
       {/* CTA Configuration */}
       <div className="space-y-4">
-        <div>
-          <h3 className="font-semibold mb-1">Botão de Ação (CTA)</h3>
-          <p className="text-sm text-muted-foreground">
-            Configure o botão principal do seu blog
-          </p>
-        </div>
+        <SectionHelper
+          title="Botão de Ação (CTA)"
+          description="Este é o botão principal que aparece nos artigos e no banner. Ele direciona seus leitores para uma ação de conversão, como acessar uma página ou iniciar uma conversa."
+          action="Escolha entre redirecionar para um link (landing page, formulário) ou abrir uma conversa no WhatsApp."
+        />
 
         {/* CTA Type Cards */}
         <div className="grid grid-cols-2 gap-3">
@@ -296,16 +295,16 @@ export function ObjectiveTab({
 
       {/* Banner Configuration */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-semibold mb-1">Banner de Chamada para Ação</h3>
-            <p className="text-sm text-muted-foreground">
-              Exibido ao final de cada página do blog
-            </p>
-          </div>
+        <div className="flex items-start justify-between gap-4">
+          <SectionHelper
+            title="Banner de Chamada para Ação"
+            description="Este banner é exibido ao final de cada artigo e página do blog. É sua última chance de converter o visitante antes que ele saia."
+            action="Defina um título chamativo, uma descrição persuasiva e uma imagem de fundo impactante."
+          />
           <Switch
             checked={bannerEnabled}
             onCheckedChange={onBannerEnabledChange}
+            className="mt-1"
           />
         </div>
 

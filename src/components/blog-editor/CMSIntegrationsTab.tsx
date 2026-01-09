@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { SectionHelper } from "./SectionHelper";
 
 interface CMSIntegrationsTabProps {
   blogId: string;
@@ -177,19 +178,20 @@ export function CMSIntegrationsTab({ blogId }: CMSIntegrationsTabProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-semibold">Integrações CMS</h2>
-          <p className="text-sm text-muted-foreground">
-            Conecte plataformas externas para publicação automática
-          </p>
-        </div>
+      {/* Section Header with Helper */}
+      <div className="flex items-start justify-between gap-4">
+        <SectionHelper
+          title="Integrações CMS"
+          description="Conecte plataformas externas como WordPress ou Wix para publicar seus artigos automaticamente em múltiplos canais, economizando tempo e garantindo consistência."
+          action="Adicione uma integração e configure as credenciais de acesso da plataforma de destino."
+          warning="Esta é uma configuração avançada. Você precisará de acesso administrativo à plataforma de destino e conhecimento básico de APIs ou senhas de aplicativo."
+        />
         
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
+            <Button className="gap-2 shrink-0">
               <Plus className="h-4 w-4" />
-              Adicionar Integração
+              Adicionar
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-lg">

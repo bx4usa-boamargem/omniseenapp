@@ -7,6 +7,7 @@ import { ColorPaletteModal, ColorPalette } from "./ColorPaletteModal";
 import { ImageUpload } from "@/components/onboarding/ImageUpload";
 import { BLOG_THEMES, BlogTheme } from "@/components/dashboard/ThemeSelector";
 import { cn } from "@/lib/utils";
+import { SectionHelper } from "./SectionHelper";
 
 interface DesignTabProps {
   primaryColor: string;
@@ -56,12 +57,11 @@ export function DesignTab({
     <div className="space-y-8">
       {/* Theme Selector Section */}
       <div className="space-y-4">
-        <div>
-          <h3 className="font-semibold mb-1">Temas do Blog</h3>
-          <p className="text-sm text-muted-foreground">
-            Escolha um tema pronto ou personalize as cores abaixo
-          </p>
-        </div>
+        <SectionHelper
+          title="Temas do Blog"
+          description="O tema define as cores principais do seu blog. Escolha cores que combinem com sua marca e transmitam a mensagem certa para seu público."
+          action="Selecione um tema pronto ou personalize as cores manualmente na seção abaixo."
+        />
 
         <div className="grid grid-cols-4 gap-3">
           {BLOG_THEMES.map((theme) => (
@@ -98,12 +98,11 @@ export function DesignTab({
 
       {/* Custom Color Section */}
       <div className="space-y-4">
-        <div>
-          <h3 className="font-semibold mb-1">Cores Customizadas</h3>
-          <p className="text-sm text-muted-foreground">
-            Ou personalize as cores manualmente
-          </p>
-        </div>
+        <SectionHelper
+          title="Cores Customizadas"
+          description="Personalize as cores primária e secundária para combinar perfeitamente com a identidade visual da sua marca."
+          action="Use o seletor de cores ou digite o código hexadecimal (ex: #7A5AF8)."
+        />
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
@@ -175,12 +174,11 @@ export function DesignTab({
 
       {/* Logo Section */}
       <div className="space-y-4">
-        <div>
-          <h3 className="font-semibold mb-1">Logos e Ícones</h3>
-          <p className="text-sm text-muted-foreground">
-            Adicione sua marca ao blog
-          </p>
-        </div>
+        <SectionHelper
+          title="Logos e Ícones"
+          description="Adicione sua logo em duas versões (para fundos claros e escuros) e um favicon para a aba do navegador."
+          action="Faça upload de imagens PNG com fundo transparente. O favicon deve ter 32x32 pixels."
+        />
 
         <div className="grid gap-6">
           {/* Main Logo */}
