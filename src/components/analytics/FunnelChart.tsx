@@ -50,10 +50,10 @@ export function FunnelChart({ blogId, articleId, period }: FunnelChartProps) {
         
         const funnelSteps: FunnelStep[] = [
           { name: 'Entrada no Artigo', value: pageEnter, percentage: 100, color: 'hsl(245, 82%, 58%)' },
-          { name: 'Scroll 25%', value: counts['scroll_25'] || 0, percentage: 0, color: 'hsl(245, 72%, 62%)' },
-          { name: 'Scroll 50%', value: counts['scroll_50'] || 0, percentage: 0, color: 'hsl(255, 62%, 66%)' },
-          { name: 'Scroll 75%', value: counts['scroll_75'] || 0, percentage: 0, color: 'hsl(265, 52%, 70%)' },
-          { name: 'Leitura Completa', value: counts['scroll_100'] || 0, percentage: 0, color: 'hsl(275, 42%, 74%)' },
+          { name: 'Scroll 25%', value: counts['scroll_25'] || 0, percentage: 0, color: 'hsl(250, 78%, 62%)' },
+          { name: 'Scroll 50%', value: counts['scroll_50'] || 0, percentage: 0, color: 'hsl(255, 74%, 66%)' },
+          { name: 'Scroll 75%', value: counts['scroll_75'] || 0, percentage: 0, color: 'hsl(262, 70%, 70%)' },
+          { name: 'Leitura Completa', value: counts['scroll_100'] || 0, percentage: 0, color: 'hsl(270, 66%, 74%)' },
           { name: 'CTA Clicado', value: counts['cta_click'] || 0, percentage: 0, color: 'hsl(142, 76%, 36%)' },
         ];
 
@@ -70,6 +70,13 @@ export function FunnelChart({ blogId, articleId, period }: FunnelChartProps) {
     fetchFunnelData();
   }, [blogId, articleId, period]);
 
+  // Larguras decrescentes para criar o formato de funil real
+  const widthPercents = [100, 82, 66, 52, 40, 30];
+  const svgWidth = 400;
+  const stepHeight = 55;
+  const stepGap = 4;
+  const totalHeight = steps.length * (stepHeight + stepGap);
+
   if (loading) {
     return (
       <Card>
@@ -77,7 +84,7 @@ export function FunnelChart({ blogId, articleId, period }: FunnelChartProps) {
           <CardTitle>Funil de Engajamento do Conteúdo</CardTitle>
           <CardDescription>Jornada do leitor pelo artigo</CardDescription>
         </CardHeader>
-        <CardContent className="h-[400px] flex items-center justify-center">
+        <CardContent className="h-[450px] flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
@@ -102,56 +109,144 @@ export function FunnelChart({ blogId, articleId, period }: FunnelChartProps) {
         ) : (
           <div className="flex flex-col items-center py-6">
             <TooltipProvider>
-              {steps.map((step, index) => {
-                // Decreasing width for real funnel shape
-                const widthPercent = 100 - (index * 12); // 100%, 88%, 76%, 64%, 52%, 40%
-                const dropoff = index > 0 ? steps[index - 1].percentage - step.percentage : 0;
-                
-                return (
-                  <div 
-                    key={step.name}
-                    className="relative mb-1 transition-all duration-300 hover:scale-[1.02]"
-                    style={{ width: `${widthPercent}%`, maxWidth: '500px' }}
-                  >
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div 
-                          className="h-14 flex items-center justify-center text-white font-medium rounded-sm cursor-default shadow-sm"
-                          style={{ 
-                            background: index === steps.length - 1 
-                              ? 'linear-gradient(135deg, hsl(142, 76%, 36%), hsl(142, 70%, 45%))'
-                              : `linear-gradient(135deg, hsl(245, 82%, ${58 + index * 3}%), hsl(280, 80%, ${60 + index * 3}%))`,
-                            clipPath: 'polygon(2% 0%, 98% 0%, 100% 100%, 0% 100%)'
-                          }}
-                        >
-                          <div className="text-center">
-                            <div className="text-xs font-medium opacity-90">{step.name}</div>
-                            <div className="text-lg font-bold">{step.percentage}%</div>
-                          </div>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent side="right">
-                        <p className="font-medium">{step.value.toLocaleString()} visitantes</p>
-                        <p className="text-xs text-muted-foreground">
-                          {step.percentage}% do total de entradas
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
+              <div className="relative w-full max-w-lg">
+                <svg 
+                  viewBox={`0 0 ${svgWidth} ${totalHeight}`} 
+                  className="w-full"
+                  style={{ maxHeight: '400px' }}
+                >
+                  <defs>
+                    {steps.map((step, index) => (
+                      <linearGradient 
+                        key={`gradient-${index}`} 
+                        id={`funnel-gradient-${index}`} 
+                        x1="0%" 
+                        y1="0%" 
+                        x2="100%" 
+                        y2="0%"
+                      >
+                        <stop offset="0%" stopColor={step.color} stopOpacity="0.9" />
+                        <stop offset="50%" stopColor={step.color} stopOpacity="1" />
+                        <stop offset="100%" stopColor={step.color} stopOpacity="0.9" />
+                      </linearGradient>
+                    ))}
+                  </defs>
+                  
+                  {steps.map((step, index) => {
+                    const topWidth = (widthPercents[index] / 100) * svgWidth;
+                    const bottomWidth = (widthPercents[Math.min(index + 1, widthPercents.length - 1)] / 100) * svgWidth;
+                    const y = index * (stepHeight + stepGap);
                     
-                    {/* Drop-off indicator */}
-                    {dropoff > 0 && (
-                      <div className="absolute -right-16 top-1/2 -translate-y-1/2 text-xs text-destructive font-medium flex items-center gap-1">
+                    // Calcular pontos do trapézio
+                    const topLeft = (svgWidth - topWidth) / 2;
+                    const topRight = topLeft + topWidth;
+                    const bottomLeft = (svgWidth - bottomWidth) / 2;
+                    const bottomRight = bottomLeft + bottomWidth;
+                    
+                    const dropoff = index > 0 ? steps[index - 1].percentage - step.percentage : 0;
+                    
+                    return (
+                      <Tooltip key={step.name}>
+                        <TooltipTrigger asChild>
+                          <g className="cursor-pointer transition-all hover:opacity-90">
+                            {/* Trapézio principal */}
+                            <polygon
+                              points={`${topLeft},${y} ${topRight},${y} ${bottomRight},${y + stepHeight} ${bottomLeft},${y + stepHeight}`}
+                              fill={`url(#funnel-gradient-${index})`}
+                              className="drop-shadow-sm"
+                            />
+                            
+                            {/* Borda sutil */}
+                            <polygon
+                              points={`${topLeft},${y} ${topRight},${y} ${bottomRight},${y + stepHeight} ${bottomLeft},${y + stepHeight}`}
+                              fill="none"
+                              stroke="rgba(255,255,255,0.2)"
+                              strokeWidth="1"
+                            />
+                            
+                            {/* Nome da etapa */}
+                            <text 
+                              x={svgWidth / 2} 
+                              y={y + 22} 
+                              textAnchor="middle" 
+                              fill="white" 
+                              fontSize="12" 
+                              fontWeight="500"
+                              className="pointer-events-none"
+                            >
+                              {step.name}
+                            </text>
+                            
+                            {/* Percentual e visitantes */}
+                            <text 
+                              x={svgWidth / 2} 
+                              y={y + 42} 
+                              textAnchor="middle" 
+                              fill="white" 
+                              fontSize="14" 
+                              fontWeight="700"
+                              className="pointer-events-none"
+                            >
+                              {step.percentage}%
+                            </text>
+                          </g>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="bg-popover">
+                          <div className="text-sm">
+                            <p className="font-semibold">{step.name}</p>
+                            <p className="text-muted-foreground">
+                              {step.value.toLocaleString()} visitantes
+                            </p>
+                            {dropoff > 0 && (
+                              <p className="text-destructive text-xs mt-1">
+                                Drop-off: -{dropoff}%
+                              </p>
+                            )}
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                </svg>
+
+                {/* Indicadores de drop-off à direita */}
+                <div className="absolute right-0 top-0 h-full flex flex-col justify-around pr-2" style={{ transform: 'translateX(100%)' }}>
+                  {steps.map((step, index) => {
+                    if (index === 0) return null;
+                    const dropoff = steps[index - 1].percentage - step.percentage;
+                    if (dropoff <= 0) return null;
+                    
+                    return (
+                      <div 
+                        key={`dropoff-${index}`}
+                        className="flex items-center gap-1 text-xs text-destructive font-medium whitespace-nowrap"
+                        style={{ 
+                          marginTop: index === 1 ? '20px' : '0',
+                        }}
+                      >
                         <TrendingDown className="h-3 w-3" />
                         -{dropoff}%
                       </div>
-                    )}
-                  </div>
-                );
-              })}
+                    );
+                  })}
+                </div>
+              </div>
             </TooltipProvider>
 
-            {/* Automatic Insights */}
-            <div className="mt-10 p-4 bg-muted/50 rounded-lg w-full max-w-md">
+            {/* Legenda */}
+            <div className="flex items-center gap-6 mt-6 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-sm" style={{ background: 'hsl(245, 82%, 58%)' }} />
+                <span>Engajamento</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-sm" style={{ background: 'hsl(142, 76%, 36%)' }} />
+                <span>Conversão</span>
+              </div>
+            </div>
+
+            {/* Insights Automáticos */}
+            <div className="mt-8 p-4 bg-muted/50 rounded-lg w-full max-w-md">
               <h4 className="font-medium text-sm mb-2">Insights Automáticos</h4>
               <ul className="text-sm text-muted-foreground space-y-1">
                 {steps[1]?.percentage < 50 && (
