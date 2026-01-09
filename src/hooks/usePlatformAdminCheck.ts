@@ -21,19 +21,19 @@ export function usePlatformAdminCheck(): PlatformAdminCheckResult {
       }
 
       try {
-        // Use the secure has_role function to check admin status
+        // Check for any admin role - query all roles and check in code
         const { data, error } = await supabase
           .from('user_roles')
           .select('role')
-          .eq('user_id', user.id)
-          .in('role', ['admin', 'platform_admin'])
-          .maybeSingle();
+          .eq('user_id', user.id);
 
         if (error) {
           console.error('Error checking admin status:', error);
           setIsPlatformAdmin(false);
         } else {
-          setIsPlatformAdmin(!!data);
+          const adminRoles = ['admin', 'platform_admin'];
+          const hasAdminRole = data?.some(r => adminRoles.includes(r.role as string)) ?? false;
+          setIsPlatformAdmin(hasAdminRole);
         }
       } catch (error) {
         console.error('Error checking admin status:', error);
