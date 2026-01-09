@@ -52,6 +52,8 @@ import Blocked from "./pages/Blocked";
 import TermsOfUse from "./pages/TermsOfUse";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Integrations from "./pages/Integrations";
+import GoogleIntegration from "./pages/GoogleIntegration";
+import GoogleOAuthCallback from "./pages/GoogleOAuthCallback";
 
 const queryClient = new QueryClient();
 
@@ -96,6 +98,7 @@ const UserRoutes = () => (
       <Route path="quick-access" element={<QuickAccess />} />
       <Route path="landing" element={<LandingPageInternal />} />
       <Route path="integrations" element={<Integrations />} />
+      <Route path="integrations/google" element={<GoogleIntegration />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   </UserGuard>
@@ -165,6 +168,7 @@ const AppRoutes = () => {
       <Route path="/onboarding" element={<Onboarding />} />
       <Route path="/access-denied" element={<AccessDenied />} />
       <Route path="/invite/accept" element={<AcceptInvite />} />
+      <Route path="/oauth/google/callback" element={<GoogleOAuthCallback />} />
       
       {/* Public content (also accessible on platform) */}
       <Route path="/help" element={<Help />} />
