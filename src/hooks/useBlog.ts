@@ -71,14 +71,14 @@ export function useBlog(): UseBlogResult {
       }
 
       // 1. Check if user is platform admin
-      const { data: adminRole } = await supabase
+      const { data: roles } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
+        .eq("user_id", user.id);
 
-      if (adminRole) {
+      const adminRoles = ['admin', 'platform_admin'];
+      const hasAdminRole = roles?.some(r => adminRoles.includes(r.role as string)) ?? false;
+      if (hasAdminRole) {
         setIsPlatformAdmin(true);
       }
 
@@ -129,7 +129,7 @@ export function useBlog(): UseBlogResult {
       }
 
       // 4. If platform admin but no blog, get first available blog
-      if (adminRole) {
+      if (hasAdminRole) {
         const { data: anyBlog } = await supabase
           .from("blogs")
           .select("*")

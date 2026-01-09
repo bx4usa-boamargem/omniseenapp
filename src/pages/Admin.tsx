@@ -250,12 +250,13 @@ export default function Admin() {
     const { data: roles } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin")
-      .maybeSingle();
+      .eq("user_id", user.id);
 
-    if (!roles) {
-      navigate("/dashboard");
+    const adminRoles = ['admin', 'platform_admin'];
+    const hasAdminRole = roles?.some(r => adminRoles.includes(r.role as string)) ?? false;
+
+    if (!hasAdminRole) {
+      navigate("/app/dashboard");
       return;
     }
 

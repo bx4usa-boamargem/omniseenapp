@@ -50,13 +50,14 @@ export default function QuickAccess() {
   useEffect(() => {
     const checkAdmin = async () => {
       if (!user) return;
-      const { data } = await supabase
+      const { data: roles } = await supabase
         .from("user_roles")
         .select("role")
-        .eq("user_id", user.id)
-        .eq("role", "admin")
-        .maybeSingle();
-      setIsPlatformAdmin(!!data);
+        .eq("user_id", user.id);
+      
+      const adminRoles = ['admin', 'platform_admin'];
+      const hasAdminRole = roles?.some(r => adminRoles.includes(r.role as string)) ?? false;
+      setIsPlatformAdmin(hasAdminRole);
     };
     checkAdmin();
   }, [user]);

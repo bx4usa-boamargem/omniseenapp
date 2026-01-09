@@ -65,14 +65,14 @@ export function Sidebar({ blogSlug, onSignOut, userRole }: SidebarProps) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { data: adminRole } = await supabase
+    const { data: roles } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin")
-      .maybeSingle();
+      .eq("user_id", user.id);
 
-    setIsPlatformAdmin(!!adminRole);
+    const adminRoles = ['admin', 'platform_admin'];
+    const hasAdminRole = roles?.some(r => adminRoles.includes(r.role as string)) ?? false;
+    setIsPlatformAdmin(hasAdminRole);
   };
 
   // Build nav items based on permissions - using /app/* paths
