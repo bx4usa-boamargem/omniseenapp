@@ -335,8 +335,8 @@ export default function GoogleIntegration() {
                     </Button>
                   </>
                 )}
-                {(status === 'disconnected' || status === 'error') && status !== 'connecting' && (
-                  <Button onClick={handleConnect} disabled={status === 'connecting'}>
+                {(status === 'disconnected' || status === 'error') && (
+                  <Button onClick={handleConnect}>
                     <ExternalLink className="h-4 w-4 mr-2" />
                     {status === 'error' ? 'Reconectar Google' : 'Conectar Google'}
                   </Button>

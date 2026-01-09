@@ -13,19 +13,17 @@ serve(async (req) => {
   }
 
   try {
-    const { code, state } = await req.json();
+    const { code, state, codeVerifier } = await req.json();
 
     if (!code || !state) {
       throw new Error('Missing required parameters: code or state');
     }
 
-    // Decode state to extract blogId and returnTo
+    // Decode state to extract blogId
     let blogId: string;
-    let returnTo: string;
     try {
-      const stateData = JSON.parse(decodeURIComponent(state));
+      const stateData = JSON.parse(atob(decodeURIComponent(state)));
       blogId = stateData.blogId;
-      returnTo = stateData.returnTo || '/performance';
     } catch {
       throw new Error('Invalid state parameter');
     }
@@ -34,9 +32,9 @@ serve(async (req) => {
       throw new Error('Missing blogId in state');
     }
 
-    // Build redirectUri from origin
-    const origin = req.headers.get('origin') || 'https://ffruarbugkmetqecogdh.lovableproject.com';
-    const redirectUri = `${origin}${returnTo}`;
+    // FIXED: Use the exact same redirectUri as get-gsc-config
+    const PUBLIC_APP_URL = Deno.env.get('PUBLIC_APP_URL') || 'https://omniseenteste.lovable.app';
+    const redirectUri = `${PUBLIC_APP_URL}/oauth/google/callback`;
 
     const googleClientId = Deno.env.get('GOOGLE_CLIENT_ID');
     const googleClientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET');
@@ -45,27 +43,50 @@ serve(async (req) => {
       throw new Error('Google OAuth credentials not configured');
     }
 
+    // Build token request body
+    const tokenBody: Record<string, string> = {
+      code,
+      client_id: googleClientId,
+      client_secret: googleClientSecret,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    };
+
+    // Add code_verifier for PKCE if provided
+    if (codeVerifier) {
+      tokenBody.code_verifier = codeVerifier;
+    }
+
     // Exchange authorization code for tokens
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code,
-        client_id: googleClientId,
-        client_secret: googleClientSecret,
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-      }),
+      body: new URLSearchParams(tokenBody),
     });
 
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.text();
       console.error('Token exchange error:', errorData);
-      throw new Error('Failed to exchange authorization code');
+      throw new Error('Failed to exchange authorization code. Please try connecting again.');
     }
 
     const tokens = await tokenResponse.json();
     console.log('Tokens received successfully');
+
+    // Fetch the REAL Google email from userinfo
+    let googleEmail: string | null = null;
+    try {
+      const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { 'Authorization': `Bearer ${tokens.access_token}` }
+      });
+      if (userInfoResponse.ok) {
+        const userInfo = await userInfoResponse.json();
+        googleEmail = userInfo.email || null;
+        console.log('Google email fetched:', googleEmail);
+      }
+    } catch (e) {
+      console.error('Error fetching userinfo:', e);
+    }
 
     // Get list of sites from Search Console
     const sitesResponse = await fetch('https://www.googleapis.com/webmasters/v3/sites', {
@@ -104,6 +125,7 @@ serve(async (req) => {
           token_expires_at: expiresAt,
           connected_at: new Date().toISOString(),
           is_active: true,
+          google_email: googleEmail,
         }, { onConflict: 'blog_id' });
 
       if (upsertError) {
@@ -115,6 +137,7 @@ serve(async (req) => {
         success: true,
         connected: true,
         siteUrl,
+        googleEmail,
         sites: [],
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -132,6 +155,7 @@ serve(async (req) => {
         refresh_token: tokens.refresh_token,
         token_expires_at: expiresAt,
         is_active: false,
+        google_email: googleEmail,
       }, { onConflict: 'blog_id' });
 
     if (upsertError) {
@@ -142,6 +166,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       success: true,
       connected: false,
+      googleEmail,
       sites: sites.map((s: any) => ({
         siteUrl: s.siteUrl,
         permissionLevel: s.permissionLevel,
