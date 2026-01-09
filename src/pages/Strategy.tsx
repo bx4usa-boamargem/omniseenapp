@@ -6,8 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useBlog } from "@/hooks/useBlog";
 import { toast } from "sonner";
-import { Loader2, Building2, BookOpen, User, Globe, Target, Sparkles } from "lucide-react";
+import { Loader2, Building2, BookOpen, User, Globe, Target, Sparkles, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { UniversalStrategyTab } from "@/components/strategy/UniversalStrategyTab";
 import { BusinessTab } from "@/components/strategy/BusinessTab";
 import { LibraryTab } from "@/components/strategy/LibraryTab";
@@ -66,6 +67,19 @@ interface KeywordAnalysis {
   search_volume: number | null;
   suggestions: KeywordSuggestion[];
   analyzed_at: string;
+}
+
+// Banner informativo para abas opcionais
+function OptionalTabBanner() {
+  return (
+    <Alert className="mb-6 bg-muted/50 border-dashed">
+      <Info className="h-4 w-4" />
+      <AlertDescription>
+        <strong>Opcional:</strong> Esta configuração é usada apenas para refinamento avançado. 
+        A Estratégia Universal já é suficiente para gerar artigos.
+      </AlertDescription>
+    </Alert>
+  );
 }
 
 export default function Strategy() {
@@ -241,37 +255,49 @@ export default function Strategy() {
         </div>
 
         <Tabs defaultValue="universal" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6 lg:w-auto lg:inline-grid">
-            <TabsTrigger value="universal" className="gap-2">
+          <TabsList className="flex flex-wrap gap-1 h-auto p-1">
+            {/* Aba Principal */}
+            <TabsTrigger value="universal" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
               <Sparkles className="h-4 w-4" />
               <span className="hidden sm:inline">Estratégia</span>
-              <Badge variant="secondary" className="ml-1 hidden lg:inline-flex text-xs px-1.5 py-0">
-                V1.0
+              <Badge variant="secondary" className="ml-1 bg-green-500/20 text-green-600 text-xs px-1.5 py-0">
+                Principal
               </Badge>
             </TabsTrigger>
-            <TabsTrigger value="business" className="gap-2">
+            
+            {/* Separador */}
+            <div className="hidden lg:flex items-center px-2 text-muted-foreground/50">|</div>
+            
+            {/* Abas Avançadas (Opcionais) */}
+            <TabsTrigger value="business" className="gap-2 opacity-80">
               <Building2 className="h-4 w-4" />
               <span className="hidden sm:inline">Meu Negócio</span>
+              <Badge variant="outline" className="ml-1 text-xs px-1.5 py-0 hidden lg:inline-flex">Opcional</Badge>
             </TabsTrigger>
-            <TabsTrigger value="library" className="gap-2">
+            <TabsTrigger value="library" className="gap-2 opacity-80">
               <BookOpen className="h-4 w-4" />
               <span className="hidden sm:inline">Biblioteca</span>
+              <Badge variant="outline" className="ml-1 text-xs px-1.5 py-0 hidden lg:inline-flex">Opcional</Badge>
             </TabsTrigger>
-            <TabsTrigger value="audience" className="gap-2">
+            <TabsTrigger value="audience" className="gap-2 opacity-80">
               <User className="h-4 w-4" />
               <span className="hidden sm:inline">Público-alvo</span>
+              <Badge variant="outline" className="ml-1 text-xs px-1.5 py-0 hidden lg:inline-flex">Opcional</Badge>
             </TabsTrigger>
-            <TabsTrigger value="competitors" className="gap-2">
+            <TabsTrigger value="competitors" className="gap-2 opacity-80">
               <Globe className="h-4 w-4" />
               <span className="hidden sm:inline">Concorrentes</span>
+              <Badge variant="outline" className="ml-1 text-xs px-1.5 py-0 hidden lg:inline-flex">Opcional</Badge>
             </TabsTrigger>
-            <TabsTrigger value="keywords" className="gap-2">
+            <TabsTrigger value="keywords" className="gap-2 opacity-80">
               <Target className="h-4 w-4" />
               <span className="hidden sm:inline">Palavras-chave</span>
-              {keywordAnalyses.length > 0 && (
-                <Badge variant="outline" className="ml-1 hidden lg:inline-flex text-xs px-1.5 py-0">
+              {keywordAnalyses.length > 0 ? (
+                <Badge variant="outline" className="ml-1 text-xs px-1.5 py-0">
                   {keywordAnalyses.length}
                 </Badge>
+              ) : (
+                <Badge variant="outline" className="ml-1 text-xs px-1.5 py-0 hidden lg:inline-flex">Opcional</Badge>
               )}
             </TabsTrigger>
           </TabsList>
@@ -283,6 +309,7 @@ export default function Strategy() {
 
           {/* Meu Negócio Tab */}
           <TabsContent value="business">
+            <OptionalTabBanner />
             {blogId && (
               <BusinessTab
                 blogId={blogId}
@@ -294,6 +321,7 @@ export default function Strategy() {
 
           {/* Minha Biblioteca Tab */}
           <TabsContent value="library">
+            <OptionalTabBanner />
             {blogId && (
               <LibraryTab
                 blogId={blogId}
@@ -310,6 +338,7 @@ export default function Strategy() {
 
           {/* Público-alvo Tab */}
           <TabsContent value="audience">
+            <OptionalTabBanner />
             {blogId && (
               <AudienceTab
                 blogId={blogId}
@@ -322,11 +351,13 @@ export default function Strategy() {
 
           {/* Concorrentes Tab */}
           <TabsContent value="competitors">
+            <OptionalTabBanner />
             {blogId && <CompetitorsTab blogId={blogId} />}
           </TabsContent>
 
           {/* Palavras-chave Tab */}
           <TabsContent value="keywords">
+            <OptionalTabBanner />
             {blogId && (
               <KeywordsTab
                 blogId={blogId}

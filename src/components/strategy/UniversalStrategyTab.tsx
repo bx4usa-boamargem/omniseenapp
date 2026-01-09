@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Save, Building2, Users, Package, Target, X, Plus, Sparkles } from "lucide-react";
+import { Loader2, Save, Building2, Users, Package, Target, X, Plus, Sparkles, CheckCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface ClientStrategy {
   id?: string;
@@ -80,6 +81,7 @@ const CANAL_CTA_OPTIONS = [
 export function UniversalStrategyTab({ blogId }: UniversalStrategyTabProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isConfigured, setIsConfigured] = useState(false);
   const [strategy, setStrategy] = useState<ClientStrategy>({
     blog_id: blogId,
     empresa_nome: "",
@@ -135,6 +137,10 @@ export function UniversalStrategyTab({ blogId }: UniversalStrategyTabProps) {
           acao_desejada: data.acao_desejada || "",
           canal_cta: data.canal_cta || "",
         });
+        // Marcar como configurado se tem id e empresa_nome
+        if (data.id && data.empresa_nome) {
+          setIsConfigured(true);
+        }
       }
     } catch (error) {
       console.error("Error fetching strategy:", error);
@@ -197,7 +203,8 @@ export function UniversalStrategyTab({ blogId }: UniversalStrategyTabProps) {
         }
       }
 
-      toast.success("Estratégia salva com sucesso!");
+      setIsConfigured(true);
+      toast.success("Estratégia salva! Seu blog está pronto para gerar artigos.");
     } catch (error: any) {
       console.error("Save strategy error:", error);
       toast.error(error?.message || "Erro ao salvar estratégia");
@@ -252,6 +259,16 @@ export function UniversalStrategyTab({ blogId }: UniversalStrategyTabProps) {
 
   return (
     <div className="space-y-6">
+      {/* Banner de Blog Configurado */}
+      {isConfigured && (
+        <Alert className="bg-green-500/10 border-green-500/20">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-700 font-medium">
+            Blog configurado! Você pode gerar artigos ilimitados.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
         <Sparkles className="h-6 w-6 text-primary" />
