@@ -167,20 +167,16 @@ export const ONBOARDING_STEPS: Record<string, OnboardingStep[]> = {
   ],
   strategy: [
     {
-      title: "Aba 'Meu Negócio'",
-      description: "Configure o perfil do seu negócio: nicho, tom de voz, descrição. Isso ajuda a IA a escrever com mais precisão.",
+      title: "Estratégia Universal",
+      description: "Preencha apenas esta aba para configurar seu blog. A IA usará essas informações para gerar artigos personalizados de alta qualidade.",
     },
     {
-      title: "Aba 'Público-Alvo'",
-      description: "Crie personas para representar seus leitores ideais. A IA personalizará o tom e conteúdo dos artigos para cada persona.",
+      title: "Blog Configurado!",
+      description: "Após salvar sua estratégia, você pode gerar artigos ilimitados sem precisar preencher mais nada.",
     },
     {
-      title: "Aba 'Concorrentes'",
-      description: "Monitore seus concorrentes para identificar oportunidades de conteúdo e estratégias de SEO.",
-    },
-    {
-      title: "Aba 'Palavras-chave'",
-      description: "Organize suas keywords principais para guiar a estratégia de SEO e criação de conteúdo.",
+      title: "Abas Avançadas (Opcionais)",
+      description: "Meu Negócio, Biblioteca, Público-alvo, Concorrentes e Palavras-chave são opcionais para refinamento extra.",
     },
   ],
   articles: [

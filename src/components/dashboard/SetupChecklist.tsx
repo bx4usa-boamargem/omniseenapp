@@ -13,11 +13,7 @@ import {
   Palette, 
   FileText, 
   MousePointer,
-  Building2,
-  BookOpen,
-  Users,
-  Globe,
-  Target,
+  Sparkles,
   HelpCircle
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -53,30 +49,18 @@ export function SetupChecklist({ blogId, userId }: SetupChecklistProps) {
           blogResult, 
           profileResult, 
           articlesResult,
-          businessResult,
-          libraryResult,
-          personasResult,
-          competitorsResult,
-          keywordsResult
+          strategyResult
         ] = await Promise.all([
           supabase.from('blogs').select('logo_url, primary_color, cta_text, created_at').eq('id', blogId).single(),
           supabase.from('profiles').select('full_name, avatar_url').eq('user_id', userId).single(),
           supabase.from('articles').select('id').eq('blog_id', blogId).eq('status', 'published').limit(1),
-          supabase.from('business_profile').select('niche, long_description').eq('blog_id', blogId).maybeSingle(),
-          supabase.from('user_library').select('id').eq('blog_id', blogId).limit(1),
-          supabase.from('personas').select('id').eq('blog_id', blogId).limit(1),
-          supabase.from('competitors').select('id').eq('blog_id', blogId).limit(1),
-          supabase.from('keyword_analyses').select('id').eq('blog_id', blogId).limit(1)
+          supabase.from('client_strategy').select('id, empresa_nome').eq('blog_id', blogId).maybeSingle()
         ]);
 
         const blog = blogResult.data;
         const profile = profileResult.data;
         const hasPublishedArticle = (articlesResult.data?.length ?? 0) > 0;
-        const business = businessResult.data;
-        const hasLibrary = (libraryResult.data?.length ?? 0) > 0;
-        const hasPersona = (personasResult.data?.length ?? 0) > 0;
-        const hasCompetitor = (competitorsResult.data?.length ?? 0) > 0;
-        const hasKeywords = (keywordsResult.data?.length ?? 0) > 0;
+        const strategy = strategyResult.data;
 
         // Check if blog was created more than 7 days ago
         const blogCreatedAt = blog?.created_at ? new Date(blog.created_at) : new Date();
@@ -111,49 +95,13 @@ export function SetupChecklist({ blogId, userId }: SetupChecklistProps) {
             path: '/app/my-blog'
           },
           {
-            id: 'business',
-            label: 'Meu Negócio',
-            description: 'Configure o perfil do negócio',
-            tooltip: 'Dá contexto para a IA escrever com precisão e coerência com seu posicionamento.',
-            icon: <Building2 className="h-4 w-4" />,
-            completed: !!(business?.niche && business?.long_description),
-            path: '/app/strategy?tab=business'
-          },
-          {
-            id: 'library',
-            label: 'Minha Biblioteca',
-            description: 'Adicione materiais de referência',
-            tooltip: 'Materiais de referência aumentam a fidelidade do conteúdo ao seu negócio.',
-            icon: <BookOpen className="h-4 w-4" />,
-            completed: hasLibrary,
-            path: '/app/strategy?tab=library'
-          },
-          {
-            id: 'audience',
-            label: 'Público-alvo',
-            description: 'Crie uma persona',
-            tooltip: 'Personas ajudam a IA a acertar linguagem, dor e desejo do leitor.',
-            icon: <Users className="h-4 w-4" />,
-            completed: hasPersona,
-            path: '/app/strategy?tab=audience'
-          },
-          {
-            id: 'competitors',
-            label: 'Concorrentes',
-            description: 'Adicione um concorrente',
-            tooltip: 'Ajuda a identificar oportunidades e diferenciar seu conteúdo.',
-            icon: <Globe className="h-4 w-4" />,
-            completed: hasCompetitor,
-            path: '/app/strategy?tab=competitors'
-          },
-          {
-            id: 'keywords',
-            label: 'Palavras-chave',
-            description: 'Configure suas keywords',
-            tooltip: 'Direciona SEO e temas com maior chance de tráfego.',
-            icon: <Target className="h-4 w-4" />,
-            completed: hasKeywords,
-            path: '/app/strategy?tab=keywords'
+            id: 'strategy',
+            label: 'Configure sua Estratégia',
+            description: 'Defina sua estratégia de conteúdo',
+            tooltip: 'A estratégia orienta a IA para gerar conteúdo personalizado e de alta qualidade. Único passo obrigatório.',
+            icon: <Sparkles className="h-4 w-4" />,
+            completed: !!(strategy?.id && strategy?.empresa_nome),
+            path: '/app/strategy'
           },
           {
             id: 'article',
