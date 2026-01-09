@@ -30,6 +30,7 @@ import {
   Upload,
   ChevronRight,
 } from "lucide-react";
+import { SectionHelper } from "@/components/blog-editor/SectionHelper";
 import { DashboardQuickGrid } from "@/components/dashboard/DashboardQuickGrid";
 
 interface Article {
@@ -269,6 +270,12 @@ export default function Dashboard() {
         )}
 
         {/* Quick Stats */}
+        <div className="mb-4">
+          <SectionHelper
+            title="Visão Geral do Blog"
+            description="Métricas principais do seu blog em tempo real."
+          />
+        </div>
         <div className="grid gap-4 md:grid-cols-4 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -311,10 +318,11 @@ export default function Dashboard() {
         {/* Create Content Section - Hidden for viewers */}
         <PermissionGate permission="articles.create">
           <div className="mb-8">
-            <h2 className="text-xl font-display font-bold mb-4 flex items-center gap-2">
-              <Plus className="h-5 w-5 text-primary" />
-              Escrever novo post a partir de...
-            </h2>
+            <SectionHelper
+              title="Criação de Conteúdo"
+              description="Escolha uma fonte para criar seu próximo artigo com IA otimizada para SEO."
+              action="Clique em uma das opções para iniciar."
+            />
             <div className="grid gap-4 md:grid-cols-4">
               <Card
                 className="border-dashed border-2 hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group"

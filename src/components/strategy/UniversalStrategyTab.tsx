@@ -15,6 +15,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Save, Building2, Users, Package, Target, X, Plus, Sparkles, CheckCircle } from "lucide-react";
+import { SectionHelper } from "@/components/blog-editor/SectionHelper";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface ClientStrategy {
@@ -287,9 +288,11 @@ export function UniversalStrategyTab({ blogId }: UniversalStrategyTabProps) {
             <Building2 className="h-5 w-5 text-primary" />
             Identidade do Negócio
           </CardTitle>
-          <CardDescription>
-            Informações básicas sobre sua empresa
-          </CardDescription>
+          <SectionHelper
+            title=""
+            description="Informações básicas para personalizar tom e contexto dos artigos."
+            action="Preencha nome e tipo de negócio."
+          />
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -342,9 +345,11 @@ export function UniversalStrategyTab({ blogId }: UniversalStrategyTabProps) {
             <Users className="h-5 w-5 text-primary" />
             Público-Alvo
           </CardTitle>
-          <CardDescription>
-            Quem é seu cliente ideal?
-          </CardDescription>
+          <SectionHelper
+            title=""
+            description="Cliente ideal. A IA usa para criar conteúdo relevante."
+            action="Seja específico sobre dores e desejos."
+          />
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -435,11 +440,12 @@ export function UniversalStrategyTab({ blogId }: UniversalStrategyTabProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Package className="h-5 w-5 text-primary" />
-            Oferta / Solução
+            Sua Oferta
           </CardTitle>
-          <CardDescription>
-            O que você oferece ao mercado?
-          </CardDescription>
+          <SectionHelper
+            title=""
+            description="Produto ou serviço oferecido. Base para CTAs naturais."
+          />
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -524,9 +530,11 @@ export function UniversalStrategyTab({ blogId }: UniversalStrategyTabProps) {
             <Target className="h-5 w-5 text-primary" />
             Conversão
           </CardTitle>
-          <CardDescription>
-            Qual ação você quer que o leitor tome?
-          </CardDescription>
+          <SectionHelper
+            title=""
+            description="Ação desejada após leitura. Define tom dos CTAs."
+            action="Escolha o canal principal (WhatsApp, formulário)."
+          />
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

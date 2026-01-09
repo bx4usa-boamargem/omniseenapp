@@ -26,6 +26,7 @@ import {
   ExternalLink,
   Camera
 } from "lucide-react";
+import { SectionHelper } from "@/components/blog-editor/SectionHelper";
 import { AvatarUploadDialog } from "@/components/profile/AvatarUploadDialog";
 import { ChangePasswordCard } from "@/components/profile/ChangePasswordCard";
 import { TeamRole } from "@/hooks/useTeam";
@@ -220,7 +221,11 @@ export default function Profile() {
               <User className="h-5 w-5 text-primary" />
               Informações Pessoais
             </CardTitle>
-            <CardDescription>Seus dados de perfil na plataforma</CardDescription>
+            <SectionHelper
+              title=""
+              description="Dados de perfil visíveis para membros da equipe."
+              action="Clique na foto para alterar."
+            />
           </CardHeader>
           <CardContent>
             <div className="flex flex-col md:flex-row gap-6">
@@ -309,7 +314,10 @@ export default function Profile() {
               <Building2 className="h-5 w-5 text-primary" />
               Acesso a Blogs
             </CardTitle>
-            <CardDescription>Blogs aos quais você tem acesso</CardDescription>
+            <SectionHelper
+              title=""
+              description="Blogs como proprietário ou membro de equipe."
+            />
           </CardHeader>
           <CardContent>
             {blogAccesses.length === 0 ? (
@@ -358,14 +366,12 @@ export default function Profile() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Check className="h-5 w-5 text-primary" />
-                Permissões Atuais
+                Suas Permissões
               </CardTitle>
-              <CardDescription>
-                Suas permissões como{" "}
-                <Badge variant="secondary" className={ROLE_COLORS[role]}>
-                  {ROLE_LABELS[role]}
-                </Badge>
-              </CardDescription>
+              <SectionHelper
+                title=""
+                description={`Funcionalidades disponíveis com base no seu papel: ${ROLE_LABELS[role]}.`}
+              />
             </CardHeader>
             <CardContent>
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">

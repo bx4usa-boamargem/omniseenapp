@@ -5,6 +5,7 @@ import { useCurrentUserRole } from "@/hooks/useCurrentUserRole";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Zap, CreditCard, Bot, ChevronRight, Globe, Loader2, AlertTriangle } from "lucide-react";
+import { SectionHelper } from "@/components/blog-editor/SectionHelper";
 import { CustomDomainSettings } from "@/components/settings/CustomDomainSettings";
 import { DeleteBlogDialog } from "@/components/dashboard/DeleteBlogDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -107,6 +108,12 @@ export default function Settings() {
           </TabsList>
 
           <TabsContent value="general">
+            <div className="mb-6">
+              <SectionHelper
+                title="Configurações Gerais"
+                description="Preferências de conta, automação e plano."
+              />
+            </div>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 max-w-4xl">
               {settingsCards.map((card) => (
                 <Card 
@@ -133,6 +140,13 @@ export default function Settings() {
 
           <TabsContent value="domain">
             <div className="max-w-2xl">
+              <div className="mb-6">
+                <SectionHelper
+                  title="Domínio Personalizado"
+                  description="Configure um domínio próprio para credibilidade e SEO."
+                  action="Insira o domínio e siga as instruções DNS."
+                />
+              </div>
               {blogId ? (
                 <CustomDomainSettings blogId={blogId} />
               ) : (
@@ -150,15 +164,19 @@ export default function Settings() {
 
           <TabsContent value="danger">
             <div className="max-w-2xl">
+              <div className="mb-6">
+                <SectionHelper
+                  title="Zona de Perigo"
+                  description="Ações irreversíveis que afetam permanentemente o blog."
+                  warning="Não podem ser desfeitas. Faça backup antes."
+                />
+              </div>
               <Card className="border-destructive/50">
                 <CardHeader>
                   <div className="flex items-center gap-2 text-destructive">
                     <AlertTriangle className="h-5 w-5" />
-                    <CardTitle>Zona de Perigo</CardTitle>
+                    <CardTitle>Deletar Blog</CardTitle>
                   </div>
-                  <CardDescription>
-                    Ações irreversíveis que afetam permanentemente seu blog
-                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="p-4 rounded-lg border border-destructive/30 bg-destructive/5">

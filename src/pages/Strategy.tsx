@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronUp
 } from "lucide-react";
+import { SectionHelper } from "@/components/blog-editor/SectionHelper";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -252,9 +253,10 @@ export default function Strategy() {
       <div className="container py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-display font-bold mb-2">Estratégia</h1>
-          <p className="text-muted-foreground">
-            Configure sua estratégia de conteúdo para que a IA gere artigos mais alinhados ao seu negócio.
-          </p>
+          <SectionHelper
+            title="Estratégia de Conteúdo"
+            description="Informações do seu negócio para personalizar artigos gerados pela IA."
+          />
         </div>
 
         {/* Main Strategy Content */}

@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowLeft, DollarSign, Users, Cpu, ImageIcon, FileText, Loader2, Shield, BarChart3, Settings2, Save, Plus, Trash2, Sparkles, Database, Bell, TrendingUp, Download, Gift, LayoutDashboard, UserPlus, Users2, Stethoscope, Building2, Target, LineChart } from "lucide-react";
+import { SectionHelper } from "@/components/blog-editor/SectionHelper";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ConsumptionCharts } from "@/components/admin/ConsumptionCharts";
@@ -405,7 +406,8 @@ export default function Admin() {
         {/* Filters */}
         <Card>
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg">Filtros</CardTitle>
+            <CardTitle className="text-lg">Filtros de Período</CardTitle>
+            <SectionHelper title="" description="Período para visualização de dados." />
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-4 items-end">
@@ -455,7 +457,7 @@ export default function Admin() {
           endDate={endDate} 
         />
 
-        {/* Summary Cards */}
+        {/* Summary Cards - Resumo de Custos */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">

@@ -16,6 +16,7 @@ import { Slider } from "@/components/ui/slider";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { X, Sparkles, Loader2, ImageIcon, Images, FileText, LayoutList, Bot, Zap, TrendingUp, Newspaper } from "lucide-react";
 import { FunnelModeSelector, type FunnelMode, type ArticleGoal } from "@/components/article/FunnelModeSelector";
+import { SectionHelper } from "@/components/blog-editor/SectionHelper";
 import { cn } from "@/lib/utils";
 
 // NEW: Editorial Model Types
@@ -286,6 +287,11 @@ export function ArticleForm({ onGenerate, isGenerating, initialTheme, initialKey
             Novo
           </Badge>
         </div>
+        <SectionHelper
+          title=""
+          description="Estilo do artigo. Cada modelo tem estrutura e tom diferentes."
+          action="Selecione conforme seu objetivo."
+        />
         
         <RadioGroup 
           value={editorialModel} 
@@ -336,6 +342,10 @@ export function ArticleForm({ onGenerate, isGenerating, initialTheme, initialKey
             Prompt Type V1.0
           </Badge>
         </div>
+        <SectionHelper
+          title=""
+          description="Posição no funil e objetivo. Afeta tom e profundidade."
+        />
         
         <FunnelModeSelector
           funnelMode={funnelMode}
@@ -352,6 +362,10 @@ export function ArticleForm({ onGenerate, isGenerating, initialTheme, initialKey
           <FileText className="h-5 w-5 text-primary" />
           <span className="font-medium text-sm">Tamanho do Artigo</span>
         </div>
+        <SectionHelper
+          title=""
+          description="1.200-1.600 palavras é ideal para SEO. Padrão: 1.400."
+        />
         
         <div className="space-y-3">
           <Label htmlFor="word-count" className="text-sm text-muted-foreground">
@@ -403,6 +417,10 @@ export function ArticleForm({ onGenerate, isGenerating, initialTheme, initialKey
           <LayoutList className="h-5 w-5 text-primary" />
           <span className="font-medium text-sm">Estrutura do Artigo</span>
         </div>
+        <SectionHelper
+          title=""
+          description="Quantidade de seções e elementos. Mais seções = maior profundidade."
+        />
         
         {/* Section count slider */}
         <div className="space-y-3">
@@ -524,8 +542,13 @@ export function ArticleForm({ onGenerate, isGenerating, initialTheme, initialKey
       <div className="space-y-4 p-4 rounded-lg bg-muted/50 border">
         <div className="flex items-center gap-2 mb-2">
           <ImageIcon className="h-5 w-5 text-primary" />
-          <span className="font-medium text-sm">Imagens com IA</span>
+          <span className="font-medium text-sm">Geração de Imagens</span>
         </div>
+        <SectionHelper
+          title=""
+          description="Imagens contextuais geradas por seção. Aumentam engajamento."
+          action="Defina quantidade e se quer capa."
+        />
 
         {/* Cover Image */}
         <div className="flex items-center justify-between">

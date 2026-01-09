@@ -19,6 +19,7 @@ import {
   Rocket,
   Loader2
 } from "lucide-react";
+import { SectionHelper } from "@/components/blog-editor/SectionHelper";
 
 const STEPS = [
   { id: 1, title: "Contexto", icon: Target },
@@ -273,11 +274,12 @@ export default function Onboarding() {
             <div className="space-y-6">
               <div>
                 <h2 className="text-2xl font-display font-bold mb-2">
-                  Crie seu blog
+                  Criação do Blog
                 </h2>
-                <p className="text-muted-foreground">
-                  Escolha um nome para começar. Você pode personalizar tudo depois.
-                </p>
+                <SectionHelper
+                  title=""
+                  description="Nome inicial. Personalize cores e domínio depois."
+                />
               </div>
 
               <div className="space-y-4">
