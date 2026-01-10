@@ -117,7 +117,29 @@ const ARTICLE_STRUCTURE = [
   { block: 3, name: "Impactos de não agir", description: "Mostre as consequências de não resolver o problema" },
   { block: 4, name: "Caminhos possíveis de solução", description: "Apresente opções para resolver o problema" },
   { block: 5, name: "Posicionamento da empresa como solução confiável", description: "Posicione a empresa como uma opção válida" },
-  { block: 6, name: "Chamada para ação alinhada ao funil", description: "CTA adequado ao estágio do funil" }
+  { 
+    block: 6, 
+    name: "Próximo passo", 
+    description: `⚠️ OBRIGATÓRIO: A última seção H2 DEVE ser EXATAMENTE:
+
+## Próximo passo
+
+[Parágrafo conectando a dor do artigo com a solução]
+
+[CTA direto e fechado: diga EXATAMENTE o que o leitor deve fazer]
+
+Exemplo:
+## Próximo passo
+
+Se você está perdendo clientes por falta de atendimento, isso não é um problema técnico — é um problema de crescimento.
+
+Comece agora organizando seu atendimento. Automatize respostas, não perca contatos.
+
+**Quem responde primeiro, vende.**
+
+⛔ O título DEVE ser EXATAMENTE "## Próximo passo" — sem variações, sem exceções.
+⛔ Artigo sem esta seção final é INVÁLIDO e será rejeitado.` 
+  }
 ];
 
 // CAMADA 7: Regras de Qualidade Anti-IA
@@ -127,15 +149,31 @@ const QUALITY_RULES = {
     "Usar frases curtas e médias",
     "Variar ritmo",
     "Usar voz ativa",
-    "Conectar causa e efeito"
+    "Conectar causa e efeito",
+    "A última seção H2 DEVE ser exatamente '## Próximo passo' — sem variações, sem exceções"
   ],
   never: [
     "Introduções genéricas ('No mundo de hoje...', 'Atualmente...', 'É comum que...')",
     "Adjetivos vazios sem prova",
     "Repetição de ideias",
     "Clickbait sem entrega",
-    "Conclusões artificiais"
+    "Conclusões artificiais",
+    "Seção final diferente de '## Próximo passo'"
   ]
+};
+
+// REGRAS GLOBAIS INVIOLÁVEIS (aplicam-se a TODOS os modos e fontes)
+export const GLOBAL_MANDATORY_RULES = {
+  images: {
+    cover: 1,        // Sempre 1 imagem de capa
+    internal_min: 2, // Mínimo 2 imagens internas
+    internal_max: 5  // Máximo 5 imagens internas
+  },
+  cta_final: {
+    required: true,
+    exact_title: '## Próximo passo',
+    must_contain: ['verbo imperativo', 'conexão com a dor do artigo']
+  }
 };
 
 // CAMADA 8: Controle de Tamanho e Densidade

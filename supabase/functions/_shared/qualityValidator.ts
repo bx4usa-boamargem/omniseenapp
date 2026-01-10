@@ -39,6 +39,9 @@ const FUNNEL_CTA_PATTERNS: Record<FunnelMode, RegExp> = {
   bottom: /(solicite|agende|comece|contrate|peça|faça seu)/i
 };
 
+// REGRA GLOBAL: Título exato da última seção
+const MANDATORY_FINAL_SECTION = '## Próximo passo';
+
 const QUALITY_CHECKS: QualityCheck[] = [
   {
     name: 'no_generic_intro',
@@ -126,8 +129,22 @@ const QUALITY_CHECKS: QualityCheck[] = [
       const conclusionPatterns = /##\s*(conclusão|considerações finais|para finalizar|concluindo)/i;
       return !conclusionPatterns.test(content);
     },
-    message: 'Evite H2 de "Conclusão". O último H2 deve conter o CTA natural.',
+    message: 'Evite H2 de "Conclusão". O último H2 deve ser exatamente "## Próximo passo".',
     severity: 'warning'
+  },
+  {
+    name: 'has_final_cta_proximo_passo',
+    check: (content: string) => {
+      // Extrair todas as seções H2
+      const h2Matches = content.match(/^## .+$/gm) || [];
+      if (h2Matches.length === 0) return false;
+      
+      // Verificar se a última H2 é exatamente "## Próximo passo"
+      const lastH2 = h2Matches[h2Matches.length - 1].trim();
+      return lastH2 === MANDATORY_FINAL_SECTION;
+    },
+    message: 'A última seção DEVE ser exatamente "## Próximo passo". Artigo sem CTA final padronizado é inválido.',
+    severity: 'error'
   }
 ];
 
