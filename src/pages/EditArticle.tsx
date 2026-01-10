@@ -679,6 +679,42 @@ export default function EditArticle() {
     setSaving(true);
     setShowPublishTranslationDialog(false);
 
+    // ========================================================================
+    // POLIDOR FINAL - CONTRATO EDITORIAL ABSOLUTO
+    // ========================================================================
+    // Aplica normalização de estrutura antes de salvar (H1, parágrafos, CTA)
+    // ========================================================================
+    let contentToSave = article.content;
+    
+    if (contentToSave) {
+      try {
+        console.log('[POLISH] Applying final editorial polish before save...');
+        
+        const polishResponse = await supabase.functions.invoke('polish-article-final', {
+          body: { content: contentToSave }
+        });
+
+        if (polishResponse.data?.success && polishResponse.data?.content) {
+          contentToSave = polishResponse.data.content;
+          
+          // Update local state with polished content
+          setArticle(prev => prev ? { ...prev, content: contentToSave } : null);
+          
+          const changes = polishResponse.data.changes || [];
+          if (changes.length > 0) {
+            console.log(`[POLISH] Applied changes: ${changes.join(', ')}`);
+            toast({
+              title: "Estrutura normalizada",
+              description: `${changes.length} ajuste(s) aplicado(s) conforme Contrato Editorial.`,
+            });
+          }
+        }
+      } catch (polishError) {
+        console.warn('[POLISH] Failed to apply polish (non-blocking):', polishError);
+        // Non-blocking: continue with original content
+      }
+    }
+
     const newStatus = publish ? "published" : status;
 
     const updateData: Record<string, unknown> = {
@@ -688,7 +724,7 @@ export default function EditArticle() {
       category,
       keywords,
       status: newStatus,
-      content: article.content,
+      content: contentToSave,
       faq: article.faq,
       featured_image_url: featuredImage,
       featured_image_alt: featuredImageAlt,

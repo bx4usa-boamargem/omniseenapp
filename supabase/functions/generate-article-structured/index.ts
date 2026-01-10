@@ -1379,7 +1379,40 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
     
     if (!qualityValidation.passed) {
       console.warn(`[QUALITY V1.0] Failures: ${qualityValidation.failures.join(' | ')}`);
-      // Log warning but don't block - future: implement retry
+    }
+
+    // ========================================================================
+    // POLIDOR FINAL - CONTRATO EDITORIAL ABSOLUTO
+    // ========================================================================
+    // Normaliza estrutura sem alterar conteúdo (H1, parágrafos, CTA)
+    // ========================================================================
+    try {
+      console.log('[POLISH] Applying final editorial polish...');
+      
+      const polishResponse = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/polish-article-final`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content: article.content })
+      });
+
+      if (polishResponse.ok) {
+        const polishResult = await polishResponse.json();
+        
+        if (polishResult.success && polishResult.content) {
+          article.content = polishResult.content;
+          console.log(`[POLISH] Applied successfully - Changes: ${polishResult.changes?.join(', ') || 'none'}, Valid: ${polishResult.structureValid}`);
+        } else {
+          console.warn('[POLISH] No changes applied:', polishResult.changes);
+        }
+      } else {
+        console.warn('[POLISH] Edge function returned error - continuing with original content');
+      }
+    } catch (polishError) {
+      console.warn('[POLISH] Failed to apply polish (non-blocking):', polishError);
+      // Non-blocking: continue with unpolished content
     }
 
     if (user_id) {
