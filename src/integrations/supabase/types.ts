@@ -368,6 +368,7 @@ export type Database = {
           chunk_content: string | null
           created_at: string | null
           error_message: string | null
+          funnel_mode: string | null
           funnel_stage: string | null
           generation_source: string | null
           id: string
@@ -385,6 +386,7 @@ export type Database = {
           chunk_content?: string | null
           created_at?: string | null
           error_message?: string | null
+          funnel_mode?: string | null
           funnel_stage?: string | null
           generation_source?: string | null
           id?: string
@@ -402,6 +404,7 @@ export type Database = {
           chunk_content?: string | null
           created_at?: string | null
           error_message?: string | null
+          funnel_mode?: string | null
           funnel_stage?: string | null
           generation_source?: string | null
           id?: string
