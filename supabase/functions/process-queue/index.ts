@@ -170,7 +170,7 @@ serve(async (req) => {
           console.log(`Using PDF chunk content for generation (${item.chunk_content.length} chars)`);
         }
 
-        // ========== USE STRUCTURED ARTICLE GENERATION WITH TEMPLATE ==========
+        // ========== USE STRUCTURED ARTICLE GENERATION WITH UNIVERSAL PROMPT ==========
         const generateResponse = await fetch(`${supabaseUrl}/functions/v1/generate-article-structured`, {
           method: 'POST',
           headers: {
@@ -183,7 +183,11 @@ serve(async (req) => {
             tone: automation?.tone || 'friendly',
             category: item.blogs?.name || 'general',
             editorial_template: editorialTemplate,
-            source: item.generation_source || 'form' // Pass source for validation rules
+            source: item.generation_source || 'form',
+            blog_id: item.blog_id,
+            // NOVOS CAMPOS - UNIVERSAL PROMPT TYPE OBRIGATÓRIO
+            funnel_mode: item.funnel_stage || 'top',
+            article_goal: item.funnel_stage === 'bottom' ? 'converter' : item.funnel_stage === 'middle' ? 'autoridade' : 'educar'
           }),
         });
 

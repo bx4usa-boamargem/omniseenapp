@@ -17,6 +17,13 @@ interface ChatRequest {
   generateArticle?: boolean;
 }
 
+// ========================================================================
+// ARTICLE CHAT - INTERFACE DE ENTRADA PARA O MOTOR UNIVERSAL
+// ========================================================================
+// O chat NÃO é um motor de geração. Ele é apenas uma interface.
+// Quando o usuário pede um artigo, o chat DELEGA para o pipeline universal.
+// ========================================================================
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -52,12 +59,6 @@ serve(async (req) => {
       .eq('blog_id', blogId)
       .single();
 
-    const { data: contentPrefs } = await supabase
-      .from('content_preferences')
-      .select('*')
-      .eq('blog_id', blogId)
-      .single();
-
     const businessContext = businessProfile ? `
 Contexto do Negócio:
 - Empresa: ${businessProfile.company_name || 'Não informado'}
@@ -68,6 +69,109 @@ Contexto do Negócio:
 - Descrição: ${businessProfile.long_description || 'Não informado'}
 ` : '';
 
+    // ========================================================================
+    // SE generateArticle = true → DELEGAR PARA O PIPELINE UNIVERSAL
+    // ========================================================================
+    if (generateArticle) {
+      console.log('[CHAT→UNIVERSAL] Delegating article generation to universal pipeline');
+      
+      // Extrair tema da conversa
+      const theme = extractThemeFromMessages(messages);
+      console.log(`[CHAT→UNIVERSAL] Extracted theme: "${theme}"`);
+      
+      // DELEGAR para generate-article-structured (Motor Universal)
+      const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-article-structured`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          theme,
+          blog_id: blogId,
+          source: 'chat', // Identificar origem
+          funnel_mode: 'top', // Chat é educativo por padrão
+          article_goal: 'educar', // Chat visa educar
+          word_count: 800, // Chat tem limite menor
+          include_faq: true,
+          include_visual_blocks: true
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('[CHAT→UNIVERSAL] Pipeline error:', errorData);
+        
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        if (response.status === 402) {
+          return new Response(
+            JSON.stringify({ error: 'Payment required. Please add credits.' }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        throw new Error(errorData.message || 'Failed to generate article');
+      }
+
+      const result = await response.json();
+      
+      if (!result.success || !result.article) {
+        throw new Error('Invalid response from universal pipeline');
+      }
+
+      console.log(`[CHAT→UNIVERSAL] Article generated: "${result.article.title}"`);
+
+      // Gerar imagem de destaque se houver prompts
+      let featuredImageUrl = null;
+      const imagePrompts = result.article.image_prompts || [];
+      
+      if (imagePrompts.length > 0) {
+        try {
+          const imageResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-image`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              prompt: imagePrompts[0]?.prompt || `Professional photo for article: ${result.article.title}`,
+              context: 'hero',
+              articleTheme: theme,
+            }),
+          });
+
+          if (imageResponse.ok) {
+            const imageData = await imageResponse.json();
+            featuredImageUrl = imageData.imageUrl || imageData.imageBase64;
+          }
+        } catch (imgError) {
+          console.error('[CHAT→UNIVERSAL] Image generation error:', imgError);
+          // Continue without image
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          type: 'article',
+          article: {
+            ...result.article,
+            featured_image_url: featuredImageUrl
+          },
+          source: 'universal_pipeline',
+          prompt_system: 'universal_v1'
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ========================================================================
+    // FLUXO DE CHAT NORMAL (Conversa para coletar informações)
+    // ========================================================================
     const systemPrompt = `Você é a OMNISEEN AI, a assistente virtual inteligente da plataforma OMNISEEN, especializada em criação de artigos para blogs.
 Quando perguntada quem você é, responda: "Sou a OMNISEEN AI, sua assistente de criação de conteúdo! Vou te ajudar a criar artigos incríveis."
 
@@ -97,135 +201,6 @@ REGRAS:
 Se o usuário pedir para gerar o artigo, responda com um JSON no formato:
 {"ready_to_generate": true, "article_data": {"theme": "...", "audience": "...", "tone": "...", "keyPoints": ["..."], "keywords": ["..."]}}`;
 
-    // If generateArticle is true, use tool calling to generate the article
-    if (generateArticle) {
-      const lastUserMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
-      
-      const generationPrompt = `Com base na conversa anterior, gere um artigo completo.
-
-Conversa:
-${messages.map(m => `${m.role}: ${m.content}`).join('\n')}
-
-Gere um artigo de blog completo e otimizado para SEO. Também gere um prompt para criar a imagem destacada.`;
-
-      const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            ...messages,
-            { role: 'user', content: 'Por favor, gere o artigo completo agora.' }
-          ],
-          tools: [{
-            type: 'function',
-            function: {
-              name: 'generate_article',
-              description: 'Gera um artigo completo de blog com prompt para imagem',
-              parameters: {
-                type: 'object',
-                properties: {
-                  title: { type: 'string', description: 'Título otimizado para SEO' },
-                  excerpt: { type: 'string', description: 'Resumo do artigo (max 160 chars)' },
-                  meta_description: { type: 'string', description: 'Meta description para SEO' },
-                  content: { type: 'string', description: 'Conteúdo completo em Markdown' },
-                  keywords: { type: 'array', items: { type: 'string' }, description: 'Palavras-chave do artigo' },
-                  faq: { 
-                    type: 'array', 
-                    items: { 
-                      type: 'object',
-                      properties: {
-                        question: { type: 'string' },
-                        answer: { type: 'string' }
-                      }
-                    },
-                    description: 'Perguntas frequentes'
-                  },
-                  image_prompt: { 
-                    type: 'string', 
-                    description: 'Prompt em inglês para gerar imagem destacada (hero image) do artigo. Descreva a imagem ideal para o tema.'
-                  }
-                },
-                required: ['title', 'excerpt', 'meta_description', 'content', 'keywords', 'image_prompt']
-              }
-            }
-          }],
-          tool_choice: { type: 'function', function: { name: 'generate_article' } }
-        }),
-      });
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          return new Response(
-            JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
-            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        if (response.status === 402) {
-          return new Response(
-            JSON.stringify({ error: 'Payment required. Please add credits.' }),
-            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-        throw new Error('AI API error');
-      }
-
-      const aiResult = await response.json();
-      const toolCall = aiResult.choices?.[0]?.message?.tool_calls?.[0];
-      
-      if (toolCall?.function?.arguments) {
-        const articleData = JSON.parse(toolCall.function.arguments);
-        
-        // Generate featured image
-        let featuredImageUrl = null;
-        if (articleData.image_prompt) {
-          try {
-            const imageResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-image`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                prompt: articleData.image_prompt,
-                context: 'hero',
-                articleTheme: articleData.title,
-              }),
-            });
-
-            if (imageResponse.ok) {
-              const imageData = await imageResponse.json();
-              featuredImageUrl = imageData.imageUrl;
-            }
-          } catch (imgError) {
-            console.error('Error generating image:', imgError);
-            // Continue without image
-          }
-        }
-
-        return new Response(
-          JSON.stringify({ 
-            type: 'article',
-            article: {
-              ...articleData,
-              featured_image_url: featuredImageUrl
-            }
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      return new Response(
-        JSON.stringify({ error: 'Failed to generate article' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Regular chat flow
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -295,3 +270,49 @@ Gere um artigo de blog completo e otimizado para SEO. Também gere um prompt par
     );
   }
 });
+
+// ========================================================================
+// HELPER: Extrai o tema principal da conversa do chat
+// ========================================================================
+function extractThemeFromMessages(messages: ChatMessage[]): string {
+  // Buscar mensagens do usuário em ordem reversa
+  const userMessages = messages
+    .filter(m => m.role === 'user')
+    .map(m => m.content);
+  
+  if (userMessages.length === 0) {
+    return 'Artigo sobre o negócio';
+  }
+
+  // Buscar JSON com article_data se existir
+  for (const msg of userMessages) {
+    try {
+      const jsonMatch = msg.match(/\{[\s\S]*"theme"[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.theme) {
+          return parsed.theme;
+        }
+      }
+    } catch {
+      // Continue
+    }
+  }
+
+  // Buscar a mensagem mais longa ou a mais recente que pareça um tema
+  const themeIndicators = /sobre|artigo|escreva|crie|gere|quero|preciso|tema/i;
+  
+  for (let i = userMessages.length - 1; i >= 0; i--) {
+    const msg = userMessages[i];
+    if (themeIndicators.test(msg) && msg.length > 10) {
+      // Limpar e retornar
+      return msg
+        .replace(/^(quero|preciso|gere|crie|escreva)\s+(um\s+)?(artigo\s+)?(sobre\s+)?/i, '')
+        .trim()
+        .substring(0, 200);
+    }
+  }
+
+  // Fallback: última mensagem do usuário
+  return userMessages[userMessages.length - 1]?.substring(0, 200) || 'Artigo sobre o negócio';
+}

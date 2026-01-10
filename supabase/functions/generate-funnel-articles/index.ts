@@ -140,15 +140,18 @@ serve(async (req) => {
 
     console.log(`Generated ${themes.length} themes total`);
 
-    // Insert into article_queue
+    // Insert into article_queue with funnel_mode and article_goal
     const queueItems = themes.map((item, index) => ({
       blog_id: blogId,
       suggested_theme: item.theme,
       status: 'pending',
-      scheduled_for: new Date(Date.now() + index * 60000).toISOString(), // Stagger by 1 minute each
+      scheduled_for: new Date(Date.now() + index * 60000).toISOString(),
       generation_source: 'sales_funnel',
       persona_id: personaId,
       funnel_stage: item.stage,
+      // NOVOS CAMPOS - UNIVERSAL PROMPT TYPE
+      funnel_mode: item.stage as 'top' | 'middle' | 'bottom',
+      article_goal: item.stage === 'bottom' ? 'converter' : item.stage === 'middle' ? 'autoridade' : 'educar'
     }));
 
     const { error: insertError } = await supabase
