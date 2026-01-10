@@ -209,7 +209,7 @@ export default function NewArticleChat() {
                       <div>
                         <p className="text-sm font-medium text-muted-foreground mb-1">Palavras-chave</p>
                         <div className="flex flex-wrap gap-1">
-                          {generatedArticle.keywords.map((kw, i) => (
+                          {(generatedArticle.keywords || []).map((kw, i) => (
                             <span key={i} className="text-xs bg-muted px-2 py-1 rounded">
                               {kw}
                             </span>
