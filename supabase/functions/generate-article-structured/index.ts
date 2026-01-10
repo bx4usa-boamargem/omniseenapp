@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildUniversalPrompt, type ClientStrategy, type FunnelMode, type ArticleGoal } from '../_shared/promptTypeCore.ts';
+import { resolveStrategy } from '../_shared/strategyResolver.ts';
+import { validateArticleQuality, generateCorrectionInstructions } from '../_shared/qualityValidator.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -710,39 +712,53 @@ serve(async (req) => {
 
     console.log(`Cache MISS - Generating structured article for theme: ${theme}`, editorial_template ? '(with template)' : '');
 
-    // Fetch client_strategy for Universal Prompt Type (if exists)
-    let clientStrategy: ClientStrategy | null = null;
+    // ========================================================================
+    // UNIVERSAL PROMPT TYPE V1.0 - OBRIGATÓRIO SEM FALLBACK
+    // ========================================================================
+    // A função resolveStrategy() GARANTE que sempre existe uma estratégia.
+    // Se não existir client_strategy, ela cria automaticamente com defaults.
+    // ========================================================================
+    
+    let strategyId: string | null = null;
+    let isDefaultStrategy = false;
+    let clientStrategy: ClientStrategy;
+    
     if (blog_id) {
-      const { data: strategy } = await supabase
-        .from('client_strategy')
-        .select('*')
-        .eq('blog_id', blog_id)
-        .maybeSingle();
-      
-      if (strategy) {
-        clientStrategy = strategy as ClientStrategy;
-        console.log('Found client_strategy - will use Universal Prompt Type');
-      }
+      const resolution = await resolveStrategy(supabase, blog_id);
+      clientStrategy = resolution.strategy;
+      strategyId = resolution.strategyId;
+      isDefaultStrategy = resolution.isDefault;
+      console.log(`[UNIVERSAL V1.0] Strategy resolved: source=${resolution.source}, isDefault=${isDefaultStrategy}`);
+    } else {
+      // Fallback para geração sem blog_id (raro, mas possível)
+      clientStrategy = {
+        empresa_nome: editorial_template?.company_name || null,
+        tipo_negocio: editorial_template?.target_niche || 'serviços',
+        regiao_atuacao: 'Brasil',
+        tipo_publico: 'B2B/B2C',
+        nivel_consciencia: 'consciente_problema',
+        nivel_conhecimento: 'iniciante',
+        dor_principal: null,
+        desejo_principal: null,
+        o_que_oferece: null,
+        principais_beneficios: null,
+        diferenciais: null,
+        acao_desejada: 'entre em contato',
+        canal_cta: 'WhatsApp'
+      };
+      isDefaultStrategy = true;
+      console.log('[UNIVERSAL V1.0] No blog_id - using minimal default strategy');
     }
 
-    // Build the system prompt - Universal Prompt Type if client_strategy exists, otherwise legacy
-    let systemPrompt: string;
-    
-    if (clientStrategy) {
-      // 🔥 NEW PATH — UNIVERSAL PROMPT TYPE
-      systemPrompt = buildUniversalPrompt(
-        clientStrategy,
-        funnel_mode as FunnelMode,
-        article_goal as ArticleGoal | null,
-        theme,
-        keywords
-      );
-      console.log(`Universal Prompt Type: funnel=${funnel_mode}, goal=${article_goal}`);
-    } else {
-      // 🧯 FALLBACK — LEGACY buildMasterPrompt (unchanged)
-      systemPrompt = buildMasterPrompt(editorial_template || null, theme, keywords, tone);
-      console.log('Fallback to legacy buildMasterPrompt');
-    }
+    // SEMPRE usar Universal Prompt - SEM FALLBACK LEGADO
+    const systemPrompt = buildUniversalPrompt(
+      clientStrategy,
+      funnel_mode as FunnelMode,
+      article_goal as ArticleGoal | null,
+      theme,
+      keywords
+    );
+    console.log(`[UNIVERSAL V1.0] Prompt built: funnel=${funnel_mode}, goal=${article_goal}, isDefault=${isDefaultStrategy}`);
 
     // ============ INJECT EDITORIAL MODEL INSTRUCTIONS ============
     const userPrompt = `⛔ MODELO EDITORIAL OBRIGATÓRIO: ${modelInstructions.name.toUpperCase()}
@@ -1176,8 +1192,22 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
     const outputTokens = Math.ceil(article.content.length / 4);
     const estimatedCost = (inputTokens * 0.00000015) + (outputTokens * 0.0000006);
 
+    // ========================================================================
+    // VALIDAÇÃO DE QUALIDADE PÓS-GERAÇÃO (OBRIGATÓRIA)
+    // ========================================================================
+    const qualityValidation = validateArticleQuality(article.content, funnel_mode as FunnelMode);
+    console.log(`[QUALITY V1.0] Score: ${qualityValidation.score}/100, Passed: ${qualityValidation.passed}`);
+    
+    if (!qualityValidation.passed) {
+      console.warn(`[QUALITY V1.0] Failures: ${qualityValidation.failures.join(' | ')}`);
+      // Log warning but don't block - future: implement retry
+    }
+
     if (user_id) {
       try {
+        // ========================================================================
+        // LOG UNIVERSAL OBRIGATÓRIO - Rastreabilidade completa
+        // ========================================================================
         await supabase.from("consumption_logs").insert({
           user_id,
           blog_id: blog_id || null,
@@ -1188,9 +1218,22 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
           output_tokens: outputTokens,
           images_generated: 0,
           estimated_cost_usd: estimatedCost,
-          metadata: { theme, keywords },
+          metadata: { 
+            theme, 
+            keywords,
+            // NOVOS CAMPOS OBRIGATÓRIOS - RASTREABILIDADE UNIVERSAL
+            prompt_system: 'universal_v1',
+            funnel_mode: funnel_mode,
+            article_goal: article_goal || null,
+            strategy_id: strategyId,
+            is_default_strategy: isDefaultStrategy,
+            quality_passed: qualityValidation.passed,
+            quality_score: qualityValidation.score,
+            quality_failures: qualityValidation.failures,
+            source: source
+          },
         });
-        console.log("Consumption logged for article generation");
+        console.log("[UNIVERSAL V1.0] Consumption logged with full metadata");
       } catch (logError) {
         console.warn("Failed to log consumption:", logError);
       }
