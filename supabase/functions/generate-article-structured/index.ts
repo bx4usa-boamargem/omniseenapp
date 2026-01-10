@@ -1117,9 +1117,12 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
       throw new Error('AI_OUTPUT_INVALID: Imagem de capa (cover_image) obrigatória não foi gerada corretamente.');
     }
     
-    if (!Array.isArray(imagesBlock.content_images) || imagesBlock.content_images.length < 3) {
-      console.error('AI_OUTPUT_INVALID: Invalid content_images - expected 3, got:', imagesBlock.content_images?.length || 0);
-      throw new Error('AI_OUTPUT_INVALID: São necessárias exatamente 3 imagens de apoio (content_images). Geradas: ' + (imagesBlock.content_images?.length || 0));
+    // REGRA GLOBAL: Mínimo 2 imagens internas (artigo sem imagem é rascunho)
+    const MIN_INTERNAL_IMAGES = 2;
+    
+    if (!Array.isArray(imagesBlock.content_images) || imagesBlock.content_images.length < MIN_INTERNAL_IMAGES) {
+      console.error(`AI_OUTPUT_INVALID: Invalid content_images - expected at least ${MIN_INTERNAL_IMAGES}, got:`, imagesBlock.content_images?.length || 0);
+      throw new Error(`AI_OUTPUT_INVALID: Artigo sem imagem é rascunho. Mínimo ${MIN_INTERNAL_IMAGES} imagens internas obrigatórias. Geradas: ${imagesBlock.content_images?.length || 0}`);
     }
     
     // Validate each content image has required fields
@@ -1131,10 +1134,29 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
       }
     }
     
-    console.log('Images block validated successfully: cover + 3 content images');
+    console.log(`Images block validated successfully: cover + ${imagesBlock.content_images.length} content images`);
+    
+    // REGRA GLOBAL: Última seção DEVE ser "## Próximo passo"
+    const MANDATORY_FINAL_SECTION = '## Próximo passo';
+    const contentText = articleData.content as string;
+    const h2Matches = contentText.match(/^## .+$/gm) || [];
+    
+    if (h2Matches.length > 0) {
+      const lastH2 = h2Matches[h2Matches.length - 1].trim();
+      
+      if (lastH2 !== MANDATORY_FINAL_SECTION) {
+        console.error(`AI_OUTPUT_INVALID: Last H2 is "${lastH2}", expected "${MANDATORY_FINAL_SECTION}"`);
+        throw new Error(`AI_OUTPUT_INVALID: A última seção DEVE ser exatamente "${MANDATORY_FINAL_SECTION}". Artigo sem CTA final padronizado é inválido. Encontrado: "${lastH2}"`);
+      }
+      
+      console.log('✅ CTA Final "## Próximo passo" validated');
+    } else {
+      console.error('AI_OUTPUT_INVALID: No H2 sections found in article');
+      throw new Error('AI_OUTPUT_INVALID: Artigo não possui seções H2. Estrutura inválida.');
+    }
     
     // ============ VALIDATE EDITORIAL MODEL COMPLIANCE ============
-    const contentText = articleData.content as string;
+    // Note: contentText already declared above for CTA validation
     
     // Count H2 sections
     const h2Count = (contentText.match(/^## /gm) || []).length;
