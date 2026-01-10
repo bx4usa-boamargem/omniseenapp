@@ -35,6 +35,9 @@ interface EditorialTemplate {
   category_default?: string;
 }
 
+// Generation Mode Type - NUNCA pode ser undefined
+type GenerationMode = 'fast' | 'deep';
+
 interface ArticleRequest {
   theme: string;
   keywords?: string[];
@@ -52,6 +55,7 @@ interface ArticleRequest {
   optimize_for_ai?: boolean;
   source?: 'chat' | 'instagram' | 'youtube' | 'pdf' | 'url' | 'form';
   editorial_model?: 'traditional' | 'strategic' | 'visual_guided';
+  generation_mode?: GenerationMode;
 }
 
 // Editorial Model Instructions with strict visual block limits
@@ -107,18 +111,66 @@ const HIERARCHY_RULES = `
 4. H3 (opcional) → detalhamento, máx. 2 por H2
 5. Último H2 → CTA natural (NUNCA "Conclusão")`;
 
-// Validation rules per content source with max retries for expansion
-const sourceValidationRules: Record<string, { minPercent: number; minWords: number; maxWords?: number; autoRetry: boolean; maxRetries: number }> = {
-  // Chat: artigos rápidos educativos (400-800 palavras) - permitir expansão
-  chat: { minPercent: 0.50, minWords: 400, maxWords: 1000, autoRetry: true, maxRetries: 2 },
-  instagram: { minPercent: 0.60, minWords: 500, maxWords: 1000, autoRetry: true, maxRetries: 2 },
-  // Fontes com conteúdo de referência: mínimo reduzido para 1000 palavras
-  youtube: { minPercent: 0.70, minWords: 1000, maxWords: 3000, autoRetry: true, maxRetries: 2 },
-  pdf: { minPercent: 0.70, minWords: 1000, maxWords: 3000, autoRetry: true, maxRetries: 2 },
-  url: { minPercent: 0.70, minWords: 1000, maxWords: 3000, autoRetry: true, maxRetries: 2 },
-  // Form: mínimo reduzido para 1000 palavras (IA pode não atingir 1500 sem referência)
-  form: { minPercent: 0.70, minWords: 1000, maxWords: 3000, autoRetry: true, maxRetries: 2 },
+// ============================================================================
+// REGRAS DE GERAÇÃO POR MODO (FAST vs DEEP)
+// ============================================================================
+// O sistema opera com DOIS MODOS CLAROS - nunca undefined:
+// - FAST: Chat/Instagram - artigos rápidos (400-1000 palavras)
+// - DEEP: Form/Funil/URL/PDF/YouTube - ativos editoriais profundos (1500-3000)
+// ============================================================================
+
+const generationRules: Record<GenerationMode, { 
+  minPercent: number; 
+  minWords: number; 
+  maxWords: number; 
+  autoRetry: boolean; 
+  maxRetries: number;
+  promptInstruction: string;
+}> = {
+  fast: {
+    minPercent: 0.50,
+    minWords: 400,
+    maxWords: 1000,
+    autoRetry: true,
+    maxRetries: 2,
+    promptInstruction: `# 🚀 MODO RÁPIDO (400-1000 palavras)
+Gere um artigo OBJETIVO e DIRETO, entre 400 e 1000 palavras.
+- Seja prático e vá ao ponto
+- Foque na essência do tema
+- Parágrafos curtos (1-2 linhas)
+- 3-5 seções H2 máximo
+- CTA simples no final`
+  },
+  deep: {
+    minPercent: 0.85,
+    minWords: 1500,
+    maxWords: 3000,
+    autoRetry: true,
+    maxRetries: 2,
+    promptInstruction: `# 🧠 MODO PROFUNDO (1500-3000 palavras)
+Gere um artigo COMPLETO e APROFUNDADO, entre 1500 e 3000 palavras.
+- Explore o tema com profundidade estratégica
+- Inclua exemplos práticos e cenários reais
+- Insights e dicas acionáveis em cada seção
+- 5-7 seções H2 bem desenvolvidas
+- FAQ e resumo obrigatórios
+- CTA estruturado com contexto`
+  }
 };
+
+// Helper: Determinar generation_mode a partir do source (fallback)
+function resolveGenerationMode(requestMode: GenerationMode | undefined, source: string): GenerationMode {
+  // Se o modo foi explicitamente passado, usar ele
+  if (requestMode === 'fast' || requestMode === 'deep') {
+    return requestMode;
+  }
+  // Inferir a partir do source - chat/instagram = fast, resto = deep
+  if (source === 'chat' || source === 'instagram') {
+    return 'fast';
+  }
+  // Default é SEMPRE deep (nunca undefined)
+  return 'deep';
+}
 
 // Word Count Enforcer: Expands article content until it meets minimum word count
 async function expandArticleContent(
@@ -589,8 +641,13 @@ serve(async (req) => {
       source = 'form',
       funnel_mode = 'middle',
       article_goal = null,
-      editorial_model = 'traditional'
+      editorial_model = 'traditional',
+      generation_mode: requestedGenerationMode
     }: ArticleRequest & { funnel_mode?: FunnelMode; article_goal?: ArticleGoal | null } = await req.json();
+
+    // RESOLVER GENERATION_MODE: Nunca undefined - fast ou deep
+    const generation_mode = resolveGenerationMode(requestedGenerationMode, source);
+    console.log(`[GENERATION MODE] Resolved: ${generation_mode} (requested: ${requestedGenerationMode || 'undefined'}, source: ${source})`);
 
     if (!theme) {
       return new Response(
@@ -763,8 +820,25 @@ serve(async (req) => {
     );
     console.log(`[UNIVERSAL V1.0] Prompt built: funnel=${funnel_mode}, goal=${article_goal}, isDefault=${isDefaultStrategy}`);
 
-    // ============ INJECT EDITORIAL MODEL INSTRUCTIONS ============
-    const userPrompt = `⛔ MODELO EDITORIAL OBRIGATÓRIO: ${modelInstructions.name.toUpperCase()}
+    // ============ INJECT GENERATION MODE + EDITORIAL MODEL INSTRUCTIONS ============
+    // Obter instrução de modo (NUNCA undefined - sempre fast ou deep)
+    const modeInstruction = generationRules[generation_mode].promptInstruction;
+    
+    // Ajustar limites de palavras baseado no modo
+    const wordLimitInstruction = generation_mode === 'fast'
+      ? `- Tamanho: ENTRE 400 e 1.000 palavras (alvo: ${targetWordCount})`
+      : `- Tamanho: ENTRE 1.500 e 3.000 palavras (alvo: ${targetWordCount})`;
+    
+    // Ajustar seções baseado no modo
+    const sectionInstruction = generation_mode === 'fast'
+      ? `- Quantidade de seções H2: 3-5 seções (rápido e objetivo)`
+      : `- Quantidade de seções H2: EXATAMENTE ${effectiveSectionCount} seções`;
+    
+    const userPrompt = `${modeInstruction}
+
+---
+
+⛔ MODELO EDITORIAL OBRIGATÓRIO: ${modelInstructions.name.toUpperCase()}
 ⛔ QUALQUER DESVIO INVALIDA A RESPOSTA
 
 ${modelInstructions.instructions}
@@ -772,7 +846,7 @@ ${modelInstructions.instructions}
 ${HIERARCHY_RULES}
 
 📊 LIMITES ESTRITOS PARA ESTE MODELO:
-- Seções H2: ${modelConfig.sections.min} a ${modelConfig.sections.max} (usar ${effectiveSectionCount})
+${sectionInstruction}
 - Blocos visuais: ${modelConfig.visualBlocks.min} a ${modelConfig.visualBlocks.max} blocos
 - Tipos PERMITIDOS: ${modelConfig.visualBlocks.types.join(', ')}
 - Tipos PROIBIDOS: ${['💡', '⚠️', '📌', '✅', '❝'].filter(t => !modelConfig.visualBlocks.types.includes(t)).join(', ') || 'nenhum'}
@@ -785,8 +859,8 @@ Escreva um artigo completo sobre: "${theme}"
 LEMBRE-SE: O dono de negócio deve ler e pensar "isso foi escrito para mim".
 
 📏 ESTRUTURA OBRIGATÓRIA:
-- Quantidade de seções H2: EXATAMENTE ${effectiveSectionCount} seções
-- Tamanho: ENTRE 1.200 e 1.600 palavras (alvo: ${targetWordCount})
+${sectionInstruction}
+${wordLimitInstruction}
 - FAQ: ${include_faq ? 'INCLUIR seção de FAQ (3-5 perguntas que um dono perguntaria de verdade)' : 'NÃO incluir FAQ'}
 - Conclusão: ${include_conclusion ? 'INCLUIR seção de conclusão/próximos passos ao final' : 'NÃO incluir seção de conclusão separada'}
 - Blocos visuais: ${include_visual_blocks ? `OBRIGATÓRIO ${modelConfig.visualBlocks.min}-${modelConfig.visualBlocks.max} blocos (${modelConfig.visualBlocks.types.join(', ')})` : 'NÃO usar blocos visuais com emojis'}
@@ -1094,17 +1168,17 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
     
     console.log(`EDITORIAL MODEL VALIDATION: Model=${editorial_model}, H2s=${h2Count}, Blocks=${blockCount}`);
 
-    // Validate word count using source-specific rules
-    const rules = sourceValidationRules[source] || sourceValidationRules.form;
+    // Validate word count using generation_mode rules (NUNCA sourceValidationRules)
+    const rules = generationRules[generation_mode];
     
     let generatedWordCount = (articleData.content as string).split(/\s+/).filter(Boolean).length;
     const minAcceptableWords = Math.max(targetWordCount * rules.minPercent, rules.minWords);
     
-    console.log(`Source: ${source}, Generated: ${generatedWordCount} words, Min acceptable: ${minAcceptableWords}, Max: ${rules.maxWords || 'unlimited'}`);
+    console.log(`Generation Mode: ${generation_mode}, Generated: ${generatedWordCount} words, Min acceptable: ${minAcceptableWords}, Max: ${rules.maxWords}`);
     
-    // Apply maximum word limit for sources with limited content (chat, instagram)
+    // Apply maximum word limit based on generation_mode
     if (rules.maxWords && generatedWordCount > rules.maxWords) {
-      console.log(`Truncating article from ${generatedWordCount} to ${rules.maxWords} words for ${source}`);
+      console.log(`Truncating article from ${generatedWordCount} to ${rules.maxWords} words for ${generation_mode} mode`);
       const words = (articleData.content as string).split(/\s+/);
       articleData.content = words.slice(0, rules.maxWords).join(' ');
       generatedWordCount = rules.maxWords;
@@ -1112,7 +1186,7 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
     
     // Word Count Enforcer: Validate and expand if needed
     if (generatedWordCount < minAcceptableWords && rules.autoRetry && rules.maxRetries > 0) {
-      console.warn(`AI_OUTPUT_TOO_SHORT: ${generatedWordCount} words < ${minAcceptableWords} minimum for ${source}`);
+      console.warn(`AI_OUTPUT_TOO_SHORT: ${generatedWordCount} words < ${minAcceptableWords} minimum for ${generation_mode} mode`);
       console.log(`Word Count Enforcer: Starting expansion with max ${rules.maxRetries} retries...`);
 
       // Preserve the original images block before expansion (expansion doesn't regenerate it)
@@ -1148,12 +1222,12 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
       const errorData = {
         code: 'AI_OUTPUT_TOO_SHORT',
         message: `O artigo gerado tem ${generatedWordCount} palavras após ${rules.maxRetries || 0} tentativas de expansão. Mínimo: ${Math.round(minAcceptableWords)} palavras.`,
-        suggestion: ['chat', 'instagram'].includes(source)
-          ? 'Para artigos mais extensos (1500-3000 palavras), utilize importação de PDF, YouTube ou URL com mais conteúdo de referência.'
+        suggestion: generation_mode === 'fast'
+          ? 'Para artigos mais extensos (1500-3000 palavras), utilize o modo Profundo ou importação de PDF, YouTube ou URL.'
           : 'Tente novamente ou forneça mais conteúdo de referência sobre o tema.',
         generatedWords: generatedWordCount,
         requiredWords: Math.round(minAcceptableWords),
-        source,
+        generationMode: generation_mode,
         expansionAttempts: rules.maxRetries || 0
       };
       
@@ -1224,8 +1298,9 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
           metadata: { 
             theme, 
             keywords,
-            // NOVOS CAMPOS OBRIGATÓRIOS - RASTREABILIDADE UNIVERSAL
+            // CAMPOS OBRIGATÓRIOS - RASTREABILIDADE UNIVERSAL
             prompt_system: 'universal_v1',
+            generation_mode: generation_mode, // NOVO - fast ou deep
             funnel_mode: funnel_mode,
             article_goal: article_goal || null,
             strategy_id: strategyId,

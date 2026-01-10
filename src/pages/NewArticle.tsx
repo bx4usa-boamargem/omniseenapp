@@ -49,6 +49,7 @@ interface GenerationParams {
   optimizeForAI: boolean;
   funnelMode?: 'top' | 'middle' | 'bottom';
   articleGoal?: 'educar' | 'autoridade' | 'apoiar_vendas' | 'converter' | null;
+  generationMode?: 'fast' | 'deep'; // NOVO - fast (400-1000) ou deep (1500-3000)
 }
 
 interface Opportunity {
@@ -558,6 +559,7 @@ export default function NewArticle() {
       source: generationSource,
       funnelMode: params.funnelMode || 'middle',
       articleGoal: params.articleGoal || null,
+      generationMode: params.generationMode || 'deep', // NUNCA undefined - default é deep
       onDelta: (text) => {
         setStreamingText((prev) => prev + text);
       },

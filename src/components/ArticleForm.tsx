@@ -60,6 +60,9 @@ const EDITORIAL_MODELS: Record<EditorialModel, {
   }
 };
 
+// Generation Mode Type
+export type GenerationMode = 'fast' | 'deep';
+
 interface ArticleFormProps {
   onGenerate: (data: {
     theme: string;
@@ -78,6 +81,7 @@ interface ArticleFormProps {
     funnelMode: FunnelMode;
     articleGoal: ArticleGoal | null;
     editorialModel: EditorialModel;
+    generationMode: GenerationMode; // NOVO - fast (400-1000) ou deep (1500-3000)
   }) => void;
   isGenerating: boolean;
   initialTheme?: string;
@@ -110,8 +114,11 @@ export function ArticleForm({ onGenerate, isGenerating, initialTheme, initialKey
   const [funnelMode, setFunnelMode] = useState<FunnelMode>('middle');
   const [articleGoal, setArticleGoal] = useState<ArticleGoal | null>(null);
   
-  // NEW: Editorial Model
+  // Editorial Model
   const [editorialModel, setEditorialModel] = useState<EditorialModel>('traditional');
+  
+  // Generation Mode (fast = 400-1000 palavras, deep = 1500-3000 palavras)
+  const [generationMode, setGenerationMode] = useState<GenerationMode>('deep'); // Default é SEMPRE deep
 
   // Update theme when initialTheme changes (e.g., from YouTube import)
   useEffect(() => {
@@ -167,7 +174,8 @@ export function ArticleForm({ onGenerate, isGenerating, initialTheme, initialKey
       optimizeForAI,
       funnelMode,
       articleGoal,
-      editorialModel
+      editorialModel,
+      generationMode // NUNCA undefined - default é 'deep'
     });
   };
 
@@ -197,6 +205,60 @@ export function ArticleForm({ onGenerate, isGenerating, initialTheme, initialKey
         <p className="text-xs text-muted-foreground">
           Descreva o tema do artigo de forma clara e específica
         </p>
+      </div>
+
+      {/* GENERATION MODE SELECTOR - Sempre visível */}
+      <div className="space-y-3 p-4 rounded-lg bg-gradient-to-br from-primary/5 to-primary/10 border border-primary/20">
+        <div className="flex items-center gap-2 mb-1">
+          <Zap className="h-5 w-5 text-primary" />
+          <span className="font-medium text-sm">Modo de Geração</span>
+        </div>
+        
+        <RadioGroup 
+          value={generationMode} 
+          onValueChange={(v) => setGenerationMode(v as GenerationMode)}
+          className="grid grid-cols-2 gap-3"
+          disabled={isGenerating}
+        >
+          <div 
+            className={cn(
+              "flex items-start space-x-3 p-4 rounded-lg border transition-all cursor-pointer",
+              generationMode === 'fast' 
+                ? "border-primary bg-primary/5" 
+                : "border-border hover:border-primary/50 bg-background"
+            )}
+            onClick={() => !isGenerating && setGenerationMode('fast')}
+          >
+            <RadioGroupItem value="fast" id="mode-fast" className="mt-0.5" disabled={isGenerating} />
+            <div className="flex-1">
+              <Label htmlFor="mode-fast" className="font-semibold cursor-pointer flex items-center gap-2 text-sm">
+                ⚡ Rápido
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1">400-1.000 palavras</p>
+              <p className="text-xs text-muted-foreground">Ideal para chat e ideias rápidas</p>
+            </div>
+          </div>
+          
+          <div 
+            className={cn(
+              "flex items-start space-x-3 p-4 rounded-lg border transition-all cursor-pointer",
+              generationMode === 'deep' 
+                ? "border-primary bg-primary/5" 
+                : "border-border hover:border-primary/50 bg-background"
+            )}
+            onClick={() => !isGenerating && setGenerationMode('deep')}
+          >
+            <RadioGroupItem value="deep" id="mode-deep" className="mt-0.5" disabled={isGenerating} />
+            <div className="flex-1">
+              <Label htmlFor="mode-deep" className="font-semibold cursor-pointer flex items-center gap-2 text-sm">
+                🧠 Profundo
+                <Badge className="text-xs bg-primary text-primary-foreground">Recomendado</Badge>
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1">1.500-3.000 palavras</p>
+              <p className="text-xs text-muted-foreground">Ativo editorial completo para SEO</p>
+            </div>
+          </div>
+        </RadioGroup>
       </div>
 
       <Button 

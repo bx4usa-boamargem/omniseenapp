@@ -80,6 +80,7 @@ Contexto do Negócio:
       console.log(`[CHAT→UNIVERSAL] Extracted theme: "${theme}"`);
       
       // DELEGAR para generate-article-structured (Motor Universal)
+      // IMPORTANTE: Chat SEMPRE usa generation_mode: 'fast' (400-1000 palavras)
       const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-article-structured`, {
         method: 'POST',
         headers: {
@@ -89,10 +90,11 @@ Contexto do Negócio:
         body: JSON.stringify({
           theme,
           blog_id: blogId,
-          source: 'chat', // Identificar origem
-          funnel_mode: 'top', // Chat é educativo por padrão
-          article_goal: 'educar', // Chat visa educar
-          word_count: 800, // Chat tem limite menor
+          source: 'chat',
+          generation_mode: 'fast', // SEMPRE fast para chat - nunca undefined
+          funnel_mode: 'top',
+          article_goal: 'educar',
+          word_count: 800,
           include_faq: true,
           include_visual_blocks: true
         }),

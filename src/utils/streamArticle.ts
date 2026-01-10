@@ -43,8 +43,11 @@ interface EditorialTemplate {
 
 export type GenerationStage = 'analyzing' | 'structuring' | 'generating' | 'finalizing' | null;
 
-// NEW: Editorial Model Type
+// Editorial Model Type
 export type EditorialModel = 'traditional' | 'strategic' | 'visual_guided';
+
+// Generation Mode Type - fast (400-1000 palavras) ou deep (1500-3000 palavras)
+export type GenerationMode = 'fast' | 'deep';
 
 export interface StreamArticleOptions {
   theme: string;
@@ -63,6 +66,7 @@ export interface StreamArticleOptions {
   funnelMode?: 'top' | 'middle' | 'bottom';
   articleGoal?: 'educar' | 'autoridade' | 'apoiar_vendas' | 'converter' | null;
   editorialModel?: EditorialModel;
+  generationMode?: GenerationMode; // fast = 400-1000 palavras, deep = 1500-3000 palavras
   onDelta: (text: string) => void;
   onDone: (article: ArticleData | null) => void;
   onError: (error: string) => void;
@@ -124,9 +128,14 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
   const { 
     theme, keywords, tone, category, blogId, imageCount, wordCount,
     sectionCount, includeFaq, includeConclusion, includeVisualBlocks, optimizeForAI,
-    source, funnelMode, articleGoal, editorialModel,
+    source, funnelMode, articleGoal, editorialModel, generationMode,
     onDelta, onDone, onError, onStage, onProgress 
   } = options;
+
+  // Resolver generation_mode: chat/instagram = fast, resto = deep (NUNCA undefined)
+  const resolvedGenerationMode: GenerationMode = 
+    generationMode || 
+    (source === 'chat' || source === 'instagram' ? 'fast' : 'deep');
 
   try {
     // Stage 1: Analyzing
@@ -170,7 +179,8 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
         blog_id: blogId,
         funnel_mode: funnelMode || 'middle',
         article_goal: articleGoal || null,
-        editorial_model: editorialModel || 'traditional'
+        editorial_model: editorialModel || 'traditional',
+        generation_mode: resolvedGenerationMode // NUNCA undefined - fast ou deep
       }),
     });
 
