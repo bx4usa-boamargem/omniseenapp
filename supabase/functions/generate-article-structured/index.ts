@@ -1144,34 +1144,73 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
     const contentLines = contentText.split('\n');
     
     // REGRA 3: Validar estrutura H1 obrigatória (H1 → linha em branco → parágrafo)
-    if (contentLines.length >= 3) {
-      const line1 = contentLines[0];
-      const line2 = contentLines[1];
-      const line3 = contentLines[2];
-      
-      // Verificar H1 na primeira linha
-      if (!line1.startsWith('# ') || line1.startsWith('## ')) {
-        console.error('AI_OUTPUT_INVALID: Article must start with H1');
-        throw new Error('AI_OUTPUT_INVALID: O artigo DEVE começar com H1 (# Título). Formato atual inválido.');
-      }
-      
-      // Verificar linha em branco após H1
-      if (line2.trim() !== '') {
-        console.error('AI_OUTPUT_INVALID: H1 must be followed by blank line');
-        throw new Error('AI_OUTPUT_INVALID: O H1 DEVE ser seguido por uma linha em branco. É proibido colar texto junto ao H1.');
-      }
-      
-      // Verificar parágrafo na linha 3 (não vazio, não heading)
-      if (line3.trim() === '' || line3.startsWith('#')) {
-        console.error('AI_OUTPUT_INVALID: Line 3 must be first paragraph');
-        throw new Error('AI_OUTPUT_INVALID: A terceira linha DEVE ser o primeiro parágrafo (não vazio, não heading).');
-      }
-      
-      console.log('✅ H1 structure validated: H1 → blank → paragraph');
-    } else {
-      console.error('AI_OUTPUT_INVALID: Article too short (less than 3 lines)');
-      throw new Error('AI_OUTPUT_INVALID: Artigo muito curto. Estrutura mínima: H1 + linha em branco + parágrafo.');
+    // Remove leading empty lines and find the first non-empty line
+    let firstNonEmptyIndex = 0;
+    while (firstNonEmptyIndex < contentLines.length && contentLines[firstNonEmptyIndex].trim() === '') {
+      firstNonEmptyIndex++;
     }
+    
+    // Get the lines starting from the first non-empty line
+    const trimmedLines = contentLines.slice(firstNonEmptyIndex);
+    
+    if (trimmedLines.length >= 3) {
+      const line1 = trimmedLines[0];
+      const line2 = trimmedLines[1];
+      const line3 = trimmedLines[2];
+      
+      // Verificar H1 na primeira linha (# mas não ##)
+      const trimmedLine1 = line1.trim();
+      if (!trimmedLine1.startsWith('# ') || trimmedLine1.startsWith('## ')) {
+        console.error('AI_OUTPUT_INVALID: Article must start with H1. First line:', JSON.stringify(trimmedLine1.substring(0, 100)));
+        // Instead of throwing, try to auto-fix by prepending H1 if title exists
+        const title = articleData.title as string;
+        if (title && trimmedLine1 && !trimmedLine1.startsWith('#')) {
+          console.log('AUTO-FIX: Content missing H1 header, will prepend title');
+          articleData.content = `# ${title}\n\n${contentText.trim()}`;
+          console.log('✅ H1 structure auto-fixed: prepended title as H1');
+        } else if (!trimmedLine1.startsWith('# ')) {
+          throw new Error('AI_OUTPUT_INVALID: O artigo DEVE começar com H1 (# Título). Formato atual inválido.');
+        }
+      } else {
+        // Verificar linha em branco após H1 (only if H1 was present)
+        if (line2.trim() !== '') {
+          console.warn('EDITORIAL WARNING: H1 should be followed by blank line, auto-fixing...');
+          // Auto-fix: insert blank line after H1
+          const h1Line = trimmedLines[0];
+          const restOfContent = trimmedLines.slice(1).join('\n');
+          articleData.content = `${h1Line}\n\n${restOfContent.trim()}`;
+          console.log('✅ H1 structure auto-fixed: added blank line after H1');
+        } else if (line3.trim() === '' || line3.trim().startsWith('#')) {
+          console.warn('EDITORIAL WARNING: Third line should be first paragraph');
+          // This is acceptable but log it
+        } else {
+          console.log('✅ H1 structure validated: H1 → blank → paragraph');
+        }
+      }
+    } else if (trimmedLines.length > 0) {
+      // Very short content - just verify it starts with H1
+      const line1 = trimmedLines[0].trim();
+      if (!line1.startsWith('# ') || line1.startsWith('## ')) {
+        const title = articleData.title as string;
+        if (title) {
+          console.log('AUTO-FIX: Short content missing H1, prepending title');
+          articleData.content = `# ${title}\n\n${contentText.trim()}`;
+        }
+      }
+    }
+    
+    // Re-check content after auto-fix
+    const finalContentLines = (articleData.content as string).split('\n');
+    const finalFirstNonEmpty = finalContentLines.findIndex(l => l.trim() !== '');
+    if (finalFirstNonEmpty >= 0) {
+      const finalLine1 = finalContentLines[finalFirstNonEmpty].trim();
+      if (!finalLine1.startsWith('# ') || finalLine1.startsWith('## ')) {
+        console.error('AI_OUTPUT_INVALID: Article still does not start with H1 after auto-fix attempt');
+        throw new Error('AI_OUTPUT_INVALID: O artigo DEVE começar com H1 (# Título). Formato atual inválido após tentativa de correção.');
+      }
+    }
+    
+    // H1 validation complete - continue with CTA validation
     
     // REGRA 2: Última seção DEVE ser "## Próximo passo"
     const h2Matches = contentText.match(/^## .+$/gm) || [];
