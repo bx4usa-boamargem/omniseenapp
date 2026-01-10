@@ -3726,6 +3726,21 @@ export type Database = {
         Args: { start_date: string }
         Returns: string
       }
+      claim_queue_items: {
+        Args: { p_limit?: number }
+        Returns: {
+          article_goal: string
+          blog_id: string
+          chunk_content: string
+          funnel_mode: string
+          funnel_stage: string
+          generation_source: string
+          id: string
+          keywords: string[]
+          persona_id: string
+          suggested_theme: string
+        }[]
+      }
       generate_referral_code: { Args: never; Returns: string }
       has_role: {
         Args: {
