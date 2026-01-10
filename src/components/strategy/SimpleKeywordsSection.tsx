@@ -97,9 +97,41 @@ export function SimpleKeywordsSection({ blogId }: SimpleKeywordsSectionProps) {
     }
   };
 
-  const handleAIKeywordsAdded = (addedKeywords: string[]) => {
-    fetchKeywords();
-    setShowAISuggestModal(false);
+  const handleAIKeywordsAdded = async (addedKeywords: string[]) => {
+    if (addedKeywords.length === 0) return;
+
+    try {
+      const existingKeywords = keywords.map(k => k.keyword.toLowerCase());
+      const newKeywords = addedKeywords.filter(
+        k => !existingKeywords.includes(k.toLowerCase())
+      );
+
+      if (newKeywords.length === 0) {
+        toast.info("Todas as palavras-chave já estão adicionadas");
+        setShowAISuggestModal(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from("keyword_analyses")
+        .insert(
+          newKeywords.map(keyword => ({
+            blog_id: blogId,
+            keyword,
+            source: "ai_suggestion"
+          }))
+        );
+
+      if (error) throw error;
+
+      await fetchKeywords();
+      toast.success(`${newKeywords.length} palavras-chave adicionadas com sucesso!`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao adicionar palavras-chave");
+    } finally {
+      setShowAISuggestModal(false);
+    }
   };
 
   return (
