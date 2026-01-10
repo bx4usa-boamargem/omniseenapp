@@ -362,6 +362,7 @@ export type Database = {
       }
       article_queue: {
         Row: {
+          article_goal: string | null
           article_id: string | null
           blog_id: string
           chunk_content: string | null
@@ -378,6 +379,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          article_goal?: string | null
           article_id?: string | null
           blog_id: string
           chunk_content?: string | null
@@ -394,6 +396,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          article_goal?: string | null
           article_id?: string | null
           blog_id?: string
           chunk_content?: string | null
