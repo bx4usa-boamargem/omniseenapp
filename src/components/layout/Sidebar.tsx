@@ -165,86 +165,89 @@ export function Sidebar({ blogSlug, onSignOut, userRole }: SidebarProps) {
         collapsed ? "w-16" : "w-64"
       )}
     >
-      {/* Header */}
-      <div className="p-4 border-b border-sidebar-border">
+      {/* Header - FIXED */}
+      <div className="shrink-0 p-4 border-b border-sidebar-border">
         <div className={cn("flex items-center justify-center", collapsed && "justify-center")}>
           <OmniseenLogo size={collapsed ? "sm" : "md"} />
         </div>
       </div>
 
-      {/* User Profile */}
-      <UserProfileCard collapsed={collapsed} role={effectiveRole} />
+      {/* Single Scrollable Container */}
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
+        {/* User Profile */}
+        <UserProfileCard collapsed={collapsed} role={effectiveRole} />
 
-      {/* Create Button */}
-      <div className="p-4">
-        {collapsed ? (
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <Button className="w-full gradient-primary" size="icon" onClick={() => navigate("/app/articles/new")}>
-                <Plus className="h-5 w-5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="right">{t('sidebar.createContent')}</TooltipContent>
-          </Tooltip>
-        ) : (
-          <Button className="w-full gradient-primary gap-2" onClick={() => navigate("/app/articles/new")}>
-            <Plus className="h-5 w-5" />
-            {t('sidebar.createContent')}
-          </Button>
-        )}
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 min-h-0 px-3 space-y-1 overflow-y-auto pb-4 scrollbar-hide">
-        {navItems.map((item) => (
-          <NavButton key={item.path} item={item} />
-        ))}
-      </nav>
-
-      {/* Bottom Navigation - Fixed */}
-      <div className="shrink-0 max-h-[40vh] overflow-y-auto bg-sidebar px-3 pb-4 space-y-1 border-t border-sidebar-border pt-4 relative z-10">
-        {bottomNavItems.map((item) => (
-          <NavButton key={item.path} item={item} />
-        ))}
-        {onSignOut && (
-          collapsed ? (
+        {/* Create Button */}
+        <div className="p-4">
+          {collapsed ? (
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-center px-2 text-destructive hover:text-destructive hover:bg-destructive/10 transition-all"
-                  onClick={onSignOut}
-                >
-                  <LogOut className="h-5 w-5 shrink-0" />
+                <Button className="w-full gradient-primary" size="icon" onClick={() => navigate("/app/articles/new")}>
+                  <Plus className="h-5 w-5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="right">{t('sidebar.signOut')}</TooltipContent>
+              <TooltipContent side="right">{t('sidebar.createContent')}</TooltipContent>
             </Tooltip>
           ) : (
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10 transition-all font-medium"
-              onClick={onSignOut}
-            >
-              <LogOut className="h-5 w-5 shrink-0" />
-              <span>{t('sidebar.signOut')}</span>
+            <Button className="w-full gradient-primary gap-2" onClick={() => navigate("/app/articles/new")}>
+              <Plus className="h-5 w-5" />
+              {t('sidebar.createContent')}
             </Button>
-          )
-        )}
+          )}
+        </div>
+
+        {/* Main Navigation */}
+        <nav className="px-3 space-y-1 pb-4">
+          {navItems.map((item) => (
+            <NavButton key={item.path} item={item} />
+          ))}
+        </nav>
+
+        {/* Bottom Navigation */}
+        <div className="px-3 pb-4 space-y-1 border-t border-sidebar-border pt-4">
+          {bottomNavItems.map((item) => (
+            <NavButton key={item.path} item={item} />
+          ))}
+          {onSignOut && (
+            collapsed ? (
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-center px-2 text-destructive hover:text-destructive hover:bg-destructive/10 transition-all"
+                    onClick={onSignOut}
+                  >
+                    <LogOut className="h-5 w-5 shrink-0" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="right">{t('sidebar.signOut')}</TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-3 text-destructive hover:text-destructive hover:bg-destructive/10 transition-all font-medium"
+                onClick={onSignOut}
+              >
+                <LogOut className="h-5 w-5 shrink-0" />
+                <span>{t('sidebar.signOut')}</span>
+              </Button>
+            )
+          )}
+        </div>
+
+        {/* Language Switcher */}
+        <div className="px-3 py-2 border-t border-sidebar-border">
+          <LanguageSwitcher 
+            showName={!collapsed} 
+            variant="ghost" 
+            size="sm" 
+            className="text-sidebar-foreground w-full justify-start"
+          />
+        </div>
       </div>
 
-      {/* Language Switcher */}
-      <div className="shrink-0 px-3 py-2 border-t border-sidebar-border bg-sidebar relative z-10">
-        <LanguageSwitcher 
-          showName={!collapsed} 
-          variant="ghost" 
-          size="sm" 
-          className="text-sidebar-foreground w-full justify-start"
-        />
-      </div>
-
-      {/* Collapse Toggle */}
-      <div className="shrink-0 p-3 border-t border-sidebar-border bg-sidebar relative z-10">
+      {/* Collapse Toggle - FIXED at bottom */}
+      <div className="shrink-0 p-3 border-t border-sidebar-border bg-sidebar">
         <Button
           variant="ghost"
           size="sm"
