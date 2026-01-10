@@ -902,15 +902,14 @@ ${modelConfig.visualBlocks.types.includes('❝') ? '- ❝ Citação Destacada (f
 - Uma linha por ponto, máximo 10 palavras
 - Formato de checklist visual
 
-🎯 SEÇÃO DE CTA NATURAL (última H2 - OBRIGATÓRIA):
-- Título: "Direto ao ponto: Por onde começar?" ou similar
-- NÃO use: "Conclusão", "Considerações Finais", "Saiba Mais"
-- Primeiro parágrafo: reconheça que o leitor entendeu o problema
-- Segundo parágrafo: convide naturalmente para testar a solução
-- INCLUA um blockquote inspirador:
-  > "Frase impactante relacionada ao tema"
+⛔ SEÇÃO FINAL OBRIGATÓRIA (última H2 - SEM EXCEÇÕES):
+- Título EXATO: "## Próximo passo" (NÃO use variações!)
+- ⚠️ QUALQUER outro título será REJEITADO automaticamente
+- NÃO use: "Conclusão", "Considerações Finais", "Direto ao ponto", "Saiba Mais", ou QUALQUER variação
+- Primeiro parágrafo: conecte a dor do artigo com a solução
+- Segundo parágrafo: CTA direto dizendo EXATAMENTE o que fazer
 - Último parágrafo com CTA em **NEGRITO**:
-${editorial_template?.cta_template ? `  **${editorial_template.cta_template}**` : '  **Teste agora e veja a diferença no seu negócio.**'}
+${editorial_template?.cta_template ? `  **${editorial_template.cta_template}**` : '  **Quem age primeiro, vence.**'}
 
 🖼️ IMAGENS CONTEXTUALIZADAS (${targetImageCount} prompts):
 Cada imagem DEVE ser baseada no CONTEÚDO ESPECÍFICO da seção correspondente.
@@ -955,7 +954,7 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
             },
             content: {
               type: 'string',
-              description: `CRITICAL: Full article in Markdown with MINIMUM ${targetWordCount} words. This is a HARD requirement - articles with fewer words will be rejected. Use EXACTLY ${section_count} H2 sections. Each section should have at least 200-300 words with detailed examples, practical tips, and real-world scenarios. MUST include: 1) Penultimate H2 titled "Resumo: X passos/dicas para Y" with bullet list summarizing ALL key points, 2) Final H2 titled "Direto ao ponto: Por onde começar?" with natural CTA, inspirational blockquote (>), and bold call-to-action. Follow mandatory structure with short paragraphs (1-3 lines), bullet lists, blockquotes.`
+              description: `CRITICAL: Full article in Markdown with MINIMUM ${targetWordCount} words. This is a HARD requirement - articles with fewer words will be rejected. Use EXACTLY ${section_count} H2 sections. Each section should have at least 200-300 words with detailed examples, practical tips, and real-world scenarios. MUST include: 1) Penultimate H2 titled "Resumo: X passos/dicas para Y" with bullet list summarizing ALL key points, 2) ⚠️ FINAL H2 MUST BE EXACTLY "## Próximo passo" (no variations!) with CTA connecting pain to solution. Follow mandatory structure with short paragraphs (1-3 lines), bullet lists, blockquotes.`
             },
             faq: {
               type: 'array',
