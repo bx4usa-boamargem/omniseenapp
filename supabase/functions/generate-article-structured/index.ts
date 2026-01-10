@@ -111,11 +111,13 @@ const HIERARCHY_RULES = `
 const sourceValidationRules: Record<string, { minPercent: number; minWords: number; maxWords?: number; autoRetry: boolean; maxRetries: number }> = {
   // Chat: artigos rápidos educativos (400-800 palavras) - permitir expansão
   chat: { minPercent: 0.50, minWords: 400, maxWords: 1000, autoRetry: true, maxRetries: 2 },
-  instagram: { minPercent: 0.70, minWords: 600, maxWords: 1000, autoRetry: true, maxRetries: 2 },
-  youtube: { minPercent: 0.85, minWords: 1500, maxWords: 3000, autoRetry: true, maxRetries: 2 },
-  pdf: { minPercent: 0.85, minWords: 1500, maxWords: 3000, autoRetry: true, maxRetries: 2 },
-  url: { minPercent: 0.85, minWords: 1500, maxWords: 3000, autoRetry: true, maxRetries: 2 },
-  form: { minPercent: 0.85, minWords: 1500, maxWords: 3000, autoRetry: true, maxRetries: 2 },
+  instagram: { minPercent: 0.60, minWords: 500, maxWords: 1000, autoRetry: true, maxRetries: 2 },
+  // Fontes com conteúdo de referência: mínimo reduzido para 1000 palavras
+  youtube: { minPercent: 0.70, minWords: 1000, maxWords: 3000, autoRetry: true, maxRetries: 2 },
+  pdf: { minPercent: 0.70, minWords: 1000, maxWords: 3000, autoRetry: true, maxRetries: 2 },
+  url: { minPercent: 0.70, minWords: 1000, maxWords: 3000, autoRetry: true, maxRetries: 2 },
+  // Form: mínimo reduzido para 1000 palavras (IA pode não atingir 1500 sem referência)
+  form: { minPercent: 0.70, minWords: 1000, maxWords: 3000, autoRetry: true, maxRetries: 2 },
 };
 
 // Word Count Enforcer: Expands article content until it meets minimum word count
