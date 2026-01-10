@@ -1268,9 +1268,15 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
     const rules = generationRules[generation_mode];
     
     let generatedWordCount = (articleData.content as string).split(/\s+/).filter(Boolean).length;
-    const minAcceptableWords = Math.max(targetWordCount * rules.minPercent, rules.minWords);
     
-    console.log(`Generation Mode: ${generation_mode}, Generated: ${generatedWordCount} words, Min acceptable: ${minAcceptableWords}, Max: ${rules.maxWords}`);
+    // CORREÇÃO: Use percentual do target OU mínimo absoluto, o que for MENOR
+    // Se target=1400, aceitar 1400*0.85=1190 (não forçar 1500)
+    const percentOfTarget = targetWordCount * rules.minPercent;
+    const minAcceptableWords = targetWordCount < rules.minWords 
+      ? percentOfTarget  // Se target < minWords absoluto, usa só o percentual
+      : Math.max(percentOfTarget, rules.minWords);
+    
+    console.log(`Generation Mode: ${generation_mode}, Target: ${targetWordCount}, Generated: ${generatedWordCount} words, Min acceptable: ${Math.round(minAcceptableWords)}, Max: ${rules.maxWords}`);
     
     // Apply maximum word limit based on generation_mode
     if (rules.maxWords && generatedWordCount > rules.maxWords) {
