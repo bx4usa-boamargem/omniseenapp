@@ -38,8 +38,8 @@ export default function ClientAccount() {
       setLoading(true);
 
       try {
-        // Fetch subscription
-        const { data: subscription } = await supabase
+        // Fetch subscription using raw query to avoid type recursion
+        const { data: subscription } = await (supabase as any)
           .from('subscriptions')
           .select('is_internal_account, status')
           .eq('blog_id', blog.id)
@@ -51,7 +51,7 @@ export default function ClientAccount() {
         }
 
         // Fetch team members
-        const { data: members } = await supabase
+        const { data: members } = await (supabase as any)
           .from('team_members')
           .select('id, user_id, status')
           .eq('blog_id', blog.id);
@@ -190,7 +190,7 @@ export default function ClientAccount() {
                   <Mail className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div>
-                  <div className="font-medium">{member.user_id}</div>
+                  <div className="font-medium text-sm">{member.user_id.substring(0, 8)}...</div>
                   <Badge variant={member.status === 'accepted' ? 'default' : 'secondary'} className="text-xs">
                     {member.status === 'accepted' ? 'Ativo' : 'Pendente'}
                   </Badge>
