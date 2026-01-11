@@ -38,6 +38,29 @@ interface EditorialTemplate {
 // Generation Mode Type - NUNCA pode ser undefined
 type GenerationMode = 'fast' | 'deep';
 
+// Interface para dados do artigo (usado para persistência e cache)
+interface ArticleData {
+  title: string;
+  content?: string;
+  excerpt?: string;
+  meta_description?: string;
+  faq?: Array<{ question: string; answer: string }>;
+  keywords?: string[];
+  reading_time?: number;
+  featured_image_url?: string | null;
+  featured_image_alt?: string | null;
+  image_prompts?: Array<{
+    context: string;
+    prompt: string;
+    after_section: number;
+    section_title?: string;
+    visual_concept?: string;
+  }>;
+}
+
+// deno-lint-ignore no-explicit-any
+type SupabaseClientAny = any;
+
 interface ArticleRequest {
   theme: string;
   keywords?: string[];
@@ -56,7 +79,79 @@ interface ArticleRequest {
   source?: 'chat' | 'instagram' | 'youtube' | 'pdf' | 'url' | 'form';
   editorial_model?: 'traditional' | 'strategic' | 'visual_guided';
   generation_mode?: GenerationMode;
+  auto_publish?: boolean;
 }
+
+// ============ PERSISTÊNCIA DE ARTIGO ============
+// Função obrigatória para salvar artigo na tabela 'articles'
+// CRÍTICO: Sem esta persistência, o frontend recebe artigo sem id/slug/status
+
+async function persistArticleToDb(
+  // deno-lint-ignore no-explicit-any
+  supabaseClient: any,
+  blogId: string,
+  articleData: ArticleData,
+  autoPublish: boolean = true
+): Promise<{ id: string; slug: string; status: string; title: string }> {
+  console.log(`[PERSIST] Preparing to save article: "${articleData.title}" for blog ${blogId}`);
+  
+  // Gerar slug único baseado no título
+  const baseSlug = (articleData.title || 'artigo')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+    .replace(/[^a-z0-9]+/g, '-')     // Substitui não-alfanuméricos por hífen
+    .replace(/(^-|-$)/g, '')          // Remove hífens nas pontas
+    .slice(0, 60);                     // Limita tamanho
+  
+  // Adiciona timestamp para garantir unicidade
+  const uniqueSlug = `${baseSlug}-${Date.now()}`;
+  
+  // Calcular reading_time se não existir
+  const wordCount = (articleData.content || '').split(/\s+/).filter(Boolean).length;
+  const readingTime = articleData.reading_time || Math.ceil(wordCount / 200) || 5;
+  
+  // Preparar dados para inserção
+  const insertData = {
+    blog_id: blogId,
+    title: articleData.title || 'Artigo sem título',
+    slug: uniqueSlug,
+    content: articleData.content || '',
+    excerpt: articleData.excerpt || articleData.meta_description || '',
+    meta_description: articleData.meta_description || '',
+    faq: articleData.faq || [],
+    keywords: articleData.keywords || [],
+    reading_time: readingTime,
+    status: autoPublish ? 'published' : 'draft',
+    published_at: autoPublish ? new Date().toISOString() : null,
+    generation_source: 'form',
+    featured_image_url: articleData.featured_image_url || null,
+    featured_image_alt: articleData.featured_image_alt || null,
+  };
+  
+  console.log(`[PERSIST] Inserting article with slug: ${uniqueSlug}, status: ${insertData.status}`);
+  
+  const { data, error } = await supabaseClient
+    .from('articles')
+    .insert(insertData)
+    .select('id, slug, status, title')
+    .single();
+
+  if (error) {
+    console.error(`[PERSIST] Database insert failed:`, error);
+    throw new Error(`Falha ao salvar artigo: ${error.message} (code: ${error.code})`);
+  }
+
+  if (!data) {
+    console.error(`[PERSIST] No data returned after insert`);
+    throw new Error('Nenhum dado retornado após inserção do artigo');
+  }
+
+  console.log(`[PERSIST] ✅ Article inserted: id=${data.id}, slug=${data.slug}, status=${data.status}`);
+  return data;
+}
+
+// ============ FIM PERSISTÊNCIA DE ARTIGO ============
 
 // Editorial Model Instructions with strict visual block limits
 const EDITORIAL_MODEL_INSTRUCTIONS = {
@@ -761,10 +856,40 @@ serve(async (req) => {
           });
         }
 
-        return new Response(
-          JSON.stringify({ success: true, article: cacheHit.response_data, from_cache: true }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        // CACHE HIT: Ainda precisamos persistir como NOVO artigo no banco
+        // O cache guarda apenas o conteúdo, não o registro persistido
+        const cachedArticle = cacheHit.response_data as ArticleData;
+        const autoPublishFromCache = true; // Cache hit sempre auto-publica
+        
+        console.log('[CACHE HIT] Persisting cached content as new article...');
+        
+        try {
+          const persistedFromCache = await persistArticleToDb(
+            supabase,
+            blog_id!,
+            cachedArticle,
+            autoPublishFromCache
+          );
+          
+          console.log(`[CACHE HIT] Article persisted: id=${persistedFromCache.id}, slug=${persistedFromCache.slug}`);
+          
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              article: {
+                ...cachedArticle,
+                id: persistedFromCache.id,
+                slug: persistedFromCache.slug,
+                status: persistedFromCache.status
+              }, 
+              from_cache: true 
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        } catch (persistError) {
+          console.error('[CACHE HIT] Failed to persist cached article:', persistError);
+          // Continue to regenerate if cache persistence fails
+        }
       } else {
         console.log(`CACHE SKIP - word count too low: ${cachedWordCount} < ${minAcceptable} (target: ${targetWordCount})`);
       }
@@ -1493,8 +1618,40 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
       console.warn("Failed to save to cache:", cacheError);
     }
 
+    // ============ PERSISTÊNCIA OBRIGATÓRIA NO BANCO ============
+    // CRÍTICO: O artigo DEVE ser salvo na tabela 'articles' antes de retornar
+    // O frontend espera id, slug e status válidos para confirmar sucesso
+    const autoPublish = true; // Fluxo de subconta sempre auto-publica
+    
+    console.log('[PERSIST] Starting article persistence to database...');
+    
+    let persistedArticle: { id: string; slug: string; status: string; title: string };
+    
+    try {
+      persistedArticle = await persistArticleToDb(
+        supabase,
+        blog_id!,
+        article,
+        autoPublish
+      );
+      
+      console.log(`[PERSIST] ✅ Article saved successfully: id=${persistedArticle.id}, slug=${persistedArticle.slug}, status=${persistedArticle.status}`);
+    } catch (persistError) {
+      console.error('[PERSIST] ❌ Failed to save article to database:', persistError);
+      throw new Error(`DB_PERSIST_FAILED: Não foi possível salvar o artigo no banco. ${persistError instanceof Error ? persistError.message : 'Erro desconhecido'}`);
+    }
+
+    // Retornar com os campos de persistência obrigatórios
     return new Response(
-      JSON.stringify({ success: true, article }),
+      JSON.stringify({ 
+        success: true, 
+        article: {
+          ...article,
+          id: persistedArticle.id,
+          slug: persistedArticle.slug,
+          status: persistedArticle.status
+        }
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
