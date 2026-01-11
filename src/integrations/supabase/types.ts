@@ -932,6 +932,7 @@ export type Database = {
           banner_mobile_image_url: string | null
           banner_title: string | null
           brand_description: string | null
+          city: string | null
           color_palette: Json | null
           created_at: string
           cta_text: string | null
@@ -945,6 +946,8 @@ export type Database = {
           domain_verified: boolean | null
           favicon_url: string | null
           footer_text: string | null
+          header_cta_text: string | null
+          header_cta_url: string | null
           id: string
           integration_type: string | null
           layout_template: string | null
@@ -960,7 +963,9 @@ export type Database = {
           seasonal_template: string | null
           seasonal_template_expires_at: string | null
           secondary_color: string | null
+          show_categories_footer: boolean | null
           show_powered_by: boolean | null
+          show_search: boolean | null
           slug: string
           tenant_id: string | null
           theme_mode: string | null
@@ -980,6 +985,7 @@ export type Database = {
           banner_mobile_image_url?: string | null
           banner_title?: string | null
           brand_description?: string | null
+          city?: string | null
           color_palette?: Json | null
           created_at?: string
           cta_text?: string | null
@@ -993,6 +999,8 @@ export type Database = {
           domain_verified?: boolean | null
           favicon_url?: string | null
           footer_text?: string | null
+          header_cta_text?: string | null
+          header_cta_url?: string | null
           id?: string
           integration_type?: string | null
           layout_template?: string | null
@@ -1008,7 +1016,9 @@ export type Database = {
           seasonal_template?: string | null
           seasonal_template_expires_at?: string | null
           secondary_color?: string | null
+          show_categories_footer?: boolean | null
           show_powered_by?: boolean | null
+          show_search?: boolean | null
           slug: string
           tenant_id?: string | null
           theme_mode?: string | null
@@ -1028,6 +1038,7 @@ export type Database = {
           banner_mobile_image_url?: string | null
           banner_title?: string | null
           brand_description?: string | null
+          city?: string | null
           color_palette?: Json | null
           created_at?: string
           cta_text?: string | null
@@ -1041,6 +1052,8 @@ export type Database = {
           domain_verified?: boolean | null
           favicon_url?: string | null
           footer_text?: string | null
+          header_cta_text?: string | null
+          header_cta_url?: string | null
           id?: string
           integration_type?: string | null
           layout_template?: string | null
@@ -1056,7 +1069,9 @@ export type Database = {
           seasonal_template?: string | null
           seasonal_template_expires_at?: string | null
           secondary_color?: string | null
+          show_categories_footer?: boolean | null
           show_powered_by?: boolean | null
+          show_search?: boolean | null
           slug?: string
           tenant_id?: string | null
           theme_mode?: string | null

@@ -1,59 +1,70 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useBlog } from '@/hooks/useBlog';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Globe, ExternalLink, Plus, Trash2, Loader2, Save, Image as ImageIcon, Copy, Check } from 'lucide-react';
+import { Globe, ExternalLink, Copy, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
 import { getBlogUrl } from '@/utils/blogUrl';
-
-interface ContactButton {
-  id?: string;
-  button_type: 'whatsapp' | 'phone' | 'instagram' | 'website' | 'link';
-  label: string;
-  value: string;
-}
-
-const BUTTON_TYPES = [
-  { value: 'whatsapp', label: 'WhatsApp', placeholder: '11999999999' },
-  { value: 'phone', label: 'Telefone', placeholder: '1133334444' },
-  { value: 'instagram', label: 'Instagram', placeholder: '@seuusuario' },
-  { value: 'website', label: 'Site', placeholder: 'https://seusite.com' },
-  { value: 'link', label: 'Link', placeholder: 'https://...' },
-];
-
-const LAYOUT_OPTIONS = [
-  { id: 'minimal', name: 'Minimalista', description: 'Limpo e simples' },
-  { id: 'modern', name: 'Moderno', description: 'Visual contemporâneo' },
-  { id: 'corporate', name: 'Profissional', description: 'Formal e confiável' },
-];
+import { MiniSiteEditor } from '@/components/client/minisite/MiniSiteEditor';
+import { MiniSitePreview } from '@/components/client/minisite/MiniSitePreview';
+import { ContactButton } from '@/components/client/minisite/sections/ContactButtonsSection';
 
 export default function ClientSite() {
   const { blog, refetch } = useBlog();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  
+  const [hasChanges, setHasChanges] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [copied, setCopied] = useState(false);
+
   // Form state
   const [companyName, setCompanyName] = useState('');
   const [city, setCity] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
+  const [logoNegativeUrl, setLogoNegativeUrl] = useState('');
+  const [faviconUrl, setFaviconUrl] = useState('');
+  const [layoutTemplate, setLayoutTemplate] = useState('modern');
   const [primaryColor, setPrimaryColor] = useState('#6366f1');
   const [secondaryColor, setSecondaryColor] = useState('#8b5cf6');
-  const [layout, setLayout] = useState('modern');
-  const [logoUrl, setLogoUrl] = useState('');
+  const [showSearch, setShowSearch] = useState(true);
+  const [headerCtaText, setHeaderCtaText] = useState('');
+  const [headerCtaUrl, setHeaderCtaUrl] = useState('');
+  const [bannerEnabled, setBannerEnabled] = useState(false);
+  const [bannerTitle, setBannerTitle] = useState('');
+  const [bannerDescription, setBannerDescription] = useState('');
+  const [bannerImageUrl, setBannerImageUrl] = useState('');
+  const [ctaText, setCtaText] = useState('');
+  const [ctaUrl, setCtaUrl] = useState('');
+  const [brandDescription, setBrandDescription] = useState('');
+  const [footerText, setFooterText] = useState('');
+  const [showCategoriesFooter, setShowCategoriesFooter] = useState(true);
   const [contactButtons, setContactButtons] = useState<ContactButton[]>([]);
 
+  // Load blog data
   useEffect(() => {
     if (!blog) return;
 
     setCompanyName(blog.name || '');
+    setCity((blog as any).city || '');
+    setLogoUrl(blog.logo_url || '');
+    setLogoNegativeUrl(blog.logo_negative_url || '');
+    setFaviconUrl(blog.favicon_url || '');
+    setLayoutTemplate((blog as any).layout_template || 'modern');
     setPrimaryColor(blog.primary_color || '#6366f1');
     setSecondaryColor(blog.secondary_color || '#8b5cf6');
-    setLayout('modern'); // Default layout
-    setLogoUrl(blog.logo_url || '');
-    setCity('');
+    setShowSearch((blog as any).show_search ?? true);
+    setHeaderCtaText((blog as any).header_cta_text || '');
+    setHeaderCtaUrl((blog as any).header_cta_url || '');
+    setBannerEnabled(blog.banner_enabled || false);
+    setBannerTitle(blog.banner_title || '');
+    setBannerDescription(blog.banner_description || '');
+    setBannerImageUrl(blog.banner_image_url || '');
+    setCtaText(blog.cta_text || '');
+    setCtaUrl(blog.cta_url || '');
+    setBrandDescription(blog.brand_description || '');
+    setFooterText(blog.footer_text || '');
+    setShowCategoriesFooter((blog as any).show_categories_footer ?? true);
 
     // Fetch contact buttons
     const fetchButtons = async () => {
@@ -77,85 +88,84 @@ export default function ClientSite() {
     fetchButtons();
   }, [blog]);
 
-  const handleSave = async () => {
-    if (!blog?.id) return;
-    setSaving(true);
+  // Auto-save with debounce
+  useEffect(() => {
+    if (!hasChanges || !blog?.id) return;
 
-    try {
-      // Update blog info
-      const { error: blogError } = await supabase
-        .from('blogs')
-        .update({
-          name: companyName,
-          primary_color: primaryColor,
-          secondary_color: secondaryColor,
-          logo_url: logoUrl,
-        })
-        .eq('id', blog.id);
+    const timer = setTimeout(async () => {
+      setSaveStatus('saving');
+      try {
+        // Update blog
+        const { error: blogError } = await supabase
+          .from('blogs')
+          .update({
+            name: companyName,
+            city: city,
+            logo_url: logoUrl,
+            logo_negative_url: logoNegativeUrl,
+            favicon_url: faviconUrl,
+            layout_template: layoutTemplate,
+            primary_color: primaryColor,
+            secondary_color: secondaryColor,
+            show_search: showSearch,
+            header_cta_text: headerCtaText,
+            header_cta_url: headerCtaUrl,
+            banner_enabled: bannerEnabled,
+            banner_title: bannerTitle,
+            banner_description: bannerDescription,
+            banner_image_url: bannerImageUrl,
+            cta_text: ctaText,
+            cta_url: ctaUrl,
+            brand_description: brandDescription,
+            footer_text: footerText,
+            show_categories_footer: showCategoriesFooter,
+          })
+          .eq('id', blog.id);
 
-      if (blogError) throw blogError;
+        if (blogError) throw blogError;
 
-      // Delete existing buttons
-      await supabase
-        .from('blog_contact_buttons')
-        .delete()
-        .eq('blog_id', blog.id);
-
-      // Insert new buttons
-      if (contactButtons.length > 0) {
-        const buttonsToInsert = contactButtons.map((btn, index) => ({
-          blog_id: blog.id,
-          button_type: btn.button_type,
-          label: btn.label,
-          value: btn.value,
-          sort_order: index,
-        }));
-
-        const { error: buttonsError } = await supabase
+        // Update contact buttons
+        await supabase
           .from('blog_contact_buttons')
-          .insert(buttonsToInsert);
+          .delete()
+          .eq('blog_id', blog.id);
 
-        if (buttonsError) throw buttonsError;
+        if (contactButtons.length > 0) {
+          const buttonsToInsert = contactButtons.map((btn, index) => ({
+            blog_id: blog.id,
+            button_type: btn.button_type,
+            label: btn.label,
+            value: btn.value,
+            sort_order: index,
+          }));
+
+          await supabase
+            .from('blog_contact_buttons')
+            .insert(buttonsToInsert);
+        }
+
+        setSaveStatus('saved');
+        setTimeout(() => setSaveStatus('idle'), 2000);
+      } catch (error) {
+        console.error('Error saving:', error);
+        toast.error('Erro ao salvar');
+        setSaveStatus('idle');
       }
+      setHasChanges(false);
+    }, 2000);
 
-      await refetch();
-      toast.success('Configurações salvas!');
-    } catch (error) {
-      console.error('Error saving:', error);
-      toast.error('Erro ao salvar configurações');
-    } finally {
-      setSaving(false);
-    }
-  };
+    return () => clearTimeout(timer);
+  }, [hasChanges, blog?.id, companyName, city, logoUrl, logoNegativeUrl, faviconUrl, layoutTemplate, primaryColor, secondaryColor, showSearch, headerCtaText, headerCtaUrl, bannerEnabled, bannerTitle, bannerDescription, bannerImageUrl, ctaText, ctaUrl, brandDescription, footerText, showCategoriesFooter, contactButtons]);
 
-  const addContactButton = () => {
-    setContactButtons([...contactButtons, { button_type: 'whatsapp', label: '', value: '' }]);
-  };
+  // Mark as changed
+  const markChanged = useCallback(() => setHasChanges(true), []);
 
-  const removeContactButton = (index: number) => {
-    setContactButtons(contactButtons.filter((_, i) => i !== index));
-  };
-
-  const updateContactButton = (index: number, field: keyof ContactButton, value: string) => {
-    const updated = [...contactButtons];
-    updated[index] = { ...updated[index], [field]: value };
-    setContactButtons(updated);
-  };
-
-  const [copied, setCopied] = useState(false);
-
-  const getBlogUrlSafe = () => {
-    if (!blog) return '';
-    return getBlogUrl(blog);
-  };
-
+  // URL helpers
+  const getBlogUrlSafe = () => blog ? getBlogUrl(blog) : '';
   const openSite = () => {
     const url = getBlogUrlSafe();
-    if (url) {
-      window.open(url, '_blank');
-    }
+    if (url) window.open(url, '_blank');
   };
-
   const copyBlogUrl = () => {
     const url = getBlogUrlSafe();
     if (url) {
@@ -175,17 +185,15 @@ export default function ClientSite() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="h-[calc(100vh-80px)] flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <Globe className="h-8 w-8 text-primary" />
-            Meu Mini-Site
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Configure a aparência do seu blog
-          </p>
+      <div className="flex items-center justify-between p-4 border-b shrink-0">
+        <div className="flex items-center gap-3">
+          <Globe className="h-6 w-6 text-primary" />
+          <div>
+            <h1 className="text-xl font-bold">Meu Mini-Site</h1>
+            <p className="text-sm text-muted-foreground">{getBlogUrlSafe()}</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={copyBlogUrl} variant="outline" size="icon" title="Copiar link">
@@ -193,205 +201,88 @@ export default function ClientSite() {
           </Button>
           <Button onClick={openSite} className="gap-2">
             <ExternalLink className="h-4 w-4" />
-            Abrir Meu Blog
+            Abrir Site
           </Button>
         </div>
       </div>
 
-      {/* Blog URL Display */}
-      {blog && (
-        <Card className="bg-muted/50">
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-muted-foreground mb-1">Endereço do seu blog:</p>
-                <p className="font-mono text-sm truncate">{getBlogUrlSafe()}</p>
-              </div>
-              <Button onClick={openSite} variant="secondary" size="sm" className="gap-2 shrink-0">
-                <ExternalLink className="h-3 w-3" />
-                Abrir
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Split View */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Editor - Left */}
+        <div className="w-[45%] overflow-y-auto p-6 border-r">
+          <MiniSiteEditor
+            companyName={companyName}
+            city={city}
+            logoUrl={logoUrl}
+            logoNegativeUrl={logoNegativeUrl}
+            faviconUrl={faviconUrl}
+            layoutTemplate={layoutTemplate}
+            primaryColor={primaryColor}
+            secondaryColor={secondaryColor}
+            showSearch={showSearch}
+            headerCtaText={headerCtaText}
+            headerCtaUrl={headerCtaUrl}
+            bannerEnabled={bannerEnabled}
+            bannerTitle={bannerTitle}
+            bannerDescription={bannerDescription}
+            bannerImageUrl={bannerImageUrl}
+            ctaText={ctaText}
+            ctaUrl={ctaUrl}
+            brandDescription={brandDescription}
+            footerText={footerText}
+            showCategoriesFooter={showCategoriesFooter}
+            contactButtons={contactButtons}
+            userId={user?.id || ''}
+            saveStatus={saveStatus}
+            onCompanyNameChange={(v) => { setCompanyName(v); markChanged(); }}
+            onCityChange={(v) => { setCity(v); markChanged(); }}
+            onLogoUrlChange={(v) => { setLogoUrl(v); markChanged(); }}
+            onLogoNegativeUrlChange={(v) => { setLogoNegativeUrl(v); markChanged(); }}
+            onFaviconUrlChange={(v) => { setFaviconUrl(v); markChanged(); }}
+            onLayoutChange={(v) => { setLayoutTemplate(v); markChanged(); }}
+            onPrimaryColorChange={(v) => { setPrimaryColor(v); markChanged(); }}
+            onSecondaryColorChange={(v) => { setSecondaryColor(v); markChanged(); }}
+            onShowSearchChange={(v) => { setShowSearch(v); markChanged(); }}
+            onHeaderCtaTextChange={(v) => { setHeaderCtaText(v); markChanged(); }}
+            onHeaderCtaUrlChange={(v) => { setHeaderCtaUrl(v); markChanged(); }}
+            onBannerEnabledChange={(v) => { setBannerEnabled(v); markChanged(); }}
+            onBannerTitleChange={(v) => { setBannerTitle(v); markChanged(); }}
+            onBannerDescriptionChange={(v) => { setBannerDescription(v); markChanged(); }}
+            onBannerImageUrlChange={(v) => { setBannerImageUrl(v); markChanged(); }}
+            onCtaTextChange={(v) => { setCtaText(v); markChanged(); }}
+            onCtaUrlChange={(v) => { setCtaUrl(v); markChanged(); }}
+            onBrandDescriptionChange={(v) => { setBrandDescription(v); markChanged(); }}
+            onFooterTextChange={(v) => { setFooterText(v); markChanged(); }}
+            onShowCategoriesFooterChange={(v) => { setShowCategoriesFooter(v); markChanged(); }}
+            onContactButtonsChange={(v) => { setContactButtons(v); markChanged(); }}
+          />
+        </div>
 
-      {/* Identity */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Identidade</CardTitle>
-          <CardDescription>Informações básicas do seu negócio</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Logo */}
-          <div className="space-y-2">
-            <Label>Logo</Label>
-            <div className="flex items-center gap-4">
-              {logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="h-16 w-16 object-contain rounded-lg border" />
-              ) : (
-                <div className="h-16 w-16 bg-muted rounded-lg border flex items-center justify-center">
-                  <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                </div>
-              )}
-              <Input
-                placeholder="URL da logo"
-                value={logoUrl}
-                onChange={(e) => setLogoUrl(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Company Name */}
-          <div className="space-y-2">
-            <Label>Nome da Empresa</Label>
-            <Input
-              placeholder="Ex: Limpeza Express"
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-            />
-          </div>
-
-          {/* City */}
-          <div className="space-y-2">
-            <Label>Cidade</Label>
-            <Input
-              placeholder="Ex: São Paulo, SP"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Layout Selection */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Layout</CardTitle>
-          <CardDescription>Escolha o visual do seu site</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {LAYOUT_OPTIONS.map((option) => (
-              <button
-                key={option.id}
-                onClick={() => setLayout(option.id)}
-                className={cn(
-                  "p-4 rounded-xl border-2 text-left transition-all",
-                  layout === option.id
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/50"
-                )}
-              >
-                <div className="font-semibold">{option.name}</div>
-                <div className="text-sm text-muted-foreground">{option.description}</div>
-              </button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Colors */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Cores</CardTitle>
-          <CardDescription>Personalize as cores do seu site</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <Label>Cor Principal</Label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={primaryColor}
-                  onChange={(e) => setPrimaryColor(e.target.value)}
-                  className="w-12 h-12 rounded-lg border cursor-pointer"
-                />
-                <Input
-                  value={primaryColor}
-                  onChange={(e) => setPrimaryColor(e.target.value)}
-                  className="font-mono"
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Cor Secundária</Label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={secondaryColor}
-                  onChange={(e) => setSecondaryColor(e.target.value)}
-                  className="w-12 h-12 rounded-lg border cursor-pointer"
-                />
-                <Input
-                  value={secondaryColor}
-                  onChange={(e) => setSecondaryColor(e.target.value)}
-                  className="font-mono"
-                />
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Contact Buttons */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Botões de Contato</CardTitle>
-          <CardDescription>Adicione formas de seus clientes entrarem em contato</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {contactButtons.map((button, index) => (
-            <div key={index} className="flex items-center gap-3 p-4 border rounded-lg">
-              <select
-                value={button.button_type}
-                onChange={(e) => updateContactButton(index, 'button_type', e.target.value)}
-                className="h-10 rounded-md border px-3 text-sm bg-background"
-              >
-                {BUTTON_TYPES.map((type) => (
-                  <option key={type.value} value={type.value}>{type.label}</option>
-                ))}
-              </select>
-              <Input
-                placeholder={BUTTON_TYPES.find(t => t.value === button.button_type)?.placeholder}
-                value={button.value}
-                onChange={(e) => updateContactButton(index, 'value', e.target.value)}
-                className="flex-1"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => removeContactButton(index)}
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
-          
-          <Button variant="outline" onClick={addContactButton} className="w-full gap-2">
-            <Plus className="h-4 w-4" />
-            Adicionar botão
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Save Button */}
-      <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={saving} size="lg" className="gap-2">
-          {saving ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Salvando...
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4" />
-              Salvar Configurações
-            </>
-          )}
-        </Button>
+        {/* Preview - Right */}
+        <div className="w-[55%] bg-muted/30">
+          <MiniSitePreview
+            blogId={blog?.id || ''}
+            companyName={companyName}
+            description={blog?.description || ''}
+            logoUrl={logoUrl}
+            logoNegativeUrl={logoNegativeUrl}
+            primaryColor={primaryColor}
+            secondaryColor={secondaryColor}
+            showSearch={showSearch}
+            headerCtaText={headerCtaText}
+            headerCtaUrl={headerCtaUrl}
+            bannerEnabled={bannerEnabled}
+            bannerTitle={bannerTitle}
+            bannerDescription={bannerDescription}
+            bannerImageUrl={bannerImageUrl}
+            ctaText={ctaText}
+            ctaUrl={ctaUrl}
+            brandDescription={brandDescription}
+            footerText={footerText}
+            showCategoriesFooter={showCategoriesFooter}
+            contactButtons={contactButtons}
+          />
+        </div>
       </div>
     </div>
   );
