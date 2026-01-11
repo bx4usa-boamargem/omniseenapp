@@ -178,7 +178,7 @@ export default function ClientArticleEditor() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <header className="flex items-center justify-between pb-4 border-b border-border mb-6">
+      <header className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-white/10 mb-6">
         <div className="flex items-center gap-3">
           <Button 
             variant="ghost" 
@@ -232,7 +232,7 @@ export default function ClientArticleEditor() {
       </header>
 
       {/* Main Content - Split View */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 min-h-0">
+      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 min-h-0">
         {/* Left Column - Form/Editor */}
         <div className="flex flex-col min-h-0 overflow-auto">
           {phase === 'form' && (
@@ -264,7 +264,7 @@ export default function ClientArticleEditor() {
             <div className="space-y-4 h-full flex flex-col">
               {/* Title Input */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Título</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Título</label>
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -275,7 +275,7 @@ export default function ClientArticleEditor() {
               
               {/* Excerpt Input */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Resumo</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Resumo</label>
                 <Input
                   value={excerpt}
                   onChange={(e) => setExcerpt(e.target.value)}
@@ -285,7 +285,7 @@ export default function ClientArticleEditor() {
               
               {/* Content Editor */}
               <div className="flex-1 min-h-0 space-y-2">
-                <label className="text-sm font-medium">Conteúdo</label>
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Conteúdo</label>
                 <div className="h-full min-h-[400px]">
                   <RichTextEditor
                     value={content}
@@ -301,11 +301,11 @@ export default function ClientArticleEditor() {
         {/* Right Column - Preview */}
         <div className="min-h-0 overflow-auto">
           {phase === 'form' && (
-            <Card className="h-full flex items-center justify-center bg-muted/30 border-dashed">
+            <Card className="h-full flex items-center justify-center bg-gray-100/50 dark:bg-white/5 border-dashed border-slate-200 dark:border-white/10">
               <CardContent className="text-center py-12">
-                <FileText className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
-                <h3 className="font-semibold text-muted-foreground">Preview do Artigo</h3>
-                <p className="text-sm text-muted-foreground mt-1">
+                <FileText className="h-12 w-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
+                <h3 className="font-semibold text-gray-500 dark:text-gray-400">Preview do Artigo</h3>
+                <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
                   O artigo aparecerá aqui enquanto é gerado
                 </p>
               </CardContent>

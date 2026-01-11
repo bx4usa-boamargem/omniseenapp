@@ -133,11 +133,11 @@ export default function ClientCompany() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold flex items-center gap-3">
+        <h1 className="text-3xl font-bold flex items-center gap-3 text-gray-800 dark:text-white">
           <Building2 className="h-8 w-8 text-primary" />
           Minha Empresa
         </h1>
-        <p className="text-muted-foreground mt-1">
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
           Conte sobre seu negócio para a IA criar artigos perfeitos
         </p>
       </div>
@@ -267,10 +267,10 @@ export default function ClientCompany() {
       </div>
 
       {/* Info Card */}
-      <Card className="bg-muted/50 border-dashed">
+      <Card className="bg-gray-100/80 dark:bg-white/5 border-dashed border-slate-200 dark:border-white/10">
         <CardContent className="pt-6">
-          <h3 className="font-semibold mb-2">💡 Por que isso é importante?</h3>
-          <p className="text-sm text-muted-foreground">
+          <h3 className="font-semibold mb-2 text-gray-800 dark:text-white">💡 Por que isso é importante?</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             A IA usa essas informações para criar artigos que falam diretamente 
             com seus clientes. Quanto mais detalhes você fornecer, melhores serão os artigos.
           </p>

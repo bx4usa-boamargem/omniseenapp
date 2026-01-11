@@ -151,22 +151,22 @@ export default function ClientAutomation() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold flex items-center gap-3">
+        <h1 className="text-3xl font-bold flex items-center gap-3 text-gray-800 dark:text-white">
           <Zap className="h-8 w-8 text-primary" />
           Automação
         </h1>
-        <p className="text-muted-foreground mt-1">
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
           Deixe o robô trabalhar por você
         </p>
       </div>
 
       {/* Main Toggle */}
-      <Card className="border-2">
+      <Card className="border-2 border-slate-200 dark:border-white/20">
         <CardContent className="pt-6">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold">Sua automação está:</h2>
-              <p className="text-muted-foreground mt-1">
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Sua automação está:</h2>
+              <p className="text-gray-500 dark:text-gray-400 mt-1">
                 {isActive 
                   ? 'Artigos são criados automaticamente para você' 
                   : 'Ative para o robô começar a trabalhar'}
@@ -201,11 +201,11 @@ export default function ClientAutomation() {
             {FREQUENCY_OPTIONS.map((option) => (
               <div 
                 key={option.value}
-                className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                className="flex items-center space-x-3 p-4 border border-slate-200 dark:border-white/10 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 cursor-pointer"
                 onClick={() => handleFrequencyChange(option.value)}
               >
                 <RadioGroupItem value={option.value} id={option.value} />
-                <Label htmlFor={option.value} className="text-base cursor-pointer flex-1">
+                <Label htmlFor={option.value} className="text-base cursor-pointer flex-1 text-gray-800 dark:text-white">
                   {option.label}
                 </Label>
               </div>
@@ -227,7 +227,7 @@ export default function ClientAutomation() {
         </CardHeader>
         <CardContent>
           {nextPublications.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
               <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
               <p>Nenhuma publicação agendada</p>
               <p className="text-sm mt-1">
@@ -241,9 +241,9 @@ export default function ClientAutomation() {
               {nextPublications.map((item) => (
                 <li 
                   key={item.id} 
-                  className="flex items-center justify-between py-3 px-4 border rounded-lg"
+                  className="flex items-center justify-between py-3 px-4 border border-slate-200 dark:border-white/10 rounded-lg"
                 >
-                  <span className="font-medium truncate flex-1 mr-4">
+                  <span className="font-medium truncate flex-1 mr-4 text-gray-800 dark:text-white">
                     {item.suggested_theme}
                   </span>
                   {item.scheduled_for && (
@@ -259,10 +259,10 @@ export default function ClientAutomation() {
       </Card>
 
       {/* Info Card */}
-      <Card className="bg-muted/50 border-dashed">
+      <Card className="bg-gray-100/80 dark:bg-white/5 border-dashed border-slate-200 dark:border-white/10">
         <CardContent className="pt-6">
-          <h3 className="font-semibold mb-2">🤖 Como funciona?</h3>
-          <p className="text-sm text-muted-foreground">
+          <h3 className="font-semibold mb-2 text-gray-800 dark:text-white">🤖 Como funciona?</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             O robô analisa o perfil da sua empresa e cria artigos relevantes automaticamente.
             Cada artigo é otimizado para o Google e publicado no seu blog sem você precisar fazer nada.
           </p>

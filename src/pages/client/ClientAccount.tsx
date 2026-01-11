@@ -128,11 +128,11 @@ export default function ClientAccount() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold flex items-center gap-3">
+        <h1 className="text-3xl font-bold flex items-center gap-3 text-gray-800 dark:text-white">
           <User className="h-8 w-8 text-primary" />
           Minha Conta
         </h1>
-        <p className="text-muted-foreground mt-1">
+        <p className="text-gray-500 dark:text-gray-400 mt-1">
           Gerencie sua conta e equipe
         </p>
       </div>
@@ -170,27 +170,27 @@ export default function ClientAccount() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Current user */}
-          <div className="flex items-center justify-between py-3 px-4 bg-muted/50 rounded-lg">
+          <div className="flex items-center justify-between py-3 px-4 bg-gray-100 dark:bg-white/5 rounded-lg">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
                 <User className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <div className="font-medium">{user?.email}</div>
-                <div className="text-sm text-muted-foreground">Proprietário</div>
+                <div className="font-medium text-gray-800 dark:text-white">{user?.email}</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">Proprietário</div>
               </div>
             </div>
           </div>
 
           {/* Team members */}
           {teamMembers.map((member) => (
-            <div key={member.id} className="flex items-center justify-between py-3 px-4 border rounded-lg">
+            <div key={member.id} className="flex items-center justify-between py-3 px-4 border border-slate-200 dark:border-white/10 rounded-lg">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                  <Mail className="h-5 w-5 text-muted-foreground" />
+              <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center">
+                  <Mail className="h-5 w-5 text-gray-500 dark:text-gray-400" />
                 </div>
                 <div>
-                  <div className="font-medium text-sm">{member.user_id.substring(0, 8)}...</div>
+                  <div className="font-medium text-sm text-gray-800 dark:text-white">{member.user_id.substring(0, 8)}...</div>
                   <Badge variant={member.status === 'accepted' ? 'default' : 'secondary'} className="text-xs">
                     {member.status === 'accepted' ? 'Ativo' : 'Pendente'}
                   </Badge>
@@ -250,7 +250,7 @@ export default function ClientAccount() {
       </Card>
 
       {/* Logout */}
-      <Card className="border-destructive/20">
+      <Card className="border-destructive/20 dark:border-destructive/30">
         <CardContent className="pt-6">
           <Button 
             variant="destructive" 
