@@ -55,26 +55,40 @@ export function useBlog(): UseBlogResult {
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
 
   const fetchBlog = async () => {
+    console.log('useBlog: Iniciando fetch');
     setLoading(true);
     
     // Set a timeout to prevent infinite loading
     const timeoutId = setTimeout(() => {
-      console.warn('useBlog: fetch timeout reached');
+      console.warn('useBlog: Timeout atingido após', FETCH_TIMEOUT_MS, 'ms');
       setLoading(false);
     }, FETCH_TIMEOUT_MS);
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      console.log('useBlog: Usuário autenticado', { 
+        userId: user?.id, 
+        email: user?.email,
+        error: userError ? userError.message : null
+      });
+      
       if (!user) {
+        console.warn('useBlog: Sem usuário autenticado');
         setLoading(false);
         return;
       }
 
       // 1. Check if user is platform admin
-      const { data: roles } = await supabase
+      const { data: roles, error: rolesError } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id);
+
+      console.log('useBlog: Roles do usuário', { 
+        roles, 
+        error: rolesError ? rolesError.message : null 
+      });
 
       const adminRoles = ['admin', 'platform_admin'];
       const hasAdminRole = roles?.some(r => adminRoles.includes(r.role as string)) ?? false;
@@ -83,22 +97,30 @@ export function useBlog(): UseBlogResult {
       }
 
       // 2. Check if user owns a blog
-      const { data: ownedBlog } = await supabase
+      const { data: ownedBlog, error: blogError } = await supabase
         .from("blogs")
         .select("*")
         .eq("user_id", user.id)
         .maybeSingle();
 
+      console.log('useBlog: Blog próprio', { 
+        blogId: ownedBlog?.id, 
+        blogName: ownedBlog?.name,
+        exists: !!ownedBlog,
+        error: blogError ? blogError.message : null
+      });
+
       if (ownedBlog) {
         setBlog(ownedBlog as Blog);
         setIsOwner(true);
         setRole("owner");
+        console.log('useBlog: Blog carregado como owner', { blogId: ownedBlog.id });
         setLoading(false);
         return;
       }
 
       // 3. Check if user is a team member
-      const { data: membership } = await supabase
+      const { data: membership, error: memberError } = await supabase
         .from("team_members")
         .select(`
           blog_id,
@@ -119,23 +141,37 @@ export function useBlog(): UseBlogResult {
         .eq("status", "active")
         .maybeSingle();
 
+      console.log('useBlog: Membership de equipe', { 
+        membership,
+        error: memberError ? memberError.message : null
+      });
+
       if (membership && membership.blogs) {
         const blogData = membership.blogs as unknown as Blog;
         setBlog(blogData);
         setRole(membership.role as TeamRole);
         setIsOwner(false);
+        console.log('useBlog: Blog carregado como membro', { 
+          blogId: blogData.id, 
+          role: membership.role 
+        });
         setLoading(false);
         return;
       }
 
       // 4. If platform admin but no blog, get first available blog
       if (hasAdminRole) {
-        const { data: anyBlog } = await supabase
+        const { data: anyBlog, error: anyBlogError } = await supabase
           .from("blogs")
           .select("*")
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
+
+        console.log('useBlog: Blog admin fallback', { 
+          blogId: anyBlog?.id,
+          error: anyBlogError ? anyBlogError.message : null
+        });
 
         if (anyBlog) {
           setBlog(anyBlog as Blog);
@@ -143,8 +179,16 @@ export function useBlog(): UseBlogResult {
           setIsOwner(false);
         }
       }
+
+      console.log('useBlog: Fetch finalizado', { 
+        hasBlog: !!ownedBlog || !!membership?.blogs,
+        isAdmin: hasAdminRole
+      });
     } catch (error) {
-      console.error("Error fetching blog:", error);
+      console.error("useBlog: Erro crítico", {
+        error,
+        message: error instanceof Error ? error.message : 'Erro desconhecido',
+      });
     } finally {
       clearTimeout(timeoutId);
       setLoading(false);
