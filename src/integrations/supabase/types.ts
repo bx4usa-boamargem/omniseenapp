@@ -439,6 +439,53 @@ export type Database = {
           },
         ]
       }
+      article_revisions: {
+        Row: {
+          article_id: string
+          created_at: string | null
+          field_changed: string
+          id: string
+          new_value: string | null
+          optimization_type: string | null
+          original_value: string | null
+          score_after: number | null
+          score_before: number | null
+          user_id: string
+        }
+        Insert: {
+          article_id: string
+          created_at?: string | null
+          field_changed: string
+          id?: string
+          new_value?: string | null
+          optimization_type?: string | null
+          original_value?: string | null
+          score_after?: number | null
+          score_before?: number | null
+          user_id: string
+        }
+        Update: {
+          article_id?: string
+          created_at?: string | null
+          field_changed?: string
+          id?: string
+          new_value?: string | null
+          optimization_type?: string | null
+          original_value?: string | null
+          score_after?: number | null
+          score_before?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_revisions_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       article_translations: {
         Row: {
           article_id: string

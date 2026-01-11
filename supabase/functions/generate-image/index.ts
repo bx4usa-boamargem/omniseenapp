@@ -32,10 +32,29 @@ function generateHash(text: string): string {
   return Math.abs(hash).toString(36);
 }
 
+// Generate fallback prompt when none is provided
+function buildFallbackPrompt(articleTheme: string, context: string): string {
+  const contextDescriptions: Record<string, string> = {
+    hero: 'imagem principal de capa profissional e impactante',
+    problem: 'ilustração visual do problema enfrentado pelo público',
+    pain: 'representação da dor ou frustração causada pelo problema',
+    solution: 'demonstração da solução de forma moderna e profissional',
+    result: 'resultado positivo após implementar a solução'
+  };
+
+  return `Crie uma imagem fotorrealista para um artigo sobre "${articleTheme}". 
+Tipo: ${contextDescriptions[context] || 'imagem ilustrativa'}. 
+Estilo: fotografia profissional, moderno, clean, sem texto, cores harmoniosas.
+Aspecto: 16:9, alta qualidade, nítida e bem definida.`;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const requestId = crypto.randomUUID();
+  console.log(`[${requestId}] Starting image generation request`);
 
   try {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
@@ -49,11 +68,33 @@ serve(async (req) => {
 
     const { prompt, context, articleTheme, targetAudience, user_id, blog_id }: ImageRequest = await req.json();
 
-    if (!prompt) {
-      return new Response(
-        JSON.stringify({ error: 'Prompt is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    console.log(`[${requestId}] Request params:`, { 
+      hasPrompt: !!prompt, 
+      hasTheme: !!articleTheme, 
+      context, 
+      blog_id 
+    });
+
+    // Auto-generate prompt if missing
+    let finalPrompt = prompt;
+    
+    if (!prompt || prompt.trim().length === 0) {
+      if (!articleTheme || articleTheme.trim().length === 0) {
+        console.error(`[${requestId}] Missing prompt and articleTheme`);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Não foi possível gerar a imagem: título ou tema do artigo está vazio.',
+            action: 'Adicione um título ao artigo antes de gerar a imagem.',
+            requiredFields: ['prompt', 'articleTheme'],
+            code: 'MISSING_CONTENT',
+            requestId
+          }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      finalPrompt = buildFallbackPrompt(articleTheme, context);
+      console.log(`[${requestId}] Auto-generated prompt: ${finalPrompt.substring(0, 100)}...`);
     }
 
     // Fetch AI model preference from content_preferences

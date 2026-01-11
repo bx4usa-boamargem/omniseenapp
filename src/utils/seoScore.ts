@@ -111,3 +111,61 @@ export function calculateSEOScore(params: SEOScoreParams): SEOScoreResult {
 
   return { totalScore, details };
 }
+
+// Validation interface for publishing
+export interface SEOValidationResult {
+  isValid: boolean;
+  canPublish: boolean;
+  issues: string[];
+  warnings: string[];
+}
+
+// Validate SEO requirements before publishing
+export function validateSEOForPublish(params: SEOScoreParams): SEOValidationResult {
+  const issues: string[] = [];
+  const warnings: string[] = [];
+  
+  // Title: 50-60 characters ideal (blocking below 30)
+  if (params.title.length < 30) {
+    issues.push('Título muito curto (mínimo 30 caracteres)');
+  } else if (params.title.length < 50) {
+    warnings.push('Título poderia ter entre 50-60 caracteres para melhor SEO');
+  } else if (params.title.length > 70) {
+    warnings.push('Título muito longo (recomendado até 60 caracteres)');
+  }
+  
+  // Meta description: 140-160 ideal (blocking below 50)
+  if (!params.metaDescription || params.metaDescription.length < 50) {
+    issues.push('Meta descrição muito curta ou ausente (mínimo 50 caracteres)');
+  } else if (params.metaDescription.length < 140) {
+    warnings.push('Meta descrição poderia ter entre 140-160 caracteres');
+  } else if (params.metaDescription.length > 160) {
+    warnings.push('Meta descrição muito longa (pode ser cortada no Google)');
+  }
+  
+  // Keywords: 3-7 ideal (blocking if 0)
+  if (params.keywords.length === 0) {
+    issues.push('Nenhuma palavra-chave definida');
+  } else if (params.keywords.length < 3) {
+    warnings.push('Recomendado ter pelo menos 3 palavras-chave');
+  } else if (params.keywords.length > 7) {
+    warnings.push('Muitas palavras-chave (recomendado até 7)');
+  }
+  
+  // Content length: min 300 words (blocking)
+  const contentText = params.content || '';
+  const wordCount = contentText.split(/\s+/).filter(w => w.length > 0).length;
+  
+  if (wordCount < 300) {
+    issues.push(`Conteúdo muito curto (${wordCount} palavras, mínimo 300)`);
+  } else if (wordCount < 800) {
+    warnings.push('Conteúdo poderia ter pelo menos 800 palavras para melhor ranqueamento');
+  }
+  
+  return {
+    isValid: issues.length === 0,
+    canPublish: issues.length === 0, // Only block on critical issues
+    issues,
+    warnings
+  };
+}

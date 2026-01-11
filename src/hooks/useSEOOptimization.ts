@@ -18,6 +18,22 @@ export interface OptimizationProgress {
   message: string;
 }
 
+export interface ApplyResult {
+  applied: number;
+  failed: number;
+  scoreBeforeTotal: number;
+  scoreAfterTotal: number;
+  changes: Array<{
+    articleId: string;
+    articleTitle: string;
+    field: string;
+    before: string;
+    after: string;
+    scoreBefore: number;
+    scoreAfter: number;
+  }>;
+}
+
 export function useSEOOptimization() {
   const [phase, setPhase] = useState<OptimizationPhase>('idle');
   const [suggestions, setSuggestions] = useState<OptimizationSuggestion[]>([]);
@@ -136,35 +152,65 @@ export function useSEOOptimization() {
     setSuggestions(prev => prev.map(s => ({ ...s, selected })));
   }, []);
 
-  const apply = useCallback(async (type: OptimizationType) => {
+  const apply = useCallback(async (type: OptimizationType, userId: string): Promise<ApplyResult> => {
     const selectedSuggestions = suggestions.filter(s => s.selected);
     
+    const result: ApplyResult = {
+      applied: 0,
+      failed: 0,
+      scoreBeforeTotal: 0,
+      scoreAfterTotal: 0,
+      changes: []
+    };
+
     if (selectedSuggestions.length === 0) {
       toast.warning('Selecione pelo menos uma sugestão para aplicar');
-      return;
+      return result;
     }
 
     setPhase('applying');
     const field = SEO_OPTIMIZATION_TYPES[type].field;
-    let applied = 0;
 
     for (const suggestion of selectedSuggestions) {
       setProgress({
-        current: applied + 1,
+        current: result.applied + result.failed + 1,
         total: selectedSuggestions.length,
         message: `Aplicando: ${suggestion.articleTitle.substring(0, 40)}...`
       });
 
       try {
+        // First, get the current article data for score calculation
+        const { data: currentArticle, error: fetchError } = await supabase
+          .from('articles')
+          .select('title, meta_description, content, keywords, featured_image_url')
+          .eq('id', suggestion.articleId)
+          .single();
+
+        if (fetchError) {
+          console.error('Error fetching article for score:', fetchError);
+          result.failed++;
+          continue;
+        }
+
+        // Calculate score BEFORE
+        const scoreBefore = calculateSEOScore({
+          title: currentArticle.title,
+          metaDescription: currentArticle.meta_description || '',
+          content: currentArticle.content,
+          keywords: currentArticle.keywords || [],
+          featuredImage: currentArticle.featured_image_url
+        }).totalScore;
+
+        // Prepare update data
         const updateData: Record<string, any> = {};
         
         if (type === 'keywords') {
-          // Keywords are stored as array
           updateData[field] = suggestion.suggestedValue.split(',').map(k => k.trim());
         } else {
           updateData[field] = suggestion.suggestedValue;
         }
 
+        // Apply the update
         const { error: updateError } = await supabase
           .from('articles')
           .update(updateData)
@@ -172,23 +218,120 @@ export function useSEOOptimization() {
 
         if (updateError) {
           console.error('Error updating article:', updateError);
-        } else {
-          applied++;
+          result.failed++;
+          continue;
         }
+
+        // Calculate score AFTER (simulate with new value)
+        const afterData = { ...currentArticle, [field]: updateData[field] };
+        const scoreAfter = calculateSEOScore({
+          title: afterData.title,
+          metaDescription: afterData.meta_description || '',
+          content: afterData.content,
+          keywords: Array.isArray(afterData.keywords) ? afterData.keywords : [],
+          featuredImage: afterData.featured_image_url
+        }).totalScore;
+
+        // Save revision for undo capability
+        try {
+          await supabase.from('article_revisions').insert({
+            article_id: suggestion.articleId,
+            user_id: userId,
+            field_changed: field,
+            original_value: suggestion.originalValue,
+            new_value: suggestion.suggestedValue,
+            optimization_type: type,
+            score_before: scoreBefore,
+            score_after: scoreAfter
+          });
+        } catch (revisionError) {
+          console.warn('Failed to save revision:', revisionError);
+          // Don't fail the whole operation for this
+        }
+
+        // Track results
+        result.applied++;
+        result.scoreBeforeTotal += scoreBefore;
+        result.scoreAfterTotal += scoreAfter;
+        result.changes.push({
+          articleId: suggestion.articleId,
+          articleTitle: suggestion.articleTitle,
+          field,
+          before: suggestion.originalValue,
+          after: suggestion.suggestedValue,
+          scoreBefore,
+          scoreAfter
+        });
+
       } catch (err) {
         console.error('Error applying suggestion:', err);
+        result.failed++;
       }
     }
 
     setPhase('complete');
     setProgress({
-      current: applied,
+      current: result.applied,
       total: selectedSuggestions.length,
-      message: `${applied} artigos otimizados!`
+      message: `${result.applied} artigos otimizados!`
     });
     
-    toast.success(`${applied} ${applied === 1 ? 'artigo otimizado' : 'artigos otimizados'} com sucesso!`);
+    if (result.applied > 0) {
+      const scoreDiff = result.scoreAfterTotal - result.scoreBeforeTotal;
+      const message = scoreDiff > 0 
+        ? `${result.applied} artigo(s) otimizado(s)! Score: +${scoreDiff} pontos`
+        : `${result.applied} artigo(s) otimizado(s)!`;
+      toast.success(message);
+    }
+    
+    if (result.failed > 0) {
+      toast.error(`${result.failed} artigo(s) falharam ao aplicar`);
+    }
+
+    return result;
   }, [suggestions]);
+
+  const undo = useCallback(async (articleId: string): Promise<boolean> => {
+    try {
+      // Get the last revision for this article
+      const { data: lastRevision, error: fetchError } = await supabase
+        .from('article_revisions')
+        .select('*')
+        .eq('article_id', articleId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (fetchError || !lastRevision) {
+        toast.error('Nenhuma alteração para desfazer');
+        return false;
+      }
+
+      // Restore the original value
+      const { error: updateError } = await supabase
+        .from('articles')
+        .update({ [lastRevision.field_changed]: lastRevision.original_value })
+        .eq('id', articleId);
+
+      if (updateError) {
+        toast.error('Erro ao desfazer alteração');
+        return false;
+      }
+
+      // Delete the revision record
+      await supabase
+        .from('article_revisions')
+        .delete()
+        .eq('id', lastRevision.id);
+
+      toast.success('Alteração desfeita com sucesso');
+      return true;
+    } catch (err) {
+      console.error('Error undoing change:', err);
+      toast.error('Erro ao desfazer alteração');
+      return false;
+    }
+  }, []);
 
   const reset = useCallback(() => {
     setPhase('idle');
@@ -206,6 +349,7 @@ export function useSEOOptimization() {
     articlesToFix,
     analyze,
     apply,
+    undo,
     toggleSuggestion,
     selectAll,
     reset

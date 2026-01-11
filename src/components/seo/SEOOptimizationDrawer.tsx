@@ -1,15 +1,16 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Sparkles, X, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Sparkles, X, CheckCircle2, ArrowRight, Undo2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { 
   OptimizationType, 
   ArticleSEO, 
   SEO_OPTIMIZATION_TYPES 
 } from '@/config/seoOptimizationTypes';
-import { useSEOOptimization } from '@/hooks/useSEOOptimization';
+import { useSEOOptimization, ApplyResult } from '@/hooks/useSEOOptimization';
 import { AIProgressIndicator } from './AIProgressIndicator';
 import { SEOComparisonCard } from './SEOComparisonCard';
 
@@ -44,6 +45,7 @@ export function SEOOptimizationDrawer({
     reset
   } = useSEOOptimization();
 
+  const [applyResult, setApplyResult] = useState<ApplyResult | null>(null);
   const config = type ? SEO_OPTIMIZATION_TYPES[type] : null;
   const selectedCount = suggestions.filter(s => s.selected).length;
 
@@ -66,7 +68,8 @@ export function SEOOptimizationDrawer({
   // Handle apply
   const handleApply = async () => {
     if (type) {
-      await apply(type);
+      const result = await apply(type, userId);
+      setApplyResult(result);
     }
   };
 
@@ -132,7 +135,7 @@ export function SEOOptimizationDrawer({
             </div>
           )}
 
-          {/* Complete State */}
+          {/* Complete State with Impact Summary */}
           {phase === 'complete' && (
             <div className="flex-1 flex flex-col items-center justify-center p-8 animate-fade-in">
               <div className="p-4 rounded-full bg-green-500/20 mb-4 animate-check-bounce">
@@ -141,10 +144,65 @@ export function SEOOptimizationDrawer({
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
                 Otimização Concluída!
               </h3>
-              <p className="text-gray-500 dark:text-gray-400 text-center mb-6">
-                {progress.current} {progress.current === 1 ? 'artigo foi otimizado' : 'artigos foram otimizados'} com sucesso.
-              </p>
-              <Button onClick={handleClose} className="gap-2">
+              
+              {/* Impact Summary Card */}
+              {applyResult && (
+                <div className="w-full max-w-sm bg-muted/50 rounded-xl p-4 mt-4 space-y-3">
+                  <h4 className="font-medium text-text-main">Resumo de Impacto</h4>
+                  
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Artigos alterados:</span>
+                    <span className="font-medium text-text-main">{applyResult.applied}</span>
+                  </div>
+                  
+                  {applyResult.failed > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Falhas:</span>
+                      <span className="font-medium text-destructive">{applyResult.failed}</span>
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">Score geral:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">{applyResult.scoreBeforeTotal}</span>
+                      <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                      <span className="text-green-500 font-bold">{applyResult.scoreAfterTotal}</span>
+                      {applyResult.scoreAfterTotal > applyResult.scoreBeforeTotal && (
+                        <Badge className="bg-green-500/20 text-green-600 text-xs border-0">
+                          +{applyResult.scoreAfterTotal - applyResult.scoreBeforeTotal}
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Expandable changes list */}
+                  {applyResult.changes.length > 0 && (
+                    <details className="mt-4">
+                      <summary className="text-primary cursor-pointer text-sm hover:underline">
+                        Ver mudanças detalhadas ({applyResult.changes.length})
+                      </summary>
+                      <ul className="mt-2 space-y-2 max-h-40 overflow-y-auto">
+                        {applyResult.changes.map((change, idx) => (
+                          <li key={idx} className="text-xs border-l-2 border-primary pl-2">
+                            <strong className="text-text-main">{change.articleTitle.substring(0, 30)}...</strong>
+                            <div className="text-muted-foreground line-through">{change.before.substring(0, 40)}...</div>
+                            <div className="text-green-600">{change.after.substring(0, 40)}...</div>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+              )}
+              
+              {!applyResult && (
+                <p className="text-gray-500 dark:text-gray-400 text-center mb-6">
+                  {progress.current} {progress.current === 1 ? 'artigo foi otimizado' : 'artigos foram otimizados'} com sucesso.
+                </p>
+              )}
+              
+              <Button onClick={handleClose} className="mt-6 gap-2">
                 <ArrowRight className="h-4 w-4" />
                 Ver Resultados
               </Button>
@@ -192,8 +250,8 @@ export function SEOOptimizationDrawer({
                 </div>
               </div>
 
-              <ScrollArea className="flex-1 px-6 py-4">
-                <div className="space-y-4">
+              <ScrollArea className="flex-1 px-6 py-4 pb-32">
+                <div className="space-y-4 pb-8">
                   {suggestions.map((suggestion, index) => (
                     <SEOComparisonCard
                       key={suggestion.articleId}
@@ -218,9 +276,12 @@ export function SEOOptimizationDrawer({
           )}
         </div>
 
-        {/* Footer */}
+        {/* Sticky Footer - Always visible */}
         {phase === 'ready' && suggestions.length > 0 && (
-          <div className="p-6 border-t border-gray-100 dark:border-white/10 bg-white dark:bg-gray-900">
+          <div className="sticky bottom-0 z-50 p-6 border-t border-gray-100 dark:border-white/10 
+                          bg-white dark:bg-gray-900 
+                          pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))]
+                          shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
             <div className="flex gap-3">
               <Button 
                 variant="outline" 

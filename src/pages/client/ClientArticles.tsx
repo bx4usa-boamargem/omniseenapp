@@ -24,6 +24,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   FileText, 
@@ -39,7 +49,8 @@ import {
   AlertTriangle,
   Loader2,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  RotateCcw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -84,8 +95,11 @@ export default function ClientArticles() {
   const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Duplicate detection
+  // Duplicate detection and resolution
   const [duplicates, setDuplicates] = useState<Map<string, Article[]>>(new Map());
+  const [showDuplicatesModal, setShowDuplicatesModal] = useState(false);
+  const [selectedToKeep, setSelectedToKeep] = useState<Map<string, string>>(new Map());
+  const [isResolvingDuplicates, setIsResolvingDuplicates] = useState(false);
 
   const fetchArticles = async () => {
     if (!blog?.id) return;
@@ -304,6 +318,63 @@ export default function ClientArticles() {
     }
   };
 
+  // Restore archived article
+  const handleRestore = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('articles')
+        .update({ status: 'draft' })
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      toast.success('Artigo restaurado como rascunho');
+      fetchArticles();
+    } catch (error) {
+      console.error('Error restoring article:', error);
+      toast.error('Erro ao restaurar artigo');
+    }
+  };
+
+  // Resolve duplicates
+  const handleResolveDuplicates = async () => {
+    const toArchive: string[] = [];
+    
+    duplicates.forEach((group, normalizedTitle) => {
+      const keepId = selectedToKeep.get(normalizedTitle) || group[0].id;
+      group.forEach(article => {
+        if (article.id !== keepId) {
+          toArchive.push(article.id);
+        }
+      });
+    });
+    
+    if (toArchive.length === 0) {
+      setShowDuplicatesModal(false);
+      return;
+    }
+    
+    setIsResolvingDuplicates(true);
+    try {
+      const { error } = await supabase
+        .from('articles')
+        .update({ status: 'archived' })
+        .in('id', toArchive);
+
+      if (error) throw error;
+      
+      toast.success(`${toArchive.length} artigos duplicados arquivados`);
+      setShowDuplicatesModal(false);
+      setSelectedToKeep(new Map());
+      fetchArticles();
+    } catch (error) {
+      console.error('Error resolving duplicates:', error);
+      toast.error('Erro ao arquivar duplicados');
+    } finally {
+      setIsResolvingDuplicates(false);
+    }
+  };
+
   const getStatusBadge = (status: string | null) => {
     switch (status) {
       case 'published':
@@ -353,7 +424,7 @@ export default function ClientArticles() {
         </Button>
       </div>
 
-      {/* Duplicate Warning */}
+      {/* Duplicate Warning with Action */}
       {duplicateCount > 0 && (
         <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
           <AlertTriangle className="h-5 w-5 text-amber-500" />
@@ -365,6 +436,14 @@ export default function ClientArticles() {
               Alguns artigos possuem títulos semelhantes
             </p>
           </div>
+          <Button 
+            size="sm" 
+            variant="outline"
+            onClick={() => setShowDuplicatesModal(true)}
+            className="border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+          >
+            Resolver Duplicados
+          </Button>
         </div>
       )}
 
@@ -518,6 +597,12 @@ export default function ClientArticles() {
                       Arquivar
                     </DropdownMenuItem>
                   )}
+                  {article.status === 'archived' && (
+                    <DropdownMenuItem onClick={() => handleRestore(article.id)}>
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                      Restaurar
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem 
                     onClick={() => { setArticleToDelete(article.id); setDeleteDialogOpen(true); }}
                     className="text-destructive focus:text-destructive"
@@ -602,6 +687,69 @@ export default function ClientArticles() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Duplicates Resolution Modal */}
+      <Dialog open={showDuplicatesModal} onOpenChange={setShowDuplicatesModal}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Resolver Duplicados</DialogTitle>
+            <DialogDescription>
+              Escolha qual artigo manter de cada grupo. Os outros serão arquivados.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {Array.from(duplicates.entries()).map(([normalizedTitle, group]) => (
+              <div key={normalizedTitle} className="p-4 border border-border-soft rounded-lg bg-muted/30">
+                <RadioGroup 
+                  value={selectedToKeep.get(normalizedTitle) || group[0].id}
+                  onValueChange={(v) => {
+                    const newMap = new Map(selectedToKeep);
+                    newMap.set(normalizedTitle, v);
+                    setSelectedToKeep(newMap);
+                  }}
+                >
+                  {group.map(article => (
+                    <div key={article.id} className="flex items-center gap-3 py-2">
+                      <RadioGroupItem value={article.id} id={article.id} />
+                      <Label htmlFor={article.id} className="flex-1 cursor-pointer">
+                        <span className="font-medium text-text-main">{article.title}</span>
+                        <span className="text-xs text-muted-foreground ml-2">
+                          {format(new Date(article.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                        </span>
+                        <span className="ml-2">
+                          {getStatusBadge(article.status)}
+                        </span>
+                      </Label>
+                    </div>
+                  ))}
+                </RadioGroup>
+              </div>
+            ))}
+          </div>
+          
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowDuplicatesModal(false)}
+              disabled={isResolvingDuplicates}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleResolveDuplicates}
+              disabled={isResolvingDuplicates}
+            >
+              {isResolvingDuplicates ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Archive className="h-4 w-4 mr-2" />
+              )}
+              Arquivar Duplicados
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
