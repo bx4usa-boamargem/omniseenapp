@@ -33,7 +33,26 @@ export function ArticlesWithoutImagesDrawer({
 
   const articlesWithoutImage = articles.filter(a => !('featured_image_url' in a) || !(a as any).featured_image_url);
 
+  // Build a valid prompt from article data
+  const buildImagePrompt = (article: ArticleWithoutImage): string | null => {
+    if (!article.title?.trim()) return null;
+    
+    const contentContext = article.content?.substring(0, 300) || '';
+    
+    return `Professional hero image for article: "${article.title}". ${contentContext ? `Context: ${contentContext}` : ''} Clean, modern, business-focused. High quality photography style.`;
+  };
+
   const handleGenerateImage = async (article: ArticleWithoutImage) => {
+    // Validate before calling API
+    const prompt = buildImagePrompt(article);
+    
+    if (!prompt) {
+      toast.error('Não é possível gerar imagem: título do artigo está vazio.', { 
+        id: `gen-image-${article.id}` 
+      });
+      return;
+    }
+
     setGeneratingFor(article.id);
     
     try {
@@ -41,32 +60,54 @@ export function ArticlesWithoutImagesDrawer({
 
       const { data, error } = await supabase.functions.invoke('generate-image', {
         body: {
-          title: article.title,
-          content: article.content?.substring(0, 1000) || '',
-          type: 'cover',
+          prompt: prompt,
+          context: 'hero',
+          articleTheme: article.title,
           blog_id: blogId
         }
       });
 
-      if (error) throw error;
-
-      if (!data?.url) {
-        throw new Error('URL da imagem não retornada');
+      if (error) {
+        const errorMsg = error.message || 'Erro desconhecido';
+        
+        if (errorMsg.includes('Prompt is required')) {
+          throw new Error('O sistema não conseguiu montar um prompt válido para a imagem.');
+        }
+        throw error;
       }
 
-      // Update article with new image
+      // Handle response - edge function returns imageBase64
+      if (!data?.imageBase64) {
+        throw new Error('Imagem não foi gerada pela IA');
+      }
+
+      // Upload base64 image to storage
+      const imageBlob = await fetch(`data:image/png;base64,${data.imageBase64}`).then(r => r.blob());
+      const fileName = `articles/${article.id}/cover-${Date.now()}.png`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('blog-images')
+        .upload(fileName, imageBlob, { contentType: 'image/png', upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage
+        .from('blog-images')
+        .getPublicUrl(fileName);
+
+      // Update article with new image URL
       const { error: updateError } = await supabase
         .from('articles')
-        .update({ featured_image_url: data.url })
+        .update({ featured_image_url: publicUrlData.publicUrl })
         .eq('id', article.id);
 
       if (updateError) throw updateError;
 
       toast.success('Imagem gerada com sucesso!', { id: `gen-image-${article.id}` });
       onImageGenerated?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating image:', error);
-      toast.error('Erro ao gerar imagem', { id: `gen-image-${article.id}` });
+      toast.error(error.message || 'Erro ao gerar imagem', { id: `gen-image-${article.id}` });
     } finally {
       setGeneratingFor(null);
     }
