@@ -69,6 +69,7 @@ import ClientAccount from "./pages/client/ClientAccount";
 import ClientSEO from "./pages/client/ClientSEO";
 import ClientPerformance from "./pages/client/ClientPerformance";
 import ClientGSCIntegration from "./pages/client/ClientGSCIntegration";
+import ClientArticles from "./pages/client/ClientArticles";
 
 const queryClient = new QueryClient();
 
@@ -138,6 +139,8 @@ const ClientRoutes = () => (
       <Routes>
         <Route path="dashboard" element={<ClientDashboard />} />
         <Route path="create" element={<ClientArticleEditor />} />
+        <Route path="articles" element={<ClientArticles />} />
+        <Route path="articles/:id/edit" element={<ClientArticleEditor />} />
         <Route path="site" element={<ClientSite />} />
         <Route path="performance" element={<ClientPerformance />} />
         <Route path="automation" element={<ClientAutomation />} />

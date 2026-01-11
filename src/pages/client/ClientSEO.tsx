@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { calculateSEOScore, SEOScoreResult } from '@/utils/seoScore';
 import { SEOScoreGauge } from '@/components/seo/SEOScoreGauge';
 import { SEOOptimizationDrawer } from '@/components/seo/SEOOptimizationDrawer';
+import { ArticlesWithoutImagesDrawer } from '@/components/client/ArticlesWithoutImagesDrawer';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
@@ -52,6 +53,9 @@ export default function ClientSEO() {
   // Optimization drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerType, setDrawerType] = useState<OptimizationType | null>(null);
+  
+  // Image drawer state for contextual image generation
+  const [imageDrawerOpen, setImageDrawerOpen] = useState(false);
 
   const fetchSEOData = useCallback(async (blogId: string) => {
     try {
@@ -209,6 +213,11 @@ export default function ClientSEO() {
   ];
 
   const handleOpenOptimization = (type: OptimizationType) => {
+    // For images, open the contextual drawer instead of batch optimization
+    if (type === 'image') {
+      setImageDrawerOpen(true);
+      return;
+    }
     setDrawerType(type);
     setDrawerOpen(true);
   };
@@ -392,6 +401,17 @@ export default function ClientSEO() {
           blogId={blog.id}
           userId={user.id}
           onComplete={handleOptimizationComplete}
+        />
+      )}
+
+      {/* Contextual Image Generation Drawer */}
+      {blog && (
+        <ArticlesWithoutImagesDrawer
+          open={imageDrawerOpen}
+          onOpenChange={setImageDrawerOpen}
+          articles={articles}
+          blogId={blog.id}
+          onImageGenerated={handleOptimizationComplete}
         />
       )}
     </div>

@@ -50,6 +50,16 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
     
+    /* Semantic tokens for universal contrast */
+    --text-main: 240 15% 12%;
+    --text-muted: 240 6% 45%;
+    --text-soft: 240 4% 60%;
+    --bg-main: 277 40% 98%;
+    --bg-card: 0 0% 100%;
+    --border-soft: 277 20% 90%;
+    --accent-primary: 270 60% 55%;
+    --accent-secondary: 25 85% 55%;
+    
     /* Sidebar - Dark #1F1F1F with Purple/Orange accents */
     --sidebar-background: 0 0% 12%;
     --sidebar-foreground: 0 0% 95%;
@@ -97,6 +107,16 @@
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
+    
+    /* Semantic tokens for universal contrast - Dark */
+    --text-main: 0 0% 98%;
+    --text-muted: 0 0% 65%;
+    --text-soft: 0 0% 55%;
+    --bg-main: 0 0% 6%;
+    --bg-card: 0 0% 9%;
+    --border-soft: 0 0% 16%;
+    --accent-primary: 277 76% 40%;
+    --accent-secondary: 24 100% 50%;
     
     /* Sidebar - Dark with Purple/Orange accents */
     --sidebar-background: 0 0% 8%;

@@ -74,6 +74,15 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Semantic tokens for universal contrast
+        "text-main": "hsl(var(--text-main))",
+        "text-muted": "hsl(var(--text-muted))",
+        "text-soft": "hsl(var(--text-soft))",
+        "bg-main": "hsl(var(--bg-main))",
+        "bg-card": "hsl(var(--bg-card))",
+        "border-soft": "hsl(var(--border-soft))",
+        "accent-primary": "hsl(var(--accent-primary))",
+        "accent-secondary": "hsl(var(--accent-secondary))",
       },
       borderRadius: {
         lg: "var(--radius)",
