@@ -1022,49 +1022,48 @@ export default function EditArticle() {
     setIsGeneratingImage(true);
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-image`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            prompt: `Professional editorial hero image for article: "${title}". Modern, clean, high-quality illustration style.`,
-            context: 'hero',
-            articleTheme: title,
-          }),
+      const { data, error } = await supabase.functions.invoke('generate-image', {
+        body: {
+          articleTitle: title,
+          articleTheme: title,
+          context: 'hero',
+          blog_id: article.blog_id,
         }
-      );
+      });
 
-      if (!response.ok) throw new Error('Falha ao gerar imagem');
+      if (error) throw new Error(error.message || 'Falha ao gerar imagem');
+      if (!data?.imageBase64 && !data?.imageUrl) throw new Error('Imagem não gerada');
 
-      const data = await response.json();
+      let publicUrl = data.imageUrl;
       
-      if (!data.imageBase64) throw new Error('Imagem não gerada');
+      // If we only got base64, upload to storage
+      if (!publicUrl && data.imageBase64) {
+        // Import helper inline to avoid circular deps
+        const { base64ToBlob } = await import('@/utils/imageUtils');
+        const blob = await base64ToBlob(data.imageBase64);
+        const fileName = `cover-${article.id}-${Date.now()}.png`;
 
-      const base64Response = await fetch(data.imageBase64);
-      const blob = await base64Response.blob();
-      const fileName = `cover-${article.id}-${Date.now()}.png`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('article-images')
+          .upload(fileName, blob, { contentType: 'image/png', upsert: true });
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('article-images')
-        .upload(fileName, blob, { contentType: 'image/png', upsert: true });
+        if (uploadError) throw uploadError;
 
-      if (uploadError) throw uploadError;
+        const { data: urlData } = supabase.storage
+          .from('article-images')
+          .getPublicUrl(uploadData.path);
 
-      const { data: urlData } = supabase.storage
-        .from('article-images')
-        .getPublicUrl(uploadData.path);
+        publicUrl = urlData.publicUrl;
+      }
 
-      setFeaturedImage(urlData.publicUrl);
+      setFeaturedImage(publicUrl);
       
       await supabase
         .from('articles')
-        .update({ featured_image_url: urlData.publicUrl })
+        .update({ featured_image_url: publicUrl })
         .eq('id', article.id);
 
+      console.log(`[Image Generated] articleId=${article.id}, url=${publicUrl?.substring(0, 50)}...`);
       toast({ title: "Imagem gerada com sucesso!" });
     } catch (error) {
       console.error('Error generating image:', error);

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { base64ToBlob } from "@/utils/imageUtils";
 import type { ImagePrompt } from "./streamArticle";
 
 export interface ContentImage {
@@ -76,37 +77,23 @@ Modern photography style, natural lighting.
 
 async function generateSingleImage(prompt: string, context: string, theme: string): Promise<string | null> {
   try {
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-image`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({
-          prompt,
-          context,
-          articleTitle: theme,  // Principal - sempre enviar
-          articleTheme: theme,  // Fallback para compatibilidade
-        }),
+    // Use supabase.functions.invoke instead of direct fetch to avoid CORS issues
+    const { data, error } = await supabase.functions.invoke('generate-image', {
+      body: {
+        prompt,
+        context,
+        articleTitle: theme,
+        articleTheme: theme,
       }
-    );
+    });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('Image generation failed:', response.status, errorData);
-      
-      // Mensagem mais clara para erro de título
-      if (errorData.code === 'MISSING_TITLE') {
-        console.error('Artigo sem título. Adicione um título antes de gerar imagens.');
-      }
-      
+    if (error) {
+      console.error('Image generation failed:', error);
       return null;
     }
 
-    const data = await response.json();
-    return data.imageBase64 || null;
+    // Return base64 data for further processing
+    return data?.imageBase64 || null;
   } catch (error) {
     console.error('Error generating image:', error);
     return null;
@@ -159,9 +146,8 @@ async function generateImageWithFallback(
 
 async function uploadImageToStorage(base64Data: string, fileName: string): Promise<string | null> {
   try {
-    // Convert base64 to blob
-    const base64Response = await fetch(base64Data);
-    const blob = await base64Response.blob();
+    // Convert base64 to blob using helper to avoid prefix duplication
+    const blob = await base64ToBlob(base64Data);
 
     // Upload to Supabase storage
     const { data, error } = await supabase.storage

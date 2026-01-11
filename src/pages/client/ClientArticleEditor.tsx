@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useBlog } from '@/hooks/useBlog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { ArticlePreview } from '@/components/ArticlePreview';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { GenerationProgress } from '@/components/seo/GenerationProgress';
 import { ImproveArticleDialog } from '@/components/editor/ImproveArticleDialog';
+import { extractImageUrl } from '@/utils/imageUtils';
 import { 
   ArrowLeft, 
   Save, 
@@ -46,7 +47,11 @@ interface ImageGenerationProgress {
 
 export default function ClientArticleEditor() {
   const navigate = useNavigate();
+  const { id: articleId } = useParams<{ id: string }>();
   const { blog, loading: blogLoading } = useBlog();
+  
+  // Track if we're editing an existing article
+  const [existingArticleId, setExistingArticleId] = useState<string | null>(null);
   
   // Editor phase state
   const [phase, setPhase] = useState<EditorPhase>('form');
@@ -93,6 +98,45 @@ export default function ClientArticleEditor() {
   useEffect(() => {
     localStorage.setItem('article-editor-view-mode', viewMode);
   }, [viewMode]);
+
+  // Load existing article if editing
+  useEffect(() => {
+    if (articleId && blog?.id) {
+      loadExistingArticle(articleId);
+    }
+  }, [articleId, blog?.id]);
+
+  const loadExistingArticle = async (id: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('articles')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error || !data) {
+        toast.error('Artigo não encontrado');
+        navigate('/client/articles');
+        return;
+      }
+
+      // Populate state from existing article
+      setExistingArticleId(data.id);
+      setTitle(data.title || '');
+      setContent(data.content || '');
+      setExcerpt(data.excerpt || '');
+      setMetaDescription(data.meta_description || '');
+      setFaq(Array.isArray(data.faq) ? data.faq as unknown as Array<{ question: string; answer: string }> : []);
+      setFeaturedImage(data.featured_image_url || null);
+      setContentImages(Array.isArray(data.content_images) ? data.content_images as unknown as ContentImage[] : []);
+      setPhase('editing'); // Go directly to editing mode
+
+      console.log(`[Load Article] id=${id}, title="${data.title?.substring(0, 30)}..."`);
+    } catch (err) {
+      console.error('Error loading article:', err);
+      toast.error('Erro ao carregar artigo');
+    }
+  };
   
   // Current article object for preview
   const articleForPreview: ArticleData | null = title ? {
@@ -184,7 +228,7 @@ export default function ClientArticleEditor() {
       if (!coverError && coverResult?.imageUrl) {
         setFeaturedImage(coverResult.imageUrl);
       } else if (!coverError && coverResult?.imageBase64) {
-        setFeaturedImage(`data:image/png;base64,${coverResult.imageBase64}`);
+        setFeaturedImage(extractImageUrl(coverResult));
       }
       
       // Generate content images from prompts
@@ -211,7 +255,7 @@ export default function ClientArticleEditor() {
         if (!imgError && (imgResult?.imageUrl || imgResult?.imageBase64)) {
           newContentImages.push({
             context: prompt.context,
-            url: imgResult.imageUrl || `data:image/png;base64,${imgResult.imageBase64}`,
+            url: extractImageUrl(imgResult) || '',
             after_section: prompt.after_section
           });
         }
@@ -246,7 +290,7 @@ export default function ClientArticleEditor() {
         });
         
         if (!error && (data?.imageUrl || data?.imageBase64)) {
-          setFeaturedImage(data.imageUrl || `data:image/png;base64,${data.imageBase64}`);
+          setFeaturedImage(extractImageUrl(data));
           toast.success('Imagem de capa regenerada!');
         }
       } else if (typeof index === 'number' && contentImages[index]) {
@@ -265,7 +309,7 @@ export default function ClientArticleEditor() {
           const newImages = [...contentImages];
           newImages[index] = {
             ...img,
-            url: data.imageUrl || `data:image/png;base64,${data.imageBase64}`
+            url: extractImageUrl(data) || ''
           };
           setContentImages(newImages);
           toast.success('Imagem regenerada!');
@@ -289,17 +333,46 @@ export default function ClientArticleEditor() {
     setIsSaving(true);
 
     try {
+      // Cast content_images to Json type for Supabase compatibility
+      const contentImagesJson = contentImages.length > 0 
+        ? contentImages.map(img => ({ context: img.context, url: img.url, after_section: img.after_section }))
+        : null;
+
+      // If editing existing article, UPDATE instead of INSERT
+      if (existingArticleId) {
+        const updateData = {
+          title: title.trim(),
+          content: content.trim(),
+          excerpt: excerpt.trim(),
+          meta_description: metaDescription.trim(),
+          faq: faq.length > 0 ? faq : null,
+          featured_image_url: featuredImage,
+          content_images: contentImagesJson as unknown as null,
+          status: publish ? 'published' : 'draft',
+          published_at: publish ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        };
+
+        const { error } = await supabase
+          .from('articles')
+          .update(updateData)
+          .eq('id', existingArticleId);
+
+        if (error) throw error;
+
+        console.log(`[UPDATE Article] id=${existingArticleId}, publish=${publish}`);
+        toast.success(publish ? 'Artigo publicado!' : 'Alterações salvas!');
+        navigate('/client/articles');
+        return;
+      }
+
+      // CREATE new article
       const slug = title
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '');
-
-      // Cast content_images to Json type for Supabase compatibility
-      const contentImagesJson = contentImages.length > 0 
-        ? contentImages.map(img => ({ context: img.context, url: img.url, after_section: img.after_section }))
-        : null;
 
       const articleData = {
         blog_id: blog.id,
@@ -321,6 +394,7 @@ export default function ClientArticleEditor() {
 
       if (error) throw error;
 
+      console.log(`[INSERT Article] title="${title.substring(0, 30)}...", publish=${publish}`);
       toast.success(
         publish 
           ? 'Artigo publicado com sucesso!' 

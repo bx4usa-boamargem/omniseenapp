@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ImagePlus, PenSquare, Loader2, Image, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
+import { base64ToBlob } from '@/utils/imageUtils';
 
 interface ArticleWithoutImage {
   id: string;
@@ -77,33 +78,40 @@ export function ArticlesWithoutImagesDrawer({
         throw new Error(error.message || 'Erro ao gerar imagem');
       }
 
-      // Handle response - edge function returns imageBase64
-      if (!data?.imageBase64) {
+      // Handle response - edge function returns imageBase64 or imageUrl
+      if (!data?.imageBase64 && !data?.imageUrl) {
         throw new Error('Imagem não foi gerada pela IA');
       }
 
-      // Upload base64 image to storage
-      const imageBlob = await fetch(`data:image/png;base64,${data.imageBase64}`).then(r => r.blob());
-      const fileName = `articles/${article.id}/cover-${Date.now()}.png`;
+      let publicUrl = data.imageUrl;
       
-      const { error: uploadError } = await supabase.storage
-        .from('blog-images')
-        .upload(fileName, imageBlob, { contentType: 'image/png', upsert: true });
+      // If we only got base64, upload to storage
+      if (!publicUrl && data.imageBase64) {
+        const imageBlob = await base64ToBlob(data.imageBase64);
+        const fileName = `articles/${article.id}/cover-${Date.now()}.png`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('blog-images')
+          .upload(fileName, imageBlob, { contentType: 'image/png', upsert: true });
 
-      if (uploadError) throw uploadError;
+        if (uploadError) throw uploadError;
 
-      const { data: publicUrlData } = supabase.storage
-        .from('blog-images')
-        .getPublicUrl(fileName);
+        const { data: publicUrlData } = supabase.storage
+          .from('blog-images')
+          .getPublicUrl(fileName);
+        
+        publicUrl = publicUrlData.publicUrl;
+      }
 
       // Update article with new image URL
       const { error: updateError } = await supabase
         .from('articles')
-        .update({ featured_image_url: publicUrlData.publicUrl })
+        .update({ featured_image_url: publicUrl })
         .eq('id', article.id);
 
       if (updateError) throw updateError;
 
+      console.log(`[Image Generated] articleId=${article.id}, url=${publicUrl?.substring(0, 50)}...`);
       toast.success('Imagem gerada com sucesso!', { id: `gen-image-${article.id}` });
       onImageGenerated?.();
     } catch (error: any) {
