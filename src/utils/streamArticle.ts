@@ -14,6 +14,7 @@ export interface ArticleData {
   id?: string; // ID do artigo salvo no banco
   title: string;
   slug?: string; // Slug do artigo
+  status?: string; // Status do artigo (published, draft, etc.)
   meta_description: string;
   excerpt: string;
   content: string;
@@ -69,6 +70,7 @@ export interface StreamArticleOptions {
   articleGoal?: 'educar' | 'autoridade' | 'apoiar_vendas' | 'converter' | null;
   editorialModel?: EditorialModel;
   generationMode?: GenerationMode; // fast = 400-1000 palavras, deep = 1500-3000 palavras
+  autoPublish?: boolean; // Default true - auto-publicar o artigo
   onDelta: (text: string) => void;
   onDone: (article: ArticleData | null) => void;
   onError: (error: string) => void;
@@ -182,7 +184,8 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
         funnel_mode: funnelMode || 'middle',
         article_goal: articleGoal || null,
         editorial_model: editorialModel || 'traditional',
-        generation_mode: resolvedGenerationMode // NUNCA undefined - fast ou deep
+        generation_mode: resolvedGenerationMode, // NUNCA undefined - fast ou deep
+        auto_publish: options.autoPublish !== false // Default true
       }),
     });
 
