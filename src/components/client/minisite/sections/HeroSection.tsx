@@ -2,21 +2,23 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { ImageUpload } from "@/components/onboarding/ImageUpload";
-import { Sparkles, Type, MessageSquare, MousePointerClick, Image } from "lucide-react";
+import { MediaSlotControl } from "@/components/ui/MediaSlotControl";
+import { Sparkles, Type, MessageSquare, MousePointerClick } from "lucide-react";
 
 interface HeroSectionProps {
   bannerEnabled: boolean;
   bannerTitle: string;
   bannerDescription: string;
   bannerImageUrl: string;
+  bannerBackgroundColor?: string | null;
   ctaText: string;
   ctaUrl: string;
   userId: string;
   onBannerEnabledChange: (value: boolean) => void;
   onBannerTitleChange: (value: string) => void;
   onBannerDescriptionChange: (value: string) => void;
-  onBannerImageUrlChange: (value: string) => void;
+  onBannerImageUrlChange: (value: string | null) => void;
+  onBannerBackgroundColorChange?: (value: string | null) => void;
   onCtaTextChange: (value: string) => void;
   onCtaUrlChange: (value: string) => void;
 }
@@ -26,6 +28,7 @@ export function HeroSection({
   bannerTitle,
   bannerDescription,
   bannerImageUrl,
+  bannerBackgroundColor,
   ctaText,
   ctaUrl,
   userId,
@@ -33,6 +36,7 @@ export function HeroSection({
   onBannerTitleChange,
   onBannerDescriptionChange,
   onBannerImageUrlChange,
+  onBannerBackgroundColorChange,
   onCtaTextChange,
   onCtaUrlChange,
 }: HeroSectionProps) {
@@ -112,22 +116,19 @@ export function HeroSection({
             </div>
           </div>
 
-          {/* Background Image */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2 text-gray-700">
-              <Image className="h-4 w-4 text-gray-500" />
-              Imagem de Fundo (opcional)
-            </Label>
-            <ImageUpload
-              label=""
-              value={bannerImageUrl}
-              onChange={onBannerImageUrlChange}
-              userId={userId}
-              folder="hero-bg"
-              aspectRatio="aspect-video"
-              hint="Imagem panorâmica recomendada (1920x600)"
-            />
-          </div>
+          {/* Background Image/Color Control */}
+          <MediaSlotControl
+            label="Fundo do Hero (opcional)"
+            imageUrl={bannerImageUrl || null}
+            backgroundColor={bannerBackgroundColor || null}
+            onImageChange={(url) => onBannerImageUrlChange(url)}
+            onBackgroundColorChange={onBannerBackgroundColorChange || (() => {})}
+            userId={userId}
+            folder="hero-bg"
+            aspectRatio="video"
+            showColorOption={!!onBannerBackgroundColorChange}
+            hint="Use uma imagem panorâmica (1920x600) ou escolha uma cor sólida"
+          />
         </>
       )}
     </div>

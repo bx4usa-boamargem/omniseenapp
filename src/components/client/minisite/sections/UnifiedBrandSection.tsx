@@ -15,6 +15,10 @@ interface UnifiedBrandSectionProps {
   logoNegativeUrl: string;
   faviconUrl: string;
   
+  // Logo Background Colors
+  logoBackgroundColor?: string | null;
+  logoNegativeBackgroundColor?: string | null;
+  
   // Colors
   primaryColor: string;
   secondaryColor: string;
@@ -28,6 +32,8 @@ interface UnifiedBrandSectionProps {
   onLogoUrlChange: (value: string) => void;
   onLogoNegativeUrlChange: (value: string) => void;
   onFaviconUrlChange: (value: string) => void;
+  onLogoBackgroundColorChange?: (value: string | null) => void;
+  onLogoNegativeBackgroundColorChange?: (value: string | null) => void;
   onPrimaryColorChange: (value: string) => void;
   onSecondaryColorChange: (value: string) => void;
 }
@@ -38,6 +44,8 @@ export function UnifiedBrandSection({
   logoUrl,
   logoNegativeUrl,
   faviconUrl,
+  logoBackgroundColor,
+  logoNegativeBackgroundColor,
   primaryColor,
   secondaryColor,
   userId,
@@ -46,6 +54,8 @@ export function UnifiedBrandSection({
   onLogoUrlChange,
   onLogoNegativeUrlChange,
   onFaviconUrlChange,
+  onLogoBackgroundColorChange,
+  onLogoNegativeBackgroundColorChange,
   onPrimaryColorChange,
   onSecondaryColorChange,
 }: UnifiedBrandSectionProps) {
@@ -93,20 +103,29 @@ export function UnifiedBrandSection({
           <Image className="h-4 w-4" />
           Logos
         </h4>
+        <p className="text-xs text-gray-500 -mt-3">
+          Envie imagens, use cores sólidas ou deixe vazio para usar o placeholder padrão
+        </p>
         <div className="grid grid-cols-3 gap-6">
           <PremiumLogoCard
             type="light"
             imageUrl={logoUrl}
+            backgroundColor={logoBackgroundColor}
             companyName={companyName}
             userId={userId}
             onImageChange={onLogoUrlChange}
+            onImageRemove={() => onLogoUrlChange('')}
+            onBackgroundColorChange={onLogoBackgroundColorChange}
           />
           <PremiumLogoCard
             type="dark"
             imageUrl={logoNegativeUrl}
+            backgroundColor={logoNegativeBackgroundColor}
             companyName={companyName}
             userId={userId}
             onImageChange={onLogoNegativeUrlChange}
+            onImageRemove={() => onLogoNegativeUrlChange('')}
+            onBackgroundColorChange={onLogoNegativeBackgroundColorChange}
           />
           <PremiumLogoCard
             type="favicon"
@@ -114,6 +133,7 @@ export function UnifiedBrandSection({
             companyName={companyName}
             userId={userId}
             onImageChange={onFaviconUrlChange}
+            onImageRemove={() => onFaviconUrlChange('')}
           />
         </div>
       </div>

@@ -28,6 +28,8 @@ interface MiniSitePreviewProps {
   description?: string;
   logoUrl: string;
   logoNegativeUrl: string;
+  logoBackgroundColor?: string | null;
+  logoNegativeBackgroundColor?: string | null;
   primaryColor: string;
   secondaryColor: string;
   showSearch: boolean;
@@ -37,6 +39,7 @@ interface MiniSitePreviewProps {
   bannerTitle: string;
   bannerDescription: string;
   bannerImageUrl: string;
+  bannerBackgroundColor?: string | null;
   ctaText: string;
   ctaUrl: string;
   brandDescription: string;
@@ -60,6 +63,8 @@ export function MiniSitePreview({
   description,
   logoUrl,
   logoNegativeUrl,
+  logoBackgroundColor,
+  logoNegativeBackgroundColor,
   primaryColor,
   secondaryColor,
   showSearch,
@@ -69,6 +74,7 @@ export function MiniSitePreview({
   bannerTitle,
   bannerDescription,
   bannerImageUrl,
+  bannerBackgroundColor,
   ctaText,
   ctaUrl,
   brandDescription,
@@ -237,6 +243,8 @@ export function MiniSitePreview({
               style={{
                 background: bannerImageUrl 
                   ? `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url(${bannerImageUrl}) center/cover`
+                  : bannerBackgroundColor
+                  ? bannerBackgroundColor
                   : `linear-gradient(135deg, ${primaryColor}, ${secondaryColor})`,
               }}
             >

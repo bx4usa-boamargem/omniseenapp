@@ -15,6 +15,8 @@ interface MiniSiteEditorProps {
   logoUrl: string;
   logoNegativeUrl: string;
   faviconUrl: string;
+  logoBackgroundColor?: string | null;
+  logoNegativeBackgroundColor?: string | null;
   
   // Design
   layoutTemplate: string;
@@ -31,6 +33,7 @@ interface MiniSiteEditorProps {
   bannerTitle: string;
   bannerDescription: string;
   bannerImageUrl: string;
+  bannerBackgroundColor?: string | null;
   ctaText: string;
   ctaUrl: string;
   
@@ -52,6 +55,8 @@ interface MiniSiteEditorProps {
   onLogoUrlChange: (value: string) => void;
   onLogoNegativeUrlChange: (value: string) => void;
   onFaviconUrlChange: (value: string) => void;
+  onLogoBackgroundColorChange?: (value: string | null) => void;
+  onLogoNegativeBackgroundColorChange?: (value: string | null) => void;
   onLayoutChange: (value: string) => void;
   onPrimaryColorChange: (value: string) => void;
   onSecondaryColorChange: (value: string) => void;
@@ -61,7 +66,8 @@ interface MiniSiteEditorProps {
   onBannerEnabledChange: (value: boolean) => void;
   onBannerTitleChange: (value: string) => void;
   onBannerDescriptionChange: (value: string) => void;
-  onBannerImageUrlChange: (value: string) => void;
+  onBannerImageUrlChange: (value: string | null) => void;
+  onBannerBackgroundColorChange?: (value: string | null) => void;
   onCtaTextChange: (value: string) => void;
   onCtaUrlChange: (value: string) => void;
   onBrandDescriptionChange: (value: string) => void;
@@ -77,6 +83,8 @@ export function MiniSiteEditor(props: MiniSiteEditorProps) {
     logoUrl,
     logoNegativeUrl,
     faviconUrl,
+    logoBackgroundColor,
+    logoNegativeBackgroundColor,
     layoutTemplate,
     primaryColor,
     secondaryColor,
@@ -87,6 +95,7 @@ export function MiniSiteEditor(props: MiniSiteEditorProps) {
     bannerTitle,
     bannerDescription,
     bannerImageUrl,
+    bannerBackgroundColor,
     ctaText,
     ctaUrl,
     brandDescription,
@@ -100,6 +109,8 @@ export function MiniSiteEditor(props: MiniSiteEditorProps) {
     onLogoUrlChange,
     onLogoNegativeUrlChange,
     onFaviconUrlChange,
+    onLogoBackgroundColorChange,
+    onLogoNegativeBackgroundColorChange,
     onLayoutChange,
     onPrimaryColorChange,
     onSecondaryColorChange,
@@ -110,6 +121,7 @@ export function MiniSiteEditor(props: MiniSiteEditorProps) {
     onBannerTitleChange,
     onBannerDescriptionChange,
     onBannerImageUrlChange,
+    onBannerBackgroundColorChange,
     onCtaTextChange,
     onCtaUrlChange,
     onBrandDescriptionChange,
@@ -138,6 +150,8 @@ export function MiniSiteEditor(props: MiniSiteEditorProps) {
         logoUrl={logoUrl}
         logoNegativeUrl={logoNegativeUrl}
         faviconUrl={faviconUrl}
+        logoBackgroundColor={logoBackgroundColor}
+        logoNegativeBackgroundColor={logoNegativeBackgroundColor}
         primaryColor={primaryColor}
         secondaryColor={secondaryColor}
         userId={userId}
@@ -146,6 +160,8 @@ export function MiniSiteEditor(props: MiniSiteEditorProps) {
         onLogoUrlChange={onLogoUrlChange}
         onLogoNegativeUrlChange={onLogoNegativeUrlChange}
         onFaviconUrlChange={onFaviconUrlChange}
+        onLogoBackgroundColorChange={onLogoBackgroundColorChange}
+        onLogoNegativeBackgroundColorChange={onLogoNegativeBackgroundColorChange}
         onPrimaryColorChange={onPrimaryColorChange}
         onSecondaryColorChange={onSecondaryColorChange}
       />
@@ -217,6 +233,7 @@ export function MiniSiteEditor(props: MiniSiteEditorProps) {
               bannerTitle={bannerTitle}
               bannerDescription={bannerDescription}
               bannerImageUrl={bannerImageUrl}
+              bannerBackgroundColor={bannerBackgroundColor}
               ctaText={ctaText}
               ctaUrl={ctaUrl}
               userId={userId}
@@ -224,6 +241,7 @@ export function MiniSiteEditor(props: MiniSiteEditorProps) {
               onBannerTitleChange={onBannerTitleChange}
               onBannerDescriptionChange={onBannerDescriptionChange}
               onBannerImageUrlChange={onBannerImageUrlChange}
+              onBannerBackgroundColorChange={onBannerBackgroundColorChange}
               onCtaTextChange={onCtaTextChange}
               onCtaUrlChange={onCtaUrlChange}
             />

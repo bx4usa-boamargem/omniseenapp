@@ -948,9 +948,12 @@ export type Database = {
           footer_text: string | null
           header_cta_text: string | null
           header_cta_url: string | null
+          hero_background_color: string | null
           id: string
           integration_type: string | null
           layout_template: string | null
+          logo_background_color: string | null
+          logo_negative_background_color: string | null
           logo_negative_url: string | null
           logo_url: string | null
           name: string
@@ -1001,9 +1004,12 @@ export type Database = {
           footer_text?: string | null
           header_cta_text?: string | null
           header_cta_url?: string | null
+          hero_background_color?: string | null
           id?: string
           integration_type?: string | null
           layout_template?: string | null
+          logo_background_color?: string | null
+          logo_negative_background_color?: string | null
           logo_negative_url?: string | null
           logo_url?: string | null
           name: string
@@ -1054,9 +1060,12 @@ export type Database = {
           footer_text?: string | null
           header_cta_text?: string | null
           header_cta_url?: string | null
+          hero_background_color?: string | null
           id?: string
           integration_type?: string | null
           layout_template?: string | null
+          logo_background_color?: string | null
+          logo_negative_background_color?: string | null
           logo_negative_url?: string | null
           logo_url?: string | null
           name?: string
