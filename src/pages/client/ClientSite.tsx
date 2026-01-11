@@ -24,6 +24,8 @@ export default function ClientSite() {
   const [logoUrl, setLogoUrl] = useState('');
   const [logoNegativeUrl, setLogoNegativeUrl] = useState('');
   const [faviconUrl, setFaviconUrl] = useState('');
+  const [logoBackgroundColor, setLogoBackgroundColor] = useState<string | null>(null);
+  const [logoNegativeBackgroundColor, setLogoNegativeBackgroundColor] = useState<string | null>(null);
   const [layoutTemplate, setLayoutTemplate] = useState('modern');
   const [primaryColor, setPrimaryColor] = useState('#6366f1');
   const [secondaryColor, setSecondaryColor] = useState('#8b5cf6');
@@ -34,6 +36,7 @@ export default function ClientSite() {
   const [bannerTitle, setBannerTitle] = useState('');
   const [bannerDescription, setBannerDescription] = useState('');
   const [bannerImageUrl, setBannerImageUrl] = useState('');
+  const [bannerBackgroundColor, setBannerBackgroundColor] = useState<string | null>(null);
   const [ctaText, setCtaText] = useState('');
   const [ctaUrl, setCtaUrl] = useState('');
   const [brandDescription, setBrandDescription] = useState('');
@@ -60,6 +63,9 @@ export default function ClientSite() {
     setBannerTitle(blog.banner_title || '');
     setBannerDescription(blog.banner_description || '');
     setBannerImageUrl(blog.banner_image_url || '');
+    setBannerBackgroundColor((blog as any).hero_background_color || null);
+    setLogoBackgroundColor((blog as any).logo_background_color || null);
+    setLogoNegativeBackgroundColor((blog as any).logo_negative_background_color || null);
     setCtaText(blog.cta_text || '');
     setCtaUrl(blog.cta_url || '');
     setBrandDescription(blog.brand_description || '');
@@ -104,6 +110,8 @@ export default function ClientSite() {
             logo_url: logoUrl,
             logo_negative_url: logoNegativeUrl,
             favicon_url: faviconUrl,
+            logo_background_color: logoBackgroundColor,
+            logo_negative_background_color: logoNegativeBackgroundColor,
             layout_template: layoutTemplate,
             primary_color: primaryColor,
             secondary_color: secondaryColor,
@@ -114,6 +122,7 @@ export default function ClientSite() {
             banner_title: bannerTitle,
             banner_description: bannerDescription,
             banner_image_url: bannerImageUrl,
+            hero_background_color: bannerBackgroundColor,
             cta_text: ctaText,
             cta_url: ctaUrl,
             brand_description: brandDescription,
@@ -155,7 +164,7 @@ export default function ClientSite() {
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [hasChanges, blog?.id, companyName, city, logoUrl, logoNegativeUrl, faviconUrl, layoutTemplate, primaryColor, secondaryColor, showSearch, headerCtaText, headerCtaUrl, bannerEnabled, bannerTitle, bannerDescription, bannerImageUrl, ctaText, ctaUrl, brandDescription, footerText, showCategoriesFooter, contactButtons]);
+  }, [hasChanges, blog?.id, companyName, city, logoUrl, logoNegativeUrl, faviconUrl, logoBackgroundColor, logoNegativeBackgroundColor, layoutTemplate, primaryColor, secondaryColor, showSearch, headerCtaText, headerCtaUrl, bannerEnabled, bannerTitle, bannerDescription, bannerImageUrl, bannerBackgroundColor, ctaText, ctaUrl, brandDescription, footerText, showCategoriesFooter, contactButtons]);
 
   // Mark as changed
   const markChanged = useCallback(() => setHasChanges(true), []);
@@ -217,6 +226,8 @@ export default function ClientSite() {
             logoUrl={logoUrl}
             logoNegativeUrl={logoNegativeUrl}
             faviconUrl={faviconUrl}
+            logoBackgroundColor={logoBackgroundColor}
+            logoNegativeBackgroundColor={logoNegativeBackgroundColor}
             layoutTemplate={layoutTemplate}
             primaryColor={primaryColor}
             secondaryColor={secondaryColor}
@@ -227,6 +238,7 @@ export default function ClientSite() {
             bannerTitle={bannerTitle}
             bannerDescription={bannerDescription}
             bannerImageUrl={bannerImageUrl}
+            bannerBackgroundColor={bannerBackgroundColor}
             ctaText={ctaText}
             ctaUrl={ctaUrl}
             brandDescription={brandDescription}
@@ -240,6 +252,8 @@ export default function ClientSite() {
             onLogoUrlChange={(v) => { setLogoUrl(v); markChanged(); }}
             onLogoNegativeUrlChange={(v) => { setLogoNegativeUrl(v); markChanged(); }}
             onFaviconUrlChange={(v) => { setFaviconUrl(v); markChanged(); }}
+            onLogoBackgroundColorChange={(v) => { setLogoBackgroundColor(v); markChanged(); }}
+            onLogoNegativeBackgroundColorChange={(v) => { setLogoNegativeBackgroundColor(v); markChanged(); }}
             onLayoutChange={(v) => { setLayoutTemplate(v); markChanged(); }}
             onPrimaryColorChange={(v) => { setPrimaryColor(v); markChanged(); }}
             onSecondaryColorChange={(v) => { setSecondaryColor(v); markChanged(); }}
@@ -249,7 +263,8 @@ export default function ClientSite() {
             onBannerEnabledChange={(v) => { setBannerEnabled(v); markChanged(); }}
             onBannerTitleChange={(v) => { setBannerTitle(v); markChanged(); }}
             onBannerDescriptionChange={(v) => { setBannerDescription(v); markChanged(); }}
-            onBannerImageUrlChange={(v) => { setBannerImageUrl(v); markChanged(); }}
+            onBannerImageUrlChange={(v) => { setBannerImageUrl(v || ''); markChanged(); }}
+            onBannerBackgroundColorChange={(v) => { setBannerBackgroundColor(v); markChanged(); }}
             onCtaTextChange={(v) => { setCtaText(v); markChanged(); }}
             onCtaUrlChange={(v) => { setCtaUrl(v); markChanged(); }}
             onBrandDescriptionChange={(v) => { setBrandDescription(v); markChanged(); }}

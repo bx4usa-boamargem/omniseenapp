@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Upload, Image as ImageIcon, MoreVertical, X, Palette, Loader2 } from "lucide-react";
+import { Upload, X, Palette, MoreVertical, Image as ImageIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,61 +19,79 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-interface PremiumLogoCardProps {
-  type: "light" | "dark" | "favicon";
-  imageUrl: string;
-  backgroundColor?: string | null;
-  companyName: string;
+interface MediaSlotControlProps {
+  // Estado atual
+  imageUrl: string | null;
+  backgroundColor: string | null;
+  
+  // Callbacks
+  onImageChange: (url: string | null) => void;
+  onBackgroundColorChange: (color: string | null) => void;
+  
+  // Configuração visual
+  label: string;
+  aspectRatio?: "square" | "video" | "banner";
+  previewBackground?: "light" | "dark" | "checkered";
+  
+  // Upload config
   userId: string;
-  onImageChange: (url: string) => void;
-  onImageRemove?: () => void;
-  onBackgroundColorChange?: (color: string | null) => void;
+  folder: string;
+  accept?: string;
+  
+  // Opções
+  showColorOption?: boolean;
+  colorPickerLabel?: string;
+  placeholder?: React.ReactNode;
+  hint?: string;
 }
 
-const CARD_CONFIG = {
-  light: {
-    label: "Logo Clara",
-    description: "Fundo claro",
-    background: "bg-white",
-    placeholder: "bg-gray-100",
-    textColor: "#1f2937",
-  },
-  dark: {
-    label: "Logo Escura",
-    description: "Fundo escuro",
-    background: "bg-gray-900",
-    placeholder: "bg-gray-800",
-    textColor: "#ffffff",
-  },
-  favicon: {
-    label: "Favicon",
-    description: "Ícone do site",
-    background: "bg-gray-100",
-    placeholder: "bg-gray-200",
-    textColor: "#1f2937",
-  },
-};
-
 const PRESET_COLORS = [
-  "#6366f1", "#8b5cf6", "#ec4899", "#ef4444",
-  "#f97316", "#22c55e", "#3b82f6", "#1f2937",
+  "#6366f1", // Indigo
+  "#8b5cf6", // Violet
+  "#ec4899", // Pink
+  "#ef4444", // Red
+  "#f97316", // Orange
+  "#eab308", // Yellow
+  "#22c55e", // Green
+  "#14b8a6", // Teal
+  "#06b6d4", // Cyan
+  "#3b82f6", // Blue
+  "#1f2937", // Gray 800
+  "#111827", // Gray 900
 ];
 
-export function PremiumLogoCard({
-  type,
+export function MediaSlotControl({
   imageUrl,
   backgroundColor,
-  companyName,
-  userId,
   onImageChange,
-  onImageRemove,
   onBackgroundColorChange,
-}: PremiumLogoCardProps) {
+  label,
+  aspectRatio = "video",
+  previewBackground = "checkered",
+  userId,
+  folder,
+  accept = "image/*",
+  showColorOption = true,
+  colorPickerLabel = "Usar Cor Sólida",
+  placeholder,
+  hint,
+}: MediaSlotControlProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [customColor, setCustomColor] = useState(backgroundColor || "#6366f1");
   const inputRef = useRef<HTMLInputElement>(null);
-  const config = CARD_CONFIG[type];
+
+  const aspectRatioClass = {
+    square: "aspect-square",
+    video: "aspect-video",
+    banner: "aspect-[3/1]",
+  }[aspectRatio];
+
+  const backgroundClass = {
+    light: "bg-white",
+    dark: "bg-gray-900",
+    checkered: "bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3QgZmlsbD0iI2YwZjBmMCIgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIi8+PHJlY3QgZmlsbD0iI2UwZTBlMCIgeD0iMTAiIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIvPjxyZWN0IGZpbGw9IiNlMGUwZTAiIHk9IjEwIiB3aWR0aD0iMTAiIGhlaWdodD0iMTAiLz48cmVjdCBmaWxsPSIjZjBmMGYwIiB4PSIxMCIgeT0iMTAiIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCIvPjwvc3ZnPg==')]",
+  }[previewBackground];
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -82,7 +100,7 @@ export function PremiumLogoCard({
     setIsUploading(true);
     try {
       const fileExt = file.name.split(".").pop();
-      const fileName = `${userId}/${type}-${Date.now()}.${fileExt}`;
+      const fileName = `${userId}/${folder}/${Date.now()}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
         .from("blog-assets")
@@ -95,9 +113,7 @@ export function PremiumLogoCard({
         .getPublicUrl(fileName);
 
       // Clear background color when setting image
-      if (onBackgroundColorChange) {
-        onBackgroundColorChange(null);
-      }
+      onBackgroundColorChange(null);
       onImageChange(urlData.publicUrl);
       toast.success("Imagem enviada com sucesso!");
     } catch (error) {
@@ -105,71 +121,62 @@ export function PremiumLogoCard({
       toast.error("Erro ao enviar imagem");
     } finally {
       setIsUploading(false);
+      // Reset input
       if (inputRef.current) inputRef.current.value = "";
     }
   };
 
   const handleRemove = () => {
-    if (onImageRemove) {
-      onImageRemove();
-    } else {
-      onImageChange("");
-    }
-    if (onBackgroundColorChange) {
-      onBackgroundColorChange(null);
-    }
-    toast.success("Imagem removida");
+    onImageChange(null);
+    onBackgroundColorChange(null);
+    toast.success("Fundo removido");
   };
 
   const handleApplyColor = (color: string) => {
-    // Clear image when setting color
-    if (onImageRemove) {
-      onImageRemove();
-    } else {
-      onImageChange("");
-    }
-    if (onBackgroundColorChange) {
-      onBackgroundColorChange(color);
-    }
+    onImageChange(null); // Clear image when setting color
+    onBackgroundColorChange(color);
     setShowColorPicker(false);
     toast.success("Cor aplicada");
   };
 
-  const isFavicon = type === "favicon";
+  // Determine what to render
   const hasImage = !!imageUrl;
   const hasColor = !!backgroundColor && !hasImage;
   const isEmpty = !hasImage && !hasColor;
 
   return (
-    <div className="flex flex-col">
-      {/* Card Container */}
+    <div className="space-y-3">
+      {label && (
+        <Label className="text-gray-700 flex items-center gap-2">
+          <ImageIcon className="h-4 w-4 text-gray-500" />
+          {label}
+        </Label>
+      )}
+
+      {/* Preview Area */}
       <div
         className={cn(
-          "relative w-full aspect-square rounded-xl border border-gray-200 overflow-hidden flex items-center justify-center transition-all hover:shadow-md",
-          isEmpty && config.background
+          "relative w-full rounded-xl border border-gray-200 overflow-hidden",
+          aspectRatioClass,
+          isEmpty && backgroundClass
         )}
         style={hasColor ? { backgroundColor: backgroundColor! } : undefined}
       >
         {/* Image Preview */}
         {hasImage && (
-          <div className={cn(config.background, "w-full h-full flex items-center justify-center", isFavicon ? "" : "p-4")}>
-            <img
-              src={imageUrl}
-              alt={config.label}
-              className={cn(
-                "object-contain",
-                isFavicon ? "w-12 h-12" : "w-full h-full"
-              )}
-            />
-          </div>
+          <img
+            src={imageUrl!}
+            alt={label}
+            className="w-full h-full object-cover"
+          />
         )}
 
         {/* Color Preview */}
         {hasColor && (
           <div className="w-full h-full flex items-center justify-center">
             <div className="text-center">
-              <Palette className="h-6 w-6 mx-auto text-white/70 mb-1" />
-              <span className="text-white/90 text-xs font-medium px-2 py-0.5 bg-black/20 rounded-full">
+              <Palette className="h-8 w-8 mx-auto text-white/70 mb-2" />
+              <span className="text-white/90 text-sm font-medium px-3 py-1 bg-black/20 rounded-full">
                 {backgroundColor}
               </span>
             </div>
@@ -178,22 +185,12 @@ export function PremiumLogoCard({
 
         {/* Empty Placeholder */}
         {isEmpty && (
-          <div
-            className={cn(
-              "flex items-center justify-center rounded-xl",
-              isFavicon ? "w-16 h-16" : "w-20 h-20",
-              config.placeholder
-            )}
-          >
-            {isFavicon ? (
-              <ImageIcon className="w-6 h-6 text-gray-400" />
-            ) : (
-              <span
-                className="text-2xl font-bold"
-                style={{ color: config.textColor }}
-              >
-                {companyName?.charAt(0)?.toUpperCase() || "B"}
-              </span>
+          <div className="w-full h-full flex items-center justify-center">
+            {placeholder || (
+              <div className="text-center text-gray-400">
+                <ImageIcon className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Nenhuma imagem ou cor</p>
+              </div>
             )}
           </div>
         )}
@@ -201,7 +198,7 @@ export function PremiumLogoCard({
         {/* Loading Overlay */}
         {isUploading && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-white" />
+            <Loader2 className="h-8 w-8 animate-spin text-white" />
           </div>
         )}
 
@@ -209,7 +206,7 @@ export function PremiumLogoCard({
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept={accept}
           onChange={handleUpload}
           className="hidden"
           disabled={isUploading}
@@ -222,35 +219,32 @@ export function PremiumLogoCard({
               <Button
                 variant="secondary"
                 size="icon"
-                className={cn(
-                  "h-7 w-7 shadow-sm",
-                  type === "dark" ? "bg-white/20 hover:bg-white/30" : "bg-white/90 hover:bg-white"
-                )}
+                className="h-8 w-8 bg-white/90 hover:bg-white shadow-sm"
                 disabled={isUploading}
               >
-                <MoreVertical className={cn("h-4 w-4", type === "dark" ? "text-white" : "text-gray-600")} />
+                <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem onClick={() => inputRef.current?.click()}>
                 <Upload className="h-4 w-4 mr-2" />
                 {hasImage ? "Trocar Imagem" : "Enviar Imagem"}
               </DropdownMenuItem>
 
-              {onBackgroundColorChange && (
+              {showColorOption && (
                 <Popover open={showColorPicker} onOpenChange={setShowColorPicker}>
                   <PopoverTrigger asChild>
                     <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                       <Palette className="h-4 w-4 mr-2" />
-                      Usar Cor
+                      {colorPickerLabel}
                     </DropdownMenuItem>
                   </PopoverTrigger>
-                  <PopoverContent className="w-56 p-3" align="end">
+                  <PopoverContent className="w-64 p-3" align="end">
                     <div className="space-y-3">
                       <Label className="text-sm">Escolha uma cor</Label>
                       
-                      {/* Preset Colors */}
-                      <div className="grid grid-cols-4 gap-2">
+                      {/* Preset Colors Grid */}
+                      <div className="grid grid-cols-6 gap-2">
                         {PRESET_COLORS.map((color) => (
                           <button
                             key={color}
@@ -266,10 +260,10 @@ export function PremiumLogoCard({
                         ))}
                       </div>
 
-                      {/* Custom Color */}
+                      {/* Custom Color Input */}
                       <div className="flex items-center gap-2">
                         <div
-                          className="w-8 h-8 rounded-lg border shrink-0"
+                          className="w-10 h-10 rounded-lg border shrink-0"
                           style={{ backgroundColor: customColor }}
                         />
                         <Input
@@ -277,16 +271,15 @@ export function PremiumLogoCard({
                           value={customColor}
                           onChange={(e) => setCustomColor(e.target.value)}
                           placeholder="#6366f1"
-                          className="font-mono text-sm h-8"
+                          className="font-mono text-sm"
                         />
                       </div>
 
                       <Button
-                        size="sm"
                         className="w-full"
                         onClick={() => handleApplyColor(customColor)}
                       >
-                        Aplicar
+                        Aplicar Cor
                       </Button>
                     </div>
                   </PopoverContent>
@@ -301,7 +294,7 @@ export function PremiumLogoCard({
                     className="text-red-600 focus:text-red-600"
                   >
                     <X className="h-4 w-4 mr-2" />
-                    Remover
+                    Remover Fundo
                   </DropdownMenuItem>
                 </>
               )}
@@ -310,11 +303,9 @@ export function PremiumLogoCard({
         </div>
       </div>
 
-      {/* Label Below */}
-      <div className="mt-3 text-center">
-        <p className="text-sm font-medium text-gray-900">{config.label}</p>
-        <p className="text-xs text-gray-500">{config.description}</p>
-      </div>
+      {hint && (
+        <p className="text-xs text-gray-500">{hint}</p>
+      )}
     </div>
   );
 }
