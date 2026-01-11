@@ -60,7 +60,7 @@ import ArticleQueuePage from "./pages/ArticleQueuePage";
 
 // Client (SubAccount) pages
 import ClientDashboard from "./pages/client/ClientDashboard";
-import ClientCreateArticle from "./pages/client/ClientCreateArticle";
+import ClientArticleEditor from "./pages/client/ClientArticleEditor";
 import ClientSite from "./pages/client/ClientSite";
 import ClientAutomation from "./pages/client/ClientAutomation";
 import ClientCompany from "./pages/client/ClientCompany";
@@ -136,7 +136,7 @@ const ClientRoutes = () => (
     <SubAccountLayout>
       <Routes>
         <Route path="dashboard" element={<ClientDashboard />} />
-        <Route path="create" element={<ClientCreateArticle />} />
+        <Route path="create" element={<ClientArticleEditor />} />
         <Route path="site" element={<ClientSite />} />
         <Route path="performance" element={<ClientPerformance />} />
         <Route path="automation" element={<ClientAutomation />} />
