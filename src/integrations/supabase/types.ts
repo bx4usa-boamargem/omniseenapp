@@ -822,6 +822,44 @@ export type Database = {
           },
         ]
       }
+      blog_contact_buttons: {
+        Row: {
+          blog_id: string
+          button_type: string
+          created_at: string | null
+          id: string
+          label: string | null
+          sort_order: number | null
+          value: string
+        }
+        Insert: {
+          blog_id: string
+          button_type: string
+          created_at?: string | null
+          id?: string
+          label?: string | null
+          sort_order?: number | null
+          value: string
+        }
+        Update: {
+          blog_id?: string
+          button_type?: string
+          created_at?: string | null
+          id?: string
+          label?: string | null
+          sort_order?: number | null
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_contact_buttons_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blog_traffic: {
         Row: {
           avg_time_on_site: number | null

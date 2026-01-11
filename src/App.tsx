@@ -7,6 +7,8 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { useHostRouting } from "@/hooks/useHostRouting";
 import { UserGuard } from "@/components/auth/UserGuard";
 import { PlatformAdminGuard } from "@/components/auth/PlatformAdminGuard";
+import { SubAccountGuard } from "@/components/auth/SubAccountGuard";
+import { SubAccountLayout } from "@/components/layout/SubAccountLayout";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -55,6 +57,14 @@ import Integrations from "./pages/Integrations";
 import GoogleIntegration from "./pages/GoogleIntegration";
 import GoogleOAuthCallback from "./pages/GoogleOAuthCallback";
 import ArticleQueuePage from "./pages/ArticleQueuePage";
+
+// Client (SubAccount) pages
+import ClientDashboard from "./pages/client/ClientDashboard";
+import ClientCreateArticle from "./pages/client/ClientCreateArticle";
+import ClientSite from "./pages/client/ClientSite";
+import ClientAutomation from "./pages/client/ClientAutomation";
+import ClientCompany from "./pages/client/ClientCompany";
+import ClientAccount from "./pages/client/ClientAccount";
 
 const queryClient = new QueryClient();
 
@@ -115,6 +125,23 @@ const AdminRoutes = () => (
       <Route path="*" element={<NotFound />} />
     </Routes>
   </PlatformAdminGuard>
+);
+
+// Client (SubAccount) routes wrapper
+const ClientRoutes = () => (
+  <SubAccountGuard>
+    <SubAccountLayout>
+      <Routes>
+        <Route path="dashboard" element={<ClientDashboard />} />
+        <Route path="create" element={<ClientCreateArticle />} />
+        <Route path="site" element={<ClientSite />} />
+        <Route path="automation" element={<ClientAutomation />} />
+        <Route path="company" element={<ClientCompany />} />
+        <Route path="account" element={<ClientAccount />} />
+        <Route path="*" element={<Navigate to="/client/dashboard" replace />} />
+      </Routes>
+    </SubAccountLayout>
+  </SubAccountGuard>
 );
 
 // Component that renders appropriate routes based on domain access
@@ -188,6 +215,9 @@ const AppRoutes = () => {
 
       {/* Protected admin routes */}
       <Route path="/admin/*" element={<AdminRoutes />} />
+
+      {/* SubAccount (Client) routes */}
+      <Route path="/client/*" element={<ClientRoutes />} />
 
       {/* Legacy redirects */}
       <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
