@@ -233,6 +233,38 @@ const QUALITY_CHECKS: QualityCheck[] = [
     },
     message: 'Blocos visuais ou emojis não autorizados pelo modelo editorial detectados.',
     severity: 'warning'
+  },
+
+  // =========================================================================
+  // REGRA 8: Blocos de destaque obrigatórios (frases de impacto)
+  // =========================================================================
+  {
+    name: 'has_highlight_blocks',
+    check: (content: string) => {
+      // Procura por blockquotes com texto em itálico (formato: > *frase*)
+      const highlightBlocks = content.match(/^>\s*\*.+\*.*$/gm) || [];
+      return highlightBlocks.length >= 2;
+    },
+    message: 'O artigo deve ter pelo menos 2 blocos de destaque (> *frase de impacto*) para melhorar escaneabilidade.',
+    severity: 'warning'
+  },
+
+  // =========================================================================
+  // REGRA 9: Ritmo visual - alternância de elementos
+  // =========================================================================
+  {
+    name: 'has_visual_rhythm',
+    check: (content: string) => {
+      // Verifica se há variação: listas, blockquotes, headings distribuídos
+      const hasList = /^[-*]\s+.+$/m.test(content);
+      const hasBlockquote = /^>\s*.+$/m.test(content);
+      const h2Count = (content.match(/^##\s+[^#]/gm) || []).length;
+      
+      // Precisa ter pelo menos listas OU blockquotes, e múltiplos H2s
+      return (hasList || hasBlockquote) && h2Count >= 3;
+    },
+    message: 'O artigo precisa de mais variação visual: use listas, blocos de destaque e subtítulos para quebrar o texto.',
+    severity: 'warning'
   }
 ];
 

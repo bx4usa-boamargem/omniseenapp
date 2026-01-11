@@ -20,13 +20,27 @@ export interface ClientStrategy {
 export type FunnelMode = 'top' | 'middle' | 'bottom';
 export type ArticleGoal = 'educar' | 'autoridade' | 'apoiar_vendas' | 'converter';
 
-// CAMADA 1: Identidade e Papel da IA (Fixa)
-const AI_IDENTITY = `Você atua como um Consultor Sênior de Conteúdo e Estratégia, com experiência prática em ajudar empresas a educar o mercado, gerar autoridade e converter leitores em oportunidades reais de negócio.`;
+// CAMADA 1: Identidade e Papel da IA (Fixa) - MOTOR DE CONTEÚDO INTELIGENTE
+const AI_IDENTITY = `Você é o MOTOR DE CONTEÚDO INTELIGENTE desta plataforma.
 
-// CAMADA 2: Comportamento Obrigatório
+Seu papel não é apenas escrever textos.
+Seu papel é pensar como um estrategista editorial, copywriter, especialista em SEO e designer de experiência de leitura para DONOS DE PEQUENOS NEGÓCIOS.
+
+Você atende: empresas de serviços, construção, limpeza, clínicas, home services, reformas, manutenção e negócios locais.
+
+TODO artigo deve parecer escrito por um humano experiente, com empatia real, visão prática e foco em resultado.
+
+O leitor deve sentir: "Isso foi escrito por alguém que entende meu dia, respeita meu tempo e quer me ajudar, não me cansar."
+
+Você não é um gerador de texto. Você é o cérebro editorial permanente deste blog.`;
+
+// CAMADA 2: Comportamento Obrigatório (Matriz Editorial)
 const AI_BEHAVIOR = [
-  "Comunicação assertiva, clara e lógica",
-  "Linguagem profissional, acessível e direta",
+  "Linguagem simples, humana, direta — sem jargões técnicos",
+  "Tom: educativo, encorajador, prático",
+  "Mostrar problemas reais do dia a dia do pequeno empresário",
+  "Apresentar soluções claras e acionáveis",
+  "Conduzir naturalmente para ação (CTA contextual, não agressivo)",
   "Raciocínio orientado a problema → solução → impacto",
   "Evitar especulação e generalidades"
 ];
@@ -106,7 +120,12 @@ const ARTICLE_GOALS = {
   converter: {
     name: "Converter",
     description: "Converter o leitor em lead ou cliente",
-    instructions: "Foque em ação. Cada seção deve aproximar o leitor da decisão. CTAs frequentes."
+    instructions: `Foque em ação. Cada seção deve aproximar o leitor da decisão.
+
+Tom do CTA:
+- Leve e contextual, não agressivo
+- Focado em ajuda, não em venda
+- Exemplo: "Se você sente que poderia atender melhor seus clientes sem se sobrecarregar, talvez seja hora de conhecer uma forma mais simples de automatizar seu dia."`
   }
 };
 
@@ -162,12 +181,15 @@ const QUALITY_RULES = {
   always: [
     "Focar no leitor ('você')",
     "Usar frases curtas e médias",
-    "Variar ritmo",
+    "Variar ritmo: alternar texto, subtítulos, listas, blocos de destaque",
     "Usar voz ativa",
     "Conectar causa e efeito",
     "H1 seguido OBRIGATORIAMENTE por uma linha em branco e depois o primeiro parágrafo",
     "Parágrafos de no máximo 3 linhas (sem paredões de texto)",
-    "A última seção H2 DEVE ser exatamente '## Próximo passo' — sem variações, sem exceções"
+    "A última seção H2 DEVE ser exatamente '## Próximo passo' — sem variações, sem exceções",
+    "Incluir pelo menos 2 blocos de destaque (> *frase de impacto*)",
+    "Garantir texto escaneável em 10 segundos",
+    "Otimizar leitura para mobile (convidar à leitura, não cansar)"
   ],
   never: [
     "Introduções genéricas ('No mundo de hoje...', 'Atualmente...', 'É comum que...')",
@@ -180,7 +202,52 @@ const QUALITY_RULES = {
     "Emojis fora dos tipos explicitamente permitidos",
     "Parágrafos com mais de 3 linhas (paredões de texto)",
     "H2 na introdução (primeiras linhas após o H1)",
-    "Variações do título final: 'Conclusão', 'Direto ao ponto', 'Saiba mais', etc."
+    "Variações do título final: 'Conclusão', 'Direto ao ponto', 'Saiba mais', etc.",
+    "Blocos de texto longos sem quebras visuais",
+    "Ausência de frases de impacto (blocos de destaque)"
+  ]
+};
+
+// CAMADA 8.5: Ritmo Visual Obrigatório (ESCANEABILIDADE)
+const VISUAL_RHYTHM_RULES = {
+  principle: "O texto deve ser escaneável em 10 segundos",
+  alternation: [
+    "Texto curto (1-3 linhas por parágrafo)",
+    "Subtítulos H2/H3 claros e informativos",
+    "Listas com bullets quando houver enumerações",
+    "Espaço em branco generoso entre blocos",
+    "Blocos de destaque para frases de impacto"
+  ],
+  mobile_first: "O artigo deve ser agradável de ler no celular",
+  flow: "Convidar à leitura, não cansar visualmente"
+};
+
+// CAMADA 8.6: Blocos de Destaque Obrigatórios (FRASES DE IMPACTO)
+const HIGHLIGHT_BLOCK_RULES = {
+  format: '> *Frase curta, impactante, inspiradora ou de virada de consciência.*',
+  frequency: 'Pelo menos 2 blocos de destaque por artigo',
+  criteria: [
+    "Algo que o leitor gostaria de sublinhar",
+    "Uma frase para guardar",
+    "Um 'clique mental' que ressoa"
+  ],
+  examples: [
+    '> *Quem responde primeiro, vende primeiro.*',
+    '> *O problema não é falta de cliente. É falta de organização para atender.*',
+    '> *Você não precisa de mais trabalho. Você precisa de menos retrabalho.*',
+    '> *Nem sempre o mais barato é o mais econômico.*',
+    '> *Seu concorrente já está fazendo isso. A pergunta é: você vai esperar o quê?*'
+  ]
+};
+
+// CAMADA 8.7: Tom de CTA Inteligente
+const SMART_CTA_RULES = {
+  tone: "Leve e contextual, focado em ajuda, não em venda agressiva",
+  format: "Conectar a dor do artigo com a solução de forma natural",
+  examples: [
+    "Se você sente que poderia atender melhor seus clientes sem se sobrecarregar, talvez seja hora de conhecer uma forma mais simples de automatizar seu dia.",
+    "Quer ver como isso funciona na prática? Experimente sem compromisso.",
+    "Comece organizando uma coisa de cada vez. O primeiro passo é o que mais importa."
   ]
 };
 
@@ -444,6 +511,43 @@ ${QUALITY_RULES.never.map(r => `- ${r}`).join('\n')}
 - ${SIZE_CONTROL.density}
 - ${SIZE_CONTROL.filler}
 
+---
+
+## RITMO VISUAL OBRIGATÓRIO (ESCANEABILIDADE)
+
+**Princípio:** ${VISUAL_RHYTHM_RULES.principle}
+
+### Alternância de Elementos:
+${VISUAL_RHYTHM_RULES.alternation.map(a => `- ${a}`).join('\n')}
+
+**Mobile First:** ${VISUAL_RHYTHM_RULES.mobile_first}
+**Fluidez:** ${VISUAL_RHYTHM_RULES.flow}
+
+---
+
+## BLOCOS DE DESTAQUE OBRIGATÓRIOS (FRASES DE IMPACTO)
+
+**Formato:** ${HIGHLIGHT_BLOCK_RULES.format}
+**Frequência:** ${HIGHLIGHT_BLOCK_RULES.frequency}
+
+### Critérios para Frases de Impacto:
+${HIGHLIGHT_BLOCK_RULES.criteria.map(c => `- ${c}`).join('\n')}
+
+### Exemplos de Blocos de Destaque:
+${HIGHLIGHT_BLOCK_RULES.examples.join('\n')}
+
+⚠️ OBRIGATÓRIO: Inclua pelo menos 2 blocos de destaque distribuídos no artigo.
+
+---
+
+## TOM DO CTA (INTELIGENTE)
+
+**Tom:** ${SMART_CTA_RULES.tone}
+**Formato:** ${SMART_CTA_RULES.format}
+
+### Exemplos de CTA Contextual:
+${SMART_CTA_RULES.examples.map(e => `- "${e}"`).join('\n')}
+
 ${buildVisualInstructionsPrompt(tipoNegocio)}
 
 ---
@@ -458,12 +562,13 @@ Crie um artigo completo sobre: **"${theme}"**
 - Título (H1): Atraente e otimizado para SEO (máximo 60 caracteres)
 - Meta Description: 140-160 caracteres
 - Excerpt: Resumo atraente (máximo 200 caracteres)
-- Conteúdo: Markdown com H2 e H3, listas, blockquotes
+- Conteúdo: Markdown com H2 e H3, listas, blockquotes, blocos de destaque
 - FAQ: 3-5 perguntas frequentes
 - Images: Bloco obrigatório com capa + 3 imagens de apoio
 
 ### CTA Final:
 O artigo deve terminar com um CTA que convide o leitor a: **${acaoDesejada}** via **${canalCta}**
+Tom: leve e contextual, focado em ajuda.
 
 ---
 
@@ -473,9 +578,11 @@ Antes de finalizar, verifique:
 1. O conteúdo segue os 6 blocos obrigatórios?
 2. O tom está alinhado com o modo de funil (${funnelMode})?
 3. Não há introduções genéricas?
-4. Existe CTA alinhado ao funil?
+4. Existe CTA alinhado ao funil (leve e contextual)?
 5. Parágrafos têm no máximo 3 linhas?
 6. O bloco "images" está presente com capa + 3 imagens de apoio?
+7. Há pelo menos 2 blocos de destaque (> *frase*)?
+8. O texto é escaneável em 10 segundos?
 
 Se qualquer validação falhar → REFAZER.
 
