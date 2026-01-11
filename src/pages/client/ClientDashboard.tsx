@@ -214,10 +214,10 @@ export default function ClientDashboard() {
           
           {/* Content */}
           <div className="flex-1 text-center md:text-left">
-            <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
               Está tudo certo.
             </h1>
-            <p className="text-xl text-gray-400 mb-6">
+            <p className="text-xl text-gray-600 dark:text-gray-400 mb-6">
               {automationActive 
                 ? 'Seu conteúdo está sendo gerado automaticamente.'
                 : 'Ative a automação para publicar artigos automaticamente.'}
@@ -235,8 +235,8 @@ export default function ClientDashboard() {
 
       {/* Meu Blog - Mini Dashboard */}
       <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-purple-400" />
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <BarChart3 className="h-5 w-5 text-purple-500 dark:text-purple-400" />
           Meu Blog
         </h2>
         
@@ -248,13 +248,13 @@ export default function ClientDashboard() {
           >
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
-                <h3 className="text-white font-semibold text-lg truncate">{blog?.name}</h3>
-                <p className="text-gray-400 text-sm truncate mt-1">{blogUrl}</p>
+                <h3 className="text-gray-900 dark:text-white font-semibold text-lg truncate">{blog?.name}</h3>
+                <p className="text-gray-500 dark:text-gray-400 text-sm truncate mt-1">{blogUrl}</p>
               </div>
               <Button 
                 variant="ghost" 
                 size="icon"
-                className="shrink-0 text-gray-400 hover:text-white hover:bg-white/10"
+                className="shrink-0 text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10"
                 onClick={(e) => { e.stopPropagation(); handleCopyUrl(); }}
               >
                 {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
@@ -278,11 +278,11 @@ export default function ClientDashboard() {
           >
             <div className="flex items-center justify-between mb-3">
               <div className="p-2 rounded-lg bg-purple-500/20">
-                <FileText className="h-5 w-5 text-purple-400" />
+                <FileText className="h-5 w-5 text-purple-500 dark:text-purple-400" />
               </div>
-              <ChevronRight className="h-4 w-4 text-gray-500 group-hover:text-white transition-colors" />
+              <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-gray-700 dark:group-hover:text-white transition-colors" />
             </div>
-            <div className="text-4xl font-bold text-white client-text-glow">{totalArticles}</div>
+            <div className="text-4xl font-bold text-gray-900 dark:text-white client-text-glow">{totalArticles}</div>
             <p className="text-gray-500 text-sm mt-1">Artigos publicados</p>
           </div>
 
@@ -295,15 +295,15 @@ export default function ClientDashboard() {
           >
             <div className="flex items-center justify-between mb-3">
               <div className={`p-2 rounded-lg ${automationActive ? 'bg-green-500/20' : 'bg-yellow-500/20'}`}>
-                <Zap className={`h-5 w-5 ${automationActive ? 'text-green-400' : 'text-yellow-400'}`} />
+                <Zap className={`h-5 w-5 ${automationActive ? 'text-green-500 dark:text-green-400' : 'text-yellow-500 dark:text-yellow-400'}`} />
               </div>
-              <ChevronRight className="h-4 w-4 text-gray-500 group-hover:text-white transition-colors" />
+              <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-gray-700 dark:group-hover:text-white transition-colors" />
             </div>
             <Badge 
               className={`${
                 automationActive 
-                  ? 'bg-green-500/20 text-green-400 border-green-500/30' 
-                  : 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+                  ? 'bg-green-500/20 text-green-600 dark:text-green-400 border-green-500/30' 
+                  : 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 border-yellow-500/30'
               }`}
             >
               {automationActive ? '✓ Ativa' : 'Pausada'}
@@ -322,15 +322,15 @@ export default function ClientDashboard() {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg bg-orange-500/20">
-                  <CheckCircle2 className="h-5 w-5 text-orange-400" />
+                  <CheckCircle2 className="h-5 w-5 text-orange-500 dark:text-orange-400" />
                 </div>
-                <span className="text-gray-400 text-sm">Último artigo</span>
+                <span className="text-gray-500 dark:text-gray-400 text-sm">Último artigo</span>
               </div>
-              <ChevronRight className="h-4 w-4 text-gray-500 group-hover:text-white transition-colors" />
+              <ChevronRight className="h-4 w-4 text-gray-400 group-hover:text-gray-700 dark:group-hover:text-white transition-colors" />
             </div>
             {lastArticle ? (
               <>
-                <h4 className="text-white font-medium truncate group-hover:text-purple-300 transition-colors">
+                <h4 className="text-gray-900 dark:text-white font-medium truncate group-hover:text-purple-600 dark:group-hover:text-purple-300 transition-colors">
                   {lastArticle.title}
                 </h4>
                 {lastArticle.published_at && (
@@ -351,11 +351,11 @@ export default function ClientDashboard() {
           <div className="client-card p-5">
             <div className="flex items-center gap-2 mb-3">
               <div className="p-2 rounded-lg bg-blue-500/20">
-                <Clock className="h-5 w-5 text-blue-400" />
+                <Clock className="h-5 w-5 text-blue-500 dark:text-blue-400" />
               </div>
-              <span className="text-gray-400 text-sm">Última atualização</span>
+              <span className="text-gray-500 dark:text-gray-400 text-sm">Última atualização</span>
             </div>
-            <p className="text-white">
+            <p className="text-gray-900 dark:text-white">
               {lastUpdated 
                 ? formatDistanceToNow(lastUpdated, { addSuffix: true, locale: ptBR })
                 : 'Sem dados'}
@@ -371,8 +371,8 @@ export default function ClientDashboard() {
       >
         <div className="flex flex-col md:flex-row items-center gap-6">
           <div className="flex-1">
-            <h2 className="text-xl font-semibold text-white mb-2">Saúde do seu Blog</h2>
-            <p className="text-gray-400">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Saúde do seu Blog</h2>
+            <p className="text-gray-600 dark:text-gray-400">
               Clique para ver detalhes e dicas de como melhorar seu SEO.
             </p>
           </div>
@@ -388,8 +388,8 @@ export default function ClientDashboard() {
       {/* Recent Articles */}
       <div className="client-card p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-            <FileText className="h-5 w-5 text-purple-400" />
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <FileText className="h-5 w-5 text-purple-500 dark:text-purple-400" />
             Últimos Artigos
           </h2>
           {recentArticles.length > 0 && (
@@ -397,7 +397,7 @@ export default function ClientDashboard() {
               variant="ghost" 
               size="sm" 
               onClick={handleOpenBlog} 
-              className="gap-1 text-xs text-gray-400 hover:text-white"
+              className="gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white"
             >
               Ver todos
               <ExternalLink className="h-3 w-3" />
@@ -407,7 +407,7 @@ export default function ClientDashboard() {
         
         {recentArticles.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-gray-400 mb-4">Nenhum artigo publicado ainda.</p>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">Nenhum artigo publicado ainda.</p>
             <Button 
               onClick={() => navigate('/client/create')}
               className="client-btn-primary"
@@ -422,11 +422,11 @@ export default function ClientDashboard() {
                 key={article.id} 
                 onClick={() => handleOpenArticle(article)}
                 className="flex items-center justify-between py-3 px-4 rounded-lg 
-                           hover:bg-white/5 cursor-pointer transition-colors group"
+                           hover:bg-gray-100 dark:hover:bg-white/5 cursor-pointer transition-colors group"
               >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
-                  <span className="text-white truncate group-hover:text-purple-300 transition-colors">
+                  <span className="text-gray-900 dark:text-white truncate group-hover:text-purple-600 dark:group-hover:text-purple-300 transition-colors">
                     {article.title}
                   </span>
                 </div>
@@ -447,24 +447,24 @@ export default function ClientDashboard() {
       {/* Next Publications */}
       {nextPublications.length > 0 && (
         <div className="client-card p-6">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2 mb-4">
-            <Calendar className="h-5 w-5 text-orange-400" />
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
+            <Calendar className="h-5 w-5 text-orange-500 dark:text-orange-400" />
             Próximas Publicações
           </h2>
           <ul className="space-y-1">
             {nextPublications.map((item) => (
               <li 
                 key={item.id} 
-                className="flex items-center justify-between py-3 px-4 rounded-lg bg-white/5"
+                className="flex items-center justify-between py-3 px-4 rounded-lg bg-gray-100 dark:bg-white/5"
               >
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                  <span className="text-white truncate">{item.suggested_theme}</span>
+                  <span className="text-gray-900 dark:text-white truncate">{item.suggested_theme}</span>
                 </div>
                 {item.scheduled_for && (
                   <Badge 
                     variant="outline" 
-                    className="text-xs shrink-0 ml-2 border-orange-500/30 text-orange-400"
+                    className="text-xs shrink-0 ml-2 border-orange-500/30 text-orange-600 dark:text-orange-400"
                   >
                     {format(new Date(item.scheduled_for), "dd MMM 'às' HH:mm", { locale: ptBR })}
                   </Badge>

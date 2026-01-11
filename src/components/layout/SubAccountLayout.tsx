@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { OmniseenLogo } from '@/components/ui/OmniseenLogo';
 import { useAuth } from '@/hooks/useAuth';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { ThemeToggle } from '@/components/client/ThemeToggle';
 
 interface SubAccountLayoutProps {
   children: ReactNode;
@@ -59,13 +60,13 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
         className={cn(
           "client-nav-item w-full flex items-center gap-4 text-left",
           active 
-            ? "active text-white font-medium" 
-            : "text-gray-400 hover:text-white"
+            ? "active text-gray-900 dark:text-white font-medium" 
+            : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
         )}
       >
         <Icon className={cn(
           "h-5 w-5 shrink-0 transition-colors",
-          active ? "text-orange-400" : "text-gray-500"
+          active ? "text-violet-600 dark:text-orange-400" : "text-gray-400 dark:text-gray-500"
         )} />
         <span className="text-sm">{item.label}</span>
       </button>
@@ -75,7 +76,7 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="p-6 border-b border-white/10">
+      <div className="p-6 border-b border-slate-200 dark:border-white/10">
         <OmniseenLogo size="lg" />
       </div>
 
@@ -87,7 +88,7 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
       </nav>
 
       {/* Integrações Section */}
-      <div className="px-4 pb-2 border-t border-white/10 pt-4">
+      <div className="px-4 pb-2 border-t border-slate-200 dark:border-white/10 pt-4">
         <span className="px-4 text-xs text-gray-500 uppercase tracking-wider font-medium">
           Integrações
         </span>
@@ -98,11 +99,19 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
         </div>
       </div>
 
+      {/* Theme Toggle */}
+      <div className="px-4 py-2 border-t border-slate-200 dark:border-white/10">
+        <div className="flex items-center justify-between px-4 py-2">
+          <span className="text-sm text-gray-600 dark:text-gray-400">Tema</span>
+          <ThemeToggle />
+        </div>
+      </div>
+
       {/* Logout */}
-      <div className="p-4 border-t border-white/10">
+      <div className="p-4 border-t border-slate-200 dark:border-white/10">
         <button
           onClick={handleSignOut}
-          className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-left text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200"
+          className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-left text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 transition-all duration-200"
         >
           <LogOut className="h-5 w-5 shrink-0" />
           <span className="text-sm">Sair</span>
@@ -119,12 +128,12 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
       </aside>
 
       {/* Mobile Header - visible below md (< 768px) */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 client-sidebar z-50 flex items-center justify-between px-4 border-b border-white/10">
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 client-sidebar z-50 flex items-center justify-between px-4 border-b border-slate-200 dark:border-white/10">
         <OmniseenLogo size="md" />
         
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+            <Button variant="ghost" size="icon" className="text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/10">
               <Menu className="h-6 w-6" />
             </Button>
           </SheetTrigger>

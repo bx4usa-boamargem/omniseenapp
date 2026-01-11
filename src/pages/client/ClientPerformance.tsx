@@ -63,22 +63,22 @@ export default function ClientPerformance() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">Desempenho</h1>
-          <p className="text-gray-400 mt-1">Acompanhe as métricas do seu blog no Google</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Desempenho</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Acompanhe as métricas do seu blog no Google</p>
         </div>
 
-        <div className="text-center py-16 bg-gray-800/50 rounded-xl border border-white/10">
-          <Search className="h-16 w-16 text-gray-500 mx-auto mb-6" />
-          <h3 className="text-xl font-semibold text-white mb-3">
+        <div className="text-center py-16 client-card">
+          <Search className="h-16 w-16 text-gray-400 dark:text-gray-500 mx-auto mb-6" />
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
             Conecte o Google Search Console
           </h3>
-          <p className="text-gray-400 mb-8 max-w-md mx-auto">
+          <p className="text-gray-500 dark:text-gray-400 mb-8 max-w-md mx-auto">
             Veja cliques, impressões e palavras-chave posicionadas conectando sua conta do Google.
             Se você conectou recentemente, aguarde 48–72h para que o Google processe os primeiros acessos.
           </p>
           <Button 
             onClick={() => navigate('/client/integrations/gsc')}
-            className="bg-primary hover:bg-primary/90"
+            className="client-btn-primary"
           >
             Ir para Integrações
           </Button>
@@ -92,8 +92,8 @@ export default function ClientPerformance() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">Desempenho</h1>
-          <p className="text-gray-400 mt-1">Carregando dados do Google Search Console...</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Desempenho</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Carregando dados do Google Search Console...</p>
         </div>
         <div className="flex items-center justify-center min-h-[300px]">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -110,8 +110,8 @@ export default function ClientPerformance() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Desempenho</h1>
-          <p className="text-gray-400 mt-1">Métricas reais do Google Search Console</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Desempenho</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Métricas reais do Google Search Console</p>
         </div>
 
         {/* Period selector */}
@@ -124,7 +124,7 @@ export default function ClientPerformance() {
               onClick={() => setPeriod(days)}
               className={period === days 
                 ? "bg-primary text-primary-foreground" 
-                : "border-white/20 text-gray-300 hover:bg-white/10"
+                : "border-gray-300 dark:border-white/20 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10"
               }
             >
               {days}d
@@ -134,12 +134,12 @@ export default function ClientPerformance() {
       </div>
 
       {!hasData ? (
-        <div className="text-center py-12 bg-gray-800/50 rounded-xl border border-white/10">
-          <TrendingUp className="h-12 w-12 text-gray-500 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-white mb-2">
+        <div className="text-center py-12 client-card">
+          <TrendingUp className="h-12 w-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
             Aguardando dados do Google
           </h3>
-          <p className="text-gray-400 max-w-md mx-auto">
+          <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
             Sua conta está conectada! O Google pode levar de 48 a 72 horas para processar 
             os primeiros acessos ao seu site. Volte em breve para ver suas métricas.
           </p>
@@ -148,72 +148,72 @@ export default function ClientPerformance() {
         <>
           {/* Cards de Visão Geral */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card className="bg-gray-800/50 border-white/10">
+            <Card className="client-card">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-400 flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-2">
                   <MousePointer className="h-4 w-4" />
                   Cliques
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-white">
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {comparison?.current.clicks.toLocaleString() || 0}
                 </p>
                 {comparison?.changes.clicks !== 0 && (
-                  <p className={`text-sm ${comparison?.changes.clicks > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  <p className={`text-sm ${comparison?.changes.clicks > 0 ? 'text-green-500' : 'text-red-500'}`}>
                     {comparison?.changes.clicks > 0 ? '+' : ''}{comparison?.changes.clicks.toFixed(1)}%
                   </p>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="bg-gray-800/50 border-white/10">
+            <Card className="client-card">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-400 flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-2">
                   <Eye className="h-4 w-4" />
                   Impressões
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-white">
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {comparison?.current.impressions.toLocaleString() || 0}
                 </p>
                 {comparison?.changes.impressions !== 0 && (
-                  <p className={`text-sm ${comparison?.changes.impressions > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  <p className={`text-sm ${comparison?.changes.impressions > 0 ? 'text-green-500' : 'text-red-500'}`}>
                     {comparison?.changes.impressions > 0 ? '+' : ''}{comparison?.changes.impressions.toFixed(1)}%
                   </p>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="bg-gray-800/50 border-white/10">
+            <Card className="client-card">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-400 flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" />
                   CTR Médio
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-white">
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {(comparison?.current.ctr || 0).toFixed(2)}%
                 </p>
                 {comparison?.changes.ctr !== 0 && (
-                  <p className={`text-sm ${comparison?.changes.ctr > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  <p className={`text-sm ${comparison?.changes.ctr > 0 ? 'text-green-500' : 'text-red-500'}`}>
                     {comparison?.changes.ctr > 0 ? '+' : ''}{comparison?.changes.ctr.toFixed(1)}%
                   </p>
                 )}
               </CardContent>
             </Card>
 
-            <Card className="bg-gray-800/50 border-white/10">
+            <Card className="client-card">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-400 flex items-center gap-2">
+                <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400 flex items-center gap-2">
                   <Hash className="h-4 w-4" />
                   Palavras-chave
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-2xl font-bold text-white">
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   {topQueries.length}
                 </p>
                 <p className="text-sm text-gray-500">posicionadas</p>
@@ -222,9 +222,9 @@ export default function ClientPerformance() {
           </div>
 
           {/* Gráfico de Evolução */}
-          <Card className="bg-gray-800/50 border-white/10">
+          <Card className="client-card">
             <CardHeader>
-              <CardTitle className="text-white">Evolução de Cliques e Impressões</CardTitle>
+              <CardTitle className="text-gray-900 dark:text-white">Evolução de Cliques e Impressões</CardTitle>
             </CardHeader>
             <CardContent>
               <PerformanceChart data={historicalData} />
@@ -232,9 +232,9 @@ export default function ClientPerformance() {
           </Card>
 
           {/* Tabela de Palavras-chave */}
-          <Card className="bg-gray-800/50 border-white/10">
+          <Card className="client-card">
             <CardHeader>
-              <CardTitle className="text-white">Palavras-chave Posicionadas</CardTitle>
+              <CardTitle className="text-gray-900 dark:text-white">Palavras-chave Posicionadas</CardTitle>
             </CardHeader>
             <CardContent>
               <KeywordsTable data={topQueries} />

@@ -222,13 +222,13 @@ export default function ClientSEO() {
           variant="ghost" 
           size="icon"
           onClick={() => navigate('/client/dashboard')}
-          className="text-white/70 hover:text-white hover:bg-white/10"
+          className="text-gray-500 dark:text-white/70 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10"
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold text-white">Saúde do seu Blog</h1>
-          <p className="text-gray-400 text-sm">Entenda como seu blog está otimizado</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Saúde do seu Blog</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm">Entenda como seu blog está otimizado</p>
         </div>
       </div>
 
@@ -236,10 +236,10 @@ export default function ClientSEO() {
       <div className="client-card client-card-glow p-8">
         <div className="flex flex-col items-center text-center">
           <SEOScoreGauge score={aggregatedScore} size="lg" showLabel animated />
-          <p className="text-xl text-white mt-4 font-medium">
+          <p className="text-xl text-gray-900 dark:text-white mt-4 font-medium">
             {getEmotionalMessage(aggregatedScore)}
           </p>
-          <p className="text-gray-400 text-sm mt-2">
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-2">
             Baseado em {articles.length} {articles.length === 1 ? 'artigo publicado' : 'artigos publicados'}
           </p>
         </div>
@@ -265,14 +265,14 @@ export default function ClientSEO() {
                   </div>
                   <StatusIcon className={`h-5 w-5 ${status.color}`} />
                 </div>
-                <h3 className="text-white font-medium">{metric.label}</h3>
+                <h3 className="text-gray-900 dark:text-white font-medium">{metric.label}</h3>
                 <p className="text-gray-500 text-xs mt-1">{metric.description}</p>
                 <div className="flex items-center justify-between mt-3">
-                  <span className="text-gray-400 text-sm">{detail.score}/{detail.max}</span>
+                  <span className="text-gray-500 dark:text-gray-400 text-sm">{detail.score}/{detail.max}</span>
                   <span className={`text-xs ${status.color}`}>{status.label}</span>
                 </div>
                 {/* Progress bar */}
-                <div className="mt-2 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                <div className="mt-2 h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
                   <div 
                     className={`h-full rounded-full transition-all ${
                       (detail.score / detail.max) >= 0.8 ? 'bg-green-500' :
@@ -292,7 +292,7 @@ export default function ClientSEO() {
         <div className="client-card p-6">
           <div className="flex items-center gap-2 mb-4">
             <Lightbulb className="h-5 w-5 text-yellow-500" />
-            <h2 className="text-lg font-semibold text-white">Dicas para Melhorar</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Dicas para Melhorar</h2>
           </div>
           <ul className="space-y-3">
             {tips.map((tip, index) => {
@@ -300,18 +300,18 @@ export default function ClientSEO() {
               return (
                 <li 
                   key={index}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                  className="flex items-center gap-3 p-3 rounded-lg bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
                 >
                   <div className={`p-2 rounded-lg ${
                     tip.priority === 'high' ? 'bg-red-500/20' :
                     tip.priority === 'medium' ? 'bg-yellow-500/20' : 'bg-blue-500/20'
                   }`}>
                     <TipIcon className={`h-4 w-4 ${
-                      tip.priority === 'high' ? 'text-red-400' :
-                      tip.priority === 'medium' ? 'text-yellow-400' : 'text-blue-400'
+                      tip.priority === 'high' ? 'text-red-500 dark:text-red-400' :
+                      tip.priority === 'medium' ? 'text-yellow-500 dark:text-yellow-400' : 'text-blue-500 dark:text-blue-400'
                     }`} />
                   </div>
-                  <span className="text-gray-300">{tip.text}</span>
+                  <span className="text-gray-700 dark:text-gray-300">{tip.text}</span>
                 </li>
               );
             })}
@@ -324,7 +324,7 @@ export default function ClientSEO() {
         <Button 
           variant="outline" 
           onClick={() => navigate('/client/dashboard')}
-          className="border-white/20 text-white hover:bg-white/10"
+          className="border-gray-300 dark:border-white/20 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/10"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Voltar ao Início

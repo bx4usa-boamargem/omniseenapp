@@ -37,26 +37,26 @@ export default function ClientGSCIntegration() {
           variant="ghost"
           size="icon"
           onClick={() => navigate('/client/performance')}
-          className="text-gray-400 hover:text-white hover:bg-white/10"
+          className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10"
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-2xl font-bold text-white">Google Search Console</h1>
-          <p className="text-gray-400 mt-1">Conecte para ver métricas reais do seu blog no Google</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Google Search Console</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Conecte para ver métricas reais do seu blog no Google</p>
         </div>
       </div>
 
       {/* Main Card */}
-      <Card className="bg-gray-800/50 border-white/10">
+      <Card className="client-card">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 rounded-lg bg-white/10 flex items-center justify-center">
+            <div className="h-12 w-12 rounded-lg bg-primary/10 dark:bg-white/10 flex items-center justify-center">
               <Search className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-white">Google Search Console</CardTitle>
-              <CardDescription className="text-gray-400">
+              <CardTitle className="text-gray-900 dark:text-white">Google Search Console</CardTitle>
+              <CardDescription className="text-gray-500 dark:text-gray-400">
                 Monitore cliques, impressões e palavras-chave do seu site
               </CardDescription>
             </div>
