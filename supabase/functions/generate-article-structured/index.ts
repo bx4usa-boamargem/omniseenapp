@@ -1212,34 +1212,53 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
     
     // H1 validation complete - continue with CTA validation
     
-    // REGRA 2: Última seção DEVE ser "## Próximo passo"
-    const h2Matches = contentText.match(/^## .+$/gm) || [];
+    // REGRA 2: Última seção DEVE ser "## Próximo passo" - com auto-correção
+    let finalContent = articleData.content as string;
+    const h2Matches = finalContent.match(/^## .+$/gm) || [];
     
     if (h2Matches.length > 0) {
       const lastH2 = h2Matches[h2Matches.length - 1].trim();
       
       if (lastH2 !== MANDATORY_FINAL_SECTION) {
-        console.error(`AI_OUTPUT_INVALID: Last H2 is "${lastH2}", expected "${MANDATORY_FINAL_SECTION}"`);
-        throw new Error(`AI_OUTPUT_INVALID: A última seção DEVE ser exatamente "${MANDATORY_FINAL_SECTION}". Artigo sem CTA final padronizado é inválido. Encontrado: "${lastH2}"`);
+        console.warn(`EDITORIAL WARNING: Last H2 is "${lastH2}", expected "${MANDATORY_FINAL_SECTION}" - attempting auto-fix`);
+        
+        // Auto-fix: Replace the last H2 with the mandatory one
+        const lastH2Index = finalContent.lastIndexOf(lastH2);
+        
+        if (lastH2Index !== -1) {
+          // Replace the last H2 heading with the correct one
+          finalContent = finalContent.substring(0, lastH2Index) + 
+            MANDATORY_FINAL_SECTION + 
+            finalContent.substring(lastH2Index + lastH2.length);
+          
+          articleData.content = finalContent;
+          console.log(`✅ CTA Final auto-fixed: "${lastH2}" → "${MANDATORY_FINAL_SECTION}"`);
+        } else {
+          // If can't find to replace, append the section at the end
+          console.warn('Could not find last H2 to replace, appending mandatory section');
+          finalContent = finalContent.trim() + `\n\n${MANDATORY_FINAL_SECTION}\n\n**Quem age primeiro, vence.** Entre em contato agora e dê o próximo passo para o seu negócio.`;
+          articleData.content = finalContent;
+          console.log('✅ CTA Final appended as fallback');
+        }
+      } else {
+        console.log('✅ CTA Final "## Próximo passo" validated');
       }
-      
-      console.log('✅ CTA Final "## Próximo passo" validated');
     } else {
       console.error('AI_OUTPUT_INVALID: No H2 sections found in article');
       throw new Error('AI_OUTPUT_INVALID: Artigo não possui seções H2. Estrutura inválida.');
     }
     
     // ============ VALIDATE EDITORIAL MODEL COMPLIANCE ============
-    // Note: contentText already declared above for CTA validation
+    // Use finalContent after auto-fixes (not contentText)
     
-    // Count H2 sections
-    const h2Count = (contentText.match(/^## /gm) || []).length;
+    // Count H2 sections using auto-fixed content
+    const h2Count = (finalContent.match(/^## /gm) || []).length;
     if (h2Count < modelConfig.sections.min || h2Count > modelConfig.sections.max) {
       console.warn(`EDITORIAL MODEL WARNING: Article has ${h2Count} H2s, model ${editorial_model} expects ${modelConfig.sections.min}-${modelConfig.sections.max}`);
     }
     
     // Count visual blocks
-    const blockMatches = contentText.match(/^[💡⚠️📌✅❝]/gm) || [];
+    const blockMatches = finalContent.match(/^[💡⚠️📌✅❝]/gm) || [];
     const blockCount = blockMatches.length;
     
     if (blockCount < modelConfig.visualBlocks.min) {
@@ -1257,9 +1276,10 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
       }
     }
     
-    // Check for forbidden section titles (should NEVER appear)
-    if (/conclusão|considerações finais|direto ao ponto|saiba mais|o que fazer agora/i.test(contentText)) {
-      console.warn('EDITORIAL MODEL WARNING: Article contains forbidden section title. Last H2 must be exactly "## Próximo passo"');
+    // Check for forbidden section titles in body (not in final section which is now correct)
+    const contentWithoutFinal = finalContent.split(MANDATORY_FINAL_SECTION)[0];
+    if (/^## ?(conclusão|considerações finais|direto ao ponto|saiba mais|o que fazer agora)/im.test(contentWithoutFinal)) {
+      console.warn('EDITORIAL MODEL WARNING: Article contains forbidden section title in body');
     }
     
     console.log(`EDITORIAL MODEL VALIDATION: Model=${editorial_model}, H2s=${h2Count}, Blocks=${blockCount}`);
