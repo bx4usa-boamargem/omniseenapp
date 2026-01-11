@@ -13,6 +13,7 @@ import { SimpleArticleForm, type SimpleFormData } from '@/components/client/Simp
 import { ArticlePreview } from '@/components/ArticlePreview';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { GenerationProgress } from '@/components/seo/GenerationProgress';
+import { ImproveArticleDialog } from '@/components/editor/ImproveArticleDialog';
 import { 
   ArrowLeft, 
   Save, 
@@ -77,6 +78,16 @@ export default function ClientArticleEditor() {
   
   // Save state
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Improve with AI state
+  const [isImprovingArticle, setIsImprovingArticle] = useState(false);
+  const [showImproveDialog, setShowImproveDialog] = useState(false);
+  const [improveResults, setImproveResults] = useState<{
+    improvements: { type: 'paragraph' | 'visual_block' | 'seo' | 'cta'; description: string; location?: string }[];
+    stats: { addedVisualBlocks: number; fixedParagraphs: number; seoIssues: number; totalImprovements: number };
+    improvedContent: string;
+    originalContent: string;
+  } | null>(null);
   
   // Persist view mode
   useEffect(() => {
@@ -336,9 +347,87 @@ export default function ClientArticleEditor() {
     setStreamingText('');
   };
 
-  const handleImproveWithAI = () => {
-    // TODO: Open AI improvement dialog
-    toast.info('Em breve: Melhorar artigo com IA');
+  const handleImproveWithAI = async () => {
+    if (!content || !title) {
+      toast.error('É necessário ter conteúdo e título para melhorar');
+      return;
+    }
+
+    setIsImprovingArticle(true);
+
+    try {
+      // Fetch business profile for context (if available)
+      let businessProfile = null;
+      if (blog?.id) {
+        const { data: profileData } = await supabase
+          .from('business_profile')
+          .select('company_name, niche, tone_of_voice')
+          .eq('blog_id', blog.id)
+          .single();
+        
+        if (profileData) {
+          businessProfile = profileData;
+        }
+      }
+
+      const response = await supabase.functions.invoke('improve-article-complete', {
+        body: {
+          content,
+          title,
+          metaDescription,
+          keywords: [],
+          businessProfile: businessProfile ? {
+            company_name: businessProfile.company_name,
+            niche: businessProfile.niche,
+            tone_of_voice: businessProfile.tone_of_voice
+          } : undefined
+        }
+      });
+
+      if (response.error) throw new Error(response.error.message);
+
+      const { improvedContent, improvements, stats } = response.data;
+
+      if (stats.totalImprovements > 0) {
+        // Store original content and results
+        setImproveResults({
+          improvements,
+          stats,
+          improvedContent,
+          originalContent: content
+        });
+
+        // Apply improvements
+        setContent(improvedContent);
+        setShowImproveDialog(true);
+        
+        toast.success(`${stats.totalImprovements} melhorias aplicadas!`);
+      } else {
+        toast.success('Artigo já otimizado! Nenhuma melhoria necessária.');
+      }
+    } catch (error) {
+      console.error('Error improving article:', error);
+      toast.error('Erro ao melhorar artigo', {
+        description: error instanceof Error ? error.message : 'Erro desconhecido'
+      });
+    } finally {
+      setIsImprovingArticle(false);
+    }
+  };
+
+  const handleKeepImprovements = () => {
+    setShowImproveDialog(false);
+    setImproveResults(null);
+    toast.success('Melhorias mantidas com sucesso!');
+  };
+
+  const handleDiscardImprovements = () => {
+    if (improveResults?.originalContent) {
+      setContent(improveResults.originalContent);
+    }
+    setShowImproveDialog(false);
+    setImproveResults(null);
+    toast.info('Melhorias descartadas');
   };
 
   if (blogLoading) {
@@ -517,10 +606,20 @@ export default function ClientArticleEditor() {
               variant="outline"
               size="sm"
               onClick={handleImproveWithAI}
+              disabled={isImprovingArticle || !content || !title}
               className="gap-2 border-purple-500/30 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-500/10"
             >
-              <Sparkles className="h-4 w-4" />
-              Melhorar com IA
+              {isImprovingArticle ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Melhorando...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Melhorar com IA
+                </>
+              )}
             </Button>
             
             <Button
@@ -627,6 +726,18 @@ export default function ClientArticleEditor() {
           </>
         )}
       </div>
+
+      {/* Improve Article Dialog */}
+      {improveResults && (
+        <ImproveArticleDialog
+          open={showImproveDialog}
+          onOpenChange={setShowImproveDialog}
+          improvements={improveResults.improvements}
+          stats={improveResults.stats}
+          onKeep={handleKeepImprovements}
+          onDiscard={handleDiscardImprovements}
+        />
+      )}
     </div>
   );
 }
