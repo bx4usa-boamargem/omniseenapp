@@ -26,30 +26,32 @@ export function useIsSubAccount(): UseIsSubAccountResult {
 
       try {
         // First get the user's blog
-        const { data: blog, error: blogError } = await supabase
+        const blogResult = await supabase
           .from('blogs')
           .select('id')
           .eq('user_id', user.id)
           .maybeSingle();
 
-        if (blogError || !blog) {
+        const blog = blogResult.data;
+
+        if (blogResult.error || !blog) {
           setIsSubAccount(false);
           setLoading(false);
           return;
         }
 
-        // Then check subscription for is_internal_account
-        const { data: subscription, error: subError } = await supabase
+        // Then check subscription for is_internal_account using raw query
+        const { data, error } = await (supabase as any)
           .from('subscriptions')
           .select('is_internal_account')
           .eq('blog_id', blog.id)
           .maybeSingle();
 
-        if (subError) {
-          console.error('[useIsSubAccount] Error checking subscription:', subError);
+        if (error) {
+          console.error('[useIsSubAccount] Error checking subscription:', error);
           setIsSubAccount(false);
         } else {
-          setIsSubAccount(subscription?.is_internal_account === true);
+          setIsSubAccount(data?.is_internal_account === true);
         }
       } catch (err) {
         console.error('[useIsSubAccount] Error:', err);
