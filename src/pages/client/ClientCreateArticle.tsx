@@ -29,29 +29,64 @@ export default function ClientCreateArticle() {
     }
 
     if (!blog?.id) {
-      toast.error('Blog não encontrado');
+      console.error('ClientCreateArticle: Blog não encontrado', { blog });
+      toast.error('Blog não encontrado. Recarregue a página.');
       return;
     }
+
+    // LOG: Início da geração
+    console.log('ClientCreateArticle: Iniciando geração', {
+      topic: topic.trim(),
+      blogId: blog.id,
+      blogName: blog.name,
+      timestamp: new Date().toISOString(),
+    });
 
     setIsGenerating(true);
 
     try {
       // Call the universal generation pipeline
+      const requestBody = {
+        blogId: blog.id,
+        theme: topic.trim(),
+        funnel_mode: 'top',
+        article_goal: 'educar',
+        generation_mode: 'deep',
+        autoPublish: true, // Auto-publish for subaccounts
+      };
+      
+      console.log('ClientCreateArticle: Chamando API', { requestBody });
+
       const { data, error } = await supabase.functions.invoke('generate-article-structured', {
-        body: {
-          blogId: blog.id,
-          theme: topic.trim(),
-          funnel_mode: 'top',
-          article_goal: 'educar',
-          generation_mode: 'deep',
-          autoPublish: true, // Auto-publish for subaccounts
-        },
+        body: requestBody,
       });
 
-      if (error) throw error;
+      // LOG: Resultado da API
+      console.log('ClientCreateArticle: Resposta da API', { 
+        success: !error, 
+        hasData: !!data,
+        hasArticle: !!data?.article,
+        error: error ? { message: error.message, name: error.name } : null,
+      });
+
+      if (error) {
+        console.error('ClientCreateArticle: Erro da API', {
+          message: error.message,
+          name: error.name,
+          context: error.context,
+        });
+        throw error;
+      }
 
       if (data?.article) {
         const article = data.article;
+        
+        console.log('ClientCreateArticle: Artigo criado com sucesso', {
+          articleId: article.id,
+          title: article.title,
+          slug: article.slug,
+        });
+
         setCreatedArticle({
           id: article.id,
           title: article.title,
@@ -69,12 +104,20 @@ export default function ClientCreateArticle() {
           duration: 10000,
         });
       } else {
-        throw new Error('Artigo não foi gerado');
+        console.error('ClientCreateArticle: Resposta sem artigo', { data });
+        throw new Error('Artigo não foi gerado. Resposta inválida da API.');
       }
     } catch (error) {
-      console.error('Error generating article:', error);
+      console.error('ClientCreateArticle: Erro capturado', {
+        error,
+        message: error instanceof Error ? error.message : 'Erro desconhecido',
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       toast.error('Erro ao criar artigo', {
-        description: 'Tente novamente em alguns segundos.',
+        description: `${errorMessage}. Tente novamente.`,
+        duration: 10000,
       });
     } finally {
       setIsGenerating(false);
