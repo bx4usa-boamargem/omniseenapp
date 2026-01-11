@@ -139,7 +139,7 @@ export function SEOScoreGauge({
             dominantBaseline="middle"
             fontSize={config.fontSize}
             fontWeight="bold"
-            fill="currentColor"
+            fill="white"
           >
             {displayScore}
           </text>
@@ -151,7 +151,7 @@ export function SEOScoreGauge({
               textAnchor="middle"
               dominantBaseline="middle"
               fontSize={config.labelSize}
-              fill="hsl(var(--muted-foreground))"
+              fill="rgba(255,255,255,0.8)"
             >
               {scoreLabel}
             </text>
@@ -163,7 +163,7 @@ export function SEOScoreGauge({
             y={centerY + 15}
             textAnchor="start"
             fontSize={config.labelSize - 2}
-            fill="hsl(var(--muted-foreground))"
+            fill="rgba(255,255,255,0.7)"
           >
             0
           </text>
@@ -172,7 +172,7 @@ export function SEOScoreGauge({
             y={centerY + 15}
             textAnchor="end"
             fontSize={config.labelSize - 2}
-            fill="hsl(var(--muted-foreground))"
+            fill="rgba(255,255,255,0.7)"
           >
             100
           </text>
