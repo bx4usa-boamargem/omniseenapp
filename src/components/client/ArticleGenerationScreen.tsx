@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { X, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -6,7 +6,7 @@ import { getArticleUrl } from '@/utils/blogUrl';
 import { GenerationStepList, GenerationStep } from './GenerationStepList';
 import { LiveArticlePreview } from './LiveArticlePreview';
 import { GenerationSuccessScreen } from './GenerationSuccessScreen';
-import { streamArticle, ArticleData } from '@/utils/streamArticle';
+import { streamArticle, GenerationStage, ArticleData } from '@/utils/streamArticle';
 
 interface Blog {
   id: string;
@@ -29,11 +29,20 @@ interface ArticleGenerationScreenProps {
   onCancel: () => void;
 }
 
-// Map backend stages to UI steps with progress simulation
-const STAGE_TO_STEP: Record<string, { step: GenerationStep; baseProgress: number }> = {
-  'analyzing': { step: 'analyzing', baseProgress: 10 },
-  'structuring': { step: 'structuring', baseProgress: 20 },
-  'generating': { step: 'generating', baseProgress: 35 },
+// Map backend stages to UI steps
+const mapStageToStep = (stage: GenerationStage): GenerationStep => {
+  switch (stage) {
+    case 'analyzing':
+      return 'analyzing';
+    case 'structuring':
+      return 'structuring';
+    case 'generating':
+      return 'generating';
+    case 'finalizing':
+      return 'publishing';
+    default:
+      return 'analyzing';
+  }
 };
 
 export function ArticleGenerationScreen({
@@ -49,185 +58,150 @@ export function ArticleGenerationScreen({
   const [error, setError] = useState<string | null>(null);
   const [isComplete, setIsComplete] = useState(false);
   const [createdArticle, setCreatedArticle] = useState<CreatedArticle | null>(null);
+  
+  // Ref to track mounted state
+  const isMountedRef = useRef(true);
 
   // Calculate article URL
   const articleUrl = createdArticle ? getArticleUrl(blog, createdArticle.slug) : '';
 
-  // Progress simulation for visual steps
-  const simulateProgress = useCallback((step: GenerationStep, fromProgress: number, toProgress: number, duration: number) => {
-    const steps = 20;
-    const increment = (toProgress - fromProgress) / steps;
-    const interval = duration / steps;
-    let current = fromProgress;
-
-    const timer = setInterval(() => {
-      current += increment;
-      if (current >= toProgress) {
-        current = toProgress;
-        clearInterval(timer);
-      }
-      setProgress(current);
-    }, interval);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  // Run generation on mount
+  // Run generation on mount using streamArticle
   useEffect(() => {
-    let isMounted = true;
-    let cleanup: (() => void) | undefined;
+    isMountedRef.current = true;
 
     const runGeneration = async () => {
-      try {
-        // Step 1: Analyzing
-        setCurrentStep('analyzing');
-        cleanup = simulateProgress('analyzing', 0, 15, 1500);
-        await new Promise(resolve => setTimeout(resolve, 800));
-        if (!isMounted) return;
+      console.log('ArticleGenerationScreen: Starting generation with streamArticle', {
+        topic,
+        blogId: blog.id,
+      });
 
-        // Step 2: Structuring  
-        setCurrentStep('structuring');
-        cleanup = simulateProgress('structuring', 15, 25, 1000);
-        await new Promise(resolve => setTimeout(resolve, 500));
-        if (!isMounted) return;
+      await streamArticle({
+        theme: topic,
+        blogId: blog.id,
+        tone: 'friendly',
+        source: 'form',
+        funnelMode: 'top',
+        articleGoal: 'educar',
+        generationMode: 'deep',
 
-        // Step 3: Call the actual generation
-        setCurrentStep('generating');
-        
-        // Use the direct API call for reliability
-        const requestBody = {
-          blogId: blog.id,
-          theme: topic,
-          funnel_mode: 'top',
-          article_goal: 'educar',
-          generation_mode: 'deep',
-          autoPublish: true,
-        };
-
-        console.log('ArticleGenerationScreen: Starting generation', requestBody);
-
-        const { data, error: apiError } = await supabase.functions.invoke('generate-article-structured', {
-          body: requestBody,
-        });
-
-        if (!isMounted) return;
-
-        if (apiError) {
-          console.error('ArticleGenerationScreen: API error', apiError);
-          throw new Error(apiError.message || 'Erro ao gerar artigo');
-        }
-
-        if (!data?.article) {
-          console.error('ArticleGenerationScreen: No article in response', data);
-          throw new Error('Artigo não foi gerado. Tente novamente.');
-        }
-
-        const article = data.article;
-        
-        // Simulate content streaming for visual effect
-        setCurrentStep('generating');
-        setStreamingTitle(article.title);
-        
-        // Stream content progressively
-        const content = article.content || '';
-        const words = content.split(' ');
-        let displayed = '';
-        
-        for (let i = 0; i < words.length && isMounted; i++) {
-          displayed += (i > 0 ? ' ' : '') + words[i];
-          setStreamingContent(displayed);
+        onStage: (stage) => {
+          if (!isMountedRef.current) return;
           
-          // Progress from 25% to 60% during content streaming
-          const contentProgress = 25 + ((i / words.length) * 35);
-          setProgress(contentProgress);
+          if (stage) {
+            const uiStep = mapStageToStep(stage);
+            console.log('ArticleGenerationScreen: Stage changed', { stage, uiStep });
+            setCurrentStep(uiStep);
+          }
+        },
+
+        onDelta: (text) => {
+          if (!isMountedRef.current) return;
+          setStreamingContent(prev => prev + text);
+        },
+
+        onProgress: (percent) => {
+          if (!isMountedRef.current) return;
+          setProgress(percent);
           
           // Update visual steps based on progress
-          if (contentProgress > 45 && currentStep === 'generating') {
+          if (percent > 50 && percent <= 65) {
             setCurrentStep('seo');
-          }
-          if (contentProgress > 55) {
+          } else if (percent > 65 && percent <= 80) {
             setCurrentStep('rhythm');
+          } else if (percent > 80 && percent <= 95) {
+            setCurrentStep('images');
           }
-          
-          // Small delay for streaming effect (faster than before)
-          if (i % 15 === 0) {
-            await new Promise(resolve => setTimeout(resolve, 5));
+        },
+
+        onDone: async (article: ArticleData | null) => {
+          if (!isMountedRef.current) return;
+
+          if (!article) {
+            setError('Artigo não foi gerado');
+            return;
           }
-        }
 
-        if (!isMounted) return;
-
-        // Step: Creating images
-        setCurrentStep('images');
-        setProgress(70);
-        await new Promise(resolve => setTimeout(resolve, 800));
-        if (!isMounted) return;
-
-        // Step: Publishing
-        setCurrentStep('publishing');
-        setProgress(85);
-
-        // CRITICAL: Verify article is saved in database before showing success
-        console.log('ArticleGenerationScreen: Verifying article persistence', { articleId: article.id });
-        
-        let verified = false;
-        let attempts = 0;
-        const maxAttempts = 10;
-
-        while (!verified && attempts < maxAttempts && isMounted) {
-          attempts++;
+          console.log('ArticleGenerationScreen: Article received, verifying persistence', article);
           
-          const { data: savedArticle, error: verifyError } = await supabase
-            .from('articles')
-            .select('id, title, slug, status')
-            .eq('id', article.id)
-            .single();
+          // Set the title immediately
+          setStreamingTitle(article.title);
+          setCurrentStep('publishing');
+          setProgress(90);
 
-          if (savedArticle && savedArticle.status === 'published' && savedArticle.slug) {
-            verified = true;
-            console.log('ArticleGenerationScreen: Article verified', savedArticle);
+          // CRITICAL: Verify article is saved in database
+          if (!article.id) {
+            console.error('ArticleGenerationScreen: No article ID returned');
+            setError('Artigo não possui ID válido');
+            return;
+          }
+
+          let verified = false;
+          let attempts = 0;
+          const maxAttempts = 15;
+          let savedArticle: { id: string; title: string; slug: string; status: string | null } | null = null;
+
+          while (!verified && attempts < maxAttempts && isMountedRef.current) {
+            attempts++;
             
+            const { data, error: verifyError } = await supabase
+              .from('articles')
+              .select('id, title, slug, status')
+              .eq('id', article.id)
+              .single();
+
+            if (data && data.status === 'published' && data.slug) {
+              verified = true;
+              savedArticle = data;
+              console.log('ArticleGenerationScreen: Article verified in database', data);
+            } else {
+              console.log('ArticleGenerationScreen: Waiting for article persistence...', { 
+                attempt: attempts, 
+                data,
+                error: verifyError 
+              });
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+          }
+
+          if (!isMountedRef.current) return;
+
+          if (verified && savedArticle) {
             setProgress(100);
-            setCurrentStep('complete');
             setCreatedArticle({
               id: savedArticle.id,
               title: savedArticle.title,
               slug: savedArticle.slug,
             });
             setIsComplete(true);
+          } else if (article.slug) {
+            // Fallback: use API response if verification times out but we have slug
+            console.warn('ArticleGenerationScreen: Verification timeout, using API response');
+            setProgress(100);
+            setCreatedArticle({
+              id: article.id!,
+              title: article.title,
+              slug: article.slug,
+            });
+            setIsComplete(true);
           } else {
-            console.log('ArticleGenerationScreen: Waiting for article...', { attempt: attempts, savedArticle });
-            await new Promise(resolve => setTimeout(resolve, 500));
+            setError('Não foi possível confirmar a publicação do artigo. Tente novamente.');
           }
-        }
+        },
 
-        if (!verified && isMounted) {
-          // Even if verification fails, use the returned article data
-          console.warn('ArticleGenerationScreen: Using API response data (verification timeout)');
-          setProgress(100);
-          setCurrentStep('complete');
-          setCreatedArticle({
-            id: article.id,
-            title: article.title,
-            slug: article.slug,
-          });
-          setIsComplete(true);
-        }
-
-      } catch (err) {
-        if (!isMounted) return;
-        console.error('ArticleGenerationScreen: Error', err);
-        setError(err instanceof Error ? err.message : 'Erro ao gerar artigo');
-      }
+        onError: (err) => {
+          if (!isMountedRef.current) return;
+          console.error('ArticleGenerationScreen: Error', err);
+          setError(err);
+        },
+      });
     };
 
     runGeneration();
 
     return () => {
-      isMounted = false;
-      cleanup?.();
+      isMountedRef.current = false;
     };
-  }, [topic, blog.id, simulateProgress]);
+  }, [topic, blog.id]);
 
   // Handle view article
   const handleViewArticle = () => {
@@ -306,7 +280,7 @@ export function ArticleGenerationScreen({
           <LiveArticlePreview 
             title={streamingTitle}
             content={streamingContent}
-            isGenerating={currentStep !== 'complete'}
+            isGenerating={currentStep !== 'complete' && !isComplete}
           />
         </div>
       </div>

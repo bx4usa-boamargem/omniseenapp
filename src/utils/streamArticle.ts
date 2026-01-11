@@ -11,7 +11,9 @@ export interface ImagePrompt {
 }
 
 export interface ArticleData {
+  id?: string; // ID do artigo salvo no banco
   title: string;
+  slug?: string; // Slug do artigo
   meta_description: string;
   excerpt: string;
   content: string;
@@ -211,6 +213,8 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
     }
 
     const article: ArticleData = {
+      id: data.article.id, // ID do artigo salvo
+      slug: data.article.slug, // Slug do artigo
       title: data.article.title,
       meta_description: data.article.meta_description,
       excerpt: data.article.excerpt,
