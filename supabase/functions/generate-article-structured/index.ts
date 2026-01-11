@@ -1221,8 +1221,10 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
     if (!articleData.content || typeof articleData.content !== 'string') {
       throw new Error('AI_OUTPUT_INVALID: Missing or invalid content');
     }
-    if ((articleData.content as string).length < 500) {
-      throw new Error('AI_OUTPUT_INVALID: Content too short (characters)');
+    // Note: Word count validation happens later with proper retry logic
+    // Only reject truly empty or minimal content here
+    if ((articleData.content as string).trim().length < 100) {
+      throw new Error('AI_OUTPUT_INVALID: Content is essentially empty');
     }
     
     // Validate mandatory images block
