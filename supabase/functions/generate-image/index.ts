@@ -7,9 +7,10 @@ const corsHeaders = {
 };
 
 interface ImageRequest {
-  prompt: string;
-  context: 'hero' | 'problem' | 'pain' | 'solution' | 'result';
-  articleTheme: string;
+  prompt?: string;  // Agora opcional - será auto-gerado se ausente
+  context?: 'hero' | 'cover' | 'problem' | 'pain' | 'solution' | 'result';
+  articleTitle?: string;  // Principal - nome preferido
+  articleTheme?: string;  // Fallback para compatibilidade
   targetAudience?: string;
   user_id?: string;
   blog_id?: string;
@@ -32,17 +33,18 @@ function generateHash(text: string): string {
   return Math.abs(hash).toString(36);
 }
 
-// Generate fallback prompt when none is provided
-function buildFallbackPrompt(articleTheme: string, context: string): string {
+// Generate fallback prompt when none is provided - RESILIENTE
+function buildFallbackPrompt(title: string, context: string): string {
   const contextDescriptions: Record<string, string> = {
     hero: 'imagem principal de capa profissional e impactante',
+    cover: 'imagem de capa profissional e atraente',
     problem: 'ilustração visual do problema enfrentado pelo público',
     pain: 'representação da dor ou frustração causada pelo problema',
     solution: 'demonstração da solução de forma moderna e profissional',
     result: 'resultado positivo após implementar a solução'
   };
 
-  return `Crie uma imagem fotorrealista para um artigo sobre "${articleTheme}". 
+  return `Crie uma imagem fotorrealista para um artigo intitulado "${title}". 
 Tipo: ${contextDescriptions[context] || 'imagem ilustrativa'}. 
 Estilo: fotografia profissional, moderno, clean, sem texto, cores harmoniosas.
 Aspecto: 16:9, alta qualidade, nítida e bem definida.`;
@@ -66,35 +68,42 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { prompt, context, articleTheme, targetAudience, user_id, blog_id }: ImageRequest = await req.json();
+    const { prompt, context, articleTitle, articleTheme, targetAudience, user_id, blog_id }: ImageRequest = await req.json();
+
+    // Aceitar articleTitle OU articleTheme para máxima compatibilidade
+    const effectiveTitle = articleTitle || articleTheme || '';
+    const effectiveContext = context || 'cover';
 
     console.log(`[${requestId}] Request params:`, { 
       hasPrompt: !!prompt, 
-      hasTheme: !!articleTheme, 
-      context, 
+      hasTitle: !!articleTitle,
+      hasTheme: !!articleTheme,
+      effectiveTitle: effectiveTitle.substring(0, 50),
+      context: effectiveContext, 
       blog_id 
     });
 
-    // Auto-generate prompt if missing
+    // Auto-generate prompt if missing - LÓGICA RESILIENTE
     let finalPrompt = prompt;
     
     if (!prompt || prompt.trim().length === 0) {
-      if (!articleTheme || articleTheme.trim().length === 0) {
-        console.error(`[${requestId}] Missing prompt and articleTheme`);
+      if (!effectiveTitle || effectiveTitle.trim().length === 0) {
+        console.error(`[${requestId}] Missing prompt, articleTitle and articleTheme`);
         return new Response(
           JSON.stringify({ 
-            error: 'Não foi possível gerar a imagem: título ou tema do artigo está vazio.',
-            action: 'Adicione um título ao artigo antes de gerar a imagem.',
-            requiredFields: ['prompt', 'articleTheme'],
-            code: 'MISSING_CONTENT',
+            error: 'Não foi possível gerar a imagem',
+            details: 'O artigo precisa ter um título antes de gerar imagem.',
+            action: 'Adicione um título ao artigo e tente novamente.',
+            code: 'MISSING_TITLE',
             requestId
           }),
           { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
-      finalPrompt = buildFallbackPrompt(articleTheme, context);
-      console.log(`[${requestId}] Auto-generated prompt: ${finalPrompt.substring(0, 100)}...`);
+      // Gerar prompt automaticamente a partir do título
+      finalPrompt = buildFallbackPrompt(effectiveTitle, effectiveContext);
+      console.log(`[${requestId}] Auto-generated prompt from title "${effectiveTitle}": ${finalPrompt.substring(0, 100)}...`);
     }
 
     // Fetch AI model preference from content_preferences
@@ -113,8 +122,9 @@ serve(async (req) => {
     }
 
     // Build enhanced prompt based on ClickOne editorial guidelines
-    const contextDescriptions: Record<string, string> = {
+    const contextDescriptionsMap: Record<string, string> = {
       hero: 'Uma imagem principal impactante que captura a essência do artigo',
+      cover: 'Uma imagem de capa profissional e atraente para o artigo',
       problem: 'Uma cena que mostra claramente o problema enfrentado pelo público-alvo',
       pain: 'Uma representação visual da dor ou frustração causada pelo problema',
       solution: 'Uma imagem que demonstra a solução de forma profissional e moderna',
@@ -124,11 +134,11 @@ serve(async (req) => {
     const enhancedPrompt = `
 Crie uma imagem fotorrealista e profissional para um artigo de blog.
 
-Tema do artigo: ${articleTheme}
+Tema do artigo: ${effectiveTitle}
 ${targetAudience ? `Público-alvo: ${targetAudience}` : ''}
-Contexto visual: ${contextDescriptions[context] || context}
+Contexto visual: ${contextDescriptionsMap[effectiveContext] || effectiveContext}
 
-Descrição específica: ${prompt}
+Descrição específica: ${finalPrompt}
 
 DIRETRIZES OBRIGATÓRIAS:
 - Pessoas reais em contextos profissionais (não ilustrações ou caricaturas)
@@ -144,10 +154,10 @@ NÃO inclua: texto, logotipos, marcas d'água, elementos caricatos, ilustraçõe
 `.trim();
 
     // Generate cache key and check cache
-    const cacheKey = `${prompt}|${context}|${articleTheme}`;
+    const cacheKey = `${finalPrompt}|${effectiveContext}|${effectiveTitle}`;
     const contentHash = generateHash(cacheKey);
 
-    console.log(`Checking cache for image: ${context}, hash: ${contentHash}`);
+    console.log(`[${requestId}] Checking cache for image: ${effectiveContext}, hash: ${contentHash}`);
     const { data: cacheHit } = await supabase
       .from("ai_content_cache")
       .select("*")
@@ -171,13 +181,13 @@ NÃO inclua: texto, logotipos, marcas d'água, elementos caricatos, ilustraçõe
           user_id,
           blog_id: blog_id || null,
           action_type: "image_generation_cached",
-          action_description: `Cached Image: ${context}`,
+          action_description: `Cached Image: ${effectiveContext}`,
           model_used: "cache",
           input_tokens: 0,
           output_tokens: 0,
           images_generated: 0,
           estimated_cost_usd: 0,
-          metadata: { context, articleTheme, cache_hit: true },
+          metadata: { context: effectiveContext, articleTitle: effectiveTitle, cache_hit: true },
         });
       }
 
@@ -185,7 +195,7 @@ NÃO inclua: texto, logotipos, marcas d'água, elementos caricatos, ilustraçõe
         JSON.stringify({
           success: true,
           imageBase64: (cacheHit.response_data as {imageBase64?: string})?.imageBase64,
-          context,
+          context: effectiveContext,
           from_cache: true
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -194,7 +204,7 @@ NÃO inclua: texto, logotipos, marcas d'água, elementos caricatos, ilustraçõe
 
     // Ensure we use the correct model with -preview suffix for image generation
     const actualModel = 'google/gemini-2.5-flash-image-preview';
-    console.log(`Generating image for context: ${context}, model: ${actualModel}`);
+    console.log(`[${requestId}] Generating image for context: ${effectiveContext}, model: ${actualModel}`);
     console.log(`Enhanced prompt: ${enhancedPrompt.substring(0, 200)}...`);
 
     // Retry logic for image generation (sometimes model returns text without image)
@@ -281,13 +291,13 @@ NÃO inclua: texto, logotipos, marcas d'água, elementos caricatos, ilustraçõe
           user_id,
           blog_id: blog_id || null,
           action_type: "image_generation",
-          action_description: `Image: ${context} for ${articleTheme.substring(0, 50)}`,
+          action_description: `Image: ${effectiveContext} for ${effectiveTitle.substring(0, 50)}`,
           model_used: imageModel,
           input_tokens: 0,
           output_tokens: 0,
           images_generated: 1,
           estimated_cost_usd: estimatedCost,
-          metadata: { context, articleTheme },
+          metadata: { context: effectiveContext, articleTitle: effectiveTitle },
         });
         console.log("Consumption logged for image generation");
       } catch (logError) {
@@ -320,7 +330,7 @@ NÃO inclua: texto, logotipos, marcas d'água, elementos caricatos, ilustraçõe
       JSON.stringify({
         success: true,
         imageBase64: imageData,
-        context
+        context: effectiveContext
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

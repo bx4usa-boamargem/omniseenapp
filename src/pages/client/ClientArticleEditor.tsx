@@ -175,9 +175,9 @@ export default function ClientArticleEditor() {
       
       const { data: coverResult, error: coverError } = await supabase.functions.invoke('generate-image', {
         body: {
-          prompt: `Professional hero image for article: "${articleData.title}". Clean, modern, business-focused. High quality.`,
-          context: 'hero',
-          articleTheme: articleData.title,
+          articleTitle: articleData.title,  // Principal - sempre enviar
+          articleTheme: articleData.title,  // Fallback para compatibilidade
+          context: 'cover',
         }
       });
       
@@ -203,7 +203,8 @@ export default function ClientArticleEditor() {
           body: {
             prompt: prompt.prompt,
             context: prompt.context,
-            articleTheme: articleData.title,
+            articleTitle: articleData.title,  // Principal - sempre enviar
+            articleTheme: articleData.title,  // Fallback para compatibilidade
           }
         });
         
@@ -238,9 +239,9 @@ export default function ClientArticleEditor() {
         
         const { data, error } = await supabase.functions.invoke('generate-image', {
           body: {
-            prompt: `Professional hero image for article: "${title}". Clean, modern, business-focused. High quality.`,
-            context: 'hero',
-            articleTheme: title,
+            articleTitle: title,  // Principal - sempre enviar
+            articleTheme: title,  // Fallback para compatibilidade
+            context: 'cover',
           }
         });
         
@@ -254,9 +255,9 @@ export default function ClientArticleEditor() {
         
         const { data, error } = await supabase.functions.invoke('generate-image', {
           body: {
-            prompt: `Image for article section: ${img.context}. Article: "${title}". Professional, relevant.`,
             context: img.context,
-            articleTheme: title,
+            articleTitle: title,  // Principal - sempre enviar
+            articleTheme: title,  // Fallback para compatibilidade
           }
         });
         

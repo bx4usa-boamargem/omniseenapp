@@ -87,13 +87,21 @@ async function generateSingleImage(prompt: string, context: string, theme: strin
         body: JSON.stringify({
           prompt,
           context,
-          articleTheme: theme,
+          articleTitle: theme,  // Principal - sempre enviar
+          articleTheme: theme,  // Fallback para compatibilidade
         }),
       }
     );
 
     if (!response.ok) {
-      console.error('Image generation failed:', response.status);
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Image generation failed:', response.status, errorData);
+      
+      // Mensagem mais clara para erro de título
+      if (errorData.code === 'MISSING_TITLE') {
+        console.error('Artigo sem título. Adicione um título antes de gerar imagens.');
+      }
+      
       return null;
     }
 

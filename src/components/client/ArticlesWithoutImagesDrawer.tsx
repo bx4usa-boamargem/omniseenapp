@@ -33,22 +33,20 @@ export function ArticlesWithoutImagesDrawer({
 
   const articlesWithoutImage = articles.filter(a => !('featured_image_url' in a) || !(a as any).featured_image_url);
 
-  // Build a valid prompt from article data
-  const buildImagePrompt = (article: ArticleWithoutImage): string | null => {
-    if (!article.title?.trim()) return null;
-    
-    const contentContext = article.content?.substring(0, 300) || '';
-    
-    return `Professional hero image for article: "${article.title}". ${contentContext ? `Context: ${contentContext}` : ''} Clean, modern, business-focused. High quality photography style.`;
+  // Validar se o artigo tem título
+  const hasValidTitle = (article: ArticleWithoutImage): boolean => {
+    return !!article.title?.trim();
   };
 
   const handleGenerateImage = async (article: ArticleWithoutImage) => {
-    // Validate before calling API
-    const prompt = buildImagePrompt(article);
-    
-    if (!prompt) {
-      toast.error('Não é possível gerar imagem: título do artigo está vazio.', { 
-        id: `gen-image-${article.id}` 
+    // Validação robusta no frontend
+    if (!hasValidTitle(article)) {
+      toast.error('Este artigo não possui título. Adicione um título antes de gerar a imagem.', { 
+        id: `gen-image-${article.id}`,
+        action: {
+          label: 'Editar',
+          onClick: () => handleOpenEditor(article.id)
+        }
       });
       return;
     }
@@ -58,22 +56,25 @@ export function ArticlesWithoutImagesDrawer({
     try {
       toast.loading('Gerando imagem de capa...', { id: `gen-image-${article.id}` });
 
+      // Enviar SEMPRE o título - prompt é gerado automaticamente pela edge function
       const { data, error } = await supabase.functions.invoke('generate-image', {
         body: {
-          prompt: prompt,
-          context: 'hero',
-          articleTheme: article.title,
+          articleTitle: article.title,
+          articleTheme: article.title, // Fallback para compatibilidade
+          context: 'cover',
           blog_id: blogId
         }
       });
 
       if (error) {
-        const errorMsg = error.message || 'Erro desconhecido';
+        console.error('Error generating image:', error);
+        const errorData = typeof error.message === 'string' ? error.message : JSON.stringify(error);
         
-        if (errorMsg.includes('Prompt is required')) {
-          throw new Error('O sistema não conseguiu montar um prompt válido para a imagem.');
+        // Verificar se é erro de título ausente
+        if (errorData.includes('MISSING_TITLE') || errorData.includes('título')) {
+          throw new Error('O artigo precisa ter um título antes de gerar imagem.');
         }
-        throw error;
+        throw new Error(error.message || 'Erro ao gerar imagem');
       }
 
       // Handle response - edge function returns imageBase64
