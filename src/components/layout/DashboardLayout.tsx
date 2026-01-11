@@ -96,13 +96,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen flex w-full bg-background">
-      {/* Desktop Sidebar */}
-      <div className="hidden md:flex">
+      {/* Desktop Sidebar - visible on lg (1024px+) */}
+      <div className="hidden lg:flex">
         <Sidebar blogSlug={blog.slug} userRole={role} onSignOut={handleSignOut} />
       </div>
 
-      {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-background border-b border-border">
+      {/* Mobile Header - visible below lg (< 1024px) */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-background border-b border-border">
         <div className="flex items-center justify-between p-4">
           <span className="font-display font-bold text-lg">OMNISEEN</span>
           <div className="flex items-center gap-2">
@@ -127,12 +127,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
 
       {/* Desktop Notification Bell - positioned in top right */}
-      <div className="hidden md:block fixed top-4 right-4 z-40">
+      <div className="hidden lg:block fixed top-4 right-4 z-40">
         <NotificationBell />
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 md:pt-0 pt-16 overflow-auto flex flex-col">
+      <main className="flex-1 lg:pt-0 pt-16 overflow-auto flex flex-col">
         {/* Trial Banner - show only for users in active trial */}
         {isInActiveTrial && (
           <TrialBanner 
