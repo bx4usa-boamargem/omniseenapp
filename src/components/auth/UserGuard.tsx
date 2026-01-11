@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useBlog } from '@/hooks/useBlog';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useIsSubAccount } from '@/hooks/useIsSubAccount';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -16,9 +17,10 @@ export function UserGuard({ children }: UserGuardProps) {
   const { user, loading: authLoading } = useAuth();
   const { blog, loading: blogLoading, refetch: refetchBlog } = useBlog();
   const { isBlocked, loading: subscriptionLoading, refresh: refreshSubscription } = useSubscription();
+  const { isSubAccount, loading: subAccountLoading } = useIsSubAccount();
   const [hasTimedOut, setHasTimedOut] = useState(false);
 
-  const isLoading = authLoading || blogLoading || subscriptionLoading;
+  const isLoading = authLoading || blogLoading || subscriptionLoading || subAccountLoading;
 
   useEffect(() => {
     let timer: NodeJS.Timeout | undefined;
@@ -75,6 +77,11 @@ export function UserGuard({ children }: UserGuardProps) {
 
   if (blog.onboarding_completed === false) {
     return <Navigate to="/onboarding" replace />;
+  }
+
+  // Redirect subaccounts to their dedicated experience
+  if (isSubAccount) {
+    return <Navigate to="/client/dashboard" replace />;
   }
 
   // Note: We no longer redirect to /blocked here.
