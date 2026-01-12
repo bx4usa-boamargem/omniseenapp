@@ -94,6 +94,7 @@ serve(async (req) => {
 
   const processedIds: string[] = [];
   const failedIds: string[] = [];
+  const skippedIds: string[] = [];
   let stuckCleaned = 0;
 
   try {
@@ -133,6 +134,7 @@ serve(async (req) => {
           execution_id: executionId,
           processed: 0, 
           failed: 0,
+          skipped: 0,
           stuck_cleaned: stuckCleaned,
           duration_ms: duration,
           message: 'No pending items' 
@@ -155,6 +157,7 @@ serve(async (req) => {
 
     let processed = 0;
     let failed = 0;
+    let skipped = 0;
 
     for (const item of typedClaimedItems) {
       const blogData = blogsMap.get(item.blog_id);
@@ -169,12 +172,56 @@ serve(async (req) => {
       try {
         console.log(`[${executionId}] Processing queue item: ${item.id} - ${item.suggested_theme}`);
 
-        // Get automation settings for this blog
+        // Get automation settings for this blog (incluindo mode e content_type)
         const { data: automation } = await supabase
           .from('blog_automation')
-          .select('*')
+          .select('*, mode, content_type')
           .eq('blog_id', item.blog_id)
           .single();
+
+        // ========== LÓGICA DE MODO (ETAPA 3 - SOBERANO) ==========
+        const automationMode = automation?.mode || 'auto';
+
+        // Se modo = 'manual', NÃO gerar - marcar como skipped
+        if (automationMode === 'manual') {
+          console.log(`[${executionId}] Blog ${item.blog_id} is in MANUAL mode, skipping item ${item.id}`);
+          await supabase
+            .from('article_queue')
+            .update({
+              status: 'skipped',
+              error_message: 'Automação em modo manual',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', item.id);
+          skippedIds.push(item.id);
+          skipped++;
+          continue; // Pular para próximo item
+        }
+
+        // Determinar status baseado no mode (não mais auto_publish)
+        let articleStatus: string;
+        let notificationType: string;
+        let notificationTitle: string;
+        let notificationMessage: string;
+
+        switch (automationMode) {
+          case 'suggest':
+            // Modo sugestão: salva como rascunho
+            articleStatus = 'draft';
+            notificationType = 'article_pending_review';
+            notificationTitle = '📝 Artigo pronto para revisão!';
+            console.log(`[${executionId}] Mode=suggest: Article will be saved as draft`);
+            break;
+          
+          case 'auto':
+          default:
+            // Modo automático: publica diretamente
+            articleStatus = 'published';
+            notificationType = 'article_published';
+            notificationTitle = '🚀 Artigo publicado!';
+            console.log(`[${executionId}] Mode=auto: Article will be published automatically`);
+            break;
+        }
 
         // ========== FETCH EDITORIAL TEMPLATE AND BUSINESS PROFILE ==========
         let editorialTemplate: EditorialTemplate | null = null;
@@ -454,9 +501,6 @@ serve(async (req) => {
           console.log(`[${executionId}] Generated ${contentImages.length} of ${expectedInternalImages} expected content images`);
         }
 
-        // Check for auto_publish setting
-        const shouldPublish = automation?.auto_publish !== false;
-
         // ========== PROTEÇÃO CONTRA PERSISTÊNCIA DUPLA ==========
         // Se generate-article-structured já persistiu o artigo, NÃO inserir novamente
         let article: { id: string; title: string } | null = null;
@@ -466,18 +510,18 @@ serve(async (req) => {
           console.log(`[${executionId}] Article already persisted by generate-article-structured: ${generateData.article.id}`);
           article = { id: generateData.article.id, title: articleData.title };
           
-          // Apenas atualizar campos adicionais (imagens, etc.) se necessário
+          // Apenas atualizar campos adicionais (imagens, status baseado em mode)
           if (featuredImageUrl || contentImages.length > 0) {
             await supabase
               .from('articles')
               .update({
                 featured_image_url: featuredImageUrl,
                 content_images: contentImages.length > 0 ? contentImages : null,
-                status: shouldPublish ? 'published' : 'draft',
-                published_at: shouldPublish ? new Date().toISOString() : null,
+                status: articleStatus,
+                published_at: articleStatus === 'published' ? new Date().toISOString() : null,
               })
               .eq('id', generateData.article.id);
-            console.log(`[${executionId}] Updated article ${generateData.article.id} with images`);
+            console.log(`[${executionId}] Updated article ${generateData.article.id} with images and status: ${articleStatus}`);
           }
         } else {
           // Fallback: inserir se generate-article-structured não persistiu (não deveria acontecer)
@@ -505,8 +549,8 @@ serve(async (req) => {
                 keywords: item.keywords || [],
                 featured_image_url: featuredImageUrl,
                 content_images: contentImages.length > 0 ? contentImages : null,
-                status: shouldPublish ? 'published' : 'draft',
-                published_at: shouldPublish ? new Date().toISOString() : null,
+                status: articleStatus,
+                published_at: articleStatus === 'published' ? new Date().toISOString() : null,
                 reading_time: articleData.reading_time || Math.ceil(articleData.content?.split(' ').length / 200) || 5,
                 updated_at: new Date().toISOString()
               })
@@ -536,8 +580,8 @@ serve(async (req) => {
                 keywords: item.keywords || [],
                 featured_image_url: featuredImageUrl,
                 content_images: contentImages.length > 0 ? contentImages : null,
-                status: shouldPublish ? 'published' : 'draft',
-                published_at: shouldPublish ? new Date().toISOString() : null,
+                status: articleStatus,
+                published_at: articleStatus === 'published' ? new Date().toISOString() : null,
                 reading_time: articleData.reading_time || Math.ceil(articleData.content?.split(' ').length / 200) || 5
               })
               .select()
@@ -555,11 +599,11 @@ serve(async (req) => {
           throw new Error('ARTICLE_CREATE_FAILED: No article data after persistence');
         }
 
-        // Update queue item to completed
+        // Update queue item to completed (status baseado em mode)
         await supabase
           .from('article_queue')
           .update({
-            status: shouldPublish ? 'published' : 'generated',
+            status: articleStatus === 'published' ? 'published' : 'generated',
             article_id: article.id,
             error_message: null
           })
@@ -568,15 +612,19 @@ serve(async (req) => {
         // Update usage tracking
         const currentMonth = new Date().toISOString().substring(0, 7) + '-01';
         
-        // Create automation notification
+        // ========== NOTIFICAÇÃO CUSTOMIZADA POR MODO (ETAPA 3) ==========
+        notificationMessage = automationMode === 'suggest'
+          ? `"${articleData.title}" foi gerado e está aguardando sua aprovação. ${imagesGeneratedCount} imagem(ns) gerada(s).`
+          : `"${articleData.title}" foi publicado automaticamente. ${imagesGeneratedCount} imagem(ns) gerada(s).`;
+        
         await supabase
           .from('automation_notifications')
           .insert({
             user_id: blogData.user_id,
             blog_id: item.blog_id,
-            notification_type: shouldPublish ? 'article_published' : 'article_generated',
-            title: shouldPublish ? 'Artigo publicado!' : 'Artigo gerado',
-            message: `"${articleData.title}" ${shouldPublish ? 'foi publicado automaticamente' : 'está pronto para revisão'}. ${imagesGeneratedCount} imagem(ns) gerada(s).`,
+            notification_type: notificationType,
+            title: notificationTitle,
+            message: notificationMessage,
             article_id: article.id
           });
         
@@ -610,7 +658,7 @@ serve(async (req) => {
             });
         }
 
-        console.log(`[${executionId}] Successfully processed: ${item.id} -> Article: ${article.id} (${imagesGeneratedCount} images generated)`);
+        console.log(`[${executionId}] Successfully processed: ${item.id} -> Article: ${article.id} (status: ${articleStatus}, ${imagesGeneratedCount} images)`);
         processedIds.push(item.id);
         processed++;
 
@@ -650,6 +698,7 @@ serve(async (req) => {
     console.log(`[${executionId}][END] Summary:
   - Duration: ${duration}ms
   - Processed: ${processed} [${processedIds.join(', ')}]
+  - Skipped (manual mode): ${skipped} [${skippedIds.join(', ')}]
   - Failed: ${failed} [${failedIds.join(', ')}]
   - Stuck cleaned: ${stuckCleaned}`);
 
@@ -658,11 +707,13 @@ serve(async (req) => {
         execution_id: executionId,
         processed,
         failed,
+        skipped,
         processed_ids: processedIds,
         failed_ids: failedIds,
+        skipped_ids: skippedIds,
         stuck_cleaned: stuckCleaned,
         duration_ms: duration,
-        message: `Processed ${processed} articles, ${failed} failed`
+        message: `Processed ${processed} articles, ${skipped} skipped (manual mode), ${failed} failed`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

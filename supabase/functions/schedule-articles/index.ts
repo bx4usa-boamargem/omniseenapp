@@ -6,6 +6,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ========== ANTI-DUPLICAÇÃO: FINGERPRINT SEMÂNTICO (ETAPA 2) ==========
+// Portuguese stopwords for semantic fingerprint (paridade com frontend)
+const STOPWORDS = new Set([
+  'de', 'da', 'do', 'das', 'dos', 'e', 'ou', 'a', 'o', 'as', 'os',
+  'um', 'uma', 'uns', 'umas', 'para', 'por', 'com', 'em', 'no', 'na',
+  'nos', 'nas', 'ao', 'aos', 'à', 'às', 'pelo', 'pela', 'pelos', 'pelas',
+  'mais', 'menos', 'seu', 'sua', 'seus', 'suas', 'que', 'como', 'quando',
+  'onde', 'se', 'também', 'já', 'ainda', 'muito', 'sobre', 'entre', 'até',
+  'desde', 'após', 'sem'
+]);
+
+function normalizeForFingerprint(title: string): string {
+  return title
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s]/g, '')
+    .split(/\s+/)
+    .filter(word => word.length > 0 && !STOPWORDS.has(word))
+    .join(' ');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -13,7 +35,6 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const lovableApiKey = Deno.env.get('LOVABLE_API_KEY')!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
   // Parse request body for immediate flag
@@ -57,9 +78,19 @@ serve(async (req) => {
     console.log(`Found ${automations.length} active automations`);
 
     let totalScheduled = 0;
+    let totalSkippedDuplicates = 0;
 
     for (const automation of automations) {
       try {
+        // ========== VERIFICAR MODO (ETAPA 3 - RESPEITAR MANUAL) ==========
+        const automationMode = automation.mode || 'auto';
+        
+        // Se modo = 'manual', não agendar nenhum artigo
+        if (automationMode === 'manual') {
+          console.log(`[SCHEDULE] Skipping blog ${automation.blog_id}: mode is MANUAL`);
+          continue;
+        }
+
         // Check if we need to schedule articles based on frequency
         const now = new Date();
         const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
@@ -140,6 +171,43 @@ serve(async (req) => {
 
         for (let i = 0; i < themes.length; i++) {
           const theme = themes[i];
+          
+          // ========== VERIFICAÇÃO ANTI-DUPLICAÇÃO (ETAPA 2) ==========
+          const fingerprint = normalizeForFingerprint(theme.title);
+          
+          // VERIFICAÇÃO 1: Artigo com mesmo fingerprint já existe?
+          const { data: existingArticle } = await supabase
+            .from('articles')
+            .select('id, title')
+            .eq('blog_id', automation.blog_id)
+            .eq('title_fingerprint', fingerprint)
+            .maybeSingle();
+
+          if (existingArticle) {
+            console.log(`[SCHEDULE] Skipping - article already exists: "${theme.title}" (fingerprint: ${fingerprint})`);
+            totalSkippedDuplicates++;
+            continue;
+          }
+
+          // VERIFICAÇÃO 2: Tema similar já está na fila com status pending ou generating?
+          const { data: existingInQueue } = await supabase
+            .from('article_queue')
+            .select('id, suggested_theme')
+            .eq('blog_id', automation.blog_id)
+            .in('status', ['pending', 'generating']);
+
+          const queueHasSimilar = existingInQueue?.some(item => {
+            const queueFingerprint = normalizeForFingerprint(item.suggested_theme);
+            return queueFingerprint === fingerprint;
+          });
+
+          if (queueHasSimilar) {
+            console.log(`[SCHEDULE] Skipping - theme already in queue: "${theme.title}" (fingerprint: ${fingerprint})`);
+            totalSkippedDuplicates++;
+            continue;
+          }
+
+          // ========== TEMA APROVADO - INSERIR NA FILA ==========
           let scheduledTime: Date;
           
           if (immediate) {
@@ -180,12 +248,13 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Scheduling complete. Total scheduled: ${totalScheduled}`);
+    console.log(`Scheduling complete. Total scheduled: ${totalScheduled}, Skipped duplicates: ${totalSkippedDuplicates}`);
 
     return new Response(
       JSON.stringify({
         scheduled: totalScheduled,
-        message: `Scheduled ${totalScheduled} articles`
+        skipped_duplicates: totalSkippedDuplicates,
+        message: `Scheduled ${totalScheduled} articles (${totalSkippedDuplicates} duplicates skipped)`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

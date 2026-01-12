@@ -839,11 +839,13 @@ export type Database = {
           articles_per_period: number | null
           auto_publish: boolean | null
           blog_id: string
+          content_type: string | null
           created_at: string | null
           frequency: string | null
           generate_images: boolean | null
           id: string
           is_active: boolean | null
+          mode: string | null
           niche_keywords: string[] | null
           preferred_days: string[] | null
           preferred_time: string | null
@@ -854,11 +856,13 @@ export type Database = {
           articles_per_period?: number | null
           auto_publish?: boolean | null
           blog_id: string
+          content_type?: string | null
           created_at?: string | null
           frequency?: string | null
           generate_images?: boolean | null
           id?: string
           is_active?: boolean | null
+          mode?: string | null
           niche_keywords?: string[] | null
           preferred_days?: string[] | null
           preferred_time?: string | null
@@ -869,11 +873,13 @@ export type Database = {
           articles_per_period?: number | null
           auto_publish?: boolean | null
           blog_id?: string
+          content_type?: string | null
           created_at?: string | null
           frequency?: string | null
           generate_images?: boolean | null
           id?: string
           is_active?: boolean | null
+          mode?: string | null
           niche_keywords?: string[] | null
           preferred_days?: string[] | null
           preferred_time?: string | null
