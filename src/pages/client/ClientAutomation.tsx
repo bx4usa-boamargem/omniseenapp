@@ -17,12 +17,14 @@ import {
   Sparkles,
   FileText,
   Clock,
-  TrendingUp,
   AlertTriangle,
-  CheckCircle2
+  CheckCircle2,
+  CalendarClock,
+  Image as ImageIcon
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useLocaleFormat } from '@/hooks/useLocaleFormat';
 
 type AutomationMode = 'manual' | 'suggest' | 'auto';
 
@@ -75,13 +77,15 @@ const MODE_CONFIG = {
 export default function ClientAutomation() {
   const { blog } = useBlog();
   const navigate = useNavigate();
+  const { formatDateShort } = useLocaleFormat();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [mode, setMode] = useState<AutomationMode>('manual');
   const [frequency, setFrequency] = useState('weekly');
   const [contentType, setContentType] = useState('mixed');
   const [queueStats, setQueueStats] = useState<QueueStats>({ total: 0, pending: 0, generated: 0 });
-  const [articlesThisMonth, setArticlesThisMonth] = useState(0);
+  const [usageData, setUsageData] = useState({ articles_generated: 0, images_generated: 0 });
+  const [nextPublication, setNextPublication] = useState<Date | null>(null);
 
   useEffect(() => {
     if (!blog?.id) return;
@@ -124,19 +128,36 @@ export default function ClientAutomation() {
           });
         }
 
-        // Fetch articles published this month
-        const startOfMonth = new Date();
-        startOfMonth.setDate(1);
-        startOfMonth.setHours(0, 0, 0, 0);
+        // Fetch usage tracking for this month
+        const currentMonth = new Date().toISOString().substring(0, 7) + '-01';
+        const { data: usage } = await supabase
+          .from('usage_tracking')
+          .select('articles_generated, images_generated')
+          .eq('user_id', blog.user_id)
+          .eq('month', currentMonth)
+          .maybeSingle();
 
-        const { count } = await supabase
-          .from('articles')
-          .select('*', { count: 'exact', head: true })
+        if (usage) {
+          setUsageData({
+            articles_generated: usage.articles_generated || 0,
+            images_generated: usage.images_generated || 0,
+          });
+        }
+
+        // Fetch next scheduled publication
+        const { data: nextItem } = await supabase
+          .from('article_queue')
+          .select('scheduled_for')
           .eq('blog_id', blog.id)
-          .eq('status', 'published')
-          .gte('published_at', startOfMonth.toISOString());
+          .eq('status', 'pending')
+          .not('scheduled_for', 'is', null)
+          .order('scheduled_for', { ascending: true })
+          .limit(1)
+          .maybeSingle();
 
-        setArticlesThisMonth(count || 0);
+        if (nextItem?.scheduled_for) {
+          setNextPublication(new Date(nextItem.scheduled_for));
+        }
       } catch (error) {
         console.error('Error fetching automation data:', error);
       }
@@ -468,7 +489,7 @@ export default function ClientAutomation() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <Card className="client-card">
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
@@ -476,8 +497,22 @@ export default function ClientAutomation() {
                 <FileText className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-foreground">{articlesThisMonth}</p>
+                <p className="text-2xl font-bold text-foreground">{usageData.articles_generated}</p>
                 <p className="text-sm text-muted-foreground">Artigos este mês</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="client-card">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-accent/10">
+                <ImageIcon className="h-6 w-6 text-accent" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-foreground">{usageData.images_generated}</p>
+                <p className="text-sm text-muted-foreground">Imagens este mês</p>
               </div>
             </div>
           </CardContent>
@@ -501,11 +536,13 @@ export default function ClientAutomation() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-xl bg-emerald-500/10">
-                <TrendingUp className="h-6 w-6 text-emerald-500" />
+                <CalendarClock className="h-6 w-6 text-emerald-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-foreground">{queueStats.generated}</p>
-                <p className="text-sm text-muted-foreground">Prontos p/ revisão</p>
+                <p className="text-2xl font-bold text-foreground">
+                  {nextPublication ? formatDateShort(nextPublication) : '—'}
+                </p>
+                <p className="text-sm text-muted-foreground">Próxima publicação</p>
               </div>
             </div>
           </CardContent>
