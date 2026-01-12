@@ -1,8 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, ChevronUp, ChevronDown, MessageCircle, Phone, Mail, Instagram, Globe, Link } from "lucide-react";
-import { sanitizeContactValue, getContactDisplayLabel, getContactPlaceholder } from "@/lib/contactLinks";
+import { Plus, Trash2, ChevronUp, ChevronDown, MessageCircle, Phone, Mail, Instagram, Globe, Link, Check, AlertCircle, ExternalLink } from "lucide-react";
+import { sanitizeContactValue, getContactDisplayLabel, getContactPlaceholder, validateContactValue, getContactLinkPreview, getContactHref } from "@/lib/contactLinks";
+import { cn } from "@/lib/utils";
 
 export interface ContactButton {
   id?: string;
@@ -26,6 +27,46 @@ const BUTTON_TYPES = [
   { value: 'website', label: 'Site', icon: Globe },
   { value: 'link', label: 'Link', icon: Link },
 ];
+
+/**
+ * Educational instructions for each button type.
+ * Helps users understand exactly what to type without technical jargon.
+ */
+const getFieldInstructions = (type: string) => {
+  const instructions: Record<string, { icon: string; text: string; example: string }> = {
+    whatsapp: {
+      icon: '📱',
+      text: 'Digite apenas o número completo com DDI e DDD.',
+      example: '5511999999999'
+    },
+    phone: {
+      icon: '☎️',
+      text: 'Digite apenas números.',
+      example: '5511999999999'
+    },
+    email: {
+      icon: '📧',
+      text: 'Digite o e-mail completo.',
+      example: 'contato@empresa.com'
+    },
+    instagram: {
+      icon: '📸',
+      text: 'Digite apenas o nome do perfil, sem "@".',
+      example: 'minhaempresa'
+    },
+    website: {
+      icon: '🌐',
+      text: 'Digite o domínio do site.',
+      example: 'minhaempresa.com'
+    },
+    link: {
+      icon: '🔗',
+      text: 'Digite o domínio ou URL.',
+      example: 'meusite.com'
+    }
+  };
+  return instructions[type] || instructions.link;
+};
 
 export function ContactButtonsSection({
   contactButtons,
@@ -87,101 +128,161 @@ export function ContactButtonsSection({
         </div>
       ) : (
         <div className="space-y-3">
-          {contactButtons.map((button, index) => (
-            <div
-              key={index}
-              className="p-4 border border-gray-200 rounded-lg bg-white space-y-3"
-            >
-              {/* Header Row: Reorder + Type + Delete */}
-              <div className="flex items-center gap-2">
-                {/* Reorder buttons */}
-                <div className="flex flex-col gap-0.5">
-                  <button
-                    type="button"
-                    onClick={() => moveButton(index, 'up')}
-                    disabled={index === 0}
-                    className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600"
+          {contactButtons.map((button, index) => {
+            const validation = validateContactValue(button.button_type, button.value);
+            const instructions = getFieldInstructions(button.button_type);
+            const hasValue = button.value && button.value.trim().length > 0;
+
+            return (
+              <div
+                key={index}
+                className="p-4 border border-gray-200 rounded-lg bg-white space-y-3"
+              >
+                {/* Header Row: Reorder + Type + Delete */}
+                <div className="flex items-center gap-2">
+                  {/* Reorder buttons */}
+                  <div className="flex flex-col gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => moveButton(index, 'up')}
+                      disabled={index === 0}
+                      className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600"
+                    >
+                      <ChevronUp className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveButton(index, 'down')}
+                      disabled={index === contactButtons.length - 1}
+                      className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600"
+                    >
+                      <ChevronDown className="h-3 w-3" />
+                    </button>
+                  </div>
+
+                  {/* Type selector */}
+                  <div className="flex-1">
+                    <Select
+                      value={button.button_type}
+                      onValueChange={(value) => updateButton(index, 'button_type', value)}
+                    >
+                      <SelectTrigger className="bg-white border-gray-200 text-gray-900">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {BUTTON_TYPES.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>
+                            <span className="flex items-center gap-2">
+                              {getButtonIcon(type.value)}
+                              {type.label}
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Delete */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeButton(index)}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
                   >
-                    <ChevronUp className="h-3 w-3" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveButton(index, 'down')}
-                    disabled={index === contactButtons.length - 1}
-                    className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed text-gray-600"
-                  >
-                    <ChevronDown className="h-3 w-3" />
-                  </button>
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
 
-                {/* Type selector */}
-                <div className="flex-1">
-                  <Select
-                    value={button.button_type}
-                    onValueChange={(value) => updateButton(index, 'button_type', value)}
-                  >
-                    <SelectTrigger className="bg-white border-gray-200 text-gray-900">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BUTTON_TYPES.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          <span className="flex items-center gap-2">
-                            {getButtonIcon(type.value)}
-                            {type.label}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                {/* Educational Hint */}
+                <div className="text-xs space-y-0.5">
+                  <p className="text-gray-600">
+                    <span className="mr-1">{instructions.icon}</span>
+                    {instructions.text}
+                  </p>
+                  <p className="text-gray-400">
+                    Exemplo: <code className="bg-gray-100 px-1 rounded text-gray-600">{instructions.example}</code>
+                  </p>
                 </div>
 
-                {/* Delete */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => removeButton(index)}
-                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* Value Input */}
-              <Input
-                placeholder={getContactPlaceholder(button.button_type)}
-                value={button.value}
-                onChange={(e) => updateButton(index, 'value', e.target.value)}
-                className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-400"
-              />
-
-              {/* Conditional: WhatsApp Message */}
-              {button.button_type === 'whatsapp' && (
+                {/* Value Input with conditional border */}
                 <Input
-                  placeholder="Mensagem padrão (opcional)"
-                  value={button.whatsapp_message || ''}
-                  onChange={(e) => updateButton(index, 'whatsapp_message', e.target.value)}
-                  className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-400"
+                  placeholder={getContactPlaceholder(button.button_type)}
+                  value={button.value}
+                  onChange={(e) => updateButton(index, 'value', e.target.value)}
+                  className={cn(
+                    "bg-white text-gray-900 placeholder:text-gray-400",
+                    hasValue && !validation.isValid 
+                      ? "border-red-400 focus:ring-red-400 focus:border-red-400" 
+                      : "border-gray-200"
+                  )}
                 />
-              )}
 
-              {/* Conditional: Email Subject */}
-              {button.button_type === 'email' && (
-                <Input
-                  placeholder="Assunto do email (opcional)"
-                  value={button.email_subject || ''}
-                  onChange={(e) => updateButton(index, 'email_subject', e.target.value)}
-                  className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-400"
-                />
-              )}
+                {/* Error Message (only if has value and invalid) */}
+                {hasValue && !validation.isValid && (
+                  <div className="flex items-center gap-1.5 text-xs text-red-500">
+                    <AlertCircle className="h-3 w-3" />
+                    <span>{validation.error}</span>
+                  </div>
+                )}
 
-              {/* Preview: shows only icon + label (NEVER raw value) */}
-              <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 px-3 py-2 rounded">
-                {getButtonIcon(button.button_type)}
-                <span>Exibição: <strong>{button.label || getContactDisplayLabel(button.button_type)}</strong></span>
+                {/* Conditional: WhatsApp Message */}
+                {button.button_type === 'whatsapp' && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-gray-400">
+                      Mensagem que aparece automaticamente ao abrir o chat (opcional)
+                    </p>
+                    <Input
+                      placeholder="Ex: Olá! Vim pelo seu site e gostaria de falar com você."
+                      value={button.whatsapp_message || ''}
+                      onChange={(e) => updateButton(index, 'whatsapp_message', e.target.value)}
+                      className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-400"
+                    />
+                  </div>
+                )}
+
+                {/* Conditional: Email Subject */}
+                {button.button_type === 'email' && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-gray-400">
+                      Assunto que aparece automaticamente no email (opcional)
+                    </p>
+                    <Input
+                      placeholder="Ex: Solicitação de orçamento"
+                      value={button.email_subject || ''}
+                      onChange={(e) => updateButton(index, 'email_subject', e.target.value)}
+                      className="bg-white border-gray-200 text-gray-900 placeholder:text-gray-400"
+                    />
+                  </div>
+                )}
+
+                {/* Link Preview (Admin-only, only if valid) */}
+                {hasValue && validation.isValid && (
+                  <div className="flex items-center justify-between text-xs bg-blue-50 border border-blue-200 px-3 py-2 rounded">
+                    <div className="flex items-center gap-2 text-blue-700">
+                      <ExternalLink className="h-3 w-3" />
+                      <code className="text-blue-600">{getContactLinkPreview(button)}</code>
+                    </div>
+                    <a 
+                      href={getContactHref(button)} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline font-medium"
+                    >
+                      Testar
+                    </a>
+                  </div>
+                )}
+
+                {/* Success Preview: shows how button will appear publicly */}
+                {hasValue && validation.isValid && (
+                  <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 border border-green-200 px-3 py-2 rounded">
+                    <Check className="h-4 w-4" />
+                    <span>Botão pronto: <strong>{button.label || getContactDisplayLabel(button.button_type)}</strong></span>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

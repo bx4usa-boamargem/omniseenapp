@@ -16,6 +16,98 @@ export interface ContactButtonData {
   email_subject?: string | null;
 }
 
+export interface ValidationResult {
+  isValid: boolean;
+  error?: string;
+}
+
+/**
+ * Validates contact value based on type.
+ * Returns isValid boolean and error message if invalid.
+ */
+export function validateContactValue(type: string, value: string): ValidationResult {
+  if (!value || !value.trim()) {
+    return { isValid: false, error: 'Campo obrigatório' };
+  }
+
+  const cleanValue = sanitizeContactValue(type, value);
+
+  switch (type) {
+    case 'whatsapp':
+      if (cleanValue.length < 10) {
+        return { isValid: false, error: 'Número muito curto (mínimo 10 dígitos)' };
+      }
+      if (cleanValue.length > 15) {
+        return { isValid: false, error: 'Número muito longo (máximo 15 dígitos)' };
+      }
+      return { isValid: true };
+
+    case 'phone':
+      if (cleanValue.length < 8) {
+        return { isValid: false, error: 'Número muito curto (mínimo 8 dígitos)' };
+      }
+      if (cleanValue.length > 15) {
+        return { isValid: false, error: 'Número muito longo (máximo 15 dígitos)' };
+      }
+      return { isValid: true };
+
+    case 'email':
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanValue)) {
+        return { isValid: false, error: 'E-mail inválido (ex: nome@empresa.com)' };
+      }
+      return { isValid: true };
+
+    case 'instagram':
+      if (cleanValue.length < 1) {
+        return { isValid: false, error: 'Digite o nome do perfil' };
+      }
+      if (cleanValue.length > 30) {
+        return { isValid: false, error: 'Nome muito longo (máximo 30 caracteres)' };
+      }
+      if (!/^[a-zA-Z0-9._]+$/.test(cleanValue)) {
+        return { isValid: false, error: 'Apenas letras, números, pontos e underscores' };
+      }
+      return { isValid: true };
+
+    case 'website':
+    case 'link':
+      if (cleanValue.length < 4) {
+        return { isValid: false, error: 'URL muito curta' };
+      }
+      return { isValid: true };
+
+    default:
+      return { isValid: true };
+  }
+}
+
+/**
+ * Returns a preview of the generated link for display in the editor.
+ * This is admin-only and should never be shown publicly.
+ */
+export function getContactLinkPreview(btn: ContactButtonData): string {
+  const cleanValue = sanitizeContactValue(btn.button_type, btn.value);
+  
+  if (!cleanValue) return '';
+  
+  switch (btn.button_type) {
+    case 'whatsapp':
+      return `wa.me/${cleanValue}`;
+    case 'phone':
+      return `tel:+${cleanValue}`;
+    case 'email':
+      return cleanValue;
+    case 'instagram':
+      return `instagram.com/${cleanValue}`;
+    case 'website':
+    case 'link':
+      return cleanValue.replace(/^https?:\/\//, '');
+    default:
+      return cleanValue;
+  }
+}
+
 /**
  * Sanitizes contact value based on type before saving to database.
  * - WhatsApp/Phone: removes all non-digits
