@@ -12,11 +12,12 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   Compass, Loader2, Save, CheckCircle2, Building2, Users, Target, 
-  Lightbulb, TrendingUp, Sparkles, X, Plus, Globe
+  Lightbulb, TrendingUp, Sparkles, X, Plus, Globe, Radar
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ClientCompetitorsTab } from '@/components/client/strategy/ClientCompetitorsTab';
 import { ClientOpportunitiesTab } from '@/components/client/strategy/ClientOpportunitiesTab';
+import { MarketRadarTab } from '@/components/client/strategy/MarketRadarTab';
 
 // Business type options
 const TIPO_NEGOCIO_OPTIONS = [
@@ -261,10 +262,14 @@ export default function ClientStrategy() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="strategy" className="gap-2">
             <Sparkles className="h-4 w-4" />
             <span className="hidden sm:inline">Estratégia</span>
+          </TabsTrigger>
+          <TabsTrigger value="radar" className="gap-2">
+            <Radar className="h-4 w-4" />
+            <span className="hidden sm:inline">Radar</span>
           </TabsTrigger>
           <TabsTrigger value="competitors" className="gap-2">
             <Globe className="h-4 w-4" />
@@ -584,6 +589,11 @@ export default function ClientStrategy() {
               )}
             </Button>
           </div>
+        </TabsContent>
+
+        {/* Radar Tab */}
+        <TabsContent value="radar">
+          {blog?.id && <MarketRadarTab blogId={blog.id} />}
         </TabsContent>
 
         {/* Competitors Tab */}

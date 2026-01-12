@@ -30,6 +30,7 @@ import { InternalStaffTab } from "@/components/admin/InternalStaffTab";
 import { SessionDiagnosticsTab } from "@/components/admin/SessionDiagnosticsTab";
 import { GoalsManagementTab } from "@/components/admin/GoalsManagementTab";
 import { LandingConversionTab } from "@/components/admin/LandingConversionTab";
+import { MarketIntelCostsTab } from "@/components/admin/MarketIntelCostsTab";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
@@ -575,6 +576,10 @@ export default function Admin() {
               <LineChart className="h-4 w-4" />
               Landing
             </TabsTrigger>
+            <TabsTrigger value="market-intel" className="gap-2">
+              <Globe className="h-4 w-4" />
+              Perplexity
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -1024,6 +1029,13 @@ export default function Admin() {
 
           <TabsContent value="landing">
             <LandingConversionTab />
+          </TabsContent>
+
+          <TabsContent value="market-intel">
+            <MarketIntelCostsTab 
+              startDate={new Date(startDate)}
+              endDate={new Date(endDate)}
+            />
           </TabsContent>
         </Tabs>
       </main>
