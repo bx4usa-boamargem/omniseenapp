@@ -7,6 +7,9 @@ import { calculateSEOScore } from '@/utils/seoScore';
 import { SEOScoreGauge } from '@/components/seo/SEOScoreGauge';
 import { ArticleSEOList, ArticleSEOItem } from '@/components/seo/ArticleSEOList';
 import { SEOAnalysisModal } from '@/components/seo/SEOAnalysisModal';
+import { SEOTrendChart } from '@/components/seo/SEOTrendChart';
+import { SEOTrendStats } from '@/components/seo/SEOTrendStats';
+import { useSEOTrends } from '@/hooks/useSEOTrends';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
@@ -29,12 +32,18 @@ export default function ClientSEO() {
   const [loading, setLoading] = useState(true);
   const [aggregatedScore, setAggregatedScore] = useState(0);
   const [articleCount, setArticleCount] = useState(0);
+  const [articlesBelow60, setArticlesBelow60] = useState(0);
+  const [articlesAbove80, setArticlesAbove80] = useState(0);
   const [tips, setTips] = useState<SEOTip[]>([]);
+  const [trendPeriod, setTrendPeriod] = useState(30);
 
-  // Estados para o modal de análise (replica plataforma-mãe)
+  // Estados para o modal de análise
   const [selectedArticle, setSelectedArticle] = useState<ArticleSEOItem | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // SEO Trends hook
+  const { data: trendData, isLoading: trendLoading, trend, refetch: refetchTrends, saveSnapshot } = useSEOTrends(blog?.id, trendPeriod);
 
   const fetchSEOData = useCallback(async (blogId: string) => {
     try {
@@ -64,6 +73,12 @@ export default function ClientSEO() {
           scores.reduce((acc, s) => acc + s.totalScore, 0) / scores.length
         );
         setAggregatedScore(avgScore);
+
+        // Count articles by score threshold
+        const below60 = scores.filter(s => s.totalScore < 60).length;
+        const above80 = scores.filter(s => s.totalScore >= 80).length;
+        setArticlesBelow60(below60);
+        setArticlesAbove80(above80);
 
         // Gerar dicas contextuais
         const newTips: SEOTip[] = [];
@@ -107,6 +122,9 @@ export default function ClientSEO() {
         }
 
         setTips(newTips);
+
+        // Save snapshot for trends
+        await saveSnapshot(avgScore, data.length, below60, above80);
       } else {
         setAggregatedScore(0);
         setArticleCount(0);
@@ -121,7 +139,7 @@ export default function ClientSEO() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [saveSnapshot]);
 
   useEffect(() => {
     if (blog?.id) {
@@ -146,7 +164,12 @@ export default function ClientSEO() {
     setRefreshKey(prev => prev + 1);
     if (blog?.id) {
       fetchSEOData(blog.id);
+      refetchTrends();
     }
+  };
+
+  const handlePeriodChange = (days: number) => {
+    setTrendPeriod(days);
   };
 
   if (loading) {
@@ -190,7 +213,26 @@ export default function ClientSEO() {
         </div>
       </div>
 
-      {/* Lista de Artigos + Modal (replica plataforma-mãe) */}
+      {/* SEO Trends Section */}
+      {articleCount > 0 && (
+        <div className="space-y-4">
+          <SEOTrendChart
+            data={trendData}
+            isLoading={trendLoading}
+            onPeriodChange={handlePeriodChange}
+            currentPeriod={trendPeriod}
+          />
+          {trendData.length > 0 && (
+            <SEOTrendStats
+              data={trendData}
+              trend={trend}
+              currentScore={aggregatedScore}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Lista de Artigos + Modal */}
       {blog?.id && user?.id && (
         <>
           <ArticleSEOList

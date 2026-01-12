@@ -3392,6 +3392,50 @@ export type Database = {
           },
         ]
       }
+      seo_daily_snapshots: {
+        Row: {
+          articles_above_80: number | null
+          articles_below_60: number | null
+          avg_score: number
+          blog_id: string
+          created_at: string | null
+          id: string
+          optimizations_count: number | null
+          snapshot_date: string
+          total_articles: number
+        }
+        Insert: {
+          articles_above_80?: number | null
+          articles_below_60?: number | null
+          avg_score: number
+          blog_id: string
+          created_at?: string | null
+          id?: string
+          optimizations_count?: number | null
+          snapshot_date: string
+          total_articles?: number
+        }
+        Update: {
+          articles_above_80?: number | null
+          articles_below_60?: number | null
+          avg_score?: number
+          blog_id?: string
+          created_at?: string | null
+          id?: string
+          optimizations_count?: number | null
+          snapshot_date?: string
+          total_articles?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seo_daily_snapshots_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       seo_weekly_reports: {
         Row: {
           articles_below_60: number | null
