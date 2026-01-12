@@ -255,6 +255,62 @@ export type Database = {
           },
         ]
       }
+      article_broken_links: {
+        Row: {
+          anchor_text: string | null
+          article_id: string
+          blog_id: string
+          created_at: string | null
+          detected_at: string | null
+          error_message: string | null
+          fix_method: string | null
+          fixed_at: string | null
+          id: string
+          is_fixed: boolean | null
+          last_checked_at: string | null
+          status_code: number | null
+          url: string
+        }
+        Insert: {
+          anchor_text?: string | null
+          article_id: string
+          blog_id: string
+          created_at?: string | null
+          detected_at?: string | null
+          error_message?: string | null
+          fix_method?: string | null
+          fixed_at?: string | null
+          id?: string
+          is_fixed?: boolean | null
+          last_checked_at?: string | null
+          status_code?: number | null
+          url: string
+        }
+        Update: {
+          anchor_text?: string | null
+          article_id?: string
+          blog_id?: string
+          created_at?: string | null
+          detected_at?: string | null
+          error_message?: string | null
+          fix_method?: string | null
+          fixed_at?: string | null
+          id?: string
+          is_fixed?: boolean | null
+          last_checked_at?: string | null
+          status_code?: number | null
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_broken_links_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       article_internal_links: {
         Row: {
           anchor_text: string
@@ -3317,6 +3373,65 @@ export type Database = {
             columns: ["article_id"]
             isOneToOne: false
             referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seo_weekly_reports: {
+        Row: {
+          articles_below_60: number | null
+          articles_improved: number | null
+          avg_seo_score: number | null
+          blog_id: string
+          created_at: string | null
+          id: string
+          score_change: number | null
+          sent_at: string | null
+          top_suggestions: Json | null
+          total_articles: number | null
+          user_id: string
+          weak_articles: Json | null
+          week_end: string
+          week_start: string
+        }
+        Insert: {
+          articles_below_60?: number | null
+          articles_improved?: number | null
+          avg_seo_score?: number | null
+          blog_id: string
+          created_at?: string | null
+          id?: string
+          score_change?: number | null
+          sent_at?: string | null
+          top_suggestions?: Json | null
+          total_articles?: number | null
+          user_id: string
+          weak_articles?: Json | null
+          week_end: string
+          week_start: string
+        }
+        Update: {
+          articles_below_60?: number | null
+          articles_improved?: number | null
+          avg_seo_score?: number | null
+          blog_id?: string
+          created_at?: string | null
+          id?: string
+          score_change?: number | null
+          sent_at?: string | null
+          top_suggestions?: Json | null
+          total_articles?: number | null
+          user_id?: string
+          weak_articles?: Json | null
+          week_end?: string
+          week_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seo_weekly_reports_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
             referencedColumns: ["id"]
           },
         ]

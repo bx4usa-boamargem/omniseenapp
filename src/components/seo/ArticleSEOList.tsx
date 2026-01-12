@@ -85,18 +85,13 @@ export function ArticleSEOList({ blogId, userId, onSelectArticle, onScoreCalcula
     fetchArticles();
   }, [blogId, sortAsc]);
 
-  const lowScoreArticles = articles.filter(a => a.seoScore < 60);
-  // Filter articles that have keywords (required for AI optimization)
-  const eligibleArticles = lowScoreArticles.filter(a => a.keywords && a.keywords.length > 0);
-  const skippedCount = lowScoreArticles.length - eligibleArticles.length;
+  // REGRA 2: SEO NUNCA BLOQUEIA - todos os artigos são elegíveis
+  // Keywords serão geradas automaticamente pelo backend
+  const eligibleArticles = articles.filter(a => a.seoScore < 60);
 
   const handleFixAllSEO = async () => {
     if (eligibleArticles.length === 0) {
-      if (skippedCount > 0) {
-        toast.error(`${skippedCount} artigo(s) sem palavras-chave. Adicione keywords antes de otimizar.`);
-      } else {
-        toast.info("Nenhum artigo com score abaixo de 60% para corrigir");
-      }
+      toast.info("Nenhum artigo com score abaixo de 60% para corrigir");
       return;
     }
 
@@ -119,15 +114,16 @@ export function ArticleSEOList({ blogId, userId, onSelectArticle, onScoreCalcula
           updated_at: new Date().toISOString(),
         };
 
-        // Fix title
+        // Fix title - REGRA 2: enviar article_id para persistência de keywords auto-geradas
         const { data: titleData, error: titleError } = await supabase.functions.invoke("improve-seo-item", {
           body: {
             type: "title",
             currentValue: article.title,
-            keywords: article.keywords || [],
+            keywords: article.keywords || [], // Backend gera automaticamente se vazio
             context: article.content,
             user_id: userId,
             blog_id: blogId,
+            article_id: article.id, // Permite persistência de keywords geradas
           },
         });
 
@@ -137,16 +133,17 @@ export function ArticleSEOList({ blogId, userId, onSelectArticle, onScoreCalcula
           updates.title = titleData.improvedValue;
         }
 
-        // Fix meta description
+        // Fix meta description - REGRA 3: gera automaticamente se vazia ou inválida
         const { data: metaData, error: metaError } = await supabase.functions.invoke("improve-seo-item", {
           body: {
             type: "meta",
             currentValue: article.meta_description || "",
-            keywords: article.keywords || [],
+            keywords: article.keywords || [], // Backend gera automaticamente se vazio
             context: article.content,
             articleTitle: titleData?.improvedValue || article.title,
             user_id: userId,
             blog_id: blogId,
+            article_id: article.id, // Permite persistência de meta gerada
           },
         });
 
@@ -194,11 +191,8 @@ export function ArticleSEOList({ blogId, userId, onSelectArticle, onScoreCalcula
     setFixProgress(0);
     setCurrentFixingTitle("");
 
-    // Show detailed result
+    // Show detailed result - REGRA 2: sem mensagens sobre keywords
     let message = `${fixedCount} artigo(s) otimizado(s)`;
-    if (skippedCount > 0) {
-      message += `, ${skippedCount} ignorado(s) (sem keywords)`;
-    }
     if (errors.length > 0) {
       message += `, ${errors.length} com erro`;
     }
@@ -244,13 +238,8 @@ export function ArticleSEOList({ blogId, userId, onSelectArticle, onScoreCalcula
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="text-lg">Artigos para Análise</CardTitle>
           <div className="flex items-center gap-2 flex-wrap">
-            {skippedCount > 0 && !isFixingAll && (
-              <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/20 px-3 py-1.5 rounded-lg">
-                <AlertTriangle className="h-4 w-4" />
-                <span>{skippedCount} sem keywords</span>
-              </div>
-            )}
-            {lowScoreArticles.length > 0 && (
+            {/* REGRA 2: Removido aviso de "sem keywords" - backend gera automaticamente */}
+            {eligibleArticles.length > 0 && (
               isFixingAll ? (
                 <div className="flex items-center gap-2 min-w-[200px]">
                   <div className="flex-1 space-y-1">
@@ -295,7 +284,8 @@ export function ArticleSEOList({ blogId, userId, onSelectArticle, onScoreCalcula
               <div className="flex-1 min-w-0 mr-4">
                 <h4 className="font-medium truncate">{article.title}</h4>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {(article.keywords || []).slice(0, 3).join(", ") || "Sem palavras-chave"}
+                  {/* REGRA 2: Mensagem informativa ao invés de bloqueio */}
+                  {(article.keywords || []).slice(0, 3).join(", ") || "IA gerará keywords automaticamente"}
                 </p>
               </div>
               <div className="flex items-center gap-3">

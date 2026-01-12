@@ -79,13 +79,8 @@ export default function NewArticleChat() {
   const handleSaveArticle = async (status: 'draft' | 'published') => {
     if (!generatedArticle) return;
 
-    // Alert if publishing without keywords
-    if (status === 'published' && (!generatedArticle.keywords || generatedArticle.keywords.length === 0)) {
-      const confirmed = window.confirm(
-        "Este artigo não possui palavras-chave. Artigos sem keywords têm desempenho SEO muito inferior. Deseja publicar mesmo assim?"
-      );
-      if (!confirmed) return;
-    }
+    // REGRA 2: SEO NUNCA BLOQUEIA - keywords são geradas automaticamente pelo backend
+    // Removida confirmação bloqueante - publicação direta
 
     setIsSaving(true);
 

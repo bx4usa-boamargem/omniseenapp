@@ -355,15 +355,8 @@ export default function EditArticle() {
   const handleFixSEO = async (type: 'title' | 'meta' | 'content' | 'density') => {
     if (!article) return;
 
-    // Validate keywords exist
-    if (!keywords || keywords.length === 0) {
-      toast({
-        title: "Palavras-chave obrigatórias",
-        description: "Adicione pelo menos uma palavra-chave antes de otimizar o SEO.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // REGRA 2: SEO NUNCA BLOQUEIA - keywords são geradas automaticamente pelo backend
+    // Removida validação bloqueante - backend gera keywords se necessário
 
     const setFixing = {
       title: setIsFixingTitle,
@@ -793,24 +786,8 @@ export default function EditArticle() {
   };
 
   const handlePublishClick = () => {
-    // Alert if publishing without keywords
-    if (keywords.length === 0) {
-      toast({
-        variant: "default",
-        title: "Artigo sem palavras-chave",
-        description: "Adicione palavras-chave para melhorar o SEO. Você pode publicar mesmo assim clicando no botão abaixo.",
-        action: (
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => setShowPublishTranslationDialog(true)}
-          >
-            Publicar mesmo assim
-          </Button>
-        ),
-      });
-      return;
-    }
+    // REGRA 2: SEO NUNCA BLOQUEIA - keywords são geradas automaticamente pelo backend
+    // Removido toast bloqueante - publicação direta
     setShowPublishTranslationDialog(true);
   };
 

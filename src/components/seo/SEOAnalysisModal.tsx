@@ -240,7 +240,8 @@ export function SEOAnalysisModal({
           <div>
             <h3 className="font-medium text-lg truncate">{currentArticle.title}</h3>
             <p className="text-sm text-muted-foreground">
-              {(currentArticle.keywords || []).join(", ") || "Sem palavras-chave"}
+              {/* REGRA 2: Mensagem informativa ao invés de bloqueio */}
+              {(currentArticle.keywords || []).join(", ") || "Keywords serão geradas automaticamente"}
             </p>
           </div>
 
