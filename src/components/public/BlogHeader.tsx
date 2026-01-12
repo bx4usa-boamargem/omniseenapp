@@ -36,6 +36,8 @@ interface BlogHeaderProps {
   showSearch?: boolean;
   headerCtaText?: string | null;
   headerCtaUrl?: string | null;
+  // Brand display mode
+  brandDisplayMode?: 'text' | 'image';
 }
 
 export const BlogHeader = ({ 
@@ -52,6 +54,7 @@ export const BlogHeader = ({
   showSearch = true,
   headerCtaText,
   headerCtaUrl,
+  brandDisplayMode = 'text',
 }: BlogHeaderProps) => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -108,6 +111,27 @@ export const BlogHeader = ({
     }
   };
 
+  // Render brand based on display mode
+  const renderHeaderBrand = () => {
+    // Mode IMAGE: show logo if available
+    if (brandDisplayMode === 'image' && logoUrl) {
+      return (
+        <img 
+          src={logoUrl} 
+          alt={blogName} 
+          className="h-10 md:h-12 w-auto object-contain"
+        />
+      );
+    }
+    
+    // Mode TEXT or fallback: show text only
+    return (
+      <span className="font-heading font-semibold text-lg text-gray-900">
+        {blogName}
+      </span>
+    );
+  };
+
   return (
     <header className="border-b border-gray-200 bg-white sticky top-0 z-50">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -116,23 +140,7 @@ export const BlogHeader = ({
           to={blogPath} 
           className="flex items-center gap-3 hover:opacity-80 transition-opacity"
         >
-          {logoUrl ? (
-            <img 
-              src={logoUrl} 
-              alt={blogName} 
-              className="h-8 w-8 object-contain rounded"
-            />
-          ) : (
-            <div 
-              className="h-8 w-8 rounded flex items-center justify-center text-white font-bold text-sm"
-              style={{ backgroundColor: primaryColor || "#6366f1" }}
-            >
-              {blogName.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <span className="font-heading font-semibold text-lg text-gray-900">
-            {blogName}
-          </span>
+          {renderHeaderBrand()}
         </Link>
 
         {/* Desktop Navigation */}

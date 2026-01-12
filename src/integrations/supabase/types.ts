@@ -1041,6 +1041,7 @@ export type Database = {
           banner_mobile_image_url: string | null
           banner_title: string | null
           brand_description: string | null
+          brand_display_mode: string | null
           city: string | null
           color_palette: Json | null
           created_at: string
@@ -1097,6 +1098,7 @@ export type Database = {
           banner_mobile_image_url?: string | null
           banner_title?: string | null
           brand_description?: string | null
+          brand_display_mode?: string | null
           city?: string | null
           color_palette?: Json | null
           created_at?: string
@@ -1153,6 +1155,7 @@ export type Database = {
           banner_mobile_image_url?: string | null
           banner_title?: string | null
           brand_description?: string | null
+          brand_display_mode?: string | null
           city?: string | null
           color_palette?: Json | null
           created_at?: string

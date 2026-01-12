@@ -44,6 +44,8 @@ export default function ClientSite() {
   const [footerText, setFooterText] = useState('');
   const [showCategoriesFooter, setShowCategoriesFooter] = useState(true);
   const [contactButtons, setContactButtons] = useState<ContactButton[]>([]);
+  // Brand display mode: 'text' or 'image'
+  const [brandDisplayMode, setBrandDisplayMode] = useState<'text' | 'image'>('text');
 
   // Load blog data
   useEffect(() => {
@@ -72,6 +74,8 @@ export default function ClientSite() {
     setBrandDescription(blog.brand_description || '');
     setFooterText(blog.footer_text || '');
     setShowCategoriesFooter((blog as any).show_categories_footer ?? true);
+    // Load brand display mode
+    setBrandDisplayMode(((blog as any).brand_display_mode as 'text' | 'image') || 'text');
 
     // Fetch contact buttons
     const fetchButtons = async () => {
@@ -131,6 +135,7 @@ export default function ClientSite() {
             brand_description: brandDescription,
             footer_text: footerText,
             show_categories_footer: showCategoriesFooter,
+            brand_display_mode: brandDisplayMode,
           })
           .eq('id', blog.id);
 
@@ -169,7 +174,7 @@ export default function ClientSite() {
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [hasChanges, blog?.id, companyName, city, logoUrl, logoNegativeUrl, faviconUrl, logoBackgroundColor, logoNegativeBackgroundColor, layoutTemplate, primaryColor, secondaryColor, showSearch, headerCtaText, headerCtaUrl, bannerEnabled, bannerTitle, bannerDescription, bannerImageUrl, bannerBackgroundColor, ctaText, ctaUrl, brandDescription, footerText, showCategoriesFooter, contactButtons]);
+  }, [hasChanges, blog?.id, companyName, city, logoUrl, logoNegativeUrl, faviconUrl, logoBackgroundColor, logoNegativeBackgroundColor, layoutTemplate, primaryColor, secondaryColor, showSearch, headerCtaText, headerCtaUrl, bannerEnabled, bannerTitle, bannerDescription, bannerImageUrl, bannerBackgroundColor, ctaText, ctaUrl, brandDescription, footerText, showCategoriesFooter, contactButtons, brandDisplayMode]);
 
   // Mark as changed
   const markChanged = useCallback(() => setHasChanges(true), []);
@@ -250,6 +255,7 @@ export default function ClientSite() {
             footerText={footerText}
             showCategoriesFooter={showCategoriesFooter}
             contactButtons={contactButtons}
+            brandDisplayMode={brandDisplayMode}
             userId={user?.id || ''}
             saveStatus={saveStatus}
             onCompanyNameChange={(v) => { setCompanyName(v); markChanged(); }}
@@ -276,6 +282,7 @@ export default function ClientSite() {
             onFooterTextChange={(v) => { setFooterText(v); markChanged(); }}
             onShowCategoriesFooterChange={(v) => { setShowCategoriesFooter(v); markChanged(); }}
             onContactButtonsChange={(v) => { setContactButtons(v); markChanged(); }}
+            onBrandDisplayModeChange={(v) => { setBrandDisplayMode(v); markChanged(); }}
             />
           </div>
         </div>
@@ -303,6 +310,7 @@ export default function ClientSite() {
             footerText={footerText}
             showCategoriesFooter={showCategoriesFooter}
             contactButtons={contactButtons}
+            brandDisplayMode={brandDisplayMode}
           />
         </div>
       </div>

@@ -42,6 +42,8 @@ interface BlogFooterProps {
   // New props for parity with editor
   contactButtons?: ContactButton[];
   showCategoriesFooter?: boolean;
+  // Brand display mode
+  brandDisplayMode?: 'text' | 'image';
 }
 
 const getButtonIcon = (type: string) => {
@@ -75,10 +77,10 @@ export function BlogFooter({
   domainVerified,
   contactButtons = [],
   showCategoriesFooter = true,
+  brandDisplayMode = 'text',
 }: BlogFooterProps) {
   const { t } = useTranslation();
   const blogPath = getBlogPath({ slug: blogSlug, custom_domain: customDomain, domain_verified: domainVerified });
-  const effectiveLogo = logoNegativeUrl || logoUrl;
 
   const handleCtaClick = () => {
     if (!ctaUrl) return;
@@ -98,6 +100,30 @@ export function BlogFooter({
   // Filter out non-whatsapp contact buttons for footer display
   const footerContactButtons = contactButtons.filter(btn => btn.button_type !== 'whatsapp');
 
+  // Render brand based on display mode
+  const renderFooterBrand = () => {
+    // Mode IMAGE: try logo_negative first, fallback to logo_url
+    if (brandDisplayMode === 'image') {
+      const effectiveLogo = logoNegativeUrl || logoUrl;
+      if (effectiveLogo) {
+        return (
+          <img 
+            src={effectiveLogo} 
+            alt={blogName} 
+            className="h-8 md:h-10 w-auto object-contain"
+          />
+        );
+      }
+    }
+    
+    // Mode TEXT or fallback: show text only
+    return (
+      <span className="font-heading font-semibold text-lg text-white">
+        {blogName}
+      </span>
+    );
+  };
+
   return (
     <footer 
       className="py-12"
@@ -109,20 +135,7 @@ export function BlogFooter({
           {/* Brand Column */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              {effectiveLogo ? (
-                <img 
-                  src={effectiveLogo} 
-                  alt={blogName} 
-                  className="h-8 w-8 object-contain rounded"
-                />
-              ) : (
-                <div className="h-8 w-8 rounded bg-white/20 flex items-center justify-center text-white font-bold text-sm">
-                  {blogName.charAt(0).toUpperCase()}
-                </div>
-              )}
-              <span className="font-heading font-semibold text-lg text-white">
-                {blogName}
-              </span>
+              {renderFooterBrand()}
             </div>
             <p className="text-white/80 text-sm leading-relaxed">
               {brandDescription || blogDescription || `Bem-vindo ao ${blogName}`}
@@ -208,19 +221,18 @@ export function BlogFooter({
               © {new Date().getFullYear()} {blogName}. {t("blog.allRightsReserved")}
             </p>
 
-            {showPoweredBy && (
-              <p className="flex items-center gap-1">
-                Desenvolvido com <Heart className="h-3 w-3 text-red-400 fill-red-400" /> por{" "}
-                <a 
-                  href="https://blogai.com.br" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-white hover:text-white/80 font-medium"
-                >
-                  BlogAI
-                </a>
-              </p>
-            )}
+            {/* Omniseen Credit - Always visible, non-removable */}
+            <p className="flex items-center gap-1 text-[13px] text-white/70">
+              Desenvolvido com <Heart className="h-3 w-3 text-purple-400 fill-purple-400" /> por{" "}
+              <a 
+                href="https://omniseen.app/" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-white/80 hover:text-white font-medium transition-colors"
+              >
+                Omniseen
+              </a>
+            </p>
           </div>
         </div>
       </div>

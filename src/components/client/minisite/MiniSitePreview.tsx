@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Monitor, Smartphone, Search, FileText, ChevronDown, FolderOpen, MessageCircle, Phone, Mail, Instagram, Globe, Link } from "lucide-react";
+import { Monitor, Smartphone, Search, FileText, ChevronDown, FolderOpen, MessageCircle, Phone, Mail, Instagram, Globe, Link, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { ContactButton } from "./sections/ContactButtonsSection";
@@ -47,6 +47,8 @@ interface MiniSitePreviewProps {
   footerText: string;
   showCategoriesFooter: boolean;
   contactButtons: ContactButton[];
+  // Brand display mode
+  brandDisplayMode?: 'text' | 'image';
 }
 
 const BUTTON_ICONS: Record<string, React.ElementType> = {
@@ -82,6 +84,7 @@ export function MiniSitePreview({
   footerText,
   showCategoriesFooter,
   contactButtons,
+  brandDisplayMode = 'text',
 }: MiniSitePreviewProps) {
   const [viewMode, setViewMode] = useState<"desktop" | "mobile">("desktop");
   const [articles, setArticles] = useState<Article[]>([]);
@@ -125,6 +128,43 @@ export function MiniSitePreview({
 
   const displayArticles = viewMode === "desktop" ? articles.slice(0, 3) : articles.slice(0, 2);
 
+  // Render header brand based on display mode
+  const renderHeaderBrand = () => {
+    if (brandDisplayMode === 'image' && logoUrl) {
+      return (
+        <img 
+          src={logoUrl} 
+          alt={companyName} 
+          className="h-10 md:h-12 w-auto object-contain" 
+        />
+      );
+    }
+    return (
+      <span className="font-semibold text-gray-900">
+        {companyName || "Meu Blog"}
+      </span>
+    );
+  };
+
+  // Render footer brand based on display mode
+  const renderFooterBrand = () => {
+    if (brandDisplayMode === 'image') {
+      const effectiveLogo = logoNegativeUrl || logoUrl;
+      if (effectiveLogo) {
+        return (
+          <img 
+            src={effectiveLogo} 
+            alt={companyName} 
+            className="h-8 md:h-10 w-auto object-contain" 
+          />
+        );
+      }
+    }
+    return (
+      <span className="font-semibold text-white">{companyName || "Meu Blog"}</span>
+    );
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Preview Controls */}
@@ -164,19 +204,7 @@ export function MiniSitePreview({
             style={{ backgroundColor: `${primaryColor}08` }}
           >
             <div className="flex items-center gap-3">
-              {logoUrl ? (
-                <img src={logoUrl} alt={companyName} className="h-8 w-8 object-contain rounded" />
-              ) : (
-                <div
-                  className="h-8 w-8 rounded flex items-center justify-center text-white font-bold text-sm"
-                  style={{ backgroundColor: primaryColor }}
-                >
-                  {companyName?.charAt(0)?.toUpperCase() || "B"}
-                </div>
-              )}
-              <span className="font-semibold text-gray-900">
-                {companyName || "Meu Blog"}
-              </span>
+              {renderHeaderBrand()}
             </div>
 
             {/* Nav Items */}
@@ -372,18 +400,7 @@ export function MiniSitePreview({
               {/* Brand Column */}
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  {logoNegativeUrl || logoUrl ? (
-                    <img 
-                      src={logoNegativeUrl || logoUrl} 
-                      alt={companyName} 
-                      className="h-6 w-6 object-contain rounded" 
-                    />
-                  ) : (
-                    <div className="h-6 w-6 rounded bg-white/20 flex items-center justify-center text-white text-xs font-bold">
-                      {companyName?.charAt(0)?.toUpperCase() || "B"}
-                    </div>
-                  )}
-                  <span className="font-semibold text-white">{companyName || "Meu Blog"}</span>
+                  {renderFooterBrand()}
                 </div>
                 <p className="text-white/70 text-sm">
                   {brandDescription || "Seu blog pessoal com conteúdo de qualidade."}
@@ -433,10 +450,24 @@ export function MiniSitePreview({
               </div>
             </div>
 
-            <div className="border-t border-white/20 pt-4 text-center">
-              <p className="text-white/50 text-xs">
-                {footerText || `© ${new Date().getFullYear()} ${companyName || "Meu Blog"}. Todos os direitos reservados.`}
-              </p>
+            <div className="border-t border-white/20 pt-4">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-2">
+                <p className="text-white/50 text-xs">
+                  {footerText || `© ${new Date().getFullYear()} ${companyName || "Meu Blog"}. Todos os direitos reservados.`}
+                </p>
+                {/* Omniseen Credit - Always visible, non-removable */}
+                <p className="flex items-center gap-1 text-[13px] text-white/70">
+                  Desenvolvido com <Heart className="h-3 w-3 text-purple-400 fill-purple-400" /> por{" "}
+                  <a 
+                    href="https://omniseen.app/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-white/80 hover:text-white font-medium transition-colors"
+                  >
+                    Omniseen
+                  </a>
+                </p>
+              </div>
             </div>
           </footer>
 

@@ -17,6 +17,7 @@ interface MiniSiteEditorProps {
   faviconUrl: string;
   logoBackgroundColor?: string | null;
   logoNegativeBackgroundColor?: string | null;
+  brandDisplayMode: 'text' | 'image';
   
   // Design
   layoutTemplate: string;
@@ -74,6 +75,7 @@ interface MiniSiteEditorProps {
   onFooterTextChange: (value: string) => void;
   onShowCategoriesFooterChange: (value: boolean) => void;
   onContactButtonsChange: (buttons: ContactButton[]) => void;
+  onBrandDisplayModeChange: (mode: 'text' | 'image') => void;
 }
 
 export function MiniSiteEditor(props: MiniSiteEditorProps) {
@@ -85,6 +87,7 @@ export function MiniSiteEditor(props: MiniSiteEditorProps) {
     faviconUrl,
     logoBackgroundColor,
     logoNegativeBackgroundColor,
+    brandDisplayMode,
     layoutTemplate,
     primaryColor,
     secondaryColor,
@@ -128,6 +131,7 @@ export function MiniSiteEditor(props: MiniSiteEditorProps) {
     onFooterTextChange,
     onShowCategoriesFooterChange,
     onContactButtonsChange,
+    onBrandDisplayModeChange,
   } = props;
 
   return (
@@ -154,6 +158,7 @@ export function MiniSiteEditor(props: MiniSiteEditorProps) {
         logoNegativeBackgroundColor={logoNegativeBackgroundColor}
         primaryColor={primaryColor}
         secondaryColor={secondaryColor}
+        brandDisplayMode={brandDisplayMode}
         userId={userId}
         onCompanyNameChange={onCompanyNameChange}
         onCityChange={onCityChange}
@@ -164,6 +169,7 @@ export function MiniSiteEditor(props: MiniSiteEditorProps) {
         onLogoNegativeBackgroundColorChange={onLogoNegativeBackgroundColorChange}
         onPrimaryColorChange={onPrimaryColorChange}
         onSecondaryColorChange={onSecondaryColorChange}
+        onBrandDisplayModeChange={onBrandDisplayModeChange}
       />
 
       {/* Accordion Sections */}

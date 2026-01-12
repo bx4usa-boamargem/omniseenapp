@@ -233,6 +233,7 @@ const PublicBlog = () => {
         showSearch={blog.show_search ?? true}
         headerCtaText={blog.header_cta_text}
         headerCtaUrl={blog.header_cta_url}
+        brandDisplayMode={((blog as any).brand_display_mode as 'text' | 'image') || 'text'}
       />
 
       {/* Hero Section - Two modes based on banner_enabled */}
@@ -375,6 +376,7 @@ const PublicBlog = () => {
         domainVerified={blog.domain_verified}
         contactButtons={contactButtons}
         showCategoriesFooter={blog.show_categories_footer ?? true}
+        brandDisplayMode={((blog as any).brand_display_mode as 'text' | 'image') || 'text'}
       />
 
       {/* WhatsApp Floating Button */}
