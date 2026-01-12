@@ -6,11 +6,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
   Lightbulb, Loader2, TrendingUp, Target, Sparkles, 
-  Search, Check, Archive, RotateCcw, Star, ExternalLink
+  Search, Check, Archive, RotateCcw, Star, ExternalLink,
+  Globe, Brain, Calendar
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 interface Opportunity {
   id: string;
@@ -21,13 +25,28 @@ interface Opportunity {
   status: string | null;
   trend_source?: string | null;
   created_at: string;
+  // New fields from Phase 1
+  origin?: string | null;
+  source_urls?: string[] | null;
+  why_now?: string | null;
+  goal?: string | null;
+  intel_week_id?: string | null;
+}
+
+interface MarketIntelWeekly {
+  id: string;
+  week_of: string;
+  country: string;
+  market_snapshot: string | null;
+  source: string | null;
+  created_at: string;
 }
 
 interface ClientOpportunitiesTabProps {
   blogId: string;
 }
 
-type SourceFilter = 'all' | 'trends' | 'competitor_gaps' | 'ai';
+type SourceFilter = 'all' | 'trends' | 'competitor_gaps' | 'ai' | 'perplexity';
 
 export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) {
   const navigate = useNavigate();
@@ -59,30 +78,52 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
     setLoading(false);
   };
 
-  const handleGenerate = async (mode: 'standard' | 'trends' | 'competitor_gaps') => {
+  const handleGenerate = async (mode: 'standard' | 'trends' | 'competitor_gaps' | 'weekly_intel') => {
     setGenerating(true);
     setGeneratingMode(mode);
 
     try {
-      const { data, error } = await supabase.functions.invoke('generate-opportunities', {
-        body: { 
-          blogId, 
-          count: 5,
-          mode,
-          useTrends: mode === 'trends'
+      if (mode === 'weekly_intel') {
+        // Generate weekly market intelligence
+        const { data, error } = await supabase.functions.invoke('weekly-market-intel', {
+          body: { blogId }
+        });
+
+        if (error) throw error;
+
+        if (data?.message?.includes('already exists')) {
+          toast.info('Inteligência semanal já existe', {
+            description: `Pacote da semana de ${data.week_of} já foi gerado.`
+          });
+        } else {
+          toast.success('Inteligência de Mercado gerada!', {
+            description: `Pacote semanal com ${data?.content_ideas?.length || 0} ideias de conteúdo.`
+          });
         }
-      });
+      } else {
+        // Original generate opportunities logic
+        const { data, error } = await supabase.functions.invoke('generate-opportunities', {
+          body: { 
+            blogId, 
+            count: 5,
+            mode,
+            useTrends: mode === 'trends'
+          }
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      toast.success('Oportunidades geradas!', {
-        description: `${data?.count || 0} novas sugestões de artigos.`
-      });
+        toast.success('Oportunidades geradas!', {
+          description: `${data?.count || 0} novas sugestões de artigos.`
+        });
+      }
 
       fetchOpportunities();
     } catch (error) {
-      console.error('Error generating opportunities:', error);
-      toast.error('Erro ao gerar oportunidades');
+      console.error('Error generating:', error);
+      toast.error('Erro ao gerar', {
+        description: error instanceof Error ? error.message : 'Tente novamente.'
+      });
     }
 
     setGenerating(false);
@@ -123,18 +164,31 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
     navigate(`/client/create?${params.toString()}`);
   };
 
-  const getSourceBadge = (source: string | null) => {
+  const getSourceBadge = (opportunity: Opportunity) => {
+    const source = opportunity.source;
+    const origin = opportunity.origin;
+    
+    // Check for Perplexity origin first (real-time web data)
+    if (origin === 'perplexity') {
+      return (
+        <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 dark:text-blue-400">
+          <Globe className="h-3 w-3 mr-1" />
+          Tendência Real
+        </Badge>
+      );
+    }
+    
     switch (source) {
       case 'trends':
         return (
           <Badge variant="secondary" className="bg-green-500/10 text-green-600 dark:text-green-400">
             <TrendingUp className="h-3 w-3 mr-1" />
-            Tendência Real
+            Tendência
           </Badge>
         );
       case 'competitor_gaps':
         return (
-          <Badge variant="secondary" className="bg-blue-500/10 text-blue-600 dark:text-blue-400">
+          <Badge variant="secondary" className="bg-orange-500/10 text-orange-600 dark:text-orange-400">
             <Target className="h-3 w-3 mr-1" />
             Gap de Concorrente
           </Badge>
@@ -142,11 +196,70 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
       default:
         return (
           <Badge variant="secondary" className="bg-violet-500/10 text-violet-600 dark:text-violet-400">
-            <Sparkles className="h-3 w-3 mr-1" />
+            <Brain className="h-3 w-3 mr-1" />
             IA
           </Badge>
         );
     }
+  };
+
+  const getSourceUrlsTooltip = (opportunity: Opportunity) => {
+    if (!opportunity.source_urls || opportunity.source_urls.length === 0) {
+      return null;
+    }
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+              <ExternalLink className="h-3 w-3 text-blue-500" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs">
+            <p className="font-medium mb-1">Fontes ({opportunity.source_urls.length}):</p>
+            <div className="space-y-1">
+              {opportunity.source_urls.slice(0, 3).map((url, i) => (
+                <a 
+                  key={i}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block text-xs text-blue-400 hover:underline truncate"
+                >
+                  {new URL(url).hostname}
+                </a>
+              ))}
+              {opportunity.source_urls.length > 3 && (
+                <span className="text-xs text-muted-foreground">
+                  +{opportunity.source_urls.length - 3} mais
+                </span>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
+  const getWhyNowBadge = (opportunity: Opportunity) => {
+    if (!opportunity.why_now) return null;
+    
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge variant="outline" className="text-xs cursor-help">
+              <Calendar className="h-3 w-3 mr-1" />
+              Por que agora?
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs">
+            <p className="text-sm">{opportunity.why_now}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
   };
 
   const getScoreStars = (score: number | null) => {
@@ -200,6 +313,18 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button 
+                onClick={() => handleGenerate('weekly_intel')}
+                disabled={generating}
+                className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:from-blue-600 hover:to-cyan-600"
+              >
+                {generating && generatingMode === 'weekly_intel' ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Globe className="h-4 w-4 mr-2" />
+                )}
+                Intel Semanal
+              </Button>
               <Button 
                 variant="outline" 
                 onClick={() => handleGenerate('standard')}
@@ -258,7 +383,8 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todas as fontes</SelectItem>
-            <SelectItem value="trends">Tendências</SelectItem>
+            <SelectItem value="perplexity">Tendências Reais (Perplexity)</SelectItem>
+            <SelectItem value="trends">Tendências IA</SelectItem>
             <SelectItem value="competitor_gaps">Gaps de Concorrentes</SelectItem>
             <SelectItem value="ai">IA</SelectItem>
           </SelectContent>
@@ -318,9 +444,11 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
                 <CardContent className="pt-4 pb-4">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-2">
-                        {getSourceBadge(opportunity.source)}
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        {getSourceBadge(opportunity)}
                         {getScoreStars(opportunity.relevance_score)}
+                        {getSourceUrlsTooltip(opportunity)}
+                        {getWhyNowBadge(opportunity)}
                       </div>
                       <h4 className="font-medium line-clamp-2">{opportunity.suggested_title}</h4>
                       {opportunity.suggested_keywords && opportunity.suggested_keywords.length > 0 && (
@@ -380,7 +508,8 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        {getSourceBadge(opportunity.source)}
+                        {getSourceBadge(opportunity)}
+                        {getSourceUrlsTooltip(opportunity)}
                       </div>
                       <h4 className="font-medium">{opportunity.suggested_title}</h4>
                     </div>
