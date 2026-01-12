@@ -29,43 +29,55 @@ const BUTTON_TYPES = [
 ];
 
 /**
- * Educational instructions for each button type.
- * Helps users understand exactly what to type without technical jargon.
+ * Ultra-simplified instructions for each button type.
+ * Focuses on exactly what the user needs to type - no technical jargon.
  */
-const getFieldInstructions = (type: string) => {
-  const instructions: Record<string, { icon: string; text: string; example: string }> = {
+const getFieldInstructions = (type: string): { icon: string; label: string; text: string; example: string; hint: string | null } => {
+  const instructions: Record<string, { icon: string; label: string; text: string; example: string; hint: string | null }> = {
     whatsapp: {
       icon: '📱',
-      text: 'Digite apenas o número completo com DDI e DDD.',
-      example: '5511999999999'
+      label: 'Número (com DDI+DDD)',
+      text: 'Apenas números',
+      example: '5511999999999',
+      hint: 'Sem espaços ou símbolos'
     },
     phone: {
       icon: '☎️',
-      text: 'Digite apenas números.',
-      example: '5511999999999'
+      label: 'Número (com DDD)',
+      text: 'Apenas números',
+      example: '5511999999999',
+      hint: null
     },
     email: {
       icon: '📧',
-      text: 'Digite o e-mail completo.',
-      example: 'contato@empresa.com'
+      label: 'E-mail',
+      text: 'E-mail completo',
+      example: 'contato@empresa.com',
+      hint: null
     },
     instagram: {
       icon: '📸',
-      text: 'Digite apenas o nome do perfil, sem "@".',
-      example: 'minhaempresa'
+      label: 'Usuário (sem @)',
+      text: 'Nome do perfil',
+      example: 'minhaempresa',
+      hint: 'O sistema adiciona o @ automaticamente'
     },
     website: {
       icon: '🌐',
-      text: 'Digite o domínio do site.',
-      example: 'minhaempresa.com'
+      label: 'Site',
+      text: 'Endereço do site',
+      example: 'www.empresa.com',
+      hint: 'O sistema adiciona https:// se necessário'
     },
     link: {
       icon: '🔗',
-      text: 'Digite o domínio ou URL.',
-      example: 'meusite.com'
+      label: 'Link',
+      text: 'Qualquer URL',
+      example: 'www.qualquersite.com',
+      hint: 'O sistema adiciona https:// se necessário'
     }
   };
-  return instructions[type] || instructions.link;
+  return instructions[type] || { icon: '🔗', label: 'Valor', text: 'Digite o valor', example: '', hint: null };
 };
 
 export function ContactButtonsSection({
@@ -193,20 +205,20 @@ export function ContactButtonsSection({
                   </Button>
                 </div>
 
-                {/* Educational Hint */}
-                <div className="text-xs space-y-0.5">
-                  <p className="text-gray-600">
+                {/* Simplified Field Label */}
+                <div className="text-xs">
+                  <p className="text-gray-600 font-medium">
                     <span className="mr-1">{instructions.icon}</span>
-                    {instructions.text}
+                    {instructions.label}
                   </p>
-                  <p className="text-gray-400">
-                    Exemplo: <code className="bg-gray-100 px-1 rounded text-gray-600">{instructions.example}</code>
-                  </p>
+                  {instructions.hint && (
+                    <p className="text-gray-400 mt-0.5">{instructions.hint}</p>
+                  )}
                 </div>
 
                 {/* Value Input with conditional border */}
                 <Input
-                  placeholder={getContactPlaceholder(button.button_type)}
+                  placeholder={instructions.example}
                   value={button.value}
                   onChange={(e) => updateButton(index, 'value', e.target.value)}
                   className={cn(
@@ -255,40 +267,24 @@ export function ContactButtonsSection({
                   </div>
                 )}
 
-                {/* Link Preview (Admin-only, only if valid) */}
+                {/* Simplified Success State - No technical preview */}
                 {hasValue && validation.isValid && (
-                  <div className="text-xs space-y-2">
-                    {/* Link Preview Row */}
-                    <div className="flex items-center justify-between bg-blue-50 border border-blue-200 px-3 py-2 rounded">
-                      <div className="flex items-center gap-2 text-blue-700">
-                        <ExternalLink className="h-3 w-3" />
-                        <code className="text-blue-600">{getContactLinkPreview(button)}</code>
-                      </div>
-                      <a 
-                        href={getContactHref(button)} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline font-medium"
-                      >
-                        Testar ↗
-                      </a>
+                  <div className="flex items-center justify-between bg-green-50 border border-green-200 px-3 py-2 rounded">
+                    <div className="flex items-center gap-2 text-green-700">
+                      <Check className="h-4 w-4" />
+                      <span className="font-medium">
+                        Botão {getContactDisplayLabel(button.button_type)} pronto
+                      </span>
                     </div>
-                    
-                    {/* WhatsApp-specific warning */}
-                    {button.button_type === 'whatsapp' && (
-                      <p className="text-gray-400 flex items-center gap-1">
-                        <span>💡</span>
-                        <span>Teste funciona melhor no celular ou em uma nova aba do navegador.</span>
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Success Preview: shows how button will appear publicly */}
-                {hasValue && validation.isValid && (
-                  <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 border border-green-200 px-3 py-2 rounded">
-                    <Check className="h-4 w-4" />
-                    <span>Botão pronto: <strong>{button.label || getContactDisplayLabel(button.button_type)}</strong></span>
+                    <a 
+                      href={getContactHref(button)} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-green-600 hover:underline font-medium text-sm flex items-center gap-1"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Testar
+                    </a>
                   </div>
                 )}
               </div>

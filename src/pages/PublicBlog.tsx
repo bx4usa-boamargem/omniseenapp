@@ -24,6 +24,8 @@ interface ContactButton {
   value: string;
   label: string | null;
   sort_order: number | null;
+  whatsapp_message?: string | null;
+  email_subject?: string | null;
 }
 
 interface Blog {
@@ -377,7 +379,10 @@ const PublicBlog = () => {
 
       {/* WhatsApp Floating Button */}
       {whatsappButton?.value && (
-        <WhatsAppFloatButton phoneNumber={whatsappButton.value} />
+        <WhatsAppFloatButton 
+          phoneNumber={whatsappButton.value} 
+          message={whatsappButton.whatsapp_message || undefined}
+        />
       )}
     </div>
   );
