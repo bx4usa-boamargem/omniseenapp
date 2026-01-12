@@ -50,6 +50,15 @@ const CONTENT_TYPE_OPTIONS = [
   { value: 'mixed', label: 'Misto', description: 'Combina todas as estratégias' },
 ];
 
+const TIME_OPTIONS = [
+  { value: '06:00', label: '06:00 - Madrugadores' },
+  { value: '08:00', label: '08:00 - Manhã cedo' },
+  { value: '09:00', label: '09:00 - Manhã (Padrão)' },
+  { value: '12:00', label: '12:00 - Almoço' },
+  { value: '18:00', label: '18:00 - Final do dia' },
+  { value: '21:00', label: '21:00 - Noite' },
+];
+
 const MODE_CONFIG = {
   manual: {
     icon: Pause,
@@ -90,6 +99,7 @@ export default function ClientAutomation() {
   const [mode, setMode] = useState<AutomationMode>('manual');
   const [frequency, setFrequency] = useState('weekly');
   const [contentType, setContentType] = useState('mixed');
+  const [preferredTime, setPreferredTime] = useState('09:00');
   const [queueStats, setQueueStats] = useState<QueueStats>({ total: 0, pending: 0, generated: 0 });
   const [usageData, setUsageData] = useState({ articles_generated: 0, images_generated: 0 });
   const [nextPublication, setNextPublication] = useState<Date | null>(null);
@@ -163,6 +173,7 @@ export default function ClientAutomation() {
         if (automation) {
           setMode((automation.mode as AutomationMode) || 'manual');
           setContentType(automation.content_type || 'mixed');
+          setPreferredTime(automation.preferred_time || '09:00');
           
           if (automation.frequency === 'daily') {
             setFrequency('daily');
@@ -351,6 +362,43 @@ export default function ClientAutomation() {
     }
   };
 
+  const handleTimeChange = async (value: string) => {
+    if (!blog?.id) return;
+    setSaving(true);
+    setPreferredTime(value);
+
+    try {
+      const freqOption = FREQUENCY_OPTIONS.find(f => f.value === frequency)!;
+
+      const { error } = await supabase
+        .from('blog_automation')
+        .upsert({
+          blog_id: blog.id,
+          mode,
+          is_active: mode !== 'manual',
+          content_type: contentType,
+          frequency: frequency === 'daily' ? 'daily' : 'weekly',
+          articles_per_period: freqOption.articlesPerPeriod,
+          auto_publish: mode === 'auto',
+          generate_images: true,
+          preferred_time: value,
+        }, { onConflict: 'blog_id' });
+
+      if (error) throw error;
+
+      // Recalculate queue dates with new preferred time
+      await supabase.rpc('recalculate_queue_dates', { p_blog_id: blog.id });
+      await fetchStats();
+
+      toast.success('Horário de publicação atualizado!');
+    } catch (error) {
+      console.error('Error updating preferred time:', error);
+      toast.error('Erro ao atualizar horário');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const getModeContextualMessage = () => {
     switch (mode) {
       case 'manual':
@@ -530,7 +578,7 @@ export default function ClientAutomation() {
           </Card>
 
           {/* Configuration Cards */}
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-6 md:grid-cols-3">
             {/* Content Type */}
             <Card className="client-card">
               <CardHeader>
@@ -585,6 +633,34 @@ export default function ClientAutomation() {
                     </label>
                   ))}
                 </RadioGroup>
+              </CardContent>
+            </Card>
+
+            {/* Preferred Time */}
+            <Card className="client-card">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-emerald-500" />
+                  Horário de Publicação
+                </CardTitle>
+                <CardDescription>Em que hora publicar os artigos?</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Select value={preferredTime} onValueChange={handleTimeChange} disabled={saving}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIME_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-3">
+                  💡 Dica: Publique quando seu público está mais ativo
+                </p>
               </CardContent>
             </Card>
           </div>
