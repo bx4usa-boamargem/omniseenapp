@@ -7,6 +7,7 @@ import { Monitor, Smartphone, Search, FileText, ChevronDown, FolderOpen, Message
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { ContactButton } from "./sections/ContactButtonsSection";
+import { getContactDisplayLabel, getContactHref } from "@/lib/contactLinks";
 
 interface Category {
   id: string;
@@ -413,13 +414,16 @@ export function MiniSitePreview({
                     contactButtons.map((btn, idx) => {
                       const Icon = BUTTON_ICONS[btn.button_type] || Link;
                       return (
-                        <div
+                        <a
                           key={idx}
-                          className="flex items-center gap-2 text-white/70 text-sm"
+                          href={getContactHref(btn as any)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-white/70 hover:text-white text-sm transition-colors cursor-pointer"
                         >
                           <Icon className="h-4 w-4" />
-                          <span>{btn.value}</span>
-                        </div>
+                          <span>{btn.label || getContactDisplayLabel(btn.button_type)}</span>
+                        </a>
                       );
                     })
                   ) : (
@@ -449,7 +453,7 @@ export function MiniSitePreview({
                   
                   {/* Button */}
                   <a
-                    href={`https://wa.me/${whatsappButton.value.replace(/\D/g, '')}?text=${encodeURIComponent('Olá! Vi seu blog e gostaria de saber mais.')}`}
+                    href={getContactHref(whatsappButton as any)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="relative flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 group-hover:scale-105"
