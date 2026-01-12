@@ -205,24 +205,21 @@ Retorne APENAS o JSON, sem explicações.`;
       }
     });
 
-    // 4. Check if CTA is present and matches template
-    const ctaTemplate = editorialTemplate?.cta_template;
-    const companyName = businessProfile?.company_name || 'nossa empresa';
+    // 4. Garantir CTA obrigatório do contrato editorial
+    const { MANDATORY_CTA_SECTION, hasValidCTA, ensureCTA } = await import('../_shared/editorialContract.ts');
     
-    const hasCTA = improvedContent.toLowerCase().includes('experimente') || 
-                   improvedContent.toLowerCase().includes('comece agora') ||
-                   improvedContent.toLowerCase().includes('fale com') ||
-                   improvedContent.toLowerCase().includes(companyName.toLowerCase());
-
-    if (!hasCTA && ctaTemplate) {
-      // Add CTA at the end if missing
-      const personalizedCTA = ctaTemplate.replace(/\[empresa\]/gi, companyName);
-      improvedContent += `\n\n## Próximo Passo\n\n${personalizedCTA}`;
+    if (!hasValidCTA(improvedContent)) {
+      // Aplicar CTA obrigatório do contrato
+      improvedContent = ensureCTA(improvedContent);
       
       improvements.push({
         type: 'cta',
-        description: 'CTA personalizado adicionado ao final do artigo',
+        description: 'CTA obrigatório do contrato editorial aplicado',
       });
+      
+      console.log('[IMPROVE] CTA obrigatório do contrato editorial aplicado');
+    } else {
+      console.log('[IMPROVE] CTA já está válido no formato do contrato');
     }
 
     // Count statistics
