@@ -1248,8 +1248,23 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
       throw new Error(`AI request failed: ${response.status}`);
     }
 
-    const data = await response.json();
-    console.log('AI response received');
+    // Resilient JSON parsing - read text first to handle empty or truncated responses
+    const responseText = await response.text();
+    
+    if (!responseText || responseText.trim().length === 0) {
+      console.error('AI Gateway returned empty response body');
+      throw new Error('AI_EMPTY_RESPONSE: O serviço de IA retornou uma resposta vazia. Tente novamente.');
+    }
+    
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse AI response:', responseText.substring(0, 500));
+      throw new Error('AI_PARSE_ERROR: Falha ao processar resposta da IA. Tente novamente.');
+    }
+    
+    console.log('AI response received and parsed successfully');
 
     // Extract the tool call result
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
