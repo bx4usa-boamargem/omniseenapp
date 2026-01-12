@@ -223,11 +223,11 @@ export default function ClientDashboard() {
                 : 'Ative a automação para publicar artigos automaticamente.'}
             </p>
             <Button 
-              onClick={handleOpenBlog}
+              onClick={() => navigate('/client/create')}
               className="client-btn-primary text-lg px-8 py-6 gap-2"
             >
-              <ExternalLink className="h-5 w-5" />
-              Abrir Meu Blog
+              <FileText className="h-5 w-5" />
+              Criar Artigo
             </Button>
           </div>
         </div>
