@@ -874,28 +874,34 @@ export type Database = {
           blog_id: string
           button_type: string
           created_at: string | null
+          email_subject: string | null
           id: string
           label: string | null
           sort_order: number | null
           value: string
+          whatsapp_message: string | null
         }
         Insert: {
           blog_id: string
           button_type: string
           created_at?: string | null
+          email_subject?: string | null
           id?: string
           label?: string | null
           sort_order?: number | null
           value: string
+          whatsapp_message?: string | null
         }
         Update: {
           blog_id?: string
           button_type?: string
           created_at?: string | null
+          email_subject?: string | null
           id?: string
           label?: string | null
           sort_order?: number | null
           value?: string
+          whatsapp_message?: string | null
         }
         Relationships: [
           {

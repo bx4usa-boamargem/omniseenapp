@@ -9,6 +9,7 @@ import { getBlogUrl } from '@/utils/blogUrl';
 import { MiniSiteEditor } from '@/components/client/minisite/MiniSiteEditor';
 import { MiniSitePreview } from '@/components/client/minisite/MiniSitePreview';
 import { ContactButton } from '@/components/client/minisite/sections/ContactButtonsSection';
+import { sanitizeContactValue } from '@/lib/contactLinks';
 
 export default function ClientSite() {
   const { blog, refetch } = useBlog();
@@ -86,6 +87,8 @@ export default function ClientSite() {
           button_type: b.button_type as ContactButton['button_type'],
           label: b.label || '',
           value: b.value,
+          whatsapp_message: (b as any).whatsapp_message || '',
+          email_subject: (b as any).email_subject || '',
         })));
       }
       setLoading(false);
@@ -143,8 +146,10 @@ export default function ClientSite() {
           const buttonsToInsert = contactButtons.map((btn, index) => ({
             blog_id: blog.id,
             button_type: btn.button_type,
-            label: btn.label,
-            value: btn.value,
+            label: btn.label || null,
+            value: sanitizeContactValue(btn.button_type, btn.value),
+            whatsapp_message: btn.whatsapp_message || null,
+            email_subject: btn.email_subject || null,
             sort_order: index,
           }));
 

@@ -4,6 +4,7 @@ import { getBlogPath } from "@/utils/blogUrl";
 import { Button } from "@/components/ui/button";
 import { Heart, Phone, Mail, Globe, MessageCircle, Instagram, Link as LinkIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getContactHref, getContactDisplayLabel } from "@/lib/contactLinks";
 
 interface Category {
   id: string;
@@ -16,6 +17,8 @@ interface ContactButton {
   button_type: string;
   value: string;
   label: string | null;
+  whatsapp_message?: string | null;
+  email_subject?: string | null;
 }
 
 interface BlogFooterProps {
@@ -49,15 +52,6 @@ const getButtonIcon = (type: string) => {
     case 'instagram': return Instagram;
     case 'website': return Globe;
     default: return LinkIcon;
-  }
-};
-
-const getButtonHref = (btn: ContactButton) => {
-  switch (btn.button_type) {
-    case 'whatsapp': return `https://wa.me/${btn.value.replace(/\D/g, '')}`;
-    case 'phone': return `tel:${btn.value}`;
-    case 'email': return `mailto:${btn.value}`;
-    default: return btn.value.startsWith('http') ? btn.value : `https://${btn.value}`;
   }
 };
 
@@ -164,13 +158,13 @@ export function BlogFooter({
                   return (
                     <a
                       key={btn.id}
-                      href={getButtonHref(btn)}
+                      href={getContactHref(btn as any)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 text-white/70 hover:text-white text-sm transition-colors"
                     >
                       <Icon className="h-4 w-4" />
-                      <span>{btn.label || btn.value}</span>
+                      <span>{btn.label || getContactDisplayLabel(btn.button_type)}</span>
                     </a>
                   );
                 })}
