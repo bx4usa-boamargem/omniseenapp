@@ -4046,6 +4046,7 @@ export type Database = {
         Args: { input_title: string }
         Returns: string
       }
+      recalculate_queue_dates: { Args: { p_blog_id: string }; Returns: number }
       unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {

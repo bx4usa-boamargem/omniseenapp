@@ -99,6 +99,53 @@ export default function ClientAutomation() {
     setSearchParams({ tab });
   };
 
+  const [overdueCount, setOverdueCount] = useState(0);
+
+  const fetchStats = async () => {
+    if (!blog?.id) return;
+    
+    try {
+      // Fetch queue stats
+      const { data: queue } = await supabase
+        .from('article_queue')
+        .select('status, scheduled_for')
+        .eq('blog_id', blog.id);
+
+      if (queue) {
+        const now = new Date().toISOString();
+        const pendingItems = queue.filter(q => q.status === 'pending');
+        const overdueItems = pendingItems.filter(q => q.scheduled_for && q.scheduled_for < now);
+        
+        setQueueStats({
+          total: queue.length,
+          pending: pendingItems.length,
+          generated: queue.filter(q => q.status === 'generated').length,
+        });
+        setOverdueCount(overdueItems.length);
+      }
+
+      // Fetch next scheduled publication (ONLY FUTURE DATES)
+      const now = new Date().toISOString();
+      const { data: nextItem } = await supabase
+        .from('article_queue')
+        .select('scheduled_for')
+        .eq('blog_id', blog.id)
+        .eq('status', 'pending')
+        .gt('scheduled_for', now) // ← CRITICAL: Only future dates
+        .order('scheduled_for', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (nextItem?.scheduled_for) {
+        setNextPublication(new Date(nextItem.scheduled_for));
+      } else {
+        setNextPublication(null);
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  };
+
   useEffect(() => {
     if (!blog?.id) return;
 
@@ -126,19 +173,8 @@ export default function ClientAutomation() {
           }
         }
 
-        // Fetch queue stats
-        const { data: queue } = await supabase
-          .from('article_queue')
-          .select('status')
-          .eq('blog_id', blog.id);
-
-        if (queue) {
-          setQueueStats({
-            total: queue.length,
-            pending: queue.filter(q => q.status === 'pending').length,
-            generated: queue.filter(q => q.status === 'generated').length,
-          });
-        }
+        // Fetch queue stats and next publication
+        await fetchStats();
 
         // Fetch usage tracking for this month
         const currentMonth = new Date().toISOString().substring(0, 7) + '-01';
@@ -156,19 +192,20 @@ export default function ClientAutomation() {
           });
         }
 
-        // Fetch next scheduled publication
-        const { data: nextItem } = await supabase
+        // Check for overdue items and recalculate if needed
+        const now = new Date().toISOString();
+        const { count: overdueItemsCount } = await supabase
           .from('article_queue')
-          .select('scheduled_for')
+          .select('*', { count: 'exact', head: true })
           .eq('blog_id', blog.id)
           .eq('status', 'pending')
-          .not('scheduled_for', 'is', null)
-          .order('scheduled_for', { ascending: true })
-          .limit(1)
-          .maybeSingle();
+          .lt('scheduled_for', now);
 
-        if (nextItem?.scheduled_for) {
-          setNextPublication(new Date(nextItem.scheduled_for));
+        if (overdueItemsCount && overdueItemsCount > 0) {
+          console.log(`[AUTO-FIX] Recalculating ${overdueItemsCount} overdue items`);
+          await supabase.rpc('recalculate_queue_dates', { p_blog_id: blog.id });
+          // Refresh stats after recalculation
+          await fetchStats();
         }
       } catch (error) {
         console.error('Error fetching automation data:', error);
@@ -178,6 +215,27 @@ export default function ClientAutomation() {
     };
 
     fetchData();
+
+    // Realtime subscription for queue updates
+    const channel = supabase
+      .channel(`automation-stats-${blog.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'article_queue',
+          filter: `blog_id=eq.${blog.id}`,
+        },
+        () => {
+          fetchStats();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [blog?.id]);
 
   const handleModeChange = async (newMode: AutomationMode) => {
@@ -203,6 +261,12 @@ export default function ClientAutomation() {
         }, { onConflict: 'blog_id' });
 
       if (error) throw error;
+
+      // Recalculate queue dates if not switching to manual
+      if (newMode !== 'manual') {
+        await supabase.rpc('recalculate_queue_dates', { p_blog_id: blog.id });
+        await fetchStats();
+      }
 
       const messages = {
         manual: '⚠️ Máquina de vendas desligada',
@@ -242,6 +306,11 @@ export default function ClientAutomation() {
         }, { onConflict: 'blog_id' });
 
       if (error) throw error;
+
+      // Recalculate queue dates after frequency change
+      await supabase.rpc('recalculate_queue_dates', { p_blog_id: blog.id });
+      await fetchStats();
+
       toast.success('Frequência atualizada!');
     } catch (error) {
       console.error('Error updating frequency:', error);
@@ -567,14 +636,28 @@ export default function ClientAutomation() {
             <Card className="client-card">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 rounded-xl bg-emerald-500/10">
-                    <CalendarClock className="h-6 w-6 text-emerald-500" />
+                  <div className={cn(
+                    "p-3 rounded-xl",
+                    overdueCount > 0 ? "bg-amber-500/10" : "bg-emerald-500/10"
+                  )}>
+                    <CalendarClock className={cn(
+                      "h-6 w-6",
+                      overdueCount > 0 ? "text-amber-500" : "text-emerald-500"
+                    )} />
                   </div>
                   <div>
                     <p className="text-2xl font-bold text-foreground">
-                      {nextPublication ? formatDateShort(nextPublication) : '—'}
+                      {nextPublication 
+                        ? formatDateShort(nextPublication) 
+                        : overdueCount > 0 
+                          ? `${overdueCount} pendentes` 
+                          : '—'}
                     </p>
-                    <p className="text-sm text-muted-foreground">Próxima publicação</p>
+                    <p className="text-sm text-muted-foreground">
+                      {overdueCount > 0 && !nextPublication 
+                        ? 'Aguardando processamento' 
+                        : 'Próxima publicação'}
+                    </p>
                   </div>
                 </div>
               </CardContent>

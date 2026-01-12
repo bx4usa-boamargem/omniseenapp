@@ -39,7 +39,9 @@ import {
   RotateCcw,
   ExternalLink,
   Play,
-  Inbox
+  Inbox,
+  Zap,
+  AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -210,14 +212,32 @@ export function QueueTab({ blogId }: QueueTabProps) {
 
       if (error) throw error;
 
-      // Trigger processing
-      await supabase.functions.invoke('process-queue');
-
-      toast.success('Reprocessando artigo...');
+      toast.success('Item retornado à fila');
       fetchQueue();
     } catch (error) {
       console.error('Error retrying item:', error);
       toast.error('Erro ao reprocessar');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // NEW: Execute a specific item immediately
+  const handleExecuteNow = async (item: QueueItem) => {
+    setActionLoading(item.id);
+    try {
+      // Call process-queue with specific item_id
+      const { error } = await supabase.functions.invoke('process-queue', {
+        body: { item_id: item.id }
+      });
+      
+      if (error) throw error;
+      
+      toast.success('⚡ Processamento iniciado! O artigo será gerado em instantes.');
+      fetchQueue();
+    } catch (error) {
+      console.error('Error executing item:', error);
+      toast.error('Erro ao iniciar processamento');
     } finally {
       setActionLoading(null);
     }
@@ -429,9 +449,24 @@ export function QueueTab({ blogId }: QueueTabProps) {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {item.scheduled_for
-                          ? format(new Date(item.scheduled_for), "dd MMM, HH:mm", { locale: ptBR })
-                          : '—'}
+                        {item.scheduled_for ? (
+                          (() => {
+                            const isOverdue = new Date(item.scheduled_for) < new Date() && item.status === 'pending';
+                            return (
+                              <div className="flex items-center gap-2">
+                                {isOverdue && (
+                                  <Badge variant="destructive" className="text-xs gap-1">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    Atrasado
+                                  </Badge>
+                                )}
+                                <span className={cn(isOverdue && 'line-through opacity-60')}>
+                                  {format(new Date(item.scheduled_for), "dd MMM, HH:mm", { locale: ptBR })}
+                                </span>
+                              </div>
+                            );
+                          })()
+                        ) : '—'}
                       </TableCell>
                       <TableCell>
                         <span className="text-sm text-muted-foreground">
@@ -446,14 +481,25 @@ export function QueueTab({ blogId }: QueueTabProps) {
                             <>
                               {/* Pending actions */}
                               {item.status === 'pending' && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleCancel(item)}
-                                  className="text-muted-foreground hover:text-red-500"
-                                >
-                                  Cancelar
-                                </Button>
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleExecuteNow(item)}
+                                    className="gap-1 text-primary hover:text-primary"
+                                  >
+                                    <Zap className="h-4 w-4" />
+                                    Executar agora
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleCancel(item)}
+                                    className="text-muted-foreground hover:text-red-500"
+                                  >
+                                    Cancelar
+                                  </Button>
+                                </>
                               )}
 
                               {/* Generating actions */}
