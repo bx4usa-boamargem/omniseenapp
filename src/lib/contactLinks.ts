@@ -93,7 +93,8 @@ export function getContactLinkPreview(btn: ContactButtonData): string {
   
   switch (btn.button_type) {
     case 'whatsapp':
-      return `wa.me/${cleanValue}`;
+      const previewText = btn.whatsapp_message ? `&text=...` : '';
+      return `api.whatsapp.com/send?phone=${cleanValue}${previewText}`;
     case 'phone':
       return `tel:+${cleanValue}`;
     case 'email':
@@ -145,11 +146,11 @@ export function getContactHref(btn: ContactButtonData): string {
   
   switch (btn.button_type) {
     case 'whatsapp':
-      // Official WhatsApp format: wa.me (NEVER api.whatsapp.com)
-      const waMessage = btn.whatsapp_message 
-        ? `?text=${encodeURIComponent(btn.whatsapp_message)}`
+      // Official WhatsApp API format: api.whatsapp.com/send
+      const waText = btn.whatsapp_message 
+        ? `&text=${encodeURIComponent(btn.whatsapp_message)}`
         : '';
-      return `https://wa.me/${cleanValue}${waMessage}`;
+      return `https://api.whatsapp.com/send?phone=${cleanValue}${waText}`;
     
     case 'phone':
       // Tel format with + prefix
