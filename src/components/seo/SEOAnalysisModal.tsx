@@ -100,11 +100,21 @@ export function SEOAnalysisModal({
         throw new Error("AI não retornou conteúdo melhorado");
       }
 
-      // Update article in database
+      // Update article in database - CRITICAL: Only UPDATE, never INSERT
+      // Also CRITICAL: Never include featured_image_url or content_images in updates
       const updateData: Record<string, string> = {};
       if (type === "title") updateData.title = improved;
       else if (type === "meta") updateData.meta_description = improved;
       else if (type === "content" || type === "density") updateData.content = improved;
+
+      console.log('[SEO Modal] UPDATE article (never INSERT):', {
+        articleId: currentArticle.id,
+        fieldsUpdated: Object.keys(updateData)
+      });
+
+      // Verify we're not touching image fields
+      console.assert(!('featured_image_url' in updateData), 'ERRO: featured_image_url não deve ser atualizado');
+      console.assert(!('content_images' in updateData), 'ERRO: content_images não deve ser atualizado');
 
       const { error: updateError } = await supabase
         .from("articles")
@@ -113,17 +123,41 @@ export function SEOAnalysisModal({
 
       if (updateError) throw updateError;
 
-      // Update local state
-      const updatedArticle = { ...currentArticle, ...updateData };
-      setCurrentArticle(updatedArticle);
+      // CRITICAL: Re-fetch from DB to ensure UI reflects actual persisted data
+      const { data: freshArticle, error: fetchError } = await supabase
+        .from("articles")
+        .select("title, meta_description, content, keywords, featured_image_url, content_images")
+        .eq("id", currentArticle.id)
+        .single();
 
-      // Recalculate SEO score
+      if (fetchError) {
+        console.error("Error refetching article:", fetchError);
+        toast.error("Erro ao verificar atualização");
+        return;
+      }
+
+      // Log image preservation for debugging
+      console.log('[SEO Modal] After fix, images preserved:', {
+        featured_image_url: freshArticle.featured_image_url,
+        content_images: freshArticle.content_images
+      });
+
+      // Update local state with REAL data from DB
+      setCurrentArticle({
+        ...currentArticle,
+        title: freshArticle.title,
+        meta_description: freshArticle.meta_description,
+        content: freshArticle.content,
+        featured_image_url: freshArticle.featured_image_url,
+      });
+
+      // Recalculate SEO score with fresh data
       const newResult = calculateSEOScore({
-        title: updatedArticle.title,
-        metaDescription: updatedArticle.meta_description || "",
-        content: updatedArticle.content,
-        keywords: updatedArticle.keywords || [],
-        featuredImage: updatedArticle.featured_image_url,
+        title: freshArticle.title,
+        metaDescription: freshArticle.meta_description || "",
+        content: freshArticle.content,
+        keywords: freshArticle.keywords || [],
+        featuredImage: freshArticle.featured_image_url,
       });
       setSeoResult(newResult);
 

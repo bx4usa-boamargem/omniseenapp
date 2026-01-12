@@ -18,6 +18,48 @@ interface ImproveRequest {
   targetWordCount?: number; // target word count to reach
 }
 
+// Helper: Extract image URLs from HTML/Markdown content
+function extractImageUrls(content: string): string[] {
+  const patterns = [
+    /<img[^>]+src=["']([^"']+)["']/gi,    // HTML img tags
+    /!\[[^\]]*\]\(([^)]+)\)/g,             // Markdown images
+    /src=["']([^"']+\.(?:jpg|jpeg|png|gif|webp)[^"']*)["']/gi
+  ];
+  
+  const urls = new Set<string>();
+  for (const pattern of patterns) {
+    let match;
+    const regex = new RegExp(pattern.source, pattern.flags);
+    while ((match = regex.exec(content)) !== null) {
+      if (match[1]) urls.add(match[1]);
+    }
+  }
+  return Array.from(urls);
+}
+
+// Helper: Extract H2/H3 headings
+function extractHeadings(content: string): string[] {
+  const patterns = [
+    /<h[23][^>]*>([^<]+)<\/h[23]>/gi,      // HTML headings
+    /^#{2,3}\s+(.+)$/gm                     // Markdown headings
+  ];
+  
+  const headings: string[] = [];
+  for (const pattern of patterns) {
+    let match;
+    const regex = new RegExp(pattern.source, pattern.flags);
+    while ((match = regex.exec(content)) !== null) {
+      if (match[1]) headings.push(match[1].trim());
+    }
+  }
+  return headings;
+}
+
+// Helper: Escape regex special characters
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -59,6 +101,21 @@ serve(async (req) => {
 
     const keywordList = keywords.join(', ');
     const mainKeyword = keywords[0];
+
+    // Extract images and headings BEFORE AI processing (for guardrails)
+    const originalImages = type === 'content' || type === 'density' 
+      ? extractImageUrls(currentValue || '')
+      : [];
+    const originalHeadings = type === 'content' || type === 'density'
+      ? extractHeadings(currentValue || '')
+      : [];
+    
+    if (originalImages.length > 0) {
+      console.log(`[GUARDRAIL] Found ${originalImages.length} images to preserve`);
+    }
+    if (originalHeadings.length > 0) {
+      console.log(`[GUARDRAIL] Found ${originalHeadings.length} headings to preserve`);
+    }
 
     let systemPrompt = `Você é um especialista em SEO. Sua tarefa é otimizar o conteúdo para melhor ranqueamento nos motores de busca.
 Responda APENAS com o conteúdo otimizado, sem explicações ou comentários adicionais.
@@ -108,6 +165,14 @@ Responda APENAS com a nova meta description, sem aspas ou explicações.`;
         
         userPrompt = `Expanda este conteúdo de ${currentWords} para ${targetWords} palavras.
 
+REGRAS DE PRESERVAÇÃO INVIOLÁVEIS:
+1. NUNCA remova ou altere tags <img src="..."> existentes - preserve TODAS as imagens
+2. MANTENHA todos os subtítulos ## e ### exatamente como estão
+3. PRESERVE blockquotes (> ...) e caixas de destaque
+4. MANTENHA todas as listas (- ou 1.)
+5. NÃO altere links <a href="...">
+6. ADICIONE conteúdo ENTRE as seções existentes, não substitua
+
 Conteúdo atual:
 ${currentValue?.slice(0, 8000) || 'Vazio'}
 
@@ -125,7 +190,7 @@ Requisitos CRÍTICOS:
 
 O conteúdo final DEVE ter pelo menos ${targetWords} palavras.
 
-Responda APENAS com o conteúdo expandido completo (original + novo).`;
+Responda APENAS com o conteúdo expandido completo (original + novo), preservando TODAS as imagens.`;
         break;
 
       case 'density':
@@ -133,6 +198,12 @@ Responda APENAS com o conteúdo expandido completo (original + novo).`;
         const densityCurrentWords = wordCount || Math.round((currentValue?.length || 0) / 6);
         
         userPrompt = `Otimize a densidade de palavras-chave neste texto, mantendo pelo menos ${densityCurrentWords} palavras.
+
+REGRAS DE PRESERVAÇÃO INVIOLÁVEIS:
+1. NUNCA remova ou altere tags <img src="..."> existentes - preserve TODAS as imagens
+2. MANTENHA todos os ## e ### exatamente iguais
+3. PRESERVE estrutura de parágrafos e formatação
+4. NÃO altere links ou blocos especiais
 
 Texto atual (${densityCurrentWords} palavras):
 ${currentValue?.slice(0, 8000) || 'Vazio'}
@@ -150,7 +221,7 @@ Requisitos OBRIGATÓRIOS:
 - Mantenha TODA a estrutura de parágrafos e subtítulos
 - Se necessário, ADICIONE conteúdo para acomodar mais palavras-chave
 
-Responda APENAS com o texto otimizado completo.`;
+Responda APENAS com o texto otimizado completo, preservando TODAS as imagens.`;
         break;
 
       default:
@@ -183,10 +254,36 @@ Responda APENAS com o texto otimizado completo.`;
     }
 
     const data = await response.json();
-    const improvedValue = data.choices?.[0]?.message?.content?.trim();
+    let improvedValue = data.choices?.[0]?.message?.content?.trim();
 
     if (!improvedValue) {
       throw new Error('No response from AI');
+    }
+
+    // GUARDRAILS: Validate and restore images if needed
+    let warning = null;
+    if ((type === 'content' || type === 'density') && originalImages.length > 0) {
+      const improvedImages = extractImageUrls(improvedValue);
+      const missingImages = originalImages.filter(url => !improvedImages.includes(url));
+      
+      if (missingImages.length > 0) {
+        console.warn(`[GUARDRAIL] ${missingImages.length} images were removed by AI, attempting restoration...`);
+        
+        // Attempt to restore missing images
+        for (const imgUrl of missingImages) {
+          // Find original image tag from the source content
+          const imgRegex = new RegExp(`<img[^>]*src=["']${escapeRegex(imgUrl)}["'][^>]*>`, 'i');
+          const imgMatch = (currentValue || '').match(imgRegex);
+          
+          if (imgMatch) {
+            // Add the image at the end of content (better than losing it)
+            improvedValue = improvedValue + '\n\n' + imgMatch[0];
+            console.log(`[GUARDRAIL] Restored image: ${imgUrl.substring(0, 60)}...`);
+          }
+        }
+        
+        warning = `${missingImages.length} imagem(ns) restaurada(s) automaticamente`;
+      }
     }
 
     console.log(`SEO improvement completed for ${type}`);
@@ -221,6 +318,7 @@ Responda APENAS com o texto otimizado completo.`;
         type,
         originalValue: currentValue,
         improvedValue,
+        ...(warning && { warning }),
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
