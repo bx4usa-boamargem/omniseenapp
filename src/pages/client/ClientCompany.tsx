@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, Loader2, Save, CheckCircle2 } from 'lucide-react';
+import { Building2, Loader2, Save, CheckCircle2, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const BUSINESS_TYPES = [
@@ -37,6 +37,7 @@ export default function ClientCompany() {
   const [whatYouDo, setWhatYouDo] = useState('');
   const [targetAudience, setTargetAudience] = useState('');
   const [differentiator, setDifferentiator] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
 
   useEffect(() => {
     if (!blog?.id) return;
@@ -57,6 +58,7 @@ export default function ClientCompany() {
           setBusinessType(profile.niche || '');
           setWhatYouDo(profile.long_description || '');
           setTargetAudience(profile.target_audience || '');
+          setWhatsapp((profile as { whatsapp?: string }).whatsapp || '');
           // Extract differentiator from brand_keywords if available
           if (profile.brand_keywords && profile.brand_keywords.length > 0) {
             setDifferentiator(profile.brand_keywords.join(', '));
@@ -83,18 +85,30 @@ export default function ClientCompany() {
     setSaved(false);
 
     try {
-      // Update business profile
+      // Update business profile with whatsapp - use direct SQL approach for new columns
+      const profileData = {
+        blog_id: blog.id,
+        company_name: companyName,
+        country: cityState,
+        niche: businessType,
+        long_description: whatYouDo,
+        target_audience: targetAudience,
+        brand_keywords: differentiator ? differentiator.split(',').map(k => k.trim()) : [],
+      };
+
       const { error: profileError } = await supabase
         .from('business_profile')
-        .upsert({
-          blog_id: blog.id,
-          company_name: companyName,
-          country: cityState,
-          niche: businessType,
-          long_description: whatYouDo,
-          target_audience: targetAudience,
-          brand_keywords: differentiator ? differentiator.split(',').map(k => k.trim()) : [],
-        }, { onConflict: 'blog_id' });
+        .upsert(profileData, { onConflict: 'blog_id' });
+
+      if (profileError) throw profileError;
+
+      // Update whatsapp separately using raw update to handle new column not in types
+      if (whatsapp !== undefined) {
+        await supabase
+          .from('business_profile')
+          .update({ whatsapp: whatsapp || null } as Record<string, unknown>)
+          .eq('blog_id', blog.id);
+      }
 
       if (profileError) throw profileError;
 
@@ -234,6 +248,41 @@ export default function ClientCompany() {
               onChange={(e) => setDifferentiator(e.target.value)}
               className="min-h-[80px]"
             />
+          </div>
+
+          {/* WhatsApp */}
+          <div className="space-y-2">
+            <Label htmlFor="whatsapp">WhatsApp para contato</Label>
+            <div className="flex gap-2">
+              <Input
+                id="whatsapp"
+                placeholder="Ex: 5511999999999"
+                value={whatsapp}
+                onChange={(e) => setWhatsapp(e.target.value.replace(/\D/g, ''))}
+                className="font-mono"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Apenas números, com código do país e DDD. Ex: 5511999999999
+            </p>
+            
+            {/* WhatsApp Link Preview */}
+            {whatsapp && whatsapp.length >= 10 && (
+              <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                <p className="text-sm font-medium text-green-600 dark:text-green-400 flex items-center gap-2">
+                  <MessageCircle className="h-4 w-4" />
+                  Link do WhatsApp:
+                </p>
+                <a 
+                  href={`https://wa.me/${whatsapp}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-green-600 hover:underline"
+                >
+                  wa.me/{whatsapp}
+                </a>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

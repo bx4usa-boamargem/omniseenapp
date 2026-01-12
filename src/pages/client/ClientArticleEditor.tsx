@@ -14,6 +14,7 @@ import { ArticlePreview } from '@/components/ArticlePreview';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { GenerationProgress } from '@/components/seo/GenerationProgress';
 import { ImproveArticleDialog } from '@/components/editor/ImproveArticleDialog';
+import { CTAPreview } from '@/components/editor/CTAPreview';
 import { extractImageUrl, uploadImageToStorage, updateArticleImage } from '@/utils/imageUtils';
 import { 
   ArrowLeft, 
@@ -84,6 +85,13 @@ export default function ClientArticleEditor() {
   // Save state
   const [isSaving, setIsSaving] = useState(false);
   
+  // Business profile for CTA preview
+  const [businessProfile, setBusinessProfile] = useState<{
+    company_name: string | null;
+    country: string | null;
+    whatsapp: string | null;
+  } | null>(null);
+  
   // Improve with AI state
   const [isImprovingArticle, setIsImprovingArticle] = useState(false);
   const [showImproveDialog, setShowImproveDialog] = useState(false);
@@ -98,6 +106,36 @@ export default function ClientArticleEditor() {
   useEffect(() => {
     localStorage.setItem('article-editor-view-mode', viewMode);
   }, [viewMode]);
+
+  // Fetch business profile for CTA preview
+  useEffect(() => {
+    if (!blog?.id) return;
+    
+    const fetchBusinessProfile = async () => {
+      const { data } = await supabase
+        .from('business_profile')
+        .select('company_name, country')
+        .eq('blog_id', blog.id)
+        .maybeSingle();
+      
+      if (data) {
+        // Fetch whatsapp separately since it's a new column
+        const { data: fullProfile } = await supabase
+          .from('business_profile')
+          .select('*')
+          .eq('blog_id', blog.id)
+          .maybeSingle();
+        
+        setBusinessProfile({
+          company_name: data.company_name,
+          country: data.country,
+          whatsapp: (fullProfile as { whatsapp?: string })?.whatsapp || null
+        });
+      }
+    };
+    
+    fetchBusinessProfile();
+  }, [blog?.id]);
 
   // Load existing article if editing
   useEffect(() => {
@@ -639,17 +677,27 @@ export default function ClientArticleEditor() {
     setIsImprovingArticle(true);
 
     try {
-      // Fetch business profile for context (if available)
-      let businessProfile = null;
+      // Fetch business profile for context (if available) - including whatsapp for CTA
+      let fetchedBusinessProfile = null;
       if (blog?.id) {
         const { data: profileData } = await supabase
           .from('business_profile')
-          .select('company_name, niche, tone_of_voice')
+          .select('company_name, niche, tone_of_voice, country')
           .eq('blog_id', blog.id)
           .single();
         
         if (profileData) {
-          businessProfile = profileData;
+          // Get whatsapp separately since it's a new column
+          const { data: fullProfile } = await supabase
+            .from('business_profile')
+            .select('*')
+            .eq('blog_id', blog.id)
+            .maybeSingle();
+          
+          fetchedBusinessProfile = {
+            ...profileData,
+            whatsapp: (fullProfile as { whatsapp?: string })?.whatsapp
+          };
         }
       }
 
@@ -659,10 +707,12 @@ export default function ClientArticleEditor() {
           title,
           metaDescription,
           keywords: [],
-          businessProfile: businessProfile ? {
-            company_name: businessProfile.company_name,
-            niche: businessProfile.niche,
-            tone_of_voice: businessProfile.tone_of_voice
+          businessProfile: fetchedBusinessProfile ? {
+            company_name: fetchedBusinessProfile.company_name,
+            niche: fetchedBusinessProfile.niche,
+            tone_of_voice: fetchedBusinessProfile.tone_of_voice,
+            country: fetchedBusinessProfile.country,
+            whatsapp: fetchedBusinessProfile.whatsapp
           } : undefined
         }
       });
@@ -811,6 +861,15 @@ export default function ClientArticleEditor() {
             ))}
           </div>
         </div>
+      )}
+      
+      {/* CTA Preview - shows how the final CTA will look */}
+      {businessProfile?.company_name && phase === 'editing' && (
+        <CTAPreview 
+          companyName={businessProfile.company_name}
+          city={businessProfile.country || undefined}
+          whatsapp={businessProfile.whatsapp || undefined}
+        />
       )}
       
       {/* Content Editor */}

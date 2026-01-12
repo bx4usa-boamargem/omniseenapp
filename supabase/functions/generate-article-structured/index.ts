@@ -1364,18 +1364,44 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
     
     // REGRA 2: Última seção DEVE ser "## Próximo passo" - com CTA obrigatório do contrato
     // Importar função do contrato editorial
-    const { ensureCTA, hasValidCTA } = await import('../_shared/editorialContract.ts');
+    const editorialContract = await import('../_shared/editorialContract.ts');
+    const { ensureCTA, ensureCompanyCTA, hasValidCTA } = editorialContract;
+    
+    // Buscar dados da empresa para CTA personalizado
+    let companyInfo: { name: string; city?: string; whatsapp?: string } | null = null;
+    if (blog_id) {
+      const { data: profile } = await supabase
+        .from('business_profile')
+        .select('company_name, country, whatsapp')
+        .eq('blog_id', blog_id)
+        .maybeSingle();
+      
+      if (profile?.company_name) {
+        companyInfo = {
+          name: profile.company_name,
+          city: profile.country || undefined,
+          whatsapp: (profile as { whatsapp?: string }).whatsapp || undefined
+        };
+        console.log(`[CTA] Using company info: ${companyInfo.name}${companyInfo.city ? ` em ${companyInfo.city}` : ''}`);
+      }
+    }
     
     let finalContent = articleData.content as string;
     const h2Matches = finalContent.match(/^## .+$/gm) || [];
     
     if (h2Matches.length > 0) {
-      // Aplicar CTA obrigatório do contrato editorial
-      finalContent = ensureCTA(finalContent);
+      // Aplicar CTA obrigatório do contrato editorial (com ou sem empresa)
+      if (companyInfo) {
+        finalContent = ensureCompanyCTA(finalContent, companyInfo);
+        console.log('✅ CTA Final com nome da empresa aplicado');
+      } else {
+        finalContent = ensureCTA(finalContent);
+        console.log('✅ CTA Final genérico aplicado');
+      }
       articleData.content = finalContent;
       
       if (hasValidCTA(finalContent)) {
-        console.log('✅ CTA Final "## Próximo passo" validado e aplicado (Contrato Editorial)');
+        console.log('✅ CTA Final "## Próximo passo" validado (Contrato Editorial)');
       } else {
         console.warn('⚠️ CTA pode não estar no formato exato do contrato');
       }

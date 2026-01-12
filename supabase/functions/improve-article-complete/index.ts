@@ -14,6 +14,8 @@ interface ImproveRequest {
     company_name?: string;
     niche?: string;
     tone_of_voice?: string;
+    country?: string;
+    whatsapp?: string;
   };
   editorialTemplate?: {
     cta_template?: string;
@@ -206,18 +208,36 @@ Retorne APENAS o JSON, sem explicações.`;
     });
 
     // 4. Garantir CTA obrigatório do contrato editorial
-    const { MANDATORY_CTA_SECTION, hasValidCTA, ensureCTA } = await import('../_shared/editorialContract.ts');
+    const editorialContract = await import('../_shared/editorialContract.ts');
+    const { hasValidCTA, ensureCTA, ensureCompanyCTA } = editorialContract;
     
     if (!hasValidCTA(improvedContent)) {
-      // Aplicar CTA obrigatório do contrato
-      improvedContent = ensureCTA(improvedContent);
-      
-      improvements.push({
-        type: 'cta',
-        description: 'CTA obrigatório do contrato editorial aplicado',
-      });
-      
-      console.log('[IMPROVE] CTA obrigatório do contrato editorial aplicado');
+      // Verificar se temos dados da empresa para CTA personalizado
+      if (businessProfile?.company_name) {
+        const companyInfo = {
+          name: businessProfile.company_name,
+          city: businessProfile.country,
+          whatsapp: businessProfile.whatsapp
+        };
+        improvedContent = ensureCompanyCTA(improvedContent, companyInfo);
+        
+        improvements.push({
+          type: 'cta',
+          description: `CTA obrigatório aplicado com nome da empresa: ${businessProfile.company_name}`,
+        });
+        
+        console.log(`[IMPROVE] CTA com empresa "${businessProfile.company_name}" aplicado`);
+      } else {
+        // Aplicar CTA genérico
+        improvedContent = ensureCTA(improvedContent);
+        
+        improvements.push({
+          type: 'cta',
+          description: 'CTA obrigatório do contrato editorial aplicado',
+        });
+        
+        console.log('[IMPROVE] CTA genérico do contrato editorial aplicado');
+      }
     } else {
       console.log('[IMPROVE] CTA já está válido no formato do contrato');
     }

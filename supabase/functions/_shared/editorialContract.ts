@@ -1,6 +1,13 @@
 // Contrato Editorial Obrigatório - CTA Padrão
 // Este arquivo define o CTA obrigatório que DEVE estar em TODOS os artigos
 
+export interface CompanyInfo {
+  name: string;
+  city?: string;
+  whatsapp?: string;
+}
+
+// CTA genérico de fallback (quando não há dados da empresa)
 export const MANDATORY_CTA_SECTION = `## Próximo passo
 
 Você não precisa continuar perdendo clientes por falta de resposta, organização ou tempo.
@@ -22,6 +29,29 @@ const GENERIC_END_PATTERNS = [
 ];
 
 /**
+ * Gera CTA obrigatório personalizado com dados da empresa
+ */
+export function generateCompanyCTA(company: CompanyInfo): string {
+  const locationText = company.city ? ` em ${company.city}` : '';
+  const ctaButtonText = `Fale com a ${company.name} agora`;
+  
+  // Link clicável se tiver WhatsApp
+  const ctaLink = company.whatsapp 
+    ? `[${ctaButtonText}](https://wa.me/${company.whatsapp})`
+    : `[${ctaButtonText}]`;
+
+  return `## Próximo passo
+
+Você não precisa continuar perdendo clientes por falta de resposta, organização ou tempo.
+
+Hoje já existem ferramentas simples que fazem o trabalho pesado por você — mesmo enquanto você está atendendo clientes ou trabalhando no campo.
+
+Se você quer transformar seu site, seu WhatsApp e seus leads em uma máquina de vendas automática, o próximo passo é conversar com a ${company.name}${locationText}.
+
+**👉 ${ctaLink}**`;
+}
+
+/**
  * Verifica se o artigo possui CTA válido no formato correto
  */
 export function hasValidCTA(content: string): boolean {
@@ -33,8 +63,26 @@ export function hasValidCTA(content: string): boolean {
 }
 
 /**
+ * Remove seções finais genéricas e "## Próximo passo" existente
+ */
+function cleanGenericEndings(content: string): string {
+  let cleanContent = content;
+  
+  // Remover seções finais genéricas
+  for (const pattern of GENERIC_END_PATTERNS) {
+    cleanContent = cleanContent.replace(pattern, '');
+  }
+  
+  // Também remover qualquer "## Próximo passo" existente com conteúdo incorreto
+  cleanContent = cleanContent.replace(/##\s*Próximo\s*passo[\s\S]*$/i, '');
+  
+  // Limpar espaços extras no final
+  return cleanContent.trim();
+}
+
+/**
  * Garante que o artigo termine com o CTA obrigatório do contrato editorial.
- * Remove seções genéricas e anexa o CTA padrão se necessário.
+ * Versão genérica (sem dados da empresa) - mantida para compatibilidade.
  */
 export function ensureCTA(content: string): string {
   if (!content || typeof content !== 'string') {
@@ -47,31 +95,44 @@ export function ensureCTA(content: string): string {
     const parts = content.split(/##\s*Próximo\s*passo/i);
     if (parts.length > 1) {
       const ctaContent = parts[parts.length - 1].toLowerCase();
-      if (ctaContent.includes('especialista') && ctaContent.includes('fale')) {
+      if (ctaContent.includes('especialista') || ctaContent.includes('fale')) {
         console.log('[EDITORIAL CONTRACT] CTA já está válido');
         return content;
       }
     }
   }
   
-  console.log('[EDITORIAL CONTRACT] CTA ausente ou inválido - aplicando auto-correção');
+  console.log('[EDITORIAL CONTRACT] CTA ausente ou inválido - aplicando auto-correção genérica');
   
-  // Remover seções finais genéricas
-  let cleanContent = content;
-  for (const pattern of GENERIC_END_PATTERNS) {
-    cleanContent = cleanContent.replace(pattern, '');
-  }
-  
-  // Também remover qualquer "## Próximo passo" existente com conteúdo incorreto
-  cleanContent = cleanContent.replace(/##\s*Próximo\s*passo[\s\S]*$/i, '');
-  
-  // Limpar espaços extras no final
-  cleanContent = cleanContent.trim();
-  
-  // Anexar CTA padrão do contrato
+  const cleanContent = cleanGenericEndings(content);
   const result = cleanContent + '\n\n' + MANDATORY_CTA_SECTION;
   
-  console.log('[EDITORIAL CONTRACT] CTA obrigatório anexado com sucesso');
+  console.log('[EDITORIAL CONTRACT] CTA obrigatório genérico anexado');
+  
+  return result;
+}
+
+/**
+ * Garante CTA com dados personalizados da empresa.
+ * Esta é a versão preferida quando temos informações do negócio.
+ */
+export function ensureCompanyCTA(content: string, company: CompanyInfo): string {
+  if (!content || typeof content !== 'string') {
+    return content;
+  }
+
+  // Se não tiver nome da empresa, usar versão genérica
+  if (!company.name || company.name.trim() === '') {
+    return ensureCTA(content);
+  }
+
+  console.log(`[EDITORIAL CONTRACT] Aplicando CTA personalizado para: ${company.name}`);
+  
+  const cleanContent = cleanGenericEndings(content);
+  const companyCTA = generateCompanyCTA(company);
+  const result = cleanContent + '\n\n' + companyCTA;
+  
+  console.log('[EDITORIAL CONTRACT] CTA personalizado com empresa anexado');
   
   return result;
 }

@@ -1165,6 +1165,7 @@ export type Database = {
           target_audience: string | null
           tone_of_voice: string | null
           updated_at: string
+          whatsapp: string | null
         }
         Insert: {
           blog_id: string
@@ -1185,6 +1186,7 @@ export type Database = {
           target_audience?: string | null
           tone_of_voice?: string | null
           updated_at?: string
+          whatsapp?: string | null
         }
         Update: {
           blog_id?: string
@@ -1205,6 +1207,7 @@ export type Database = {
           target_audience?: string | null
           tone_of_voice?: string | null
           updated_at?: string
+          whatsapp?: string | null
         }
         Relationships: [
           {
