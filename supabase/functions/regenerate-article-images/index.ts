@@ -66,6 +66,16 @@ serve(async (req) => {
 
     console.log(`Regenerating images for article: ${article.title} (type: ${regenerate_type})`);
 
+    // Buscar contexto do negócio para prompts mais precisos
+    const { data: businessProfile } = await supabase
+      .from('business_profile')
+      .select('niche, company_name, target_audience')
+      .eq('blog_id', article.blog_id)
+      .maybeSingle();
+
+    const businessNiche = businessProfile?.niche || 'serviços profissionais';
+    const targetAudience = businessProfile?.target_audience || 'empresários e gestores';
+
     const wordCount = article.content?.split(/\s+/).length || 1000;
     const internalImageCount = calculateInternalImageCount(wordCount);
     let featuredImageUrl = article.featured_image_url;
@@ -80,11 +90,35 @@ serve(async (req) => {
       .replace(/[^a-z0-9]+/g, '-')
       .substring(0, 50);
 
+    // ============================================================================
+    // PROMPT EDITORIAL PROFISSIONAL - DIRETOR DE FOTOGRAFIA
+    // Padrão: Estilo Forbes / Harvard Business Review
+    // ============================================================================
+
     // Regenerate cover image
     if (regenerate_type === 'all' || regenerate_type === 'cover') {
       try {
-        console.log('Generating cover image...');
-        const coverPrompt = `Realistic photo style: professional business setting related to "${article.title}". Authentic, natural lighting, genuine workplace environment. NOT corporate stock photo.`;
+        console.log('Generating cover image with editorial prompt...');
+        
+        const coverPrompt = `
+Você é um diretor de fotografia editorial para blogs profissionais.
+Crie uma imagem fotográfica realista que represente VISUALMENTE o tema: "${article.title}"
+
+REGRAS OBRIGATÓRIAS:
+- A imagem deve ter relação direta com o artigo.
+- Não gerar cenas genéricas ou "stock photo fake".
+- Pessoas devem ser diferentes entre si (proibido rostos duplicados).
+- Evitar simetria artificial.
+- Estilo: fotografia editorial profissional (Forbes, Harvard Business Review).
+- Mostrar situações reais do nicho: ${businessNiche}
+- Público-alvo: ${targetAudience}
+
+TIPO DE IMAGEM (CAPA):
+Representar o tema principal do artigo de forma impactante e memorável.
+
+A imagem deve parecer uma fotografia real capturada no mundo real, não uma ilustração artificial.
+NÃO inclua: texto, logotipos, marcas d'água, elementos caricatos.
+`.trim();
 
         const imageResponse = await fetch(`${supabaseUrl}/functions/v1/generate-image`, {
           method: 'POST',
@@ -94,9 +128,9 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             prompt: coverPrompt,
-            context: 'hero',
-            articleTheme: article.title,
-            targetAudience: 'business owners'
+            context: 'cover',
+            articleTitle: article.title,
+            targetAudience: targetAudience
           }),
         });
 
@@ -133,21 +167,49 @@ serve(async (req) => {
 
     // Regenerate internal images
     if (regenerate_type === 'all' || regenerate_type === 'internal') {
-      console.log(`Generating ${internalImageCount} internal images...`);
+      console.log(`Generating ${internalImageCount} internal images with editorial prompt...`);
       contentImages = [];
 
       // Extract H2 sections from content for context
       const h2Matches = article.content?.match(/<h2[^>]*>(.*?)<\/h2>/gi) || [];
       const sections = h2Matches.map((h2: string) => h2.replace(/<[^>]*>/g, '').trim());
 
+      // Determine image context types based on position
+      const contextTypes = ['problem', 'solution', 'result'];
+
       for (let i = 0; i < internalImageCount; i++) {
         try {
           const sectionIndex = Math.min(i, sections.length - 1);
-          const sectionContext = sections[sectionIndex] || `Section ${i + 1}`;
+          const sectionContext = sections[sectionIndex] || `Seção ${i + 1}`;
+          const contextType = contextTypes[i % contextTypes.length];
           
-          const internalPrompt = `Realistic photo: ${sectionContext}. Related to "${article.title}". Professional, authentic scene, natural lighting.`;
+          const contextInstructions: Record<string, string> = {
+            problem: 'Mostrar a dor, frustração ou dificuldade real enfrentada pelo público-alvo.',
+            solution: 'Mostrar ação, organização, tecnologia ou melhoria sendo implementada.',
+            result: 'Mostrar progresso, alívio, crescimento ou sucesso real e tangível.'
+          };
+          
+          const internalPrompt = `
+Você é um diretor de fotografia editorial para blogs profissionais.
+Crie uma imagem fotográfica realista para a seção: "${sectionContext}"
 
-          console.log(`Generating internal image ${i + 1} for: ${sectionContext}`);
+REGRAS OBRIGATÓRIAS:
+- A imagem deve ter relação direta com o artigo: "${article.title}"
+- Não gerar cenas genéricas ou "stock photo fake".
+- Pessoas devem ser diferentes entre si (proibido rostos duplicados).
+- Evitar simetria artificial.
+- Estilo: fotografia editorial profissional (Forbes, Harvard Business Review).
+- Mostrar situações reais do nicho: ${businessNiche}
+- Público-alvo: ${targetAudience}
+
+TIPO DE IMAGEM (${contextType.toUpperCase()}):
+${contextInstructions[contextType]}
+
+A imagem deve parecer uma fotografia real, não uma ilustração artificial.
+NÃO inclua: texto, logotipos, marcas d'água, elementos caricatos.
+`.trim();
+
+          console.log(`Generating internal image ${i + 1} (${contextType}) for: ${sectionContext}`);
 
           const imageResponse = await fetch(`${supabaseUrl}/functions/v1/generate-image`, {
             method: 'POST',
@@ -157,9 +219,9 @@ serve(async (req) => {
             },
             body: JSON.stringify({
               prompt: internalPrompt,
-              context: `section-${i + 1}`,
-              articleTheme: article.title,
-              targetAudience: 'business owners'
+              context: contextType,
+              articleTitle: article.title,
+              targetAudience: targetAudience
             }),
           });
 

@@ -481,33 +481,74 @@ serve(async (req) => {
           }
         } else {
           // Fallback: inserir se generate-article-structured não persistiu (não deveria acontecer)
-          console.log(`[${executionId}] WARN: Article not persisted by generate-article-structured, inserting...`);
+          console.log(`[${executionId}] WARN: Article not persisted by generate-article-structured, checking for duplicates...`);
           
-          const { data: insertedArticle, error: insertError } = await supabase
+          // REGRA DE OURO: Verificar se artigo com mesmo título já existe
+          const { data: existingByTitle } = await supabase
             .from('articles')
-            .insert({
-              blog_id: item.blog_id,
-              title: articleData.title,
-              slug: `${slug}-${Date.now()}`,
-              content: articleData.content,
-              excerpt: articleData.excerpt || articleData.meta_description || '',
-              meta_description: articleData.meta_description || articleData.excerpt || '',
-              faq: articleData.faq || [],
-              keywords: item.keywords || [],
-              featured_image_url: featuredImageUrl,
-              content_images: contentImages.length > 0 ? contentImages : null,
-              status: shouldPublish ? 'published' : 'draft',
-              published_at: shouldPublish ? new Date().toISOString() : null,
-              reading_time: articleData.reading_time || Math.ceil(articleData.content?.split(' ').length / 200) || 5
-            })
-            .select()
-            .single();
+            .select('id')
+            .eq('blog_id', item.blog_id)
+            .ilike('title', articleData.title.trim().toLowerCase())
+            .maybeSingle();
 
-          if (insertError) {
-            throw new Error(`DB_INSERT_FAILED: ${insertError.message}`);
+          if (existingByTitle) {
+            // Artigo já existe - usar UPDATE ao invés de INSERT
+            console.log(`[${executionId}] [GUARD] Duplicate prevented! Using UPDATE on existing article: ${existingByTitle.id}`);
+            
+            const { data: updatedArticle, error: updateError } = await supabase
+              .from('articles')
+              .update({
+                content: articleData.content,
+                excerpt: articleData.excerpt || articleData.meta_description || '',
+                meta_description: articleData.meta_description || articleData.excerpt || '',
+                faq: articleData.faq || [],
+                keywords: item.keywords || [],
+                featured_image_url: featuredImageUrl,
+                content_images: contentImages.length > 0 ? contentImages : null,
+                status: shouldPublish ? 'published' : 'draft',
+                published_at: shouldPublish ? new Date().toISOString() : null,
+                reading_time: articleData.reading_time || Math.ceil(articleData.content?.split(' ').length / 200) || 5,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existingByTitle.id)
+              .select()
+              .single();
+
+            if (updateError) {
+              throw new Error(`DB_UPDATE_FAILED: ${updateError.message}`);
+            }
+            
+            article = updatedArticle;
+          } else {
+            // Nenhum duplicado - INSERT permitido
+            console.log(`[${executionId}] No duplicate found, inserting new article...`);
+            
+            const { data: insertedArticle, error: insertError } = await supabase
+              .from('articles')
+              .insert({
+                blog_id: item.blog_id,
+                title: articleData.title,
+                slug: `${slug}-${Date.now()}`,
+                content: articleData.content,
+                excerpt: articleData.excerpt || articleData.meta_description || '',
+                meta_description: articleData.meta_description || articleData.excerpt || '',
+                faq: articleData.faq || [],
+                keywords: item.keywords || [],
+                featured_image_url: featuredImageUrl,
+                content_images: contentImages.length > 0 ? contentImages : null,
+                status: shouldPublish ? 'published' : 'draft',
+                published_at: shouldPublish ? new Date().toISOString() : null,
+                reading_time: articleData.reading_time || Math.ceil(articleData.content?.split(' ').length / 200) || 5
+              })
+              .select()
+              .single();
+
+            if (insertError) {
+              throw new Error(`DB_INSERT_FAILED: ${insertError.message}`);
+            }
+            
+            article = insertedArticle;
           }
-          
-          article = insertedArticle;
         }
         
         if (!article) {
