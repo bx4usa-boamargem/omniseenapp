@@ -166,6 +166,32 @@ function inferTags(theme: string, content: string, keywords: string[], category:
 // ============ PERSISTÊNCIA DE ARTIGO ============
 // Função obrigatória para salvar artigo na tabela 'articles'
 // CRÍTICO: Sem esta persistência, o frontend recebe artigo sem id/slug/status
+// V2.0: Adiciona title_fingerprint para deduplicação semântica
+
+// Portuguese stopwords for semantic fingerprint (same as frontend)
+const STOPWORDS = new Set([
+  'de', 'da', 'do', 'das', 'dos', 'e', 'ou', 'a', 'o', 'as', 'os',
+  'um', 'uma', 'uns', 'umas', 'para', 'por', 'com', 'em', 'no', 'na',
+  'nos', 'nas', 'ao', 'aos', 'à', 'às', 'pelo', 'pela', 'pelos', 'pelas',
+  'mais', 'menos', 'seu', 'sua', 'seus', 'suas', 'este', 'esta', 'estes',
+  'estas', 'esse', 'essa', 'esses', 'essas', 'aquele', 'aquela', 'aqueles',
+  'aquelas', 'que', 'qual', 'quais', 'como', 'quando', 'onde', 'porque',
+  'se', 'também', 'já', 'ainda', 'muito', 'muita', 'muitos', 'muitas',
+  'sobre', 'entre', 'até', 'desde', 'após', 'sob', 'sem', 'ter', 'sido',
+  'foi', 'era', 'será', 'pode', 'podem', 'deve', 'devem', 'fazer', 'faz',
+  'feito', 'forma', 'formas', 'ano', 'anos'
+]);
+
+function normalizeForFingerprintBackend(title: string): string {
+  return title
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s]/g, '')
+    .split(/\s+/)
+    .filter(word => word.length > 0 && !STOPWORDS.has(word))
+    .join(' ');
+}
 
 async function persistArticleToDb(
   // deno-lint-ignore no-explicit-any
@@ -194,10 +220,60 @@ async function persistArticleToDb(
   const wordCount = (articleData.content || '').split(/\s+/).filter(Boolean).length;
   const readingTime = articleData.reading_time || Math.ceil(wordCount / 200) || 5;
   
-  // Preparar dados para inserção
+  // Generate title_fingerprint for deduplication
+  const titleFingerprint = normalizeForFingerprintBackend(articleData.title || '');
+  console.log(`[PERSIST] Generated fingerprint: "${titleFingerprint}" from title: "${articleData.title}"`);
+  
+  // Check for existing article with same fingerprint (DEDUPLICATION)
+  const { data: existingArticle } = await supabaseClient
+    .from('articles')
+    .select('id, title')
+    .eq('blog_id', blogId)
+    .eq('title_fingerprint', titleFingerprint)
+    .maybeSingle();
+  
+  if (existingArticle) {
+    console.log(`[PERSIST] ⚠️ Duplicate detected! Existing article id=${existingArticle.id}, updating instead of inserting`);
+    
+    // UPDATE existing article instead of creating duplicate
+    const updateData = {
+      content: articleData.content || '',
+      excerpt: articleData.excerpt || articleData.meta_description || '',
+      meta_description: articleData.meta_description || '',
+      category: inferredCategory || null,
+      tags: inferredTags || [],
+      faq: articleData.faq || [],
+      keywords: articleData.keywords || [],
+      reading_time: readingTime,
+      status: autoPublish ? 'published' : 'draft',
+      published_at: autoPublish ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    };
+    
+    const { error: updateError } = await supabaseClient
+      .from('articles')
+      .update(updateData)
+      .eq('id', existingArticle.id);
+    
+    if (updateError) {
+      console.error(`[PERSIST] Update failed:`, updateError);
+      throw new Error(`Falha ao atualizar artigo existente: ${updateError.message}`);
+    }
+    
+    console.log(`[PERSIST] ✅ Updated existing article id=${existingArticle.id} instead of creating duplicate`);
+    return { 
+      id: existingArticle.id, 
+      slug: uniqueSlug, 
+      status: autoPublish ? 'published' : 'draft',
+      title: articleData.title || 'Artigo sem título'
+    };
+  }
+  
+  // Preparar dados para inserção (no duplicate found)
   const insertData = {
     blog_id: blogId,
     title: articleData.title || 'Artigo sem título',
+    title_fingerprint: titleFingerprint, // NEW: For deduplication
     slug: uniqueSlug,
     content: articleData.content || '',
     excerpt: articleData.excerpt || articleData.meta_description || '',
@@ -1645,6 +1721,13 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
       images: articleData.images // NEW: Bloco obrigatório de descrições de imagens
     };
 
+    // ========================================================================
+    // INFERIR CATEGORIA E TAGS AUTOMATICAMENTE
+    // ========================================================================
+    const inferredCategory = inferCategory(theme, article.content, keywords);
+    const inferredTags = inferTags(theme, article.content, keywords, inferredCategory);
+    console.log(`[AUTO-CLASSIFY] Category: ${inferredCategory}, Tags: [${inferredTags.join(', ')}]`);
+
     console.log(`Article generated successfully: "${article.title}" (${article.content.length} chars, ${article.image_prompts.length} image prompts)`);
 
     // Log consumption if user_id provided
@@ -1768,7 +1851,9 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
         supabase,
         blog_id!,
         article,
-        autoPublish
+        autoPublish,
+        inferredCategory,  // Pass category
+        inferredTags       // Pass tags
       );
       
       console.log(`[PERSIST] ✅ Article saved successfully: id=${persistedArticle.id}, slug=${persistedArticle.slug}, status=${persistedArticle.status}`);
@@ -1777,7 +1862,7 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
       throw new Error(`DB_PERSIST_FAILED: Não foi possível salvar o artigo no banco. ${persistError instanceof Error ? persistError.message : 'Erro desconhecido'}`);
     }
 
-    // Retornar com os campos de persistência obrigatórios
+    // Retornar com os campos de persistência obrigatórios + categoria/tags
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -1785,7 +1870,9 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
           ...article,
           id: persistedArticle.id,
           slug: persistedArticle.slug,
-          status: persistedArticle.status
+          status: persistedArticle.status,
+          category: inferredCategory,  // Include in response
+          tags: inferredTags           // Include in response
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

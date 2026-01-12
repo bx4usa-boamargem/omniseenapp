@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useBlog } from '@/hooks/useBlog';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { GenerationProgress } from '@/components/seo/GenerationProgress';
 import { ImproveArticleDialog } from '@/components/editor/ImproveArticleDialog';
 import { CTAPreview } from '@/components/editor/CTAPreview';
 import { extractImageUrl, uploadImageToStorage, updateArticleImage } from '@/utils/imageUtils';
+import { ensureSingleArticle, normalizeForFingerprint } from '@/lib/articleFlowGuard';
 import { 
   ArrowLeft, 
   Save, 
@@ -81,6 +82,7 @@ export default function ClientArticleEditor() {
   const [generationStage, setGenerationStage] = useState<GenerationStage>(null);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
+  const generationLockRef = useRef(false); // Prevent double-submission
   
   // Save state
   const [isSaving, setIsSaving] = useState(false);
@@ -193,6 +195,33 @@ export default function ClientArticleEditor() {
       return;
     }
 
+    // ====================================================================
+    // GENERATION LOCK: Prevent double-submission (Fast → Deep or vice-versa)
+    // ====================================================================
+    if (generationLockRef.current) {
+      console.warn('[GUARD] Generation already in progress, blocking duplicate request');
+      return;
+    }
+    generationLockRef.current = true;
+
+    // ====================================================================
+    // FINGERPRINT CHECK: Prevent duplicate articles with same title/theme
+    // ====================================================================
+    try {
+      const flowResult = await ensureSingleArticle(blog.id, formData.theme);
+      
+      if (flowResult.action === 'update' && flowResult.articleId) {
+        console.log(`[GUARD] Article already exists with id=${flowResult.articleId}, redirecting to edit`);
+        toast.info('Artigo com este tema já existe. Abrindo para edição...');
+        generationLockRef.current = false;
+        navigate(`/client/articles/${flowResult.articleId}/edit`);
+        return;
+      }
+    } catch (guardError) {
+      console.error('[GUARD] Error checking for duplicates:', guardError);
+      // Continue with generation on error
+    }
+
     // Reset state
     setPhase('generating');
     setIsGenerating(true);
@@ -221,6 +250,7 @@ export default function ClientArticleEditor() {
       onDone: async (result) => {
         setIsGenerating(false);
         setGenerationStage(null);
+        generationLockRef.current = false; // Release lock
         
         if (result) {
           // Populate editable state from generated article
@@ -230,49 +260,26 @@ export default function ClientArticleEditor() {
           setMetaDescription(result.meta_description);
           setFaq(result.faq || []);
           
-          // CRITICAL: Save article as draft BEFORE generating images
-          // This ensures we have an article_id for image persistence
-          const slug = result.title
-            .toLowerCase()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-|-$/g, '');
+          // ====================================================================
+          // USE BACKEND-PERSISTED ARTICLE ID - DO NOT CREATE NEW ARTICLE!
+          // The backend (generate-article-structured) already persisted the article
+          // and returned { id, slug, status } in the response
+          // ====================================================================
+          const backendArticleId = (result as ArticleData & { id?: string }).id;
           
-          try {
-            const { data: newArticle, error: insertError } = await supabase
-              .from('articles')
-              .insert([{
-                blog_id: blog.id,
-                title: result.title,
-                slug: `${slug}-${Date.now()}`,
-                content: result.content,
-                excerpt: result.excerpt,
-                meta_description: result.meta_description,
-                faq: result.faq || null,
-                status: 'draft',
-              }])
-              .select('id')
-              .single();
-            
-            if (!insertError && newArticle) {
-              setExistingArticleId(newArticle.id);
-              console.log(`[Draft Created] id=${newArticle.id} - images will persist to this article`);
-              
-              setPhase('editing');
-              toast.success('Artigo salvo como rascunho! Gerando imagens...');
-              
-              // Generate images with valid article_id for persistence
-              await generateImagesWithArticleId(result, newArticle.id);
-            } else {
-              console.error('[Draft Creation Failed]', insertError);
-              setPhase('editing');
-              toast.warning('Artigo gerado, mas imagens serão salvas apenas ao publicar');
-              await generateImages(result);
-            }
-          } catch (draftError) {
-            console.error('[Draft Error]', draftError);
+          if (backendArticleId) {
+            setExistingArticleId(backendArticleId);
+            console.log(`[BACKEND PERSISTED] Using backend article id=${backendArticleId} - NO frontend INSERT`);
             setPhase('editing');
+            toast.success('Artigo gerado! Gerando imagens...');
+            
+            // Generate images with valid article_id for persistence
+            await generateImagesWithArticleId(result, backendArticleId);
+          } else {
+            // Fallback: Backend didn't return ID (shouldn't happen in normal flow)
+            console.warn('[FALLBACK] Backend did not return article id, generating images without persistence');
+            setPhase('editing');
+            toast.warning('Artigo gerado, mas imagens serão salvas apenas ao publicar');
             await generateImages(result);
           }
         }
@@ -281,6 +288,7 @@ export default function ClientArticleEditor() {
         setIsGenerating(false);
         setGenerationStage(null);
         setPhase('form');
+        generationLockRef.current = false; // Release lock on error
         toast.error(error || 'Erro ao gerar artigo');
       },
     });

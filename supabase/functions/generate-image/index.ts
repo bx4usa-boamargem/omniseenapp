@@ -125,7 +125,11 @@ serve(async (req) => {
     // ============================================================================
     // PROMPT EDITORIAL PROFISSIONAL - DIRETOR DE FOTOGRAFIA
     // Padrão: Estilo Forbes / Harvard Business Review
+    // SISTEMA ANTI-CLONE V2.0 - Cada imagem é única
     // ============================================================================
+    
+    // Generate unique visual seed for this request
+    const visualSeed = crypto.randomUUID().substring(0, 8);
     
     const contextInstructions: Record<string, string> = {
       hero: 'Representar o tema principal do artigo de forma impactante e memorável.',
@@ -136,19 +140,65 @@ serve(async (req) => {
       result: 'Mostrar progresso, alívio, crescimento ou sucesso real e tangível.'
     };
 
+    // Visual profile by category for consistent but varied imagery
+    const getVisualProfile = (title: string): string => {
+      const text = title.toLowerCase();
+      if (/seo|ranqueamento|google|palavras?.?chave/i.test(text)) {
+        return 'Cores: azul e verde. Foco: resultados de busca, gráficos de crescimento, analytics, dashboards.';
+      }
+      if (/automaç|robô|bot|workflow|crm/i.test(text)) {
+        return 'Cores: roxo e ciano. Foco: workflows, engrenagens digitais, fluxos conectados, automação.';
+      }
+      if (/marketing|marca|campanha|redes?.?sociais/i.test(text)) {
+        return 'Cores: laranja e coral. Foco: campanhas, métricas sociais, megafones, engajamento.';
+      }
+      if (/ia|inteligência.?artificial|gpt|ai/i.test(text)) {
+        return 'Cores: azul escuro e neon. Foco: redes neurais, interfaces futuristas, código, circuitos.';
+      }
+      if (/venda|cliente|lead|conversão/i.test(text)) {
+        return 'Cores: verde e dourado. Foco: apertos de mão, contratos, celebrações, gráficos positivos.';
+      }
+      if (/produtiv|tempo|rotina|organização/i.test(text)) {
+        return 'Cores: teal e branco. Foco: mesas organizadas, checklists, timers, workspace clean.';
+      }
+      return 'Cores: navy e prata. Foco: ambiente profissional, tecnologia, escritório moderno.';
+    };
+
+    const visualProfile = getVisualProfile(effectiveTitle);
+
+    // SISTEMA ANTI-CLONE V2.0 - Regras absolutas
+    const ANTI_CLONE_RULES = `
+## ⛔ REGRAS ABSOLUTAS ANTI-CLONE (INVIOLÁVEIS):
+
+❌ PROIBIDO:
+- Repetir a MESMA pessoa em imagens diferentes do mesmo artigo
+- Gerar rostos DUPLICADOS ou "clonados" (trigêmeos, gêmeos)
+- Close-up de rostos humanos (preferir ambientes)
+- Poses genéricas de "stock photo" (braços cruzados sorrindo)
+- Simetria artificial entre pessoas
+- Grupos de pessoas iguais ou muito similares
+
+✅ OBRIGATÓRIO:
+- Focar em AMBIENTES: escritórios, telas, dashboards, mesas de trabalho
+- Mostrar MÃOS interagindo com tecnologia (teclados, mouses, tablets)
+- Priorizar OBJETOS: computadores, documentos, gráficos, post-its
+- Usar conceitos ABSTRATOS quando possível (diagramas, ilustrações conceituais)
+- Se houver pessoas, mostrar de COSTAS ou PARCIALMENTE
+- Diversidade de idades, etnias e estilos quando pessoas aparecem
+- Cada imagem deve ter composição ÚNICA
+
+🎲 SEED VISUAL ÚNICO: ${visualSeed}
+Este seed garante identidade visual única para esta geração.
+`.trim();
+
     const enhancedPrompt = `
 Você é um diretor de fotografia editorial para blogs profissionais.
 Crie uma imagem fotográfica realista que represente VISUALMENTE o conteúdo descrito.
 
-REGRAS OBRIGATÓRIAS:
-- A imagem deve ter relação direta com o texto fornecido.
-- Não gerar cenas genéricas ou "stock photo fake".
-- Pessoas devem ser diferentes entre si (proibido rostos duplicados).
-- Evitar simetria artificial.
-- Estilo: fotografia editorial profissional (Forbes, Harvard Business Review).
-- Mostrar situações reais do nicho do artigo.
-- Nunca criar imagens que não façam sentido com o conteúdo.
-- Cada imagem deve ilustrar a IDEIA CENTRAL daquele trecho.
+${ANTI_CLONE_RULES}
+
+PERFIL VISUAL DA CATEGORIA:
+${visualProfile}
 
 CONTEXTO DO ARTIGO:
 Tema: ${effectiveTitle}
@@ -165,9 +215,11 @@ REQUISITOS TÉCNICOS:
 - Alta resolução, nítida e bem definida
 - Iluminação natural e profissional
 - Composição equilibrada
+- EVITAR: close-up de rostos, pessoas similares, stock photo genérico
+- PREFERIR: ambientes, telas, mãos, diagramas, conceitos visuais
 
 A imagem deve parecer uma fotografia real capturada no mundo real, não uma ilustração artificial.
-NÃO inclua: texto, logotipos, marcas d'água, elementos caricatos, ilustrações genéricas.
+NÃO inclua: texto, logotipos, marcas d'água, elementos caricatos, ilustrações genéricas, rostos repetidos.
 `.trim();
 
     // Generate cache key and check cache

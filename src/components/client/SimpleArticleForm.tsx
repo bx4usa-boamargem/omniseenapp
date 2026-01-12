@@ -17,11 +17,13 @@ export interface SimpleFormData {
 interface SimpleArticleFormProps {
   onGenerate: (data: SimpleFormData) => void;
   isGenerating: boolean;
+  disabled?: boolean; // NEW: External lock for preventing double-submission
 }
 
-export function SimpleArticleForm({ onGenerate, isGenerating }: SimpleArticleFormProps) {
+export function SimpleArticleForm({ onGenerate, isGenerating, disabled = false }: SimpleArticleFormProps) {
   const [theme, setTheme] = useState('');
   const [generationMode, setGenerationMode] = useState<'fast' | 'deep'>('deep');
+  const isLocked = isGenerating || disabled;
   
   const { 
     isListening, 
@@ -86,7 +88,7 @@ export function SimpleArticleForm({ onGenerate, isGenerating }: SimpleArticleFor
                   variant={isListening ? "destructive" : "ghost"}
                   size="sm"
                   onClick={toggleListening}
-                  disabled={isGenerating}
+                  disabled={isLocked}
                   className={cn(
                     "gap-2 transition-all",
                     isListening && "animate-pulse"
@@ -128,7 +130,7 @@ export function SimpleArticleForm({ onGenerate, isGenerating }: SimpleArticleFor
                 "min-h-[160px] resize-none text-base",
                 isListening && "border-red-500 ring-2 ring-red-500/20"
               )}
-              disabled={isGenerating}
+              disabled={isLocked}
             />
             <p className="text-xs text-muted-foreground">
               {isSupported 
@@ -144,7 +146,7 @@ export function SimpleArticleForm({ onGenerate, isGenerating }: SimpleArticleFor
               value={generationMode}
               onValueChange={(value) => setGenerationMode(value as 'fast' | 'deep')}
               className="grid grid-cols-2 gap-3"
-              disabled={isGenerating}
+              disabled={isLocked}
             >
               <div>
                 <RadioGroupItem value="fast" id="fast" className="peer sr-only" />
@@ -181,7 +183,7 @@ export function SimpleArticleForm({ onGenerate, isGenerating }: SimpleArticleFor
             type="submit"
             size="lg"
             className="w-full h-14 text-lg gap-3"
-            disabled={!theme.trim() || isGenerating}
+            disabled={!theme.trim() || isLocked}
           >
             {isGenerating ? (
               <>
