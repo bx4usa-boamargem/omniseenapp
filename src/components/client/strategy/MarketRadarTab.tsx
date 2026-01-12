@@ -113,7 +113,7 @@ export function MarketRadarTab({ blogId }: MarketRadarTabProps) {
     setRefreshing(true);
     try {
       const { data, error } = await supabase.functions.invoke('weekly-market-intel', {
-        body: { blog_id: blogId, forceRegenerate: true }
+        body: { blogId: blogId, forceRegenerate: true }
       });
       
       if (error) throw error;
