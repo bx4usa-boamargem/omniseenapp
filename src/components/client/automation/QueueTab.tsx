@@ -227,17 +227,32 @@ export function QueueTab({ blogId }: QueueTabProps) {
     setActionLoading(item.id);
     try {
       // Call process-queue with specific item_id
-      const { error } = await supabase.functions.invoke('process-queue', {
+      const { data, error } = await supabase.functions.invoke('process-queue', {
         body: { item_id: item.id }
       });
       
-      if (error) throw error;
+      if (error) {
+        // Check if error is "already processing" type
+        const errorBody = error.message || '';
+        if (errorBody.includes('não encontrado') || errorBody.includes('já em processamento')) {
+          toast.info('⏳ Este item já está sendo processado ou foi concluído.');
+          fetchQueue();
+          return;
+        }
+        throw error;
+      }
       
       toast.success('⚡ Processamento iniciado! O artigo será gerado em instantes.');
       fetchQueue();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error executing item:', error);
-      toast.error('Erro ao iniciar processamento');
+      // Handle specific error messages
+      if (error?.message?.includes('não encontrado') || error?.message?.includes('já em processamento')) {
+        toast.info('⏳ Este item já está sendo processado.');
+        fetchQueue();
+      } else {
+        toast.error('Erro ao iniciar processamento');
+      }
     } finally {
       setActionLoading(null);
     }
