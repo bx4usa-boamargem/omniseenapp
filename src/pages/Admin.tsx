@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, DollarSign, Users, Cpu, ImageIcon, FileText, Loader2, Shield, BarChart3, Settings2, Save, Plus, Trash2, Sparkles, Database, Bell, TrendingUp, Download, Gift, LayoutDashboard, UserPlus, Users2, Stethoscope, Building2, Target, LineChart } from "lucide-react";
+import { ArrowLeft, DollarSign, Users, Cpu, ImageIcon, FileText, Loader2, Shield, BarChart3, Settings2, Save, Plus, Trash2, Sparkles, Database, Bell, TrendingUp, Download, Gift, LayoutDashboard, UserPlus, Users2, Stethoscope, Building2, Target, LineChart, Globe } from "lucide-react";
 import { SectionHelper } from "@/components/blog-editor/SectionHelper";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
