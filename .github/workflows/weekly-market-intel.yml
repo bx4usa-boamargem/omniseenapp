@@ -1,0 +1,41 @@
+name: Weekly Market Intelligence
+
+on:
+  schedule:
+    # Every Sunday at 6:00 UTC (3:00 AM Brasilia)
+    - cron: '0 6 * * 0'
+  
+  # Allow manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  process-intel:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Trigger Weekly Intel Processing
+        run: |
+          echo "Starting Weekly Market Intelligence processing..."
+          echo "Supabase URL: ${{ secrets.SUPABASE_URL }}"
+          
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/process-weekly-intel-job" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          
+          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+            echo "✅ Weekly intel processing completed successfully"
+            exit 0
+          else
+            echo "❌ Weekly intel processing failed with status $http_code"
+            exit 1
+          fi
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

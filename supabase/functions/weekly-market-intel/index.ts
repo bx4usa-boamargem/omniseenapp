@@ -8,6 +8,7 @@ const corsHeaders = {
 
 interface MarketIntelRequest {
   blogId: string;
+  forceRegenerate?: boolean;
 }
 
 interface MarketIntelPackage {
@@ -70,7 +71,7 @@ serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { blogId }: MarketIntelRequest = await req.json();
+    const { blogId, forceRegenerate }: MarketIntelRequest = await req.json();
 
     if (!blogId) {
       throw new Error("blogId is required");
@@ -86,7 +87,9 @@ serve(async (req) => {
       .eq("week_of", weekOf)
       .maybeSingle();
 
-    if (existingIntel) {
+    // If exists and not forcing regeneration, return existing
+    if (existingIntel && !forceRegenerate) {
+      console.log(`Intel already exists for blog ${blogId}, week ${weekOf}. Use forceRegenerate=true to override.`);
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -96,6 +99,12 @@ serve(async (req) => {
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // If forcing regeneration, delete existing record
+    if (existingIntel && forceRegenerate) {
+      console.log(`Force regenerating intel for blog ${blogId}, week ${weekOf}. Deleting existing record...`);
+      await supabase.from("market_intel_weekly").delete().eq("id", existingIntel.id);
     }
 
     // Fetch business context
