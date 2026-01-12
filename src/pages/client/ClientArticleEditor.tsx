@@ -612,7 +612,44 @@ export default function ClientArticleEditor() {
         return;
       }
 
-      // CREATE new article
+      // REGRA DE OURO: Verificar se artigo com mesmo título já existe antes de INSERT
+      const { data: existingByTitle } = await supabase
+        .from('articles')
+        .select('id')
+        .eq('blog_id', blog.id)
+        .ilike('title', title.trim().toLowerCase())
+        .maybeSingle();
+
+      if (existingByTitle) {
+        console.warn(`[GUARD] Article with same title exists, using UPDATE instead of INSERT. id=${existingByTitle.id}`);
+        
+        // Usar UPDATE no artigo existente
+        const updateData = {
+          content: content.trim(),
+          excerpt: excerpt.trim(),
+          meta_description: metaDescription.trim(),
+          faq: faq.length > 0 ? faq : null,
+          featured_image_url: featuredImage,
+          content_images: contentImagesJson as unknown as null,
+          status: publish ? 'published' : 'draft',
+          published_at: publish ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        };
+
+        const { error } = await supabase
+          .from('articles')
+          .update(updateData)
+          .eq('id', existingByTitle.id);
+
+        if (error) throw error;
+
+        console.log(`[UPDATE Article] id=${existingByTitle.id}, prevented duplicate, publish=${publish}`);
+        toast.success(publish ? 'Artigo publicado!' : 'Alterações salvas!');
+        navigate('/client/articles');
+        return;
+      }
+
+      // CREATE new article (nenhum duplicado encontrado)
       const slug = title
         .toLowerCase()
         .normalize('NFD')

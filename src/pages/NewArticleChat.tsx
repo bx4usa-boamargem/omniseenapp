@@ -6,6 +6,7 @@ import { useBlog } from "@/hooks/useBlog";
 import { useToast } from "@/hooks/use-toast";
 import { useLocaleFormat } from "@/hooks/useLocaleFormat";
 import { useArticleChatDraft } from "@/hooks/useArticleChatDraft";
+import { ensureSingleArticle, logArticleAction } from "@/lib/articleFlowGuard";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ArticleChatInterface } from "@/components/article-chat/ArticleChatInterface";
 import { ArticlePreview } from "@/components/ArticlePreview";
@@ -89,6 +90,9 @@ export default function NewArticleChat() {
     setIsSaving(true);
 
     try {
+      // REGRA DE OURO: Verificar se artigo com mesmo título já existe
+      const flowResult = await ensureSingleArticle(blog.id, generatedArticle.title);
+      
       // Generate slug
       const slug = generatedArticle.title
         .toLowerCase()
@@ -97,24 +101,65 @@ export default function NewArticleChat() {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
 
-      const { data, error } = await supabase
-        .from('articles')
-        .insert({
-          blog_id: blog.id,
-          title: generatedArticle.title,
-          slug,
-          excerpt: generatedArticle.excerpt,
-          meta_description: generatedArticle.meta_description,
-          content: generatedArticle.content,
-          keywords: generatedArticle.keywords,
-          faq: generatedArticle.faq || [],
-          featured_image_url: generatedArticle.featured_image_url || null,
-          status,
-          published_at: status === 'published' ? new Date().toISOString() : null,
-          generation_source: 'chat'
-        })
-        .select()
-        .single();
+      let data;
+      let error;
+
+      if (flowResult.action === 'update' && flowResult.articleId) {
+        // Artigo já existe - usar UPDATE
+        logArticleAction('GUARD', flowResult.articleId, { 
+          reason: 'Duplicate title detected', 
+          title: generatedArticle.title 
+        });
+
+        const result = await supabase
+          .from('articles')
+          .update({
+            excerpt: generatedArticle.excerpt,
+            meta_description: generatedArticle.meta_description,
+            content: generatedArticle.content,
+            keywords: generatedArticle.keywords,
+            faq: generatedArticle.faq || [],
+            featured_image_url: generatedArticle.featured_image_url || null,
+            status,
+            published_at: status === 'published' ? new Date().toISOString() : null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', flowResult.articleId)
+          .select()
+          .single();
+
+        data = result.data;
+        error = result.error;
+        
+        logArticleAction('UPDATE', flowResult.articleId, { status, source: 'chat' });
+      } else {
+        // Novo artigo - INSERT
+        const result = await supabase
+          .from('articles')
+          .insert({
+            blog_id: blog.id,
+            title: generatedArticle.title,
+            slug,
+            excerpt: generatedArticle.excerpt,
+            meta_description: generatedArticle.meta_description,
+            content: generatedArticle.content,
+            keywords: generatedArticle.keywords,
+            faq: generatedArticle.faq || [],
+            featured_image_url: generatedArticle.featured_image_url || null,
+            status,
+            published_at: status === 'published' ? new Date().toISOString() : null,
+            generation_source: 'chat'
+          })
+          .select()
+          .single();
+
+        data = result.data;
+        error = result.error;
+        
+        if (data) {
+          logArticleAction('INSERT', data.id, { title: generatedArticle.title, status, source: 'chat' });
+        }
+      }
 
       if (error) throw error;
 
