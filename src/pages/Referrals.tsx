@@ -50,7 +50,7 @@ export default function Referrals() {
     if (link && navigator.share) {
       try {
         await navigator.share({
-          title: 'BlogAI - Automatize seu Blog',
+          title: 'Omniseen - Automatize seu Blog',
           text: 'Crie artigos incríveis com inteligência artificial! Use meu link de indicação:',
           url: link,
         });

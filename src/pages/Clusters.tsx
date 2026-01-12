@@ -136,7 +136,7 @@ export default function Clusters() {
               <div className="p-2 rounded-lg gradient-primary">
                 <Sparkles className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="font-display font-bold text-xl">BlogAI</span>
+              <span className="font-display font-bold text-xl">Omniseen</span>
             </div>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

@@ -49,7 +49,7 @@ export function DomainTab({
   const defaultBlogUrl = `${window.location.origin}/blog/${blogSlug}`;
 
   const generateVerificationToken = () => {
-    return `blogai-verify-${Math.random().toString(36).substring(2, 15)}`;
+    return `omniseen-verify-${Math.random().toString(36).substring(2, 15)}`;
   };
 
   const saveDomain = async () => {

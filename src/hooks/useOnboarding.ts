@@ -22,7 +22,7 @@ const DEFAULT_STATE: OnboardingState = {
   calendar: false,
 };
 
-const LOCAL_STORAGE_KEY = "blogai_onboarding_progress";
+const LOCAL_STORAGE_KEY = "omniseen_onboarding_progress";
 
 export function useOnboarding(page: keyof OnboardingState) {
   const { user } = useAuth();
