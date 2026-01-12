@@ -119,19 +119,56 @@ export function getContactLinkPreview(btn: ContactButtonData): string {
 export function sanitizeContactValue(type: string, value: string): string {
   if (!value) return '';
   
+  const trimmed = value.trim();
+  
   switch (type) {
     case 'whatsapp':
     case 'phone':
-      // Keep only digits (removes +, spaces, dashes, parentheses)
-      return value.replace(/\D/g, '');
+      // Extract number from wa.me or api.whatsapp.com URLs
+      // Handles: https://wa.me/5511999999999, https://api.whatsapp.com/send?phone=5511999999999
+      const waUrlRegex = /(?:wa\.me\/|whatsapp\.com\/send\?phone=)(\d+)/i;
+      const waMatch = trimmed.match(waUrlRegex);
+      if (waMatch && waMatch[1]) {
+        return waMatch[1];
+      }
+      // Fallback: keep only digits
+      return trimmed.replace(/\D/g, '');
+
     case 'instagram':
-      // Remove @ prefix and trim
-      return value.replace(/^@/, '').trim();
+      // Extract username from Instagram URLs
+      // Handles: https://www.instagram.com/username, @username, username
+      const instagramUrlRegex = /(?:https?:\/\/)?(?:www\.)?instagram\.com\/([a-zA-Z0-9._]+)\/?/i;
+      const igMatch = trimmed.match(instagramUrlRegex);
+      if (igMatch && igMatch[1]) {
+        return igMatch[1];
+      }
+      // Fallback: remove @ prefix
+      return trimmed.replace(/^@/, '');
+
     case 'email':
-      // Trim and lowercase
-      return value.trim().toLowerCase();
+      // Extract email from mailto: links
+      // Handles: mailto:email@example.com?subject=...
+      const mailtoRegex = /^mailto:([^\s?]+)/i;
+      const mailtoMatch = trimmed.match(mailtoRegex);
+      if (mailtoMatch && mailtoMatch[1]) {
+        return mailtoMatch[1].toLowerCase();
+      }
+      // Fallback: trim and lowercase
+      return trimmed.toLowerCase();
+
+    case 'website':
+    case 'link':
+      // Normalize URLs - remove duplicate protocols, spaces
+      // Handles: https://https://site.com, http://site.com, site.com
+      let url = trimmed;
+      // Remove duplicate protocols
+      url = url.replace(/^(https?:\/\/)+/gi, '');
+      // Remove duplicate www.
+      url = url.replace(/^(www\.)+/gi, 'www.');
+      return url;
+
     default:
-      return value.trim();
+      return trimmed;
   }
 }
 
