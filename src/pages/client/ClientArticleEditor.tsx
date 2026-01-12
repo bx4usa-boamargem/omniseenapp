@@ -191,11 +191,52 @@ export default function ClientArticleEditor() {
           setExcerpt(result.excerpt);
           setMetaDescription(result.meta_description);
           setFaq(result.faq || []);
-          setPhase('editing');
           
-          // Start image generation automatically
-          toast.success('Artigo gerado! Gerando imagens...');
-          await generateImages(result);
+          // CRITICAL: Save article as draft BEFORE generating images
+          // This ensures we have an article_id for image persistence
+          const slug = result.title
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-|-$/g, '');
+          
+          try {
+            const { data: newArticle, error: insertError } = await supabase
+              .from('articles')
+              .insert([{
+                blog_id: blog.id,
+                title: result.title,
+                slug: `${slug}-${Date.now()}`,
+                content: result.content,
+                excerpt: result.excerpt,
+                meta_description: result.meta_description,
+                faq: result.faq || null,
+                status: 'draft',
+              }])
+              .select('id')
+              .single();
+            
+            if (!insertError && newArticle) {
+              setExistingArticleId(newArticle.id);
+              console.log(`[Draft Created] id=${newArticle.id} - images will persist to this article`);
+              
+              setPhase('editing');
+              toast.success('Artigo salvo como rascunho! Gerando imagens...');
+              
+              // Generate images with valid article_id for persistence
+              await generateImagesWithArticleId(result, newArticle.id);
+            } else {
+              console.error('[Draft Creation Failed]', insertError);
+              setPhase('editing');
+              toast.warning('Artigo gerado, mas imagens serão salvas apenas ao publicar');
+              await generateImages(result);
+            }
+          } catch (draftError) {
+            console.error('[Draft Error]', draftError);
+            setPhase('editing');
+            await generateImages(result);
+          }
         }
       },
       onError: (error) => {
@@ -267,6 +308,7 @@ export default function ClientArticleEditor() {
             articleTitle: articleData.title,
             articleTheme: articleData.title,
             blog_id: blog.id,
+            article_id: existingArticleId, // CRITICAL: Pass article_id for persistence
           }
         });
         
@@ -298,6 +340,107 @@ export default function ClientArticleEditor() {
       
       const totalGenerated = newContentImages.length + (featuredImage ? 1 : 0);
       toast.success(`${totalGenerated} imagens geradas e salvas!`);
+      
+    } catch (error) {
+      console.error('Error generating images:', error);
+      toast.error('Erro ao gerar algumas imagens');
+    } finally {
+      setIsGeneratingImages(false);
+      setImageProgress(null);
+    }
+  };
+
+  // Dedicated function for generating images with a known article_id
+  const generateImagesWithArticleId = async (articleData: ArticleData, articleId: string) => {
+    if (!blog?.id) return;
+    
+    setIsGeneratingImages(true);
+    const totalImages = 4; // 1 cover + 3 internal
+    
+    try {
+      // Generate featured image
+      setImageProgress({ current: 1, total: totalImages, currentContext: 'Imagem de capa' });
+      
+      const { data: coverResult, error: coverError } = await supabase.functions.invoke('generate-image', {
+        body: {
+          articleTitle: articleData.title,
+          articleTheme: articleData.title,
+          context: 'cover',
+          blog_id: blog.id,
+          article_id: articleId, // Use passed article_id for persistence
+        }
+      });
+      
+      if (!coverError) {
+        let coverUrl = coverResult?.publicUrl || null;
+        
+        if (!coverUrl && coverResult?.imageBase64) {
+          const fileName = `cover-${articleId}-${Date.now()}.png`;
+          coverUrl = await uploadImageToStorage(coverResult.imageBase64, fileName);
+          
+          // Persist manually if edge function didn't
+          if (coverUrl) {
+            await updateArticleImage(articleId, 'cover', coverUrl);
+          }
+        }
+        
+        if (coverUrl) {
+          setFeaturedImage(coverUrl);
+          console.log('[generateImagesWithArticleId] Cover image persisted:', coverUrl);
+        }
+      }
+      
+      // Generate content images from prompts
+      const imagePrompts = articleData.image_prompts || [];
+      const newContentImages: ContentImage[] = [];
+      
+      for (let i = 0; i < Math.min(imagePrompts.length, 3); i++) {
+        const prompt = imagePrompts[i];
+        setImageProgress({ 
+          current: i + 2, 
+          total: totalImages, 
+          currentContext: prompt.context || `Imagem ${i + 1}` 
+        });
+        
+        const { data: imgResult, error: imgError } = await supabase.functions.invoke('generate-image', {
+          body: {
+            prompt: prompt.prompt,
+            context: prompt.context,
+            articleTitle: articleData.title,
+            articleTheme: articleData.title,
+            blog_id: blog.id,
+            article_id: articleId, // Use passed article_id for persistence
+          }
+        });
+        
+        if (!imgError) {
+          let imgUrl = imgResult?.publicUrl || null;
+          
+          if (!imgUrl && imgResult?.imageBase64) {
+            const fileName = `${prompt.context}-${articleId}-${Date.now()}.png`;
+            imgUrl = await uploadImageToStorage(imgResult.imageBase64, fileName);
+          }
+          
+          if (imgUrl) {
+            newContentImages.push({
+              context: prompt.context,
+              url: imgUrl,
+              after_section: prompt.after_section
+            });
+          }
+        }
+      }
+      
+      setContentImages(newContentImages);
+      
+      // Content images are already persisted by edge function when article_id is passed
+      // But fallback persist if needed
+      if (newContentImages.length > 0) {
+        await updateArticleImage(articleId, 'content', '', newContentImages);
+      }
+      
+      const totalGenerated = newContentImages.length + (coverResult?.publicUrl ? 1 : 0);
+      toast.success(`${totalGenerated > 0 ? totalGenerated : 'Todas'} imagens geradas e salvas!`);
       
     } catch (error) {
       console.error('Error generating images:', error);

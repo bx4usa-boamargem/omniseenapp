@@ -320,21 +320,65 @@ NÃO inclua: texto, logotipos, marcas d'água, elementos caricatos, ilustraçõe
       console.error(`[${requestId}] Upload error:`, uploadError);
     }
 
-    // Persist to article if article_id provided and is cover/hero
-    if (article_id && publicUrl && (effectiveContext === 'cover' || effectiveContext === 'hero')) {
+    // Persist to article if article_id provided
+    if (article_id && publicUrl) {
       try {
-        const { error: updateError } = await supabase
-          .from('articles')
-          .update({ 
-            featured_image_url: publicUrl,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', article_id);
+        if (effectiveContext === 'cover' || effectiveContext === 'hero') {
+          // Persist cover image
+          const { error: updateError } = await supabase
+            .from('articles')
+            .update({ 
+              featured_image_url: publicUrl,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', article_id);
 
-        if (updateError) {
-          console.error(`[${requestId}] Article update failed:`, updateError);
+          if (updateError) {
+            console.error(`[${requestId}] Article update failed:`, updateError);
+          } else {
+            console.log(`[${requestId}] Article ${article_id} updated with featured_image_url`);
+          }
         } else {
-          console.log(`[${requestId}] Article ${article_id} updated with featured_image_url`);
+          // Persist content images (problem, solution, result, etc.)
+          const { data: article } = await supabase
+            .from('articles')
+            .select('content_images')
+            .eq('id', article_id)
+            .single();
+          
+          const currentImages = (article?.content_images as any[]) || [];
+          
+          // Determine after_section based on context
+          const sectionMap: Record<string, number> = {
+            'problem': 1,
+            'pain': 1,
+            'solution': 2,
+            'result': 3
+          };
+          
+          const newImage = {
+            context: effectiveContext,
+            url: publicUrl,
+            after_section: sectionMap[effectiveContext] || currentImages.length + 1
+          };
+          
+          // Avoid duplicates by context
+          const filteredImages = currentImages.filter(img => img.context !== effectiveContext);
+          const updatedImages = [...filteredImages, newImage];
+          
+          const { error: updateError } = await supabase
+            .from('articles')
+            .update({ 
+              content_images: updatedImages,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', article_id);
+          
+          if (updateError) {
+            console.error(`[${requestId}] Content images update failed:`, updateError);
+          } else {
+            console.log(`[${requestId}] Article ${article_id} content_images updated with ${effectiveContext}`);
+          }
         }
       } catch (dbError) {
         console.error(`[${requestId}] DB error:`, dbError);

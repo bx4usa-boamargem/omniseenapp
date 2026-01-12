@@ -58,12 +58,14 @@ export function ArticlesWithoutImagesDrawer({
       toast.loading('Gerando imagem de capa...', { id: `gen-image-${article.id}` });
 
       // Enviar SEMPRE o título - prompt é gerado automaticamente pela edge function
+      // Enviar article_id para persistência direta na edge function
       const { data, error } = await supabase.functions.invoke('generate-image', {
         body: {
           articleTitle: article.title,
-          articleTheme: article.title, // Fallback para compatibilidade
+          articleTheme: article.title,
           context: 'cover',
-          blog_id: blogId
+          blog_id: blogId,
+          article_id: article.id  // Permite persistência direta no DB
         }
       });
 
@@ -71,33 +73,34 @@ export function ArticlesWithoutImagesDrawer({
         console.error('Error generating image:', error);
         const errorData = typeof error.message === 'string' ? error.message : JSON.stringify(error);
         
-        // Verificar se é erro de título ausente
         if (errorData.includes('MISSING_TITLE') || errorData.includes('título')) {
           throw new Error('O artigo precisa ter um título antes de gerar imagem.');
         }
         throw new Error(error.message || 'Erro ao gerar imagem');
       }
 
-      // Handle response - edge function returns imageBase64 or imageUrl
-      if (!data?.imageBase64 && !data?.imageUrl) {
+      // Handle response - prefer publicUrl (already uploaded by edge function)
+      if (!data?.imageBase64 && !data?.imageUrl && !data?.publicUrl) {
         throw new Error('Imagem não foi gerada pela IA');
       }
 
-      let publicUrl = data.imageUrl;
+      // Prefer publicUrl from edge function (already persisted)
+      let publicUrl = data.publicUrl || data.imageUrl;
       
-      // If we only got base64, upload to storage
+      // Fallback: If we only got base64, upload to storage manually
       if (!publicUrl && data.imageBase64) {
         const imageBlob = await base64ToBlob(data.imageBase64);
         const fileName = `articles/${article.id}/cover-${Date.now()}.png`;
         
+        // FIX: Use correct bucket 'article-images' not 'blog-images'
         const { error: uploadError } = await supabase.storage
-          .from('blog-images')
+          .from('article-images')
           .upload(fileName, imageBlob, { contentType: 'image/png', upsert: true });
 
         if (uploadError) throw uploadError;
 
         const { data: publicUrlData } = supabase.storage
-          .from('blog-images')
+          .from('article-images')
           .getPublicUrl(fileName);
         
         publicUrl = publicUrlData.publicUrl;
