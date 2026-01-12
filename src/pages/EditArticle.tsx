@@ -541,14 +541,14 @@ export default function EditArticle() {
   const handleFixAllSEO = async () => {
     if (!article) return;
 
-    // Validate keywords exist
+    // REGRA 3: SEO NUNCA BLOQUEIA - keywords são geradas automaticamente pelo backend
+    // Se não houver keywords, informar que serão geradas automaticamente
     if (!keywords || keywords.length === 0) {
       toast({
-        title: "Palavras-chave obrigatórias",
-        description: "Adicione pelo menos uma palavra-chave antes de otimizar o SEO.",
-        variant: "destructive",
+        title: "Keywords serão geradas automaticamente",
+        description: "A IA irá criar palavras-chave estratégicas para este artigo.",
       });
-      return;
+      // NÃO retorna - continua a execução
     }
 
     const contentText = article.content || '';

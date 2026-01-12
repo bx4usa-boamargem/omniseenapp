@@ -143,9 +143,10 @@ export function validateSEOForPublish(params: SEOScoreParams): SEOValidationResu
     warnings.push('Meta descrição muito longa (pode ser cortada no Google)');
   }
   
-  // Keywords: 3-7 ideal (blocking if 0)
+  // Keywords: 3-7 ideal (NEVER blocking - AI generates automatically)
   if (params.keywords.length === 0) {
-    issues.push('Nenhuma palavra-chave definida');
+    // REGRA 3: SEO nunca bloqueia - keywords são geradas automaticamente
+    warnings.push('Keywords serão geradas automaticamente pela IA');
   } else if (params.keywords.length < 3) {
     warnings.push('Recomendado ter pelo menos 3 palavras-chave');
   } else if (params.keywords.length > 7) {

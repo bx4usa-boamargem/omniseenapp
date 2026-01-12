@@ -688,6 +688,7 @@ export type Database = {
           tags: string[] | null
           target_persona_id: string | null
           title: string
+          title_fingerprint: string | null
           updated_at: string
           view_count: number | null
         }
@@ -724,6 +725,7 @@ export type Database = {
           tags?: string[] | null
           target_persona_id?: string | null
           title: string
+          title_fingerprint?: string | null
           updated_at?: string
           view_count?: number | null
         }
@@ -760,6 +762,7 @@ export type Database = {
           tags?: string[] | null
           target_persona_id?: string | null
           title?: string
+          title_fingerprint?: string | null
           updated_at?: string
           view_count?: number | null
         }
@@ -4033,6 +4036,11 @@ export type Database = {
         Args: { p_blog_id: string; p_user_id: string }
         Returns: boolean
       }
+      normalize_title_for_fingerprint: {
+        Args: { input_title: string }
+        Returns: string
+      }
+      unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
       account_type:

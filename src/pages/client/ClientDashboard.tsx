@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { SEOScoreGauge } from '@/components/seo/SEOScoreGauge';
 import { ClientRobotIllustration } from '@/components/client/ClientRobotIllustration';
+import { calculateSEOScore } from '@/utils/seoScore';
 import { 
   FileText, 
   Calendar, 
@@ -95,26 +96,30 @@ export default function ClientDashboard() {
         setLastArticle(articles[0]);
       }
 
-      // Calculate average SEO score
+      // Calculate REAL average SEO score using the same function as ClientSEO/ArticleSEOList
       const { data: allArticles } = await supabase
         .from('articles')
-        .select('title, meta_description, content, keywords')
+        .select('title, meta_description, content, keywords, featured_image_url')
         .eq('blog_id', blogId)
-        .eq('status', 'published')
-        .limit(10);
+        .eq('status', 'published');
 
       if (!isMounted.current) return;
       if (allArticles && allArticles.length > 0) {
-        const scores = allArticles.map(article => {
-          let score = 0;
-          if (article.title && article.title.length > 10) score += 25;
-          if (article.meta_description && article.meta_description.length > 50) score += 25;
-          if (article.content && article.content.length > 500) score += 25;
-          if (article.keywords && article.keywords.length > 0) score += 25;
-          return score;
-        });
+        // Use the SAME calculateSEOScore function from seoScore.ts
+        const scores = allArticles.map(article => 
+          calculateSEOScore({
+            title: article.title || '',
+            metaDescription: article.meta_description || '',
+            content: article.content,
+            keywords: article.keywords || [],
+            featuredImage: article.featured_image_url
+          }).totalScore
+        );
+        
+        // Calculate REAL average - never fake 100%
         const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
         setSeoScore(Math.round(avg));
+        console.log(`[Dashboard] Real SEO scores: ${scores.join(', ')} → Average: ${Math.round(avg)}%`);
       } else {
         setSeoScore(0);
       }
