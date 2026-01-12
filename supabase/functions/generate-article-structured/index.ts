@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildUniversalPrompt, type ClientStrategy, type FunnelMode, type ArticleGoal } from '../_shared/promptTypeCore.ts';
 import { resolveStrategy } from '../_shared/strategyResolver.ts';
 import { validateArticleQuality, generateCorrectionInstructions } from '../_shared/qualityValidator.ts';
+import { generateAutoKeywords, mergeKeywords } from '../_shared/keywordGenerator.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',

@@ -1,5 +1,13 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateAutoKeywords } from '../_shared/keywordGenerator.ts';
+import { 
+  buildSEOEditorSystemPrompt, 
+  buildContentExpansionPrompt, 
+  buildDensityOptimizationPrompt,
+  detectConclusionType,
+  type BusinessContext 
+} from '../_shared/professionalEditorPrompt.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -99,8 +107,59 @@ serve(async (req) => {
       }
     }
 
-    const keywordList = keywords.join(', ');
-    const mainKeyword = keywords[0];
+    // ========== BUSCAR CONTEXTO DO NEGÓCIO ==========
+    let businessContext: BusinessContext = {
+      company_name: 'a empresa',
+      niche: 'serviços',
+      city: '',
+      services: [],
+      region: '',
+      cta_channel: 'WhatsApp'
+    };
+
+    if (blog_id) {
+      // Buscar business_profile
+      const { data: profile } = await supabase
+        .from('business_profile')
+        .select('company_name, niche, city, long_description')
+        .eq('blog_id', blog_id)
+        .maybeSingle();
+      
+      // Buscar client_strategy para mais contexto
+      const { data: strategy } = await supabase
+        .from('client_strategy')
+        .select('empresa_nome, tipo_negocio, regiao_atuacao, o_que_oferece, canal_cta, principais_beneficios')
+        .eq('blog_id', blog_id)
+        .maybeSingle();
+
+      if (profile || strategy) {
+        businessContext = {
+          company_name: profile?.company_name || strategy?.empresa_nome || 'a empresa',
+          niche: profile?.niche || strategy?.tipo_negocio || 'serviços',
+          city: profile?.city || '',
+          services: strategy?.principais_beneficios || [],
+          region: strategy?.regiao_atuacao || profile?.city || '',
+          cta_channel: strategy?.canal_cta || 'WhatsApp'
+        };
+        console.log(`[BUSINESS CONTEXT] Loaded: ${businessContext.company_name} (${businessContext.niche})`);
+      }
+    }
+
+    // ========== GERAR KEYWORDS AUTOMATICAMENTE SE VAZIAS ==========
+    let finalKeywords = keywords;
+    if (finalKeywords.length === 0 || (finalKeywords.length === 1 && !finalKeywords[0])) {
+      const theme = articleTitle || 'artigo';
+      const autoKeywords = generateAutoKeywords(theme, {
+        niche: businessContext.niche,
+        city: businessContext.city,
+        services: businessContext.services
+      });
+      finalKeywords = [autoKeywords.primary, ...autoKeywords.secondary];
+      console.log(`[AUTO-KEYWORDS] Generated: ${finalKeywords.join(', ')}`);
+    }
+
+    const keywordList = finalKeywords.join(', ');
+    const mainKeyword = finalKeywords[0];
 
     // Extract images and headings BEFORE AI processing (for guardrails)
     const originalImages = type === 'content' || type === 'density' 
@@ -117,9 +176,8 @@ serve(async (req) => {
       console.log(`[GUARDRAIL] Found ${originalHeadings.length} headings to preserve`);
     }
 
-    let systemPrompt = `Você é um especialista em SEO. Sua tarefa é otimizar o conteúdo para melhor ranqueamento nos motores de busca.
-Responda APENAS com o conteúdo otimizado, sem explicações ou comentários adicionais.
-Use português brasileiro.`;
+    // ========== CONSTRUIR PROMPTS COM EDITOR PROFISSIONAL ==========
+    const systemPrompt = buildSEOEditorSystemPrompt(businessContext);
 
     let userPrompt = '';
 
@@ -161,67 +219,25 @@ Responda APENAS com a nova meta description, sem aspas ou explicações.`;
         // Calculate dynamic expansion target
         const currentWords = wordCount || Math.round((currentValue?.length || 0) / 6);
         const targetWords = targetWordCount || 1500;
-        const wordsToAdd = Math.max(targetWords - currentWords, 300);
         
-        userPrompt = `Expanda este conteúdo de ${currentWords} para ${targetWords} palavras.
-
-REGRAS DE PRESERVAÇÃO INVIOLÁVEIS:
-1. NUNCA remova ou altere tags <img src="..."> existentes - preserve TODAS as imagens
-2. MANTENHA todos os subtítulos ## e ### exatamente como estão
-3. PRESERVE blockquotes (> ...) e caixas de destaque
-4. MANTENHA todas as listas (- ou 1.)
-5. NÃO altere links <a href="...">
-6. ADICIONE conteúdo ENTRE as seções existentes, não substitua
-
-Conteúdo atual:
-${currentValue?.slice(0, 8000) || 'Vazio'}
-
-Palavras-chave OBRIGATÓRIAS: ${keywordList}
-
-Requisitos CRÍTICOS:
-- Adicione aproximadamente ${wordsToAdd} palavras novas
-- OBRIGATÓRIO: Inclua cada palavra-chave "${keywords.join('", "')}" pelo menos 4-6 vezes no total
-- Distribua as palavras-chave uniformemente no início, meio e fim do texto
-- Adicione exemplos práticos, casos de uso, estatísticas e dados relevantes
-- Use subtítulos (##) para organizar o conteúdo novo
-- Mantenha o tom e estilo originais
-- NÃO remova conteúdo existente, apenas adicione e melhore
-- Use bullet points e listas quando apropriado
-
-O conteúdo final DEVE ter pelo menos ${targetWords} palavras.
-
-Responda APENAS com o conteúdo expandido completo (original + novo), preservando TODAS as imagens.`;
+        userPrompt = buildContentExpansionPrompt(
+          businessContext,
+          currentWords,
+          targetWords,
+          finalKeywords,
+          currentValue || ''
+        );
         break;
 
       case 'density':
-        // For density, we also ensure we don't shrink the content
         const densityCurrentWords = wordCount || Math.round((currentValue?.length || 0) / 6);
         
-        userPrompt = `Otimize a densidade de palavras-chave neste texto, mantendo pelo menos ${densityCurrentWords} palavras.
-
-REGRAS DE PRESERVAÇÃO INVIOLÁVEIS:
-1. NUNCA remova ou altere tags <img src="..."> existentes - preserve TODAS as imagens
-2. MANTENHA todos os ## e ### exatamente iguais
-3. PRESERVE estrutura de parágrafos e formatação
-4. NÃO altere links ou blocos especiais
-
-Texto atual (${densityCurrentWords} palavras):
-${currentValue?.slice(0, 8000) || 'Vazio'}
-
-Palavras-chave que devem aparecer mais: ${keywordList}
-
-Requisitos OBRIGATÓRIOS:
-- O texto final DEVE ter pelo menos ${densityCurrentWords} palavras (NÃO REDUZA o tamanho)
-- Distribua as palavras-chave naturalmente (densidade ideal: 1-2%)
-- Inclua CADA palavra-chave "${keywords.join('", "')}" pelo menos 4-6 vezes distribuídas no texto
-- Coloque as palavras-chave nos primeiros e últimos parágrafos
-- Use variações e sinônimos quando apropriado para não ficar repetitivo
-- Mantenha a legibilidade e fluidez do texto
-- NÃO force as palavras-chave de forma artificial
-- Mantenha TODA a estrutura de parágrafos e subtítulos
-- Se necessário, ADICIONE conteúdo para acomodar mais palavras-chave
-
-Responda APENAS com o texto otimizado completo, preservando TODAS as imagens.`;
+        userPrompt = buildDensityOptimizationPrompt(
+          businessContext,
+          densityCurrentWords,
+          finalKeywords,
+          currentValue || ''
+        );
         break;
 
       default:
@@ -229,6 +245,7 @@ Responda APENAS com o texto otimizado completo, preservando TODAS as imagens.`;
     }
 
     console.log(`Improving SEO item: ${type} with keywords: ${keywordList}, model: ${textModel}`);
+    console.log(`Business context: ${businessContext.company_name} (${detectConclusionType(businessContext.niche)})`);
 
     const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -304,7 +321,7 @@ Responda APENAS com o texto otimizado completo, preservando TODAS as imagens.`;
           output_tokens: outputTokens,
           images_generated: 0,
           estimated_cost_usd: (inputTokens * 0.00000015) + (outputTokens * 0.0000006),
-          metadata: { type, keywords },
+          metadata: { type, keywords: finalKeywords, business: businessContext.company_name },
         });
         console.log("Consumption logged for SEO improvement");
       } catch (logError) {

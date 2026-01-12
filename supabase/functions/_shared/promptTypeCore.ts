@@ -251,6 +251,48 @@ const SMART_CTA_RULES = {
   ]
 };
 
+// CAMADA 8.8: Conclusão Comercial Contextual por Nicho
+export const COMMERCIAL_CONCLUSION_RULES = {
+  principle: "A conclusão SEMPRE deve vender a empresa como solução natural",
+  requirements: [
+    "Usar o nome REAL da empresa (nunca 'nossa empresa' ou 'nossos serviços')",
+    "Conectar o problema do artigo com o serviço oferecido",
+    "Mencionar a cidade/região de atuação quando disponível",
+    "Gerar senso de ação sem ser agressivo",
+    "Convidar para contato real (avaliação, consulta, orçamento)"
+  ],
+  by_niche: {
+    pragas: {
+      instruction: "Convidar para inspeção, prevenção ou tratamento de pragas",
+      example: "Se você está enfrentando problemas com pragas, a {{EMPRESA}} pode resolver. Atendemos {{REGIÃO}} com agilidade e garantia. **Fale conosco pelo {{CANAL}}.**"
+    },
+    automacao: {
+      instruction: "Apresentar como solução para vendas, atendimento e crescimento",
+      example: "Quer parar de perder clientes por falta de resposta rápida? A {{EMPRESA}} automatiza seu atendimento e vendas. **Fale com a gente pelo {{CANAL}}.**"
+    },
+    advocacia: {
+      instruction: "Oferecer serviços jurídicos para aquele problema",
+      example: "Se você precisa de orientação jurídica, entre em contato com {{EMPRESA}}. Atendemos em {{REGIÃO}}. **Agende uma consulta pelo {{CANAL}}.**"
+    },
+    clinica: {
+      instruction: "Convidar para avaliação ou consulta de saúde",
+      example: "Agende uma avaliação na {{EMPRESA}} e cuide da sua saúde com quem entende. Atendimento humanizado em {{REGIÃO}}."
+    },
+    imobiliaria: {
+      instruction: "Convidar para avaliação de imóveis",
+      example: "Quer saber o valor do seu imóvel? A {{EMPRESA}} pode ajudar em {{REGIÃO}}. **Solicite uma avaliação pelo {{CANAL}}.**"
+    },
+    consultoria: {
+      instruction: "Posicionar como solução para o desafio apresentado",
+      example: "Você não precisa resolver tudo sozinho. A {{EMPRESA}} pode ajudar sua empresa a crescer. **Agende uma conversa pelo {{CANAL}}.**"
+    },
+    default: {
+      instruction: "Posicionar a empresa como solução natural para o problema",
+      example: "Se você quer resolver esse desafio de forma profissional, a {{EMPRESA}} pode ajudar. **Entre em contato pelo {{CANAL}}.**"
+    }
+  }
+};
+
 // REGRAS GLOBAIS INVIOLÁVEIS (aplicam-se a TODOS os modos e fontes)
 export const GLOBAL_MANDATORY_RULES = {
   images: {
