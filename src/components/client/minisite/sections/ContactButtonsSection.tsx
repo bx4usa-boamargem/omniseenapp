@@ -257,19 +257,30 @@ export function ContactButtonsSection({
 
                 {/* Link Preview (Admin-only, only if valid) */}
                 {hasValue && validation.isValid && (
-                  <div className="flex items-center justify-between text-xs bg-blue-50 border border-blue-200 px-3 py-2 rounded">
-                    <div className="flex items-center gap-2 text-blue-700">
-                      <ExternalLink className="h-3 w-3" />
-                      <code className="text-blue-600">{getContactLinkPreview(button)}</code>
+                  <div className="text-xs space-y-2">
+                    {/* Link Preview Row */}
+                    <div className="flex items-center justify-between bg-blue-50 border border-blue-200 px-3 py-2 rounded">
+                      <div className="flex items-center gap-2 text-blue-700">
+                        <ExternalLink className="h-3 w-3" />
+                        <code className="text-blue-600">{getContactLinkPreview(button)}</code>
+                      </div>
+                      <a 
+                        href={getContactHref(button)} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline font-medium"
+                      >
+                        Testar ↗
+                      </a>
                     </div>
-                    <a 
-                      href={getContactHref(button)} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline font-medium"
-                    >
-                      Testar
-                    </a>
+                    
+                    {/* WhatsApp-specific warning */}
+                    {button.button_type === 'whatsapp' && (
+                      <p className="text-gray-400 flex items-center gap-1">
+                        <span>💡</span>
+                        <span>Teste funciona melhor no celular ou em uma nova aba do navegador.</span>
+                      </p>
+                    )}
                   </div>
                 )}
 
