@@ -1362,36 +1362,22 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
     
     // H1 validation complete - continue with CTA validation
     
-    // REGRA 2: Última seção DEVE ser "## Próximo passo" - com auto-correção
+    // REGRA 2: Última seção DEVE ser "## Próximo passo" - com CTA obrigatório do contrato
+    // Importar função do contrato editorial
+    const { ensureCTA, hasValidCTA } = await import('../_shared/editorialContract.ts');
+    
     let finalContent = articleData.content as string;
     const h2Matches = finalContent.match(/^## .+$/gm) || [];
     
     if (h2Matches.length > 0) {
-      const lastH2 = h2Matches[h2Matches.length - 1].trim();
+      // Aplicar CTA obrigatório do contrato editorial
+      finalContent = ensureCTA(finalContent);
+      articleData.content = finalContent;
       
-      if (lastH2 !== MANDATORY_FINAL_SECTION) {
-        console.warn(`EDITORIAL WARNING: Last H2 is "${lastH2}", expected "${MANDATORY_FINAL_SECTION}" - attempting auto-fix`);
-        
-        // Auto-fix: Replace the last H2 with the mandatory one
-        const lastH2Index = finalContent.lastIndexOf(lastH2);
-        
-        if (lastH2Index !== -1) {
-          // Replace the last H2 heading with the correct one
-          finalContent = finalContent.substring(0, lastH2Index) + 
-            MANDATORY_FINAL_SECTION + 
-            finalContent.substring(lastH2Index + lastH2.length);
-          
-          articleData.content = finalContent;
-          console.log(`✅ CTA Final auto-fixed: "${lastH2}" → "${MANDATORY_FINAL_SECTION}"`);
-        } else {
-          // If can't find to replace, append the section at the end
-          console.warn('Could not find last H2 to replace, appending mandatory section');
-          finalContent = finalContent.trim() + `\n\n${MANDATORY_FINAL_SECTION}\n\n**Quem age primeiro, vence.** Entre em contato agora e dê o próximo passo para o seu negócio.`;
-          articleData.content = finalContent;
-          console.log('✅ CTA Final appended as fallback');
-        }
+      if (hasValidCTA(finalContent)) {
+        console.log('✅ CTA Final "## Próximo passo" validado e aplicado (Contrato Editorial)');
       } else {
-        console.log('✅ CTA Final "## Próximo passo" validated');
+        console.warn('⚠️ CTA pode não estar no formato exato do contrato');
       }
     } else {
       console.error('AI_OUTPUT_INVALID: No H2 sections found in article');

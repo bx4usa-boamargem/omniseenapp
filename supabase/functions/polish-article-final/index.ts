@@ -256,12 +256,22 @@ serve(async (req) => {
       );
     }
 
+    // Garantir CTA obrigatório do contrato editorial após polimento
+    const { ensureCTA, hasValidCTA } = await import('../_shared/editorialContract.ts');
+    
+    let finalPolishedContent = polishedContent;
+    if (!hasValidCTA(polishedContent)) {
+      finalPolishedContent = ensureCTA(polishedContent);
+      changes.push('CTA obrigatório do contrato editorial aplicado');
+      console.log('[POLISH] CTA obrigatório do contrato editorial aplicado');
+    }
+
     console.log(`[POLISH] Complete - Changes: ${changes.length}, Valid: ${postValidation.valid}, Words: ${originalWordCount} → ${finalWordCount}`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        content: polishedContent,
+        content: finalPolishedContent,
         changes,
         structureValid: postValidation.valid,
         originalWordCount,

@@ -303,7 +303,17 @@ export const GLOBAL_MANDATORY_RULES = {
   cta_final: {
     required: true,
     exact_title: '## Próximo passo',
-    must_contain: ['verbo imperativo', 'conexão com a dor do artigo']
+    must_contain: ['verbo imperativo', 'conexão com a dor do artigo'],
+    // CONTRATO EDITORIAL OBRIGATÓRIO - CTA EXATO
+    exact_content: `## Próximo passo
+
+Você não precisa continuar perdendo clientes por falta de resposta, organização ou tempo.
+
+Hoje já existem ferramentas simples que fazem o trabalho pesado por você — mesmo enquanto você está atendendo clientes ou trabalhando no campo.
+
+Se você quer transformar seu site, seu WhatsApp e seus leads em uma máquina de vendas automática, o próximo passo é conversar com um especialista.
+
+**👉 [Fale com um especialista agora]**`
   }
 };
 
