@@ -180,6 +180,56 @@ export type Database = {
           },
         ]
       }
+      ai_usage_logs: {
+        Row: {
+          blog_id: string | null
+          cost_usd: number
+          country: string | null
+          created_at: string | null
+          endpoint: string
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          provider: string
+          success: boolean | null
+          tokens_used: number | null
+        }
+        Insert: {
+          blog_id?: string | null
+          cost_usd?: number
+          country?: string | null
+          created_at?: string | null
+          endpoint: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          provider: string
+          success?: boolean | null
+          tokens_used?: number | null
+        }
+        Update: {
+          blog_id?: string | null
+          cost_usd?: number
+          country?: string | null
+          created_at?: string | null
+          endpoint?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          provider?: string
+          success?: boolean | null
+          tokens_used?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_logs_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       article_analytics: {
         Row: {
           article_id: string
@@ -356,48 +406,63 @@ export type Database = {
           converted_article_id: string | null
           converted_at: string | null
           created_at: string | null
+          goal: string | null
           id: string
+          intel_week_id: string | null
+          origin: string | null
           relevance_factors: Json | null
           relevance_score: number | null
           source: string | null
+          source_urls: string[] | null
           status: string | null
           suggested_keywords: string[] | null
           suggested_outline: Json | null
           suggested_title: string
           trend_source: string | null
           updated_at: string | null
+          why_now: string | null
         }
         Insert: {
           blog_id: string
           converted_article_id?: string | null
           converted_at?: string | null
           created_at?: string | null
+          goal?: string | null
           id?: string
+          intel_week_id?: string | null
+          origin?: string | null
           relevance_factors?: Json | null
           relevance_score?: number | null
           source?: string | null
+          source_urls?: string[] | null
           status?: string | null
           suggested_keywords?: string[] | null
           suggested_outline?: Json | null
           suggested_title: string
           trend_source?: string | null
           updated_at?: string | null
+          why_now?: string | null
         }
         Update: {
           blog_id?: string
           converted_article_id?: string | null
           converted_at?: string | null
           created_at?: string | null
+          goal?: string | null
           id?: string
+          intel_week_id?: string | null
+          origin?: string | null
           relevance_factors?: Json | null
           relevance_score?: number | null
           source?: string | null
+          source_urls?: string[] | null
           status?: string | null
           suggested_keywords?: string[] | null
           suggested_outline?: Json | null
           suggested_title?: string
           trend_source?: string | null
           updated_at?: string | null
+          why_now?: string | null
         }
         Relationships: [
           {
@@ -412,6 +477,13 @@ export type Database = {
             columns: ["converted_article_id"]
             isOneToOne: false
             referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_opportunities_intel_week_id_fkey"
+            columns: ["intel_week_id"]
+            isOneToOne: false
+            referencedRelation: "market_intel_weekly"
             referencedColumns: ["id"]
           },
         ]
@@ -2785,6 +2857,68 @@ export type Database = {
             foreignKeyName: "linking_settings_blog_id_fkey"
             columns: ["blog_id"]
             isOneToOne: true
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      market_intel_weekly: {
+        Row: {
+          blog_id: string
+          competitor_gaps: Json | null
+          content_ideas: Json | null
+          country: string
+          created_at: string | null
+          id: string
+          keywords: Json | null
+          market_snapshot: string | null
+          query_cost_usd: number | null
+          questions: Json | null
+          raw_response: Json | null
+          source: string | null
+          sources_count: number | null
+          trends: Json | null
+          week_of: string
+        }
+        Insert: {
+          blog_id: string
+          competitor_gaps?: Json | null
+          content_ideas?: Json | null
+          country?: string
+          created_at?: string | null
+          id?: string
+          keywords?: Json | null
+          market_snapshot?: string | null
+          query_cost_usd?: number | null
+          questions?: Json | null
+          raw_response?: Json | null
+          source?: string | null
+          sources_count?: number | null
+          trends?: Json | null
+          week_of: string
+        }
+        Update: {
+          blog_id?: string
+          competitor_gaps?: Json | null
+          content_ideas?: Json | null
+          country?: string
+          created_at?: string | null
+          id?: string
+          keywords?: Json | null
+          market_snapshot?: string | null
+          query_cost_usd?: number | null
+          questions?: Json | null
+          raw_response?: Json | null
+          source?: string | null
+          sources_count?: number | null
+          trends?: Json | null
+          week_of?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "market_intel_weekly_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
             referencedRelation: "blogs"
             referencedColumns: ["id"]
           },
