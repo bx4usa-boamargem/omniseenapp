@@ -63,17 +63,55 @@ const goalConfig: Record<string, { label: string; color: string; icon: React.Ele
   },
 };
 
-export function ContentIdeaCard({ 
-  title, 
-  angle, 
-  keywords, 
-  goal, 
-  why_now, 
+export function ContentIdeaCard({
+  title,
+  angle,
+  keywords,
+  goal,
+  why_now,
   sources,
   blogId,
   opportunityId,
   intelWeekId
 }: ContentIdeaCardProps) {
+  const [creating, setCreating] = useState(false);
+  const navigate = useNavigate();
+
+  const validateBlogPermission = async (userId: string): Promise<boolean> => {
+    // Check if user owns the blog
+    const { data: blogCheck } = await supabase
+      .from('blogs')
+      .select('id, user_id')
+      .eq('id', blogId)
+      .single();
+
+    if (blogCheck?.user_id === userId) {
+      return true;
+    }
+
+    // Check if user is team member
+    const { data: membership } = await supabase
+      .from('team_members')
+      .select('id')
+      .eq('blog_id', blogId)
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (membership) {
+      return true;
+    }
+
+    // Check if user is admin
+    const { data: adminRole } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .in('role', ['admin', 'platform_admin'])
+      .maybeSingle();
+
+    return !!adminRole;
+  };
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   
