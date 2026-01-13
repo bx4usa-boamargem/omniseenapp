@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Eye, MousePointerClick, TrendingUp, Target, ArrowUpRight, ArrowDownRight, Minus, DollarSign, BookOpen } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { cn } from '@/lib/utils';
-import { ConversionFunnelChart } from '@/components/consultant/ConversionFunnelChart';
-import { BusinessEconomicsAlert } from '@/components/roi/BusinessEconomicsAlert';
-import { useBusinessEconomics } from '@/hooks/useBusinessEconomics';
-import { EconomicsTooltip } from '@/components/roi/EconomicsTooltip';
+import { SearchConsoleMetricsBar } from '@/components/consultant/SearchConsoleMetricsBar';
+import { SearchConsoleTable } from '@/components/consultant/SearchConsoleTable';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { 
   LineChart, 
   Line, 
@@ -32,16 +34,9 @@ interface GSCMetrics {
   clicksDelta: number;
 }
 
-interface ConversionMetrics {
-  exposureCount: number;
-  intentCount: number;
-  exposureValue: number;
-  intentValue: number;
-  totalValue: number;
-}
+type ChartGranularity = 'daily' | 'weekly' | 'monthly';
 
 export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabProps) {
-  const economics = useBusinessEconomics(blogId || null);
   const [gscMetrics, setGscMetrics] = useState<GSCMetrics>({
     impressions: 0,
     clicks: 0,
@@ -50,20 +45,14 @@ export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabPro
     impressionsDelta: 0,
     clicksDelta: 0
   });
-  const [conversionMetrics, setConversionMetrics] = useState<ConversionMetrics>({
-    exposureCount: 0,
-    intentCount: 0,
-    exposureValue: 0,
-    intentValue: 0,
-    totalValue: 0
-  });
   const [historicalData, setHistoricalData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [chartGranularity, setChartGranularity] = useState<ChartGranularity>('daily');
 
   useEffect(() => {
     if (!blogId) return;
     fetchData();
-  }, [blogId, period, economics.valuePerExposure, economics.valuePerIntent]);
+  }, [blogId, period]);
 
   const fetchData = async () => {
     if (!blogId) return;
@@ -81,17 +70,6 @@ export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabPro
         .eq('blog_id', blogId)
         .gte('date', startDate.toISOString().split('T')[0])
         .order('date', { ascending: true });
-
-      // Fetch conversion metrics
-      const { data: conversionData } = await supabase
-        .from('article_conversion_metrics')
-        .select('*')
-        .eq('blog_id', blogId)
-        .gte('date', startDate.toISOString().split('T')[0]);
-
-      // Use values from economics hook
-      const valuePerExposure = economics.valuePerExposure;
-      const valuePerIntent = economics.valuePerIntent;
 
       // Aggregate GSC metrics
       if (gscData && gscData.length > 0) {
@@ -112,12 +90,8 @@ export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabPro
         const firstHalfClicks = firstHalf.reduce((sum, d) => sum + (d.clicks || 0), 0);
         const secondHalfClicks = secondHalf.reduce((sum, d) => sum + (d.clicks || 0), 0);
 
-        const impressionsDelta = firstHalfImpressions > 0 
-          ? ((secondHalfImpressions - firstHalfImpressions) / firstHalfImpressions) * 100 
-          : 0;
-        const clicksDelta = firstHalfClicks > 0 
-          ? ((secondHalfClicks - firstHalfClicks) / firstHalfClicks) * 100 
-          : 0;
+        const impressionsDelta = secondHalfImpressions - firstHalfImpressions;
+        const clicksDelta = secondHalfClicks - firstHalfClicks;
 
         setGscMetrics({
           impressions: totalImpressions,
@@ -128,27 +102,25 @@ export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabPro
           clicksDelta
         });
 
-        // Prepare historical chart data
-        const chartData = gscData.map(d => ({
-          date: new Date(d.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
-          impressions: d.impressions || 0,
-          clicks: d.clicks || 0
-        }));
-        setHistoricalData(chartData);
-      }
-
-      // Aggregate conversion metrics
-      if (conversionData && conversionData.length > 0) {
-        const totalExposure = conversionData.reduce((sum, d) => sum + (d.conversion_visibility_count || 0), 0);
-        const totalIntent = conversionData.reduce((sum, d) => sum + (d.conversion_intent_count || 0), 0);
-
-        setConversionMetrics({
-          exposureCount: totalExposure,
-          intentCount: totalIntent,
-          exposureValue: totalExposure * valuePerExposure,
-          intentValue: totalIntent * valuePerIntent,
-          totalValue: (totalExposure * valuePerExposure) + (totalIntent * valuePerIntent)
+        // Aggregate by date for chart
+        const dateMap = new Map<string, { impressions: number; clicks: number }>();
+        gscData.forEach(d => {
+          const existing = dateMap.get(d.date) || { impressions: 0, clicks: 0 };
+          dateMap.set(d.date, {
+            impressions: existing.impressions + (d.impressions || 0),
+            clicks: existing.clicks + (d.clicks || 0)
+          });
         });
+
+        const chartData = Array.from(dateMap.entries())
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([date, data]) => ({
+            date: new Date(date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
+            impressions: data.impressions,
+            clicks: data.clicks
+          }));
+        
+        setHistoricalData(chartData);
       }
     } catch (error) {
       console.error('Error fetching search performance:', error);
@@ -157,216 +129,168 @@ export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabPro
     }
   };
 
-  const DeltaIndicator = ({ value }: { value: number }) => {
-    if (Math.abs(value) < 0.5) {
-      return <Minus className="h-4 w-4 text-gray-400" />;
-    }
-    if (value > 0) {
-      return (
-        <span className="flex items-center text-xs text-green-600 dark:text-green-400">
-          <ArrowUpRight className="h-3 w-3" />
-          +{value.toFixed(1)}%
-        </span>
-      );
-    }
+  const getPeriodLabel = () => {
+    const endDate = new Date();
+    const startDate = new Date();
+    const daysAgo = period === '7d' ? 7 : period === '30d' ? 30 : 90;
+    startDate.setDate(startDate.getDate() - daysAgo);
+    
+    return `${startDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} a ${endDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
+  };
+
+  const getAggregatedChartData = () => {
+    if (chartGranularity === 'daily') return historicalData;
+    
+    const weeklyData: { [key: string]: { impressions: number; clicks: number; count: number } } = {};
+    
+    historicalData.forEach((item, index) => {
+      const weekIndex = Math.floor(index / 7);
+      const key = `Sem ${weekIndex + 1}`;
+      
+      if (!weeklyData[key]) {
+        weeklyData[key] = { impressions: 0, clicks: 0, count: 0 };
+      }
+      weeklyData[key].impressions += item.impressions;
+      weeklyData[key].clicks += item.clicks;
+      weeklyData[key].count++;
+    });
+
+    return Object.entries(weeklyData).map(([date, data]) => ({
+      date,
+      impressions: data.impressions,
+      clicks: data.clicks
+    }));
+  };
+
+  if (loading) {
     return (
-      <span className="flex items-center text-xs text-red-500 dark:text-red-400">
-        <ArrowDownRight className="h-3 w-3" />
-        {value.toFixed(1)}%
-      </span>
+      <div className="space-y-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-6 bg-muted rounded w-1/3"></div>
+          <div className="h-20 bg-muted rounded"></div>
+          <div className="h-64 bg-muted rounded"></div>
+        </div>
+      </div>
     );
-  };
-
-  const formatNumber = (num: number) => {
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toLocaleString('pt-BR');
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value);
-  };
+  }
 
   return (
     <div className="space-y-6">
-      {/* Economics Alert */}
-      {!economics.isLoading && !economics.isConfigured && (
-        <BusinessEconomicsAlert />
+      {/* Header */}
+      <div className="space-y-1">
+        <h2 className="text-2xl font-semibold text-foreground">
+          Performance de Busca
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Acompanhe o desempenho do tráfego orgânico do seu blog
+        </p>
+      </div>
+
+      {/* Metrics Bar - Google Search Console Style */}
+      <SearchConsoleMetricsBar
+        clicks={gscMetrics.clicks}
+        impressions={gscMetrics.impressions}
+        ctr={gscMetrics.ctr}
+        position={gscMetrics.position}
+        clicksDelta={gscMetrics.clicksDelta}
+        impressionsDelta={gscMetrics.impressionsDelta}
+        periodLabel={getPeriodLabel()}
+      />
+
+      {/* Main Chart */}
+      <div className="bg-card border border-border rounded-lg">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <h3 className="text-sm font-medium text-foreground">
+            Evolução do Tráfego Orgânico
+          </h3>
+          <Select 
+            value={chartGranularity} 
+            onValueChange={(v: ChartGranularity) => setChartGranularity(v)}
+          >
+            <SelectTrigger className="w-28 h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="daily">Diário</SelectItem>
+              <SelectItem value="weekly">Semanal</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        
+        <div className="p-4">
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={getAggregatedChartData()}>
+                <CartesianGrid 
+                  strokeDasharray="3 3" 
+                  stroke="hsl(var(--border))"
+                  vertical={false}
+                />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                  axisLine={{ stroke: 'hsl(var(--border))' }}
+                  tickLine={false}
+                />
+                <YAxis 
+                  yAxisId="left"
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(value) => value >= 1000 ? `${(value/1000).toFixed(0)}K` : value}
+                />
+                <YAxis 
+                  yAxisId="right" 
+                  orientation="right"
+                  tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(value) => value >= 1000 ? `${(value/1000).toFixed(0)}K` : value}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'hsl(var(--card))', 
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px',
+                    fontSize: '12px'
+                  }}
+                  labelStyle={{ color: 'hsl(var(--foreground))' }}
+                />
+                <Legend 
+                  wrapperStyle={{ fontSize: '12px' }}
+                  iconType="circle"
+                  iconSize={8}
+                />
+                <Line 
+                  yAxisId="left"
+                  type="monotone" 
+                  dataKey="clicks" 
+                  name="Cliques"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, fill: '#3b82f6' }}
+                />
+                <Line 
+                  yAxisId="right"
+                  type="monotone" 
+                  dataKey="impressions" 
+                  name="Impressões"
+                  stroke="#ec4899"
+                  strokeWidth={2}
+                  dot={false}
+                  activeDot={{ r: 4, fill: '#ec4899' }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Top Pages Table */}
+      {blogId && (
+        <SearchConsoleTable blogId={blogId} period={period} />
       )}
-
-      {/* Metrics Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <Eye className="h-5 w-5 text-blue-500" />
-              <DeltaIndicator value={gscMetrics.impressionsDelta} />
-            </div>
-            <p className="text-2xl font-bold text-foreground">{formatNumber(gscMetrics.impressions)}</p>
-            <p className="text-xs text-muted-foreground">Impressões</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <MousePointerClick className="h-5 w-5 text-green-500" />
-              <DeltaIndicator value={gscMetrics.clicksDelta} />
-            </div>
-            <p className="text-2xl font-bold text-foreground">{formatNumber(gscMetrics.clicks)}</p>
-            <p className="text-xs text-muted-foreground">Cliques</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <TrendingUp className="h-5 w-5 text-purple-500" />
-            </div>
-            <p className="text-2xl font-bold text-foreground">{gscMetrics.ctr.toFixed(1)}%</p>
-            <p className="text-xs text-muted-foreground">CTR Médio</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <Target className="h-5 w-5 text-orange-500" />
-            </div>
-            <p className="text-2xl font-bold text-foreground">{gscMetrics.position.toFixed(1)}</p>
-            <p className="text-xs text-muted-foreground">Posição Média</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <BookOpen className="h-5 w-5 text-violet-500" />
-              <EconomicsTooltip
-                averageTicket={economics.averageTicket}
-                closingRate={economics.closingRate}
-                opportunityValue={economics.opportunityValue}
-                valuePerExposure={economics.valuePerExposure}
-                valuePerIntent={economics.valuePerIntent}
-                isConfigured={economics.isConfigured}
-              />
-            </div>
-            <p className="text-2xl font-bold text-foreground">{formatNumber(conversionMetrics.exposureCount)}</p>
-            <p className="text-xs text-muted-foreground">Exposição Comercial</p>
-            <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">
-              {formatCurrency(conversionMetrics.exposureValue)}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <DollarSign className="h-5 w-5 text-emerald-500" />
-              <EconomicsTooltip
-                averageTicket={economics.averageTicket}
-                closingRate={economics.closingRate}
-                opportunityValue={economics.opportunityValue}
-                valuePerExposure={economics.valuePerExposure}
-                valuePerIntent={economics.valuePerIntent}
-                isConfigured={economics.isConfigured}
-              />
-            </div>
-            <p className="text-2xl font-bold text-foreground">{formatNumber(conversionMetrics.intentCount)}</p>
-            <p className="text-xs text-muted-foreground">Intenção Comercial</p>
-            <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-              {formatCurrency(conversionMetrics.intentValue)}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Charts Row */}
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Organic Growth Chart */}
-        <Card className="bg-card border-border">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              Crescimento Orgânico
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={historicalData}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} className="text-muted-foreground" />
-                  <YAxis yAxisId="left" tick={{ fontSize: 12 }} className="text-muted-foreground" />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} className="text-muted-foreground" />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))', 
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '8px'
-                    }} 
-                  />
-                  <Legend />
-                  <Line 
-                    yAxisId="left"
-                    type="monotone" 
-                    dataKey="impressions" 
-                    name="Impressões"
-                    stroke="hsl(var(--primary))" 
-                    strokeWidth={2}
-                    dot={false}
-                  />
-                  <Line 
-                    yAxisId="right"
-                    type="monotone" 
-                    dataKey="clicks" 
-                    name="Cliques"
-                    stroke="#22c55e" 
-                    strokeWidth={2}
-                    strokeDasharray="5 5"
-                    dot={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Conversion Funnel */}
-        <ConversionFunnelChart
-          impressions={gscMetrics.impressions}
-          clicks={gscMetrics.clicks}
-          exposureCount={conversionMetrics.exposureCount}
-          intentCount={conversionMetrics.intentCount}
-          totalValue={conversionMetrics.totalValue}
-        />
-      </div>
-
-      {/* Value Message */}
-      <Card className="bg-gradient-to-r from-violet-500/10 to-purple-500/10 border-violet-500/20">
-        <CardContent className="p-6">
-          <p className="text-center text-lg text-foreground">
-            <span className="font-semibold">Aqui você não vê apenas visitas.</span>{' '}
-            <span className="text-muted-foreground">Você vê dinheiro fluindo do Google para o seu funil.</span>
-          </p>
-          <p className="text-center text-3xl font-bold text-primary mt-3">
-            {formatCurrency(conversionMetrics.totalValue)}
-          </p>
-          <p className="text-center text-sm text-muted-foreground mt-1">
-            Valor estimado gerado no período
-          </p>
-          {economics.isConfigured && (
-            <p className="text-center text-xs text-muted-foreground mt-2">
-              Baseado no seu ticket médio de {formatCurrency(economics.averageTicket || 0)} e taxa de fechamento de {economics.closingRate}%
-            </p>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
