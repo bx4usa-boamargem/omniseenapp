@@ -139,30 +139,63 @@ serve(async (req) => {
 
     console.log(`[CONVERT] Article generated successfully, id: ${articleId}`);
 
-    // 4. Atualizar artigo com opportunity_id e funnel_stage (já foi criado pelo generate-article-structured)
-    // Mapear article_goal para valores válidos do check constraint
-    const goalMap: Record<string, string> = {
-      'lead': 'lead',
-      'authority': 'seo_traffic',
-      'conversion': 'lead',
-      'seo_traffic': 'seo_traffic',
-      'engagement': 'engagement'
-    };
-    const mappedGoal = opportunity.goal ? goalMap[opportunity.goal] || null : null;
+    // 4. Verificar que o artigo existe no banco antes de atualizar
+    const { data: articleCheck } = await supabase
+      .from("articles")
+      .select("id")
+      .eq("id", articleId)
+      .single();
 
-    const { error: updateArticleError } = await supabase
+    if (!articleCheck) {
+      console.error("[CONVERT] Article not found in database after generation");
+      throw new Error("Article was not persisted correctly");
+    }
+
+    console.log(`[CONVERT] Article ${articleId} confirmed in database`);
+
+    // 5. Atualizar artigo com opportunity_id e funnel_stage (OBRIGATÓRIO)
+    const { error: linkError } = await supabase
       .from("articles")
       .update({
         opportunity_id: opportunityId,
         funnel_stage: opportunity.funnel_stage,
-        article_goal: mappedGoal,
         generation_source: 'opportunity',
       })
       .eq("id", articleId);
 
-    if (updateArticleError) {
-      console.error("[CONVERT] Failed to update article with opportunity link:", updateArticleError);
-      // Non-blocking - article was created, just link failed
+    if (linkError) {
+      console.error("[CONVERT] CRITICAL: Failed to link article:", linkError);
+      // Continue anyway - article exists
+    } else {
+      console.log(`[CONVERT] Article linked to opportunity successfully`);
+    }
+
+    // 6. Mapear e atualizar article_goal (valores em PORTUGUÊS conforme constraint)
+    // Constraint: article_goal = ANY (ARRAY['educar', 'autoridade', 'apoiar_vendas', 'converter'])
+    const goalMap: Record<string, string> = {
+      'lead': 'converter',
+      'authority': 'autoridade',
+      'conversion': 'converter',
+      'educar': 'educar',
+      'autoridade': 'autoridade',
+      'apoiar_vendas': 'apoiar_vendas',
+      'converter': 'converter',
+      'seo_traffic': 'educar',
+      'engagement': 'educar'
+    };
+    const mappedGoal = opportunity.goal ? goalMap[opportunity.goal] || null : null;
+
+    if (mappedGoal) {
+      const { error: goalError } = await supabase
+        .from("articles")
+        .update({ article_goal: mappedGoal })
+        .eq("id", articleId);
+
+      if (goalError) {
+        console.warn("[CONVERT] Goal update failed (non-blocking):", goalError);
+      } else {
+        console.log(`[CONVERT] Article goal set to: ${mappedGoal}`);
+      }
     }
 
     // 5. Atualizar oportunidade como convertida
