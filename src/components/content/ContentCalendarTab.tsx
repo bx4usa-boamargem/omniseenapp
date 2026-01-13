@@ -23,11 +23,12 @@ import {
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface ContentCalendarTabProps {
   blogId: string;
+  isClientContext?: boolean;
 }
 
 interface Article {
@@ -42,10 +43,17 @@ interface Article {
   funnel_stage: string | null;
 }
 
-export function ContentCalendarTab({ blogId }: ContentCalendarTabProps) {
+export function ContentCalendarTab({ blogId, isClientContext = false }: ContentCalendarTabProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Detect client context from location if not explicitly passed
+  const isClient = isClientContext || location.pathname.startsWith('/client');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [articles, setArticles] = useState<Article[]>([]);
+  
+  // Helper to get the correct edit route
+  const getEditRoute = (articleId: string) => 
+    isClient ? `/client/articles/${articleId}/edit` : `/app/articles/${articleId}/edit`;
   const [showDrafts, setShowDrafts] = useState(true);
   const [showPublished, setShowPublished] = useState(true);
 
@@ -333,7 +341,7 @@ export function ContentCalendarTab({ blogId }: ContentCalendarTabProps) {
                     {dayArticles.slice(0, 3).map((article) => (
                       <div
                         key={article.id}
-                        onClick={() => navigate(`/app/articles/${article.id}/edit`)}
+                        onClick={() => navigate(getEditRoute(article.id))}
                         className={cn(
                           "p-2 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity",
                           getStatusStyles(article.status)
@@ -406,7 +414,7 @@ export function ContentCalendarTab({ blogId }: ContentCalendarTabProps) {
                 draftArticles.map((draft) => (
                   <div
                     key={draft.id}
-                    onClick={() => navigate(`/app/articles/${draft.id}/edit`)}
+                    onClick={() => navigate(getEditRoute(draft.id))}
                     className="p-3 rounded-lg border bg-muted/30 hover:bg-muted cursor-pointer transition-colors"
                   >
                     <div className="flex items-center justify-between">
@@ -460,7 +468,7 @@ export function ContentCalendarTab({ blogId }: ContentCalendarTabProps) {
                 recentlyPublished.map((article) => (
                   <div
                     key={article.id}
-                    onClick={() => navigate(`/app/articles/${article.id}/edit`)}
+                    onClick={() => navigate(getEditRoute(article.id))}
                     className="p-3 rounded-lg border bg-success/10 border-success/30 hover:bg-success/20 cursor-pointer transition-colors"
                   >
                     <div className="flex items-center justify-between">

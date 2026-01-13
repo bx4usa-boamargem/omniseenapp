@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,7 @@ interface CreateContentModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   blogId: string;
+  isClientContext?: boolean;
 }
 
 interface ContentOption {
@@ -49,8 +50,11 @@ const contentOptions: ContentOption[] = [
   },
 ];
 
-export function CreateContentModal({ open, onOpenChange, blogId }: CreateContentModalProps) {
+export function CreateContentModal({ open, onOpenChange, blogId, isClientContext = false }: CreateContentModalProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Detect client context from location if not explicitly passed
+  const isClient = isClientContext || location.pathname.startsWith('/client');
   const [quickModalOpen, setQuickModalOpen] = useState(false);
   const [funnelModalOpen, setFunnelModalOpen] = useState(false);
 
@@ -65,7 +69,7 @@ export function CreateContentModal({ open, onOpenChange, blogId }: CreateContent
         setFunnelModalOpen(true);
         break;
       case "import":
-        navigate("/articles/new");
+        navigate(isClient ? "/client/create" : "/articles/new");
         break;
     }
   };
@@ -131,6 +135,7 @@ export function CreateContentModal({ open, onOpenChange, blogId }: CreateContent
         open={quickModalOpen}
         onOpenChange={setQuickModalOpen}
         blogId={blogId}
+        isClientContext={isClient}
       />
 
       <FunnelModal
@@ -138,6 +143,7 @@ export function CreateContentModal({ open, onOpenChange, blogId }: CreateContent
         onOpenChange={setFunnelModalOpen}
         blogId={blogId}
         onContinue={() => setFunnelModalOpen(false)}
+        isClientContext={isClient}
       />
     </>
   );

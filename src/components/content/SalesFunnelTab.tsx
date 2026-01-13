@@ -15,6 +15,7 @@ import { subDays } from "date-fns";
 
 interface SalesFunnelTabProps {
   blogId: string;
+  isClientContext?: boolean;
 }
 
 interface ArticleWithMetrics {
@@ -31,7 +32,7 @@ interface ArticleWithMetrics {
   };
 }
 
-export function SalesFunnelTab({ blogId }: SalesFunnelTabProps) {
+export function SalesFunnelTab({ blogId, isClientContext = false }: SalesFunnelTabProps) {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("7");
   const [articles, setArticles] = useState<ArticleWithMetrics[]>([]);

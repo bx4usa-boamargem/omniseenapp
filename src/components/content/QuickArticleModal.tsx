@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -15,10 +15,14 @@ interface QuickArticleModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   blogId: string;
+  isClientContext?: boolean;
 }
 
-export function QuickArticleModal({ open, onOpenChange, blogId }: QuickArticleModalProps) {
+export function QuickArticleModal({ open, onOpenChange, blogId, isClientContext = false }: QuickArticleModalProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Detect client context from location if not explicitly passed
+  const isClient = isClientContext || location.pathname.startsWith('/client');
   const [theme, setTheme] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -30,7 +34,8 @@ export function QuickArticleModal({ open, onOpenChange, blogId }: QuickArticleMo
     // Navigate to article creation with pre-filled theme
     // The generation will use intelligent defaults automatically
     onOpenChange(false);
-    navigate(`/articles/new?theme=${encodeURIComponent(theme.trim())}&quick=true`);
+    const basePath = isClient ? '/client/create' : '/articles/new';
+    navigate(`${basePath}?theme=${encodeURIComponent(theme.trim())}&quick=true`);
     
     setLoading(false);
     setTheme("");
@@ -38,10 +43,11 @@ export function QuickArticleModal({ open, onOpenChange, blogId }: QuickArticleMo
 
   const handleCustomize = () => {
     onOpenChange(false);
+    const basePath = isClient ? '/client/create' : '/articles/new';
     if (theme.trim()) {
-      navigate(`/articles/new?theme=${encodeURIComponent(theme.trim())}`);
+      navigate(`${basePath}?theme=${encodeURIComponent(theme.trim())}`);
     } else {
-      navigate("/articles/new");
+      navigate(basePath);
     }
   };
 

@@ -21,6 +21,7 @@ interface FunnelModalProps {
   onOpenChange: (open: boolean) => void;
   blogId: string;
   onContinue?: (data: FunnelData) => void;
+  isClientContext?: boolean;
 }
 
 interface FunnelData {
@@ -45,7 +46,7 @@ interface GroupedOpportunities {
   fundo: Opportunity[];
 }
 
-export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelModalProps) {
+export function FunnelModal({ open, onOpenChange, blogId, onContinue, isClientContext = false }: FunnelModalProps) {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [opportunities, setOpportunities] = useState<GroupedOpportunities>({ topo: [], meio: [], fundo: [] });

@@ -1,6 +1,6 @@
 import { ReactNode, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, PenSquare, Globe, Zap, Building2, User, Menu, LogOut, BarChart3, Search, FileText, Compass } from 'lucide-react';
+import { Home, Calendar, Globe, Zap, Building2, User, Menu, LogOut, BarChart3, Search, Compass } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { OmniseenLogo } from '@/components/ui/OmniseenLogo';
@@ -20,8 +20,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { icon: Home, label: 'Início', path: '/client/dashboard' },
-  { icon: PenSquare, label: 'Criar Artigo', path: '/client/create' },
-  { icon: FileText, label: 'Meus Artigos', path: '/client/articles' },
+  { icon: Calendar, label: 'Posts', path: '/client/posts' },
   { icon: Globe, label: 'Meu Mini-Site', path: '/client/site' },
   { icon: BarChart3, label: 'Consultor Comercial', path: '/client/consultant' },
   { icon: Zap, label: 'Automação', path: '/client/automation' },

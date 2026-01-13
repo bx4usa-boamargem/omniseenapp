@@ -74,6 +74,7 @@ import ClientReviewCenter from "./pages/client/ClientReviewCenter";
 import ClientStrategy from "./pages/client/ClientStrategy";
 import ClientConsultantMetrics from "./pages/client/ClientConsultantMetrics";
 import ClientNotificationSettings from "./pages/client/ClientNotificationSettings";
+import ClientPosts from "./pages/client/ClientPosts";
 
 const queryClient = new QueryClient();
 
@@ -142,6 +143,7 @@ const ClientRoutes = () => (
     <SubAccountLayout>
       <Routes>
         <Route path="dashboard" element={<ClientDashboard />} />
+        <Route path="posts" element={<ClientPosts />} />
         <Route path="create" element={<ClientArticleEditor />} />
         <Route path="articles" element={<ClientArticles />} />
         <Route path="articles/:id/edit" element={<ClientArticleEditor />} />

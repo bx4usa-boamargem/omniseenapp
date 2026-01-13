@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +24,7 @@ import { ptBR } from "date-fns/locale";
 
 interface OpportunitiesTabProps {
   blogId: string;
+  isClientContext?: boolean;
 }
 
 interface Opportunity {
@@ -58,8 +59,11 @@ interface ConversionMetrics {
 type DateFilter = "all" | "today" | "week" | "month";
 type SourceFilter = "all" | "ai" | "trends" | "competitors";
 
-export function OpportunitiesTab({ blogId }: OpportunitiesTabProps) {
+export function OpportunitiesTab({ blogId, isClientContext = false }: OpportunitiesTabProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Detect client context from location if not explicitly passed
+  const isClient = isClientContext || location.pathname.startsWith('/client');
   const { user } = useAuth();
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -303,7 +307,8 @@ export function OpportunitiesTab({ blogId }: OpportunitiesTabProps) {
       keywords: opportunity.suggested_keywords?.join(",") || "",
       opportunityId: opportunity.id,
     });
-    navigate(`/app/articles/new?${params.toString()}`);
+    const basePath = isClient ? '/client/articles/new' : '/app/articles/new';
+    navigate(`${basePath}?${params.toString()}`);
   };
 
   const handleGenerateOpportunities = async (mode: "standard" | "trends" | "competitor_gaps" = "standard", count = 5) => {

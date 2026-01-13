@@ -23,6 +23,7 @@ interface ModelPricing {
 
 interface PreferencesTabProps {
   blogId: string;
+  isClientContext?: boolean;
 }
 
 interface ContentPreferences {
@@ -48,7 +49,7 @@ interface ContentPreferences {
   ai_model_image: string;
 }
 
-export function PreferencesTab({ blogId }: PreferencesTabProps) {
+export function PreferencesTab({ blogId, isClientContext = false }: PreferencesTabProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
