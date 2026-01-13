@@ -4,7 +4,7 @@ import { Eye, MousePointerClick, BookOpen, DollarSign, ArrowDown } from 'lucide-
 interface ConversionFunnelChartProps {
   impressions: number;
   clicks: number;
-  visibilityCount: number;
+  exposureCount: number;
   intentCount: number;
   totalValue: number;
 }
@@ -12,7 +12,7 @@ interface ConversionFunnelChartProps {
 export function ConversionFunnelChart({
   impressions,
   clicks,
-  visibilityCount,
+  exposureCount,
   intentCount,
   totalValue
 }: ConversionFunnelChartProps) {
@@ -56,21 +56,23 @@ export function ConversionFunnelChart({
     },
     {
       icon: BookOpen,
-      label: 'Visibilidade',
-      value: visibilityCount,
-      rate: calculateRate(visibilityCount, clicks),
+      label: 'Exposição Comercial',
+      value: exposureCount,
+      rate: calculateRate(exposureCount, clicks),
       color: 'bg-violet-500',
       textColor: 'text-violet-600 dark:text-violet-400',
-      width: clicks > 0 ? `${Math.max((visibilityCount / clicks) * 100, 10)}%` : '10%'
+      width: clicks > 0 ? `${Math.max((exposureCount / clicks) * 100, 10)}%` : '10%',
+      description: 'Leitura ≥60%'
     },
     {
       icon: DollarSign,
-      label: 'Intenção',
+      label: 'Intenção Comercial',
       value: intentCount,
-      rate: calculateRate(intentCount, visibilityCount),
+      rate: calculateRate(intentCount, exposureCount),
       color: 'bg-emerald-500',
       textColor: 'text-emerald-600 dark:text-emerald-400',
-      width: visibilityCount > 0 ? `${Math.max((intentCount / visibilityCount) * 100, 5)}%` : '5%'
+      width: exposureCount > 0 ? `${Math.max((intentCount / exposureCount) * 100, 5)}%` : '5%',
+      description: 'Clique no CTA'
     }
   ];
 
@@ -90,11 +92,16 @@ export function ConversionFunnelChart({
               {/* Stage Bar */}
               <div 
                 className={`${stage.color} rounded-lg p-3 flex items-center justify-between transition-all duration-300`}
-                style={{ width: stage.width, minWidth: '120px' }}
+                style={{ width: stage.width, minWidth: '140px' }}
               >
                 <div className="flex items-center gap-2">
                   <Icon className="h-4 w-4 text-white" />
-                  <span className="text-white font-medium text-sm">{stage.label}</span>
+                  <div className="flex flex-col">
+                    <span className="text-white font-medium text-sm">{stage.label}</span>
+                    {stage.description && (
+                      <span className="text-white/70 text-xs">{stage.description}</span>
+                    )}
+                  </div>
                 </div>
                 <span className="text-white font-bold">{formatNumber(stage.value)}</span>
               </div>

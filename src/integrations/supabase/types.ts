@@ -1406,13 +1406,18 @@ export type Database = {
       }
       business_profile: {
         Row: {
+          average_margin: number | null
+          average_ticket: number | null
           blog_id: string
           brand_keywords: string[] | null
+          business_economics_configured: boolean | null
           city: string | null
+          closing_rate: number | null
           company_name: string | null
           concepts: string[] | null
           country: string | null
           created_at: string
+          custom_opportunity_value: number | null
           default_template_id: string | null
           desires: string[] | null
           id: string
@@ -1431,13 +1436,18 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          average_margin?: number | null
+          average_ticket?: number | null
           blog_id: string
           brand_keywords?: string[] | null
+          business_economics_configured?: boolean | null
           city?: string | null
+          closing_rate?: number | null
           company_name?: string | null
           concepts?: string[] | null
           country?: string | null
           created_at?: string
+          custom_opportunity_value?: number | null
           default_template_id?: string | null
           desires?: string[] | null
           id?: string
@@ -1456,13 +1466,18 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          average_margin?: number | null
+          average_ticket?: number | null
           blog_id?: string
           brand_keywords?: string[] | null
+          business_economics_configured?: boolean | null
           city?: string | null
+          closing_rate?: number | null
           company_name?: string | null
           concepts?: string[] | null
           country?: string | null
           created_at?: string
+          custom_opportunity_value?: number | null
           default_template_id?: string | null
           desires?: string[] | null
           id?: string

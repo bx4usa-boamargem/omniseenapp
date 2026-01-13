@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Eye, MousePointerClick, TrendingUp, Target, ArrowUpRight, ArrowDownRight, Minus, DollarSign } from 'lucide-react';
+import { Eye, MousePointerClick, TrendingUp, Target, ArrowUpRight, ArrowDownRight, Minus, DollarSign, BookOpen } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { ConversionFunnelChart } from '@/components/consultant/ConversionFunnelChart';
+import { BusinessEconomicsAlert } from '@/components/roi/BusinessEconomicsAlert';
+import { useBusinessEconomics } from '@/hooks/useBusinessEconomics';
+import { EconomicsTooltip } from '@/components/roi/EconomicsTooltip';
 import { 
   LineChart, 
   Line, 
@@ -30,14 +33,15 @@ interface GSCMetrics {
 }
 
 interface ConversionMetrics {
-  visibilityCount: number;
+  exposureCount: number;
   intentCount: number;
-  visibilityValue: number;
+  exposureValue: number;
   intentValue: number;
   totalValue: number;
 }
 
 export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabProps) {
+  const economics = useBusinessEconomics(blogId || null);
   const [gscMetrics, setGscMetrics] = useState<GSCMetrics>({
     impressions: 0,
     clicks: 0,
@@ -47,9 +51,9 @@ export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabPro
     clicksDelta: 0
   });
   const [conversionMetrics, setConversionMetrics] = useState<ConversionMetrics>({
-    visibilityCount: 0,
+    exposureCount: 0,
     intentCount: 0,
-    visibilityValue: 0,
+    exposureValue: 0,
     intentValue: 0,
     totalValue: 0
   });
@@ -59,7 +63,7 @@ export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabPro
   useEffect(() => {
     if (!blogId) return;
     fetchData();
-  }, [blogId, period]);
+  }, [blogId, period, economics.valuePerExposure, economics.valuePerIntent]);
 
   const fetchData = async () => {
     if (!blogId) return;
@@ -85,15 +89,9 @@ export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabPro
         .eq('blog_id', blogId)
         .gte('date', startDate.toISOString().split('T')[0]);
 
-      // Fetch business profile for value per conversion
-      const { data: businessProfile } = await supabase
-        .from('business_profile')
-        .select('value_per_visibility, value_per_intent')
-        .eq('blog_id', blogId)
-        .single();
-
-      const valuePerVisibility = businessProfile?.value_per_visibility || 5;
-      const valuePerIntent = businessProfile?.value_per_intent || 50;
+      // Use values from economics hook
+      const valuePerExposure = economics.valuePerExposure;
+      const valuePerIntent = economics.valuePerIntent;
 
       // Aggregate GSC metrics
       if (gscData && gscData.length > 0) {
@@ -141,15 +139,15 @@ export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabPro
 
       // Aggregate conversion metrics
       if (conversionData && conversionData.length > 0) {
-        const totalVisibility = conversionData.reduce((sum, d) => sum + (d.conversion_visibility_count || 0), 0);
+        const totalExposure = conversionData.reduce((sum, d) => sum + (d.conversion_visibility_count || 0), 0);
         const totalIntent = conversionData.reduce((sum, d) => sum + (d.conversion_intent_count || 0), 0);
 
         setConversionMetrics({
-          visibilityCount: totalVisibility,
+          exposureCount: totalExposure,
           intentCount: totalIntent,
-          visibilityValue: totalVisibility * valuePerVisibility,
+          exposureValue: totalExposure * valuePerExposure,
           intentValue: totalIntent * valuePerIntent,
-          totalValue: (totalVisibility * valuePerVisibility) + (totalIntent * valuePerIntent)
+          totalValue: (totalExposure * valuePerExposure) + (totalIntent * valuePerIntent)
         });
       }
     } catch (error) {
@@ -196,6 +194,11 @@ export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabPro
 
   return (
     <div className="space-y-6">
+      {/* Economics Alert */}
+      {!economics.isLoading && !economics.isConfigured && (
+        <BusinessEconomicsAlert />
+      )}
+
       {/* Metrics Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <Card className="bg-card border-border">
@@ -243,12 +246,20 @@ export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabPro
         <Card className="bg-card border-border">
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
-              <Eye className="h-5 w-5 text-violet-500" />
+              <BookOpen className="h-5 w-5 text-violet-500" />
+              <EconomicsTooltip
+                averageTicket={economics.averageTicket}
+                closingRate={economics.closingRate}
+                opportunityValue={economics.opportunityValue}
+                valuePerExposure={economics.valuePerExposure}
+                valuePerIntent={economics.valuePerIntent}
+                isConfigured={economics.isConfigured}
+              />
             </div>
-            <p className="text-2xl font-bold text-foreground">{formatNumber(conversionMetrics.visibilityCount)}</p>
-            <p className="text-xs text-muted-foreground">Visibilidade</p>
+            <p className="text-2xl font-bold text-foreground">{formatNumber(conversionMetrics.exposureCount)}</p>
+            <p className="text-xs text-muted-foreground">Exposição Comercial</p>
             <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">
-              {formatCurrency(conversionMetrics.visibilityValue)}
+              {formatCurrency(conversionMetrics.exposureValue)}
             </p>
           </CardContent>
         </Card>
@@ -257,9 +268,17 @@ export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabPro
           <CardContent className="p-4">
             <div className="flex items-center justify-between mb-2">
               <DollarSign className="h-5 w-5 text-emerald-500" />
+              <EconomicsTooltip
+                averageTicket={economics.averageTicket}
+                closingRate={economics.closingRate}
+                opportunityValue={economics.opportunityValue}
+                valuePerExposure={economics.valuePerExposure}
+                valuePerIntent={economics.valuePerIntent}
+                isConfigured={economics.isConfigured}
+              />
             </div>
             <p className="text-2xl font-bold text-foreground">{formatNumber(conversionMetrics.intentCount)}</p>
-            <p className="text-xs text-muted-foreground">Intenção</p>
+            <p className="text-xs text-muted-foreground">Intenção Comercial</p>
             <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
               {formatCurrency(conversionMetrics.intentValue)}
             </p>
@@ -322,7 +341,7 @@ export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabPro
         <ConversionFunnelChart
           impressions={gscMetrics.impressions}
           clicks={gscMetrics.clicks}
-          visibilityCount={conversionMetrics.visibilityCount}
+          exposureCount={conversionMetrics.exposureCount}
           intentCount={conversionMetrics.intentCount}
           totalValue={conversionMetrics.totalValue}
         />
@@ -341,6 +360,11 @@ export function SearchPerformanceTab({ blogId, period }: SearchPerformanceTabPro
           <p className="text-center text-sm text-muted-foreground mt-1">
             Valor estimado gerado no período
           </p>
+          {economics.isConfigured && (
+            <p className="text-center text-xs text-muted-foreground mt-2">
+              Baseado no seu ticket médio de {formatCurrency(economics.averageTicket || 0)} e taxa de fechamento de {economics.closingRate}%
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

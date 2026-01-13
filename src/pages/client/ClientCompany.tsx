@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Building2, Loader2, Save, CheckCircle2, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { BusinessEconomicsSection } from '@/components/company/BusinessEconomicsSection';
 
 const BUSINESS_TYPES = [
   { value: 'servicos', label: 'Serviços' },
@@ -347,6 +348,11 @@ export default function ClientCompany() {
           )}
         </Button>
       </div>
+
+      {/* Economia do Negócio - NEW SECTION */}
+      {blog?.id && (
+        <BusinessEconomicsSection blogId={blog.id} />
+      )}
 
       {/* Info Card */}
       <Card className="bg-gray-100/80 dark:bg-white/5 border-dashed border-slate-200 dark:border-white/10">

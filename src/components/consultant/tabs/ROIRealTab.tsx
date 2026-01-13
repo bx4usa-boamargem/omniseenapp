@@ -6,9 +6,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { ConversionValueCards } from '@/components/consultant/ConversionValueCards';
+import { BusinessEconomicsAlert } from '@/components/roi/BusinessEconomicsAlert';
+import { useBusinessEconomics } from '@/hooks/useBusinessEconomics';
 import { 
-  LineChart, 
-  Line, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -33,14 +33,13 @@ interface ROIData {
   deltaPercent: number;
   projectedOpportunities: number;
   realArticles: number;
-  realVisibility: number;
+  realExposure: number;
   realIntent: number;
-  valuePerVisibility: number;
-  valuePerIntent: number;
 }
 
 export function ROIRealTab({ blogId, period }: ROIRealTabProps) {
   const navigate = useNavigate();
+  const economics = useBusinessEconomics(blogId || null);
   const [viewMode, setViewMode] = useState<ViewMode>('real');
   const [roiData, setRoiData] = useState<ROIData>({
     projectedValue: 0,
@@ -49,18 +48,16 @@ export function ROIRealTab({ blogId, period }: ROIRealTabProps) {
     deltaPercent: 0,
     projectedOpportunities: 0,
     realArticles: 0,
-    realVisibility: 0,
-    realIntent: 0,
-    valuePerVisibility: 5,
-    valuePerIntent: 50
+    realExposure: 0,
+    realIntent: 0
   });
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!blogId) return;
+    if (!blogId || economics.isLoading) return;
     fetchROIData();
-  }, [blogId, period]);
+  }, [blogId, period, economics.valuePerExposure, economics.valuePerIntent, economics.isLoading]);
 
   const fetchROIData = async () => {
     if (!blogId) return;
@@ -71,15 +68,9 @@ export function ROIRealTab({ blogId, period }: ROIRealTabProps) {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - daysAgo);
 
-      // Fetch business profile values
-      const { data: businessProfile } = await supabase
-        .from('business_profile')
-        .select('value_per_visibility, value_per_intent')
-        .eq('blog_id', blogId)
-        .single();
-
-      const valuePerVisibility = businessProfile?.value_per_visibility || 5;
-      const valuePerIntent = businessProfile?.value_per_intent || 50;
+      // Use values from economics hook
+      const valuePerExposure = economics.valuePerExposure;
+      const valuePerIntent = economics.valuePerIntent;
 
       // Fetch opportunities for projection
       const { data: opportunities } = await supabase
@@ -106,14 +97,14 @@ export function ROIRealTab({ blogId, period }: ROIRealTabProps) {
       // Calculate projections based on opportunities
       const highScoreOpps = (opportunities || []).filter(o => (o.relevance_score || 0) >= 80);
       const projectedViews = highScoreOpps.length * 150; // Estimate 150 views per high-score opportunity
-      const projectedVisibility = Math.floor(projectedViews * 0.4); // 40% read deeply
-      const projectedIntent = Math.floor(projectedVisibility * 0.15); // 15% click CTA
-      const projectedValue = (projectedVisibility * valuePerVisibility) + (projectedIntent * valuePerIntent);
+      const projectedExposure = Math.floor(projectedViews * 0.4); // 40% read deeply
+      const projectedIntent = Math.floor(projectedExposure * 0.15); // 15% click CTA
+      const projectedValue = (projectedExposure * valuePerExposure) + (projectedIntent * valuePerIntent);
 
       // Calculate real values
-      const realVisibility = (conversionMetrics || []).reduce((sum, m) => sum + (m.conversion_visibility_count || 0), 0);
+      const realExposure = (conversionMetrics || []).reduce((sum, m) => sum + (m.conversion_visibility_count || 0), 0);
       const realIntent = (conversionMetrics || []).reduce((sum, m) => sum + (m.conversion_intent_count || 0), 0);
-      const realValue = (realVisibility * valuePerVisibility) + (realIntent * valuePerIntent);
+      const realValue = (realExposure * valuePerExposure) + (realIntent * valuePerIntent);
 
       const delta = realValue - projectedValue;
       const deltaPercent = projectedValue > 0 ? (delta / projectedValue) * 100 : 0;
@@ -125,10 +116,8 @@ export function ROIRealTab({ blogId, period }: ROIRealTabProps) {
         deltaPercent,
         projectedOpportunities: highScoreOpps.length,
         realArticles: (articles || []).filter(a => a.status === 'published').length,
-        realVisibility,
-        realIntent,
-        valuePerVisibility,
-        valuePerIntent
+        realExposure,
+        realIntent
       });
 
       // Generate chart data
@@ -147,9 +136,9 @@ export function ROIRealTab({ blogId, period }: ROIRealTabProps) {
 
         // Real daily value
         const dayMetrics = (conversionMetrics || []).filter(m => m.date === dateStr);
-        const dayVisibility = dayMetrics.reduce((sum, m) => sum + (m.conversion_visibility_count || 0), 0);
+        const dayExposure = dayMetrics.reduce((sum, m) => sum + (m.conversion_visibility_count || 0), 0);
         const dayIntent = dayMetrics.reduce((sum, m) => sum + (m.conversion_intent_count || 0), 0);
-        const dayValue = (dayVisibility * valuePerVisibility) + (dayIntent * valuePerIntent);
+        const dayValue = (dayExposure * valuePerExposure) + (dayIntent * valuePerIntent);
         cumulativeReal += dayValue;
 
         chartPoints.push({
@@ -223,6 +212,11 @@ export function ROIRealTab({ blogId, period }: ROIRealTabProps) {
 
   return (
     <div className="space-y-6">
+      {/* Economics Alert */}
+      {!economics.isLoading && !economics.isConfigured && (
+        <BusinessEconomicsAlert />
+      )}
+
       {/* View Mode Toggle */}
       <div className="flex justify-center">
         <div className="inline-flex rounded-lg border border-border overflow-hidden">
@@ -245,10 +239,14 @@ export function ROIRealTab({ blogId, period }: ROIRealTabProps) {
 
       {/* Conversion Value Cards */}
       <ConversionValueCards
-        visibilityCount={roiData.realVisibility}
+        exposureCount={roiData.realExposure}
         intentCount={roiData.realIntent}
-        valuePerVisibility={roiData.valuePerVisibility}
-        valuePerIntent={roiData.valuePerIntent}
+        valuePerExposure={economics.valuePerExposure}
+        valuePerIntent={economics.valuePerIntent}
+        averageTicket={economics.averageTicket}
+        closingRate={economics.closingRate}
+        opportunityValue={economics.opportunityValue}
+        isConfigured={economics.isConfigured}
       />
 
       {/* Projection vs Real Chart */}
@@ -321,12 +319,14 @@ export function ROIRealTab({ blogId, period }: ROIRealTabProps) {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex gap-8">
               <div className="text-center">
-                <p className="text-sm text-muted-foreground">Valor por Visibilidade</p>
-                <p className="text-xl font-bold text-foreground">{formatCurrency(roiData.valuePerVisibility)}</p>
+                <p className="text-sm text-muted-foreground">Exposição Comercial</p>
+                <p className="text-xl font-bold text-violet-600 dark:text-violet-400">{formatCurrency(economics.valuePerExposure)}</p>
+                <p className="text-xs text-muted-foreground">10% do valor da oportunidade</p>
               </div>
               <div className="text-center">
-                <p className="text-sm text-muted-foreground">Valor por Intenção</p>
-                <p className="text-xl font-bold text-foreground">{formatCurrency(roiData.valuePerIntent)}</p>
+                <p className="text-sm text-muted-foreground">Intenção Comercial</p>
+                <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(economics.valuePerIntent)}</p>
+                <p className="text-xs text-muted-foreground">150% do valor da oportunidade</p>
               </div>
             </div>
             <Button 
@@ -334,9 +334,20 @@ export function ROIRealTab({ blogId, period }: ROIRealTabProps) {
               onClick={() => navigate('/client/company')}
             >
               <Settings className="h-4 w-4 mr-2" />
-              Editar em Minha Empresa
+              {economics.isConfigured ? 'Editar Economia' : 'Configurar Economia'}
             </Button>
           </div>
+          {economics.isConfigured && (
+            <div className="mt-4 p-3 bg-primary/5 rounded-lg text-sm text-center">
+              <p className="text-muted-foreground">
+                Baseado no seu ticket médio de <span className="font-semibold text-foreground">{formatCurrency(economics.averageTicket || 0)}</span> e 
+                taxa de fechamento de <span className="font-semibold text-foreground">{economics.closingRate}%</span>
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Valor por oportunidade comercial: {formatCurrency(economics.opportunityValue)}
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
