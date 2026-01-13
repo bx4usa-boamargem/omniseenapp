@@ -81,6 +81,7 @@ serve(async (req) => {
       .maybeSingle();
 
     // 3. Gerar conteúdo via generate-article-structured
+    // Usando mode 'fast' para oportunidades - mais confiável e rápido
     console.log(`[CONVERT] Generating article content for: "${opportunity.suggested_title}"`);
 
     const generateResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-article-structured`, {
@@ -93,27 +94,52 @@ serve(async (req) => {
         blog_id: blogId,
         theme: opportunity.suggested_title,
         keywords: opportunity.suggested_keywords || [],
-        word_count: 1500,
+        word_count: 1000, // Reduced for faster generation
         include_faq: true,
         include_conclusion: true,
-        generation_mode: 'deep',
+        generation_mode: 'fast', // Use fast mode for opportunity conversion - more reliable
         source: 'opportunity',
         auto_publish: false, // SEMPRE draft
       }),
     });
 
+    // Parse response body as text first to debug
+    const responseText = await generateResponse.text();
+    
     if (!generateResponse.ok) {
-      const errorText = await generateResponse.text();
-      console.error("[CONVERT] Article generation failed:", errorText);
-      throw new Error(`Article generation failed: ${generateResponse.status}`);
+      console.error("[CONVERT] Article generation failed:", responseText);
+      
+      // Try to parse error for better messaging
+      try {
+        const errorData = JSON.parse(responseText);
+        throw new Error(`Article generation failed: ${errorData.message || errorData.error || generateResponse.status}`);
+      } catch {
+        throw new Error(`Article generation failed: ${generateResponse.status}`);
+      }
     }
 
-    const generatedArticle = await generateResponse.json();
-    console.log(`[CONVERT] Article generated successfully, id: ${generatedArticle.id}`);
+    // Parse successful response
+    let generatedResult;
+    try {
+      generatedResult = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error("[CONVERT] Failed to parse generation response:", responseText.substring(0, 500));
+      throw new Error("Failed to parse article generation response");
+    }
+
+    // CRITICAL FIX: The generate-article-structured returns { success, article: { id, ... } }
+    // We need to extract article.id, not just id
+    const articleId = generatedResult.article?.id || generatedResult.id;
+    const articleSlug = generatedResult.article?.slug || generatedResult.slug;
+    
+    if (!articleId) {
+      console.error("[CONVERT] No article ID in response:", JSON.stringify(generatedResult).substring(0, 500));
+      throw new Error("Article was generated but no ID was returned. Response structure may have changed.");
+    }
+
+    console.log(`[CONVERT] Article generated successfully, id: ${articleId}`);
 
     // 4. Atualizar artigo com opportunity_id e funnel_stage (já foi criado pelo generate-article-structured)
-    const articleId = generatedArticle.id;
-
     const { error: updateArticleError } = await supabase
       .from("articles")
       .update({
@@ -126,6 +152,7 @@ serve(async (req) => {
 
     if (updateArticleError) {
       console.error("[CONVERT] Failed to update article with opportunity link:", updateArticleError);
+      // Non-blocking - article was created, just link failed
     }
 
     // 5. Atualizar oportunidade como convertida
@@ -140,6 +167,7 @@ serve(async (req) => {
 
     if (updateOppError) {
       console.error("[CONVERT] Failed to update opportunity status:", updateOppError);
+      // Non-blocking - article was created
     }
 
     console.log(`[CONVERT] ✅ Conversion complete: Opportunity ${opportunityId} → Article ${articleId}`);
@@ -149,7 +177,7 @@ serve(async (req) => {
         success: true,
         article_id: articleId,
         article_title: opportunity.suggested_title,
-        article_slug: generatedArticle.slug,
+        article_slug: articleSlug,
         opportunity_id: opportunityId,
         funnel_stage: opportunity.funnel_stage,
       }),
