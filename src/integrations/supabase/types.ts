@@ -361,6 +361,69 @@ export type Database = {
           },
         ]
       }
+      article_conversion_metrics: {
+        Row: {
+          article_id: string
+          blog_id: string
+          conversion_intent_count: number | null
+          conversion_visibility_count: number | null
+          created_at: string | null
+          date: string
+          id: string
+          intent_value: number | null
+          reads_total: number | null
+          total_value: number | null
+          updated_at: string | null
+          views_total: number | null
+          visibility_value: number | null
+        }
+        Insert: {
+          article_id: string
+          blog_id: string
+          conversion_intent_count?: number | null
+          conversion_visibility_count?: number | null
+          created_at?: string | null
+          date?: string
+          id?: string
+          intent_value?: number | null
+          reads_total?: number | null
+          total_value?: number | null
+          updated_at?: string | null
+          views_total?: number | null
+          visibility_value?: number | null
+        }
+        Update: {
+          article_id?: string
+          blog_id?: string
+          conversion_intent_count?: number | null
+          conversion_visibility_count?: number | null
+          created_at?: string | null
+          date?: string
+          id?: string
+          intent_value?: number | null
+          reads_total?: number | null
+          total_value?: number | null
+          updated_at?: string | null
+          views_total?: number | null
+          visibility_value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_conversion_metrics_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_conversion_metrics_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       article_internal_links: {
         Row: {
           anchor_text: string
@@ -751,6 +814,8 @@ export type Database = {
           category: string | null
           content: string | null
           content_images: Json | null
+          conversion_intent_count: number | null
+          conversion_visibility_count: number | null
           created_at: string
           excerpt: string | null
           external_post_id: string | null
@@ -790,6 +855,8 @@ export type Database = {
           category?: string | null
           content?: string | null
           content_images?: Json | null
+          conversion_intent_count?: number | null
+          conversion_visibility_count?: number | null
           created_at?: string
           excerpt?: string | null
           external_post_id?: string | null
@@ -829,6 +896,8 @@ export type Database = {
           category?: string | null
           content?: string | null
           content_images?: Json | null
+          conversion_intent_count?: number | null
+          conversion_visibility_count?: number | null
           created_at?: string
           excerpt?: string | null
           external_post_id?: string | null
@@ -1357,6 +1426,8 @@ export type Database = {
           target_audience: string | null
           tone_of_voice: string | null
           updated_at: string
+          value_per_intent: number | null
+          value_per_visibility: number | null
           whatsapp: string | null
         }
         Insert: {
@@ -1380,6 +1451,8 @@ export type Database = {
           target_audience?: string | null
           tone_of_voice?: string | null
           updated_at?: string
+          value_per_intent?: number | null
+          value_per_visibility?: number | null
           whatsapp?: string | null
         }
         Update: {
@@ -1403,6 +1476,8 @@ export type Database = {
           target_audience?: string | null
           tone_of_voice?: string | null
           updated_at?: string
+          value_per_intent?: number | null
+          value_per_visibility?: number | null
           whatsapp?: string | null
         }
         Relationships: [
@@ -4347,11 +4422,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_intent_count: {
+        Args: { p_article_id: string }
+        Returns: undefined
+      }
       increment_share_count: {
         Args: { article_id: string }
         Returns: undefined
       }
       increment_view_count: { Args: { article_id: string }; Returns: undefined }
+      increment_visibility_count: {
+        Args: { p_article_id: string }
+        Returns: undefined
+      }
       is_team_member_of_blog: {
         Args: { p_blog_id: string; p_user_id: string }
         Returns: boolean
