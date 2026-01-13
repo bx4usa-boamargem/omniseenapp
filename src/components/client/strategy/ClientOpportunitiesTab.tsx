@@ -155,13 +155,31 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
     }
   };
 
-  const handleCreateArticle = (opportunity: Opportunity) => {
-    const params = new URLSearchParams({
-      title: opportunity.suggested_title,
-      keywords: opportunity.suggested_keywords?.join(',') || '',
-      opportunityId: opportunity.id
-    });
-    navigate(`/client/create?${params.toString()}`);
+  const [convertingId, setConvertingId] = useState<string | null>(null);
+
+  const handleCreateArticle = async (opportunity: Opportunity) => {
+    if (convertingId) return;
+    setConvertingId(opportunity.id);
+    toast.info('Criando artigo a partir da oportunidade...');
+    
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        'convert-opportunity-to-article',
+        { body: { opportunityId: opportunity.id, blogId } }
+      );
+      
+      if (error || !data?.success) {
+        throw new Error(data?.error || 'Erro na conversão');
+      }
+      
+      toast.success('Artigo criado com sucesso!');
+      navigate(`/client/articles/${data.article_id}/edit`);
+    } catch (err) {
+      console.error('[ClientOpportunities] Convert error:', err);
+      toast.error('Erro ao criar artigo. Tente novamente.');
+    } finally {
+      setConvertingId(null);
+    }
   };
 
   const getSourceBadge = (opportunity: Opportunity) => {

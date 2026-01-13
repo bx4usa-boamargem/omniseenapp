@@ -140,12 +140,22 @@ serve(async (req) => {
     console.log(`[CONVERT] Article generated successfully, id: ${articleId}`);
 
     // 4. Atualizar artigo com opportunity_id e funnel_stage (já foi criado pelo generate-article-structured)
+    // Mapear article_goal para valores válidos do check constraint
+    const goalMap: Record<string, string> = {
+      'lead': 'lead',
+      'authority': 'seo_traffic',
+      'conversion': 'lead',
+      'seo_traffic': 'seo_traffic',
+      'engagement': 'engagement'
+    };
+    const mappedGoal = opportunity.goal ? goalMap[opportunity.goal] || null : null;
+
     const { error: updateArticleError } = await supabase
       .from("articles")
       .update({
         opportunity_id: opportunityId,
         funnel_stage: opportunity.funnel_stage,
-        article_goal: opportunity.goal,
+        article_goal: mappedGoal,
         generation_source: 'opportunity',
       })
       .eq("id", articleId);

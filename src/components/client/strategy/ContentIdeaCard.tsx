@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import { 
   Lightbulb, BookOpen, MapPin, Award, Target, Users, Zap,
   ExternalLink, ArrowRight, Clock, Loader2
@@ -16,6 +18,7 @@ interface ContentIdeaCardProps {
   why_now: string;
   sources: string[];
   blogId: string;
+  opportunityId?: string;
 }
 
 const angleConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
@@ -66,7 +69,8 @@ export function ContentIdeaCard({
   goal, 
   why_now, 
   sources,
-  blogId 
+  blogId,
+  opportunityId
 }: ContentIdeaCardProps) {
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
@@ -77,14 +81,39 @@ export function ContentIdeaCard({
   const GoalIcon = goalConf.icon;
   
   const handleCreateArticle = async () => {
+    if (creating) return;
     setCreating(true);
-    // Navigate to create page with prefilled data
-    const params = new URLSearchParams({
-      title: title,
-      keywords: keywords.join(','),
-      source: 'market-intel'
-    });
-    navigate(`/client/create?${params.toString()}`);
+    toast.info('Criando artigo a partir da ideia...');
+    
+    try {
+      // Se temos opportunityId, usar conversão direta
+      if (opportunityId) {
+        const { data, error } = await supabase.functions.invoke(
+          'convert-opportunity-to-article',
+          { body: { opportunityId, blogId } }
+        );
+        
+        if (error || !data?.success) {
+          throw new Error(data?.error || 'Erro na conversão');
+        }
+        
+        toast.success('Artigo criado com sucesso!');
+        navigate(`/client/articles/${data.article_id}/edit`);
+      } else {
+        // Fallback para navegação manual se não tiver opportunityId
+        const params = new URLSearchParams({
+          title: title,
+          keywords: keywords.join(','),
+          source: 'market-intel'
+        });
+        navigate(`/client/create?${params.toString()}`);
+      }
+    } catch (err) {
+      console.error('[ContentIdeaCard] Convert error:', err);
+      toast.error('Erro ao criar artigo. Tente novamente.');
+    } finally {
+      setCreating(false);
+    }
   };
   
   return (

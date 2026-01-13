@@ -364,8 +364,15 @@ NÃO inclua: texto, logotipos, marcas d'água, elementos caricatos, ilustraçõe
         ? `${effectiveContext}-${article_id}-${timestamp}.png`
         : `${effectiveContext}-${blog_id || 'standalone'}-${timestamp}.png`;
       
-      // Decode base64 and upload
-      const imageBytes = Uint8Array.from(atob(imageData), c => c.charCodeAt(0));
+      // Decode base64 and upload - extract pure base64 from Data URI if needed
+      let base64Pure = imageData;
+      if (imageData.startsWith('data:')) {
+        const commaIndex = imageData.indexOf(',');
+        if (commaIndex > -1) {
+          base64Pure = imageData.substring(commaIndex + 1);
+        }
+      }
+      const imageBytes = Uint8Array.from(atob(base64Pure), c => c.charCodeAt(0));
       
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('article-images')

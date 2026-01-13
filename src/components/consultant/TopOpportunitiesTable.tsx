@@ -13,16 +13,19 @@ interface Opportunity {
   relevance_score: number;
   suggested_keywords?: string[];
   status: string;
+  blog_id?: string;
 }
 
 interface TopOpportunitiesTableProps {
   opportunities: Opportunity[];
   maxItems?: number;
+  blogId?: string;
 }
 
 export function TopOpportunitiesTable({ 
   opportunities, 
-  maxItems = 5 
+  maxItems = 5,
+  blogId 
 }: TopOpportunitiesTableProps) {
   const navigate = useNavigate();
   const [convertingId, setConvertingId] = useState<string | null>(null);
@@ -36,13 +39,19 @@ export function TopOpportunitiesTable({
   const handleCreateArticle = async (opportunity: Opportunity) => {
     if (convertingId) return; // Prevent double-click
     
+    const effectiveBlogId = blogId || opportunity.blog_id;
+    if (!effectiveBlogId) {
+      toast.error('Blog não identificado. Tente novamente.');
+      return;
+    }
+    
     setConvertingId(opportunity.id);
     toast.info('Criando artigo a partir da oportunidade...');
     
     try {
       const { data, error } = await supabase.functions.invoke(
         'convert-opportunity-to-article',
-        { body: { opportunityId: opportunity.id } }
+        { body: { opportunityId: opportunity.id, blogId: effectiveBlogId } }
       );
       
       if (error || !data?.success) {
@@ -50,7 +59,7 @@ export function TopOpportunitiesTable({
       }
       
       toast.success('Artigo criado com sucesso!');
-      navigate(`/client/articles/${data.articleId}/edit`);
+      navigate(`/client/articles/${data.article_id}/edit`);
     } catch (err) {
       console.error('[TopOpportunities] Convert error:', err);
       toast.error('Erro ao criar artigo. Tente novamente.');
