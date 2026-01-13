@@ -406,6 +406,7 @@ export type Database = {
           converted_article_id: string | null
           converted_at: string | null
           created_at: string | null
+          funnel_stage: string | null
           goal: string | null
           id: string
           intel_week_id: string | null
@@ -427,6 +428,7 @@ export type Database = {
           converted_article_id?: string | null
           converted_at?: string | null
           created_at?: string | null
+          funnel_stage?: string | null
           goal?: string | null
           id?: string
           intel_week_id?: string | null
@@ -448,6 +450,7 @@ export type Database = {
           converted_article_id?: string | null
           converted_at?: string | null
           created_at?: string | null
+          funnel_stage?: string | null
           goal?: string | null
           id?: string
           intel_week_id?: string | null
@@ -750,6 +753,7 @@ export type Database = {
           keywords: string[] | null
           meta_description: string | null
           mini_case: Json | null
+          opportunity_id: string | null
           published_at: string | null
           reading_time: number | null
           scheduled_at: string | null
@@ -787,6 +791,7 @@ export type Database = {
           keywords?: string[] | null
           meta_description?: string | null
           mini_case?: Json | null
+          opportunity_id?: string | null
           published_at?: string | null
           reading_time?: number | null
           scheduled_at?: string | null
@@ -824,6 +829,7 @@ export type Database = {
           keywords?: string[] | null
           meta_description?: string | null
           mini_case?: Json | null
+          opportunity_id?: string | null
           published_at?: string | null
           reading_time?: number | null
           scheduled_at?: string | null
@@ -844,6 +850,13 @@ export type Database = {
             columns: ["blog_id"]
             isOneToOne: false
             referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "articles_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "article_opportunities"
             referencedColumns: ["id"]
           },
           {
@@ -910,10 +923,14 @@ export type Database = {
         Row: {
           articles_per_period: number | null
           auto_publish: boolean | null
+          autopilot_bottom: number | null
+          autopilot_middle: number | null
+          autopilot_top: number | null
           blog_id: string
           content_type: string | null
           created_at: string | null
           frequency: string | null
+          funnel_autopilot: boolean | null
           generate_images: boolean | null
           id: string
           is_active: boolean | null
@@ -927,10 +944,14 @@ export type Database = {
         Insert: {
           articles_per_period?: number | null
           auto_publish?: boolean | null
+          autopilot_bottom?: number | null
+          autopilot_middle?: number | null
+          autopilot_top?: number | null
           blog_id: string
           content_type?: string | null
           created_at?: string | null
           frequency?: string | null
+          funnel_autopilot?: boolean | null
           generate_images?: boolean | null
           id?: string
           is_active?: boolean | null
@@ -944,10 +965,14 @@ export type Database = {
         Update: {
           articles_per_period?: number | null
           auto_publish?: boolean | null
+          autopilot_bottom?: number | null
+          autopilot_middle?: number | null
+          autopilot_top?: number | null
           blog_id?: string
           content_type?: string | null
           created_at?: string | null
           frequency?: string | null
+          funnel_autopilot?: boolean | null
           generate_images?: boolean | null
           id?: string
           is_active?: boolean | null

@@ -1,0 +1,17 @@
+name: Funnel Autopilot
+
+on:
+  schedule:
+    - cron: '0 10 * * *'  # 10:00 UTC = 07:00 Brasília
+  workflow_dispatch:
+
+jobs:
+  convert-opportunities:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Funnel Autopilot
+        run: |
+          curl -X POST \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/funnel-autopilot" \
+            -H "Content-Type: application/json" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}"
