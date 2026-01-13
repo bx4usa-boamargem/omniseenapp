@@ -120,11 +120,17 @@ export const ReadingTracker = ({ articleId, blogId }: ReadingTrackerProps) => {
         maxScrollRef.current = scrollPercent;
 
         // Original scroll milestones for article_analytics
-        const milestones = [25, 50, 75, 100];
+        const milestones = [25, 50, 60, 75, 100];
         for (const milestone of milestones) {
           if (scrollPercent >= milestone && !sentMilestonesRef.current.has(milestone)) {
             sentMilestonesRef.current.add(milestone);
             sendEvent("scroll", { scrollDepth: milestone });
+            
+            // Track conversion_visibility at 60%+ (qualified read)
+            if (milestone >= 60 && !sentMilestonesRef.current.has(-1)) {
+              sentMilestonesRef.current.add(-1);
+              sendFunnelEvent("conversion_visibility");
+            }
           }
         }
 
@@ -170,9 +176,10 @@ export const ReadingTracker = ({ articleId, blogId }: ReadingTrackerProps) => {
       ctaElements.forEach((el) => {
         ctaObserverRef.current?.observe(el);
         
-        // Track clicks
+        // Track clicks - both as funnel event and conversion_intent
         el.addEventListener("click", () => {
           sendFunnelEvent("cta_click");
+          sendFunnelEvent("conversion_intent"); // High-value conversion
         });
       });
     };
