@@ -406,7 +406,17 @@ Return only valid JSON, no markdown.`;
       if (idea.sources && idea.sources.length > 0) score += 5;
       score = Math.min(score, 100);
 
-      // Create opportunity record
+      // Map goal to funnel_stage (OBRIGATÓRIO)
+      const mapGoalToFunnelStage = (goal: string): string => {
+        switch (goal) {
+          case 'lead': return 'topo';
+          case 'authority': return 'meio';
+          case 'conversion': return 'fundo';
+          default: return 'topo';
+        }
+      };
+
+      // Create opportunity record with funnel_stage
       const { data: opportunity, error: oppError } = await supabase
         .from("article_opportunities")
         .insert({
@@ -420,6 +430,7 @@ Return only valid JSON, no markdown.`;
           trend_source: provider,
           why_now: idea.why_now,
           goal: idea.goal,
+          funnel_stage: mapGoalToFunnelStage(idea.goal), // NOVO: Classificação automática no funil
           intel_week_id: savedIntel.id,
           relevance_factors: {
             angle: idea.angle,

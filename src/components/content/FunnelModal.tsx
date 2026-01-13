@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
@@ -9,118 +9,172 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Info, Loader2, ArrowRight, Plus, Sparkles } from "lucide-react";
+import { Loader2, ArrowRight, Sparkles, Radar, TrendingUp, Target, Zap } from "lucide-react";
 
 interface FunnelModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   blogId: string;
-  onContinue: (data: FunnelData) => void;
+  onContinue?: (data: FunnelData) => void;
 }
 
 interface FunnelData {
-  personaId: string;
   topOfFunnel: number;
   middleOfFunnel: number;
   bottomOfFunnel: number;
 }
 
-interface Persona {
+interface Opportunity {
   id: string;
-  name: string;
-  problems: string[];
-  solutions: string[];
-  objections: string[];
+  suggested_title: string;
+  relevance_score: number;
+  suggested_keywords: string[];
+  goal: string;
+  funnel_stage: string;
+  why_now?: string;
 }
 
-// Persona genérica para fallback
-const GENERIC_PERSONA: Persona = {
-  id: "generic",
-  name: "Público Geral",
-  problems: ["Problemas comuns do mercado"],
-  solutions: ["Soluções disponíveis"],
-  objections: ["Dúvidas frequentes"],
-};
+interface GroupedOpportunities {
+  topo: Opportunity[];
+  meio: Opportunity[];
+  fundo: Opportunity[];
+}
 
 export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelModalProps) {
-  const [personas, setPersonas] = useState<Persona[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-  const [selectedPersona, setSelectedPersona] = useState<string>("");
+  const [opportunities, setOpportunities] = useState<GroupedOpportunities>({ topo: [], meio: [], fundo: [] });
   const [topCount, setTopCount] = useState(1);
   const [middleCount, setMiddleCount] = useState(1);
   const [bottomCount, setBottomCount] = useState(1);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (open && blogId) {
-      fetchPersonas();
+      fetchOpportunities();
     }
   }, [open, blogId]);
 
-  async function fetchPersonas() {
+  async function fetchOpportunities() {
     setLoading(true);
+    
+    // Buscar oportunidades abertas agrupadas por estágio
     const { data, error } = await supabase
-      .from("personas")
-      .select("id, name, problems, solutions, objections")
-      .eq("blog_id", blogId);
+      .from("article_opportunities")
+      .select("id, suggested_title, relevance_score, suggested_keywords, goal, funnel_stage, why_now")
+      .eq("blog_id", blogId)
+      .in("status", ["pending", "approved"])
+      .order("relevance_score", { ascending: false });
 
-    if (data && data.length > 0) {
-      setPersonas(data);
-      setSelectedPersona(data[0].id);
-    } else {
-      // Use generic persona as fallback
-      setPersonas([GENERIC_PERSONA]);
-      setSelectedPersona(GENERIC_PERSONA.id);
+    if (error) {
+      console.error("Error fetching opportunities:", error);
+      setLoading(false);
+      return;
     }
+
+    // Agrupar por funnel_stage
+    const grouped: GroupedOpportunities = {
+      topo: [],
+      meio: [],
+      fundo: [],
+    };
+
+    (data || []).forEach((opp: Opportunity) => {
+      const stage = opp.funnel_stage || 'topo';
+      if (stage === 'topo' || stage === 'meio' || stage === 'fundo') {
+        grouped[stage].push(opp);
+      } else {
+        grouped.topo.push(opp);
+      }
+    });
+
+    setOpportunities(grouped);
+    
+    // Ajustar contadores iniciais baseado no disponível
+    setTopCount(Math.min(1, grouped.topo.length));
+    setMiddleCount(Math.min(1, grouped.meio.length));
+    setBottomCount(Math.min(1, grouped.fundo.length));
+    
     setLoading(false);
   }
 
-  const selectedPersonaData = personas.find(p => p.id === selectedPersona) || GENERIC_PERSONA;
-  const isUsingGenericPersona = selectedPersona === "generic";
-  
-  // Always allow generation with fallback
-  const totalArticles = topCount + middleCount + bottomCount;
+  const getAverageScore = (opps: Opportunity[]) => {
+    if (opps.length === 0) return 0;
+    return Math.round(opps.reduce((acc, o) => acc + (o.relevance_score || 0), 0) / opps.length);
+  };
 
-  const handleContinue = async () => {
-    if (totalArticles === 0) return;
+  const totalAvailable = opportunities.topo.length + opportunities.meio.length + opportunities.fundo.length;
+  const totalSelected = topCount + middleCount + bottomCount;
+
+  const handleGenerate = async () => {
+    if (totalSelected === 0) return;
     
     setGenerating(true);
+    const createdArticles: string[] = [];
+    const errors: string[] = [];
 
     try {
-      const { data, error } = await supabase.functions.invoke('generate-funnel-articles', {
-        body: {
-          blogId,
-          personaId: isUsingGenericPersona ? null : selectedPersona,
+      // Selecionar top N oportunidades de cada estágio
+      const selectedOpps = [
+        ...opportunities.topo.slice(0, topCount),
+        ...opportunities.meio.slice(0, middleCount),
+        ...opportunities.fundo.slice(0, bottomCount),
+      ];
+
+      for (const opp of selectedOpps) {
+        try {
+          const { data, error } = await supabase.functions.invoke('convert-opportunity-to-article', {
+            body: { opportunityId: opp.id, blogId }
+          });
+
+          if (error) {
+            console.error(`Error converting opportunity ${opp.id}:`, error);
+            errors.push(opp.suggested_title);
+            continue;
+          }
+
+          if (data?.article_id) {
+            createdArticles.push(data.article_id);
+          }
+        } catch (err) {
+          console.error(`Error converting opportunity ${opp.id}:`, err);
+          errors.push(opp.suggested_title);
+        }
+      }
+
+      if (createdArticles.length > 0) {
+        toast({
+          title: `${createdArticles.length} artigo${createdArticles.length > 1 ? 's' : ''} criado${createdArticles.length > 1 ? 's' : ''}!`,
+          description: "Redirecionando para o editor...",
+        });
+
+        onContinue?.({
           topOfFunnel: topCount,
           middleOfFunnel: middleCount,
           bottomOfFunnel: bottomCount,
-          useGenericPersona: isUsingGenericPersona,
-        }
-      });
+        });
+        onOpenChange(false);
 
-      if (error) throw error;
+        // Redirecionar para o primeiro artigo criado
+        navigate(`/client/articles/${createdArticles[0]}/edit`);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Nenhum artigo criado",
+          description: errors.length > 0 
+            ? `Falha ao processar: ${errors.join(', ')}` 
+            : "Tente novamente mais tarde.",
+        });
+      }
 
-      toast({
-        title: "Artigos na fila!",
-        description: `${data?.count || totalArticles} artigos foram adicionados à fila de automação.`,
-      });
-
-      onContinue({
-        personaId: selectedPersona,
-        topOfFunnel: topCount,
-        middleOfFunnel: middleCount,
-        bottomOfFunnel: bottomCount,
-      });
-      onOpenChange(false);
     } catch (error: any) {
-      console.error('Error generating funnel articles:', error);
+      console.error('Error in handleGenerate:', error);
       toast({
         variant: "destructive",
         title: "Erro ao gerar artigos",
@@ -131,12 +185,82 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
     }
   };
 
+  const StageCard = ({ 
+    stage, 
+    opps, 
+    count, 
+    setCount, 
+    color, 
+    icon: Icon, 
+    label, 
+    description 
+  }: { 
+    stage: string;
+    opps: Opportunity[];
+    count: number;
+    setCount: (n: number) => void;
+    color: string;
+    icon: any;
+    label: string;
+    description: string;
+  }) => {
+    const avgScore = getAverageScore(opps);
+    const topOpp = opps[0];
+
+    return (
+      <Card className={`border-l-4 ${color}`}>
+        <CardContent className="pt-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-2 flex-1">
+              <div className="flex items-center gap-2">
+                <Icon className="h-4 w-4" />
+                <span className="font-medium">{label}</span>
+                <Badge variant="outline" className="text-xs">
+                  {description}
+                </Badge>
+              </div>
+              
+              {opps.length > 0 ? (
+                <div className="space-y-1">
+                  <p className="text-sm text-primary font-medium">
+                    {opps.length} oportunidade{opps.length > 1 ? 's' : ''} disponíve{opps.length > 1 ? 'is' : 'l'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Score médio: {avgScore}% | Top: "{topOpp?.suggested_title?.slice(0, 40)}..."
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma oportunidade disponível
+                </p>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-2 shrink-0">
+              <Label className="text-xs text-muted-foreground">Qtd.</Label>
+              <Input
+                type="number"
+                min={0}
+                max={opps.length}
+                value={count}
+                onChange={(e) => setCount(Math.min(parseInt(e.target.value) || 0, opps.length))}
+                className="w-16 h-8"
+                disabled={opps.length === 0}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="text-center text-xl">
-            Criar Artigos por Funil de Vendas
+          <DialogTitle className="text-center text-xl flex items-center justify-center gap-2">
+            <Radar className="h-5 w-5 text-primary" />
+            Criar Artigos do Mercado Real
           </DialogTitle>
         </DialogHeader>
 
@@ -144,172 +268,105 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue }: FunnelMo
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
+        ) : totalAvailable === 0 ? (
+          <div className="py-8">
+            <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
+              <Radar className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <AlertDescription className="text-amber-800 dark:text-amber-200">
+                <strong>Nenhuma oportunidade disponível no momento.</strong>
+                <span className="block mt-1 text-sm opacity-80">
+                  Execute o Radar de Mercado para detectar tendências e oportunidades reais.
+                </span>
+              </AlertDescription>
+            </Alert>
+            <Button 
+              onClick={() => {
+                onOpenChange(false);
+                navigate('/client/strategy?tab=radar');
+              }}
+              className="w-full mt-4"
+              variant="outline"
+            >
+              <Radar className="h-4 w-4 mr-2" />
+              Ir para Radar de Mercado
+            </Button>
+          </div>
         ) : (
-          <div className="space-y-6 py-4">
-            {/* Informative notice when using generic persona */}
-            {isUsingGenericPersona && (
-              <Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950">
-                <Info className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                <AlertDescription className="text-blue-800 dark:text-blue-200">
-                  Não encontramos personas configuradas.
-                  <span className="block mt-1 text-sm opacity-80">
-                    Vamos usar padrões inteligentes automaticamente. Você pode personalizar depois.
-                  </span>
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Persona Selection */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>Persona</Label>
-                <Link 
-                  to="/strategy?tab=audience" 
-                  className="text-sm text-primary hover:underline flex items-center gap-1"
-                  onClick={() => onOpenChange(false)}
-                >
-                  <Plus className="h-3 w-3" />
-                  Criar nova persona
-                </Link>
-              </div>
-              <Select value={selectedPersona} onValueChange={setSelectedPersona}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione uma persona" />
-                </SelectTrigger>
-                <SelectContent>
-                  {personas.map((persona) => (
-                    <SelectItem key={persona.id} value={persona.id}>
-                      {persona.name}
-                      {persona.id === "generic" && (
-                        <span className="text-xs text-muted-foreground ml-2">(padrão)</span>
-                      )}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Opcional. Se não preencher, o sistema usa um padrão inteligente.
-              </p>
+          <div className="space-y-4 py-4">
+            {/* Info Badge */}
+            <div className="flex items-center justify-center">
+              <Badge variant="secondary" className="gap-1">
+                <Radar className="h-3 w-3" />
+                {totalAvailable} oportunidades detectadas pelo Radar
+              </Badge>
             </div>
 
             {/* Funnel Stages */}
-            <div className="grid gap-4">
-              {/* Top of Funnel */}
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-2 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">Topo de Funil</span>
-                        <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-200">
-                          Educar e criar consciência
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Aborda os problemas e desafios que a persona enfrenta, educando sobre as causas e consequências.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Label className="text-xs text-muted-foreground">Qtd.</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={10}
-                        value={topCount}
-                        onChange={(e) => setTopCount(parseInt(e.target.value) || 0)}
-                        className="w-16 h-8"
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="grid gap-3">
+              <StageCard
+                stage="topo"
+                opps={opportunities.topo}
+                count={topCount}
+                setCount={setTopCount}
+                color="border-l-orange-500"
+                icon={TrendingUp}
+                label="Topo do Funil"
+                description="Educar e criar consciência"
+              />
 
-              {/* Middle of Funnel */}
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-2 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">Meio de Funil</span>
-                        <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-200">
-                          Comparar soluções
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Apresenta e compara soluções disponíveis, mostrando como resolver os problemas identificados.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Label className="text-xs text-muted-foreground">Qtd.</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={10}
-                        value={middleCount}
-                        onChange={(e) => setMiddleCount(parseInt(e.target.value) || 0)}
-                        className="w-16 h-8"
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <StageCard
+                stage="meio"
+                opps={opportunities.meio}
+                count={middleCount}
+                setCount={setMiddleCount}
+                color="border-l-purple-500"
+                icon={Target}
+                label="Meio do Funil"
+                description="Comparar soluções"
+              />
 
-              {/* Bottom of Funnel */}
-              <Card>
-                <CardContent className="pt-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-2 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">Fundo de Funil</span>
-                        <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-200">
-                          Quebrar objeções
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Responde às objeções e dúvidas finais, ajudando na decisão de compra ou contratação.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Label className="text-xs text-muted-foreground">Qtd.</Label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={10}
-                        value={bottomCount}
-                        onChange={(e) => setBottomCount(parseInt(e.target.value) || 0)}
-                        className="w-16 h-8"
-                      />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <StageCard
+                stage="fundo"
+                opps={opportunities.fundo}
+                count={bottomCount}
+                setCount={setBottomCount}
+                color="border-l-green-500"
+                icon={Zap}
+                label="Fundo do Funil"
+                description="Quebrar objeções"
+              />
             </div>
 
             {/* Summary */}
-            {totalArticles > 0 && (
-              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            {totalSelected > 0 && (
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground pt-2">
                 <Sparkles className="h-4 w-4 text-primary" />
                 <span>
-                  {totalArticles} artigo{totalArticles !== 1 ? 's' : ''} será{totalArticles !== 1 ? 'ão' : ''} gerado{totalArticles !== 1 ? 's' : ''}
+                  {totalSelected} artigo{totalSelected !== 1 ? 's' : ''} será{totalSelected !== 1 ? 'ão' : ''} criado{totalSelected !== 1 ? 's' : ''} como rascunho
                 </span>
               </div>
             )}
+
+            {/* Source info */}
+            <p className="text-xs text-center text-muted-foreground">
+              📡 Fonte: Radar de Mercado Semanal (Perplexity/AI)
+            </p>
           </div>
         )}
 
         <Button 
-          onClick={handleContinue} 
-          disabled={generating || totalArticles === 0}
+          onClick={handleGenerate} 
+          disabled={generating || totalSelected === 0 || totalAvailable === 0}
           className="w-full gradient-primary"
         >
           {generating ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Gerando...
+              Gerando artigos reais...
             </>
           ) : (
             <>
-              Gerar {totalArticles > 0 ? `${totalArticles} artigo${totalArticles !== 1 ? 's' : ''}` : 'artigos'}
+              Gerar {totalSelected > 0 ? `${totalSelected} artigo${totalSelected !== 1 ? 's' : ''} do mercado` : 'artigos'}
               <ArrowRight className="h-4 w-4 ml-2" />
             </>
           )}
