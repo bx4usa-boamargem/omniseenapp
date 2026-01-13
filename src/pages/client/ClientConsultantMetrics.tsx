@@ -247,7 +247,7 @@ export default function ClientConsultantMetrics() {
       </div>
 
       {/* Top Opportunities */}
-      <TopOpportunitiesTable opportunities={opportunities} />
+      <TopOpportunitiesTable opportunities={opportunities} blogId={blog?.id} />
     </div>
   );
 }

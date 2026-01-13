@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useBlog } from '@/hooks/useBlog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,10 +50,20 @@ interface ImageGenerationProgress {
 export default function ClientArticleEditor() {
   const navigate = useNavigate();
   const { id: articleId } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const { blog, loading: blogLoading } = useBlog();
+  
+  // Quick mode params from URL
+  const quickMode = searchParams.get('quick') === 'true';
+  const themeParam = searchParams.get('theme');
+  const modeParam = (searchParams.get('mode') as 'fast' | 'deep') || 'fast';
+  const imagesParam = searchParams.get('images') !== '0';
   
   // Track if we're editing an existing article
   const [existingArticleId, setExistingArticleId] = useState<string | null>(null);
+  
+  // Track if auto-generation was triggered
+  const autoGenerationTriggeredRef = useRef(false);
   
   // Editor phase state
   const [phase, setPhase] = useState<EditorPhase>('form');
@@ -145,6 +155,33 @@ export default function ClientArticleEditor() {
       loadExistingArticle(articleId);
     }
   }, [articleId, blog?.id]);
+
+  // ====================================================================
+  // AUTO-RUN MODE: If quick=true and theme is provided, auto-generate
+  // ====================================================================
+  useEffect(() => {
+    if (
+      quickMode && 
+      themeParam && 
+      blog?.id && 
+      phase === 'form' && 
+      !generationLockRef.current && 
+      !autoGenerationTriggeredRef.current &&
+      !articleId // Don't auto-generate when editing existing
+    ) {
+      console.log('[Auto-run] Quick mode detected, starting generation...');
+      autoGenerationTriggeredRef.current = true;
+      
+      handleGenerate({
+        theme: themeParam,
+        generationMode: modeParam,
+        generateImages: imagesParam,
+        scheduleMode: 'now',
+        scheduledDate: null,
+        scheduledTime: null
+      });
+    }
+  }, [quickMode, themeParam, blog?.id, phase, articleId]);
 
   const loadExistingArticle = async (id: string) => {
     try {
@@ -310,6 +347,22 @@ export default function ClientArticleEditor() {
           if (backendArticleId) {
             setExistingArticleId(backendArticleId);
             console.log(`[BACKEND PERSISTED] Using backend article id=${backendArticleId} - NO frontend INSERT`);
+            
+            // ====================================================================
+            // QUICK MODE REDIRECT: Redirect immediately to the real editor
+            // ====================================================================
+            if (quickMode) {
+              toast.success('Artigo criado! Redirecionando...');
+              
+              // Generate images in background if enabled
+              if (shouldGenerateImages) {
+                // Don't await - let it run in background
+                generateImagesWithArticleId(result, backendArticleId).catch(console.error);
+              }
+              
+              navigate(`/client/articles/${backendArticleId}/edit`, { replace: true });
+              return;
+            }
             
             // ====================================================================
             // HANDLE SCHEDULING: If user chose to schedule, update the article
