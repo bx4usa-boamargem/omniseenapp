@@ -147,8 +147,9 @@ const ClientRoutes = () => (
         {/* Resultados & ROI */}
         <Route path="results" element={<ClientConsultantMetrics />} />
         
-        {/* Radar de Oportunidades (antigo Estratégia) */}
+        {/* Inteligência */}
         <Route path="radar" element={<ClientStrategy />} />
+        <Route path="seo" element={<ClientSEO />} />
         
         {/* Conteúdo */}
         <Route path="articles" element={<ClientArticles />} />
@@ -171,7 +172,6 @@ const ClientRoutes = () => (
         <Route path="strategy" element={<Navigate to="/client/radar" replace />} />
         <Route path="consultant" element={<Navigate to="/client/results" replace />} />
         <Route path="performance" element={<Navigate to="/client/results?tab=performance" replace />} />
-        <Route path="seo" element={<Navigate to="/client/results" replace />} />
         <Route path="notifications" element={<Navigate to="/client/account" replace />} />
         <Route path="queue" element={<Navigate to="/client/automation?tab=queue" replace />} />
         
