@@ -72,6 +72,8 @@ import ClientGSCIntegration from "./pages/client/ClientGSCIntegration";
 import ClientArticles from "./pages/client/ClientArticles";
 import ClientReviewCenter from "./pages/client/ClientReviewCenter";
 import ClientStrategy from "./pages/client/ClientStrategy";
+import ClientConsultantMetrics from "./pages/client/ClientConsultantMetrics";
+import ClientNotificationSettings from "./pages/client/ClientNotificationSettings";
 
 const queryClient = new QueryClient();
 
@@ -152,6 +154,8 @@ const ClientRoutes = () => (
         <Route path="account" element={<ClientAccount />} />
         <Route path="seo" element={<ClientSEO />} />
         <Route path="strategy" element={<ClientStrategy />} />
+        <Route path="consultant" element={<ClientConsultantMetrics />} />
+        <Route path="notifications" element={<ClientNotificationSettings />} />
         <Route path="integrations/gsc" element={<ClientGSCIntegration />} />
         <Route path="*" element={<Navigate to="/client/dashboard" replace />} />
       </Routes>

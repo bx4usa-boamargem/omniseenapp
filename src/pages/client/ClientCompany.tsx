@@ -31,6 +31,8 @@ export default function ClientCompany() {
   
   // Form state
   const [companyName, setCompanyName] = useState('');
+  const [city, setCity] = useState('');
+  const [services, setServices] = useState('');
   const [fullAddress, setFullAddress] = useState('');
   const [cityState, setCityState] = useState('');
   const [businessType, setBusinessType] = useState('');
@@ -58,8 +60,9 @@ export default function ClientCompany() {
           setBusinessType(profile.niche || '');
           setWhatYouDo(profile.long_description || '');
           setTargetAudience(profile.target_audience || '');
-          setWhatsapp((profile as { whatsapp?: string }).whatsapp || '');
-          // Extract differentiator from brand_keywords if available
+          setWhatsapp((profile as Record<string, unknown>).whatsapp as string || '');
+          setCity((profile as Record<string, unknown>).city as string || '');
+          setServices((profile as Record<string, unknown>).services as string || '');
           if (profile.brand_keywords && profile.brand_keywords.length > 0) {
             setDifferentiator(profile.brand_keywords.join(', '));
           }
@@ -102,15 +105,17 @@ export default function ClientCompany() {
 
       if (profileError) throw profileError;
 
-      // Update whatsapp separately using raw update to handle new column not in types
-      if (whatsapp !== undefined) {
+      // Update whatsapp, city, services separately
+      if (whatsapp !== undefined || city || services) {
         await supabase
           .from('business_profile')
-          .update({ whatsapp: whatsapp || null } as Record<string, unknown>)
+          .update({ 
+            whatsapp: whatsapp || null,
+            city: city || null,
+            services: services || null
+          } as Record<string, unknown>)
           .eq('blog_id', blog.id);
       }
-
-      if (profileError) throw profileError;
 
       // Update blog name
       const { error: blogError } = await supabase
@@ -174,6 +179,34 @@ export default function ClientCompany() {
               value={companyName}
               onChange={(e) => setCompanyName(e.target.value)}
             />
+          </div>
+
+          {/* City - NEW FIELD */}
+          <div className="space-y-2">
+            <Label htmlFor="city">Cidade *</Label>
+            <Input
+              id="city"
+              placeholder="Ex: São Paulo"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Campo obrigatório para o Consultor Comercial
+            </p>
+          </div>
+
+          {/* Services - NEW FIELD */}
+          <div className="space-y-2">
+            <Label htmlFor="services">Serviços que você vende *</Label>
+            <Input
+              id="services"
+              placeholder="Ex: Limpeza residencial, pós-obra, higienização"
+              value={services}
+              onChange={(e) => setServices(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Liste seus serviços separados por vírgula. Usados pelo Consultor Comercial.
+            </p>
           </div>
 
           {/* Full Address */}

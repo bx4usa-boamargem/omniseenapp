@@ -1298,6 +1298,7 @@ export type Database = {
         Row: {
           blog_id: string
           brand_keywords: string[] | null
+          city: string | null
           company_name: string | null
           concepts: string[] | null
           country: string | null
@@ -1311,6 +1312,7 @@ export type Database = {
           niche: string | null
           pain_points: string[] | null
           project_name: string | null
+          services: string | null
           target_audience: string | null
           tone_of_voice: string | null
           updated_at: string
@@ -1319,6 +1321,7 @@ export type Database = {
         Insert: {
           blog_id: string
           brand_keywords?: string[] | null
+          city?: string | null
           company_name?: string | null
           concepts?: string[] | null
           country?: string | null
@@ -1332,6 +1335,7 @@ export type Database = {
           niche?: string | null
           pain_points?: string[] | null
           project_name?: string | null
+          services?: string | null
           target_audience?: string | null
           tone_of_voice?: string | null
           updated_at?: string
@@ -1340,6 +1344,7 @@ export type Database = {
         Update: {
           blog_id?: string
           brand_keywords?: string[] | null
+          city?: string | null
           company_name?: string | null
           concepts?: string[] | null
           country?: string | null
@@ -1353,6 +1358,7 @@ export type Database = {
           niche?: string | null
           pain_points?: string[] | null
           project_name?: string | null
+          services?: string | null
           target_audience?: string | null
           tone_of_voice?: string | null
           updated_at?: string
@@ -1748,6 +1754,62 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "competitors_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      consultant_metrics_daily: {
+        Row: {
+          blog_id: string | null
+          converted_to_articles: number | null
+          created_at: string | null
+          date: string
+          estimated_value_usd: number | null
+          high_score_opportunities: number | null
+          id: string
+          low_score_opportunities: number | null
+          medium_score_opportunities: number | null
+          published_articles: number | null
+          total_opportunities: number | null
+          total_shares: number | null
+          total_views: number | null
+        }
+        Insert: {
+          blog_id?: string | null
+          converted_to_articles?: number | null
+          created_at?: string | null
+          date?: string
+          estimated_value_usd?: number | null
+          high_score_opportunities?: number | null
+          id?: string
+          low_score_opportunities?: number | null
+          medium_score_opportunities?: number | null
+          published_articles?: number | null
+          total_opportunities?: number | null
+          total_shares?: number | null
+          total_views?: number | null
+        }
+        Update: {
+          blog_id?: string | null
+          converted_to_articles?: number | null
+          created_at?: string | null
+          date?: string
+          estimated_value_usd?: number | null
+          high_score_opportunities?: number | null
+          id?: string
+          low_score_opportunities?: number | null
+          medium_score_opportunities?: number | null
+          published_articles?: number | null
+          total_opportunities?: number | null
+          total_shares?: number | null
+          total_views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consultant_metrics_daily_blog_id_fkey"
             columns: ["blog_id"]
             isOneToOne: false
             referencedRelation: "blogs"
@@ -2864,11 +2926,14 @@ export type Database = {
       }
       market_intel_weekly: {
         Row: {
+          analysis_period: string | null
           blog_id: string
+          business_context: Json | null
           competitor_gaps: Json | null
           content_ideas: Json | null
           country: string
           created_at: string | null
+          generated_at: string | null
           id: string
           keywords: Json | null
           market_snapshot: string | null
@@ -2881,11 +2946,14 @@ export type Database = {
           week_of: string
         }
         Insert: {
+          analysis_period?: string | null
           blog_id: string
+          business_context?: Json | null
           competitor_gaps?: Json | null
           content_ideas?: Json | null
           country?: string
           created_at?: string | null
+          generated_at?: string | null
           id?: string
           keywords?: Json | null
           market_snapshot?: string | null
@@ -2898,11 +2966,14 @@ export type Database = {
           week_of: string
         }
         Update: {
+          analysis_period?: string | null
           blog_id?: string
+          business_context?: Json | null
           competitor_gaps?: Json | null
           content_ideas?: Json | null
           country?: string
           created_at?: string | null
+          generated_at?: string | null
           id?: string
           keywords?: Json | null
           market_snapshot?: string | null
@@ -3015,35 +3086,56 @@ export type Database = {
         Row: {
           blog_id: string
           created_at: string | null
+          daily_digest: boolean | null
+          digest_time: string | null
           email_address: string | null
+          high_score_threshold: number | null
           id: string
           min_relevance_score: number | null
+          notification_frequency: string | null
           notify_email: boolean | null
+          notify_high_score_only: boolean | null
           notify_in_app: boolean | null
+          notify_whatsapp: boolean | null
           updated_at: string | null
           user_id: string
+          whatsapp_number: string | null
         }
         Insert: {
           blog_id: string
           created_at?: string | null
+          daily_digest?: boolean | null
+          digest_time?: string | null
           email_address?: string | null
+          high_score_threshold?: number | null
           id?: string
           min_relevance_score?: number | null
+          notification_frequency?: string | null
           notify_email?: boolean | null
+          notify_high_score_only?: boolean | null
           notify_in_app?: boolean | null
+          notify_whatsapp?: boolean | null
           updated_at?: string | null
           user_id: string
+          whatsapp_number?: string | null
         }
         Update: {
           blog_id?: string
           created_at?: string | null
+          daily_digest?: boolean | null
+          digest_time?: string | null
           email_address?: string | null
+          high_score_threshold?: number | null
           id?: string
           min_relevance_score?: number | null
+          notification_frequency?: string | null
           notify_email?: boolean | null
+          notify_high_score_only?: boolean | null
           notify_in_app?: boolean | null
+          notify_whatsapp?: boolean | null
           updated_at?: string | null
           user_id?: string
+          whatsapp_number?: string | null
         }
         Relationships: [
           {

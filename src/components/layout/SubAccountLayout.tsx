@@ -23,7 +23,7 @@ const navItems: NavItem[] = [
   { icon: PenSquare, label: 'Criar Artigo', path: '/client/create' },
   { icon: FileText, label: 'Meus Artigos', path: '/client/articles' },
   { icon: Globe, label: 'Meu Mini-Site', path: '/client/site' },
-  { icon: BarChart3, label: 'Desempenho', path: '/client/performance' },
+  { icon: BarChart3, label: 'Consultor Comercial', path: '/client/consultant' },
   { icon: Zap, label: 'Automação', path: '/client/automation' },
   { icon: Compass, label: 'Estratégia', path: '/client/strategy' },
   { icon: Building2, label: 'Minha Empresa', path: '/client/company' },
