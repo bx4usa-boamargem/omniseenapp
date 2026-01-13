@@ -19,6 +19,45 @@ interface ModelPricing {
   cost_per_1k_output_tokens: number;
   cost_per_image: number;
   is_active: boolean;
+  model_provider?: string;
+}
+
+// Fallback models when database is empty
+const FALLBACK_TEXT_MODELS: ModelPricing[] = [
+  { model_name: 'google/gemini-2.5-flash', model_provider: 'Google', cost_per_1k_input_tokens: 0.00015, cost_per_1k_output_tokens: 0.0006, cost_per_image: 0, is_active: true },
+  { model_name: 'google/gemini-2.5-pro', model_provider: 'Google', cost_per_1k_input_tokens: 0.00125, cost_per_1k_output_tokens: 0.005, cost_per_image: 0, is_active: true },
+  { model_name: 'google/gemini-2.5-flash-lite', model_provider: 'Google', cost_per_1k_input_tokens: 0.00003, cost_per_1k_output_tokens: 0.00015, cost_per_image: 0, is_active: true },
+  { model_name: 'openai/gpt-5-mini', model_provider: 'OpenAI', cost_per_1k_input_tokens: 0.00015, cost_per_1k_output_tokens: 0.0006, cost_per_image: 0, is_active: true },
+  { model_name: 'openai/gpt-5', model_provider: 'OpenAI', cost_per_1k_input_tokens: 0.005, cost_per_1k_output_tokens: 0.015, cost_per_image: 0, is_active: true },
+];
+
+const FALLBACK_IMAGE_MODELS: ModelPricing[] = [
+  { model_name: 'google/gemini-2.5-flash-image-preview', model_provider: 'Google', cost_per_1k_input_tokens: 0, cost_per_1k_output_tokens: 0, cost_per_image: 0.04, is_active: true },
+  { model_name: 'google/gemini-3-pro-image-preview', model_provider: 'Google', cost_per_1k_input_tokens: 0, cost_per_1k_output_tokens: 0, cost_per_image: 0.08, is_active: true },
+];
+
+// Get tier info for a model based on cost
+function getModelTier(model: ModelPricing, isImage: boolean): { label: string; color: string; badge: string } {
+  if (isImage) {
+    if (model.cost_per_image >= 0.08) return { label: 'Alta Qualidade', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300', badge: '⭐' };
+    return { label: 'Recomendado', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', badge: '✓' };
+  }
+  
+  const cost = model.cost_per_1k_input_tokens;
+  if (cost >= 0.002) return { label: 'Alta Qualidade', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300', badge: '⭐' };
+  if (cost >= 0.0001) return { label: 'Recomendado', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', badge: '✓' };
+  return { label: 'Econômico', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', badge: '💰' };
+}
+
+// Format model name for display
+function formatModelName(modelName: string): string {
+  const parts = modelName.split('/');
+  const name = parts[parts.length - 1];
+  return name
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, l => l.toUpperCase())
+    .replace('Gpt', 'GPT')
+    .replace('Gemini', 'Gemini');
 }
 
 interface PreferencesTabProps {
@@ -84,16 +123,37 @@ export function PreferencesTab({ blogId, isClientContext = false }: PreferencesT
   }, [blogId]);
 
   async function fetchModels() {
-    const { data } = await supabase
-      .from("model_pricing")
-      .select("*")
-      .eq("is_active", true);
-    
-    if (data) {
-      // Text models: have input token cost
-      setTextModels(data.filter(m => m.cost_per_1k_input_tokens > 0).sort((a, b) => a.cost_per_1k_input_tokens - b.cost_per_1k_input_tokens));
-      // Image models: have image cost
-      setImageModels(data.filter(m => m.cost_per_image > 0).sort((a, b) => a.cost_per_image - b.cost_per_image));
+    try {
+      const { data, error } = await supabase
+        .from("model_pricing")
+        .select("*")
+        .eq("is_active", true);
+      
+      if (error) {
+        console.error('Error fetching models:', error);
+        // Use fallback models
+        setTextModels(FALLBACK_TEXT_MODELS);
+        setImageModels(FALLBACK_IMAGE_MODELS);
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        // Text models: have input token cost
+        const text = data.filter(m => m.cost_per_1k_input_tokens > 0).sort((a, b) => a.cost_per_1k_input_tokens - b.cost_per_1k_input_tokens);
+        // Image models: have image cost
+        const image = data.filter(m => m.cost_per_image > 0).sort((a, b) => a.cost_per_image - b.cost_per_image);
+        
+        setTextModels(text.length > 0 ? text : FALLBACK_TEXT_MODELS);
+        setImageModels(image.length > 0 ? image : FALLBACK_IMAGE_MODELS);
+      } else {
+        // Database empty, use fallback
+        setTextModels(FALLBACK_TEXT_MODELS);
+        setImageModels(FALLBACK_IMAGE_MODELS);
+      }
+    } catch (err) {
+      console.error('Error fetching models:', err);
+      setTextModels(FALLBACK_TEXT_MODELS);
+      setImageModels(FALLBACK_IMAGE_MODELS);
     }
   }
 
@@ -537,10 +597,14 @@ export function PreferencesTab({ blogId, isClientContext = false }: PreferencesT
           {/* Info Banner */}
           <div className="flex gap-3 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
             <Lightbulb className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
-            <p className="text-sm text-muted-foreground">
-              Modelos mais caros geralmente produzem resultados de maior qualidade e precisão. 
-              O custo é calculado por uso.
-            </p>
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>Modelos mais caros geralmente produzem resultados de maior qualidade e precisão.</p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">⭐ Alta Qualidade</span>
+                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">✓ Recomendado</span>
+                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">💰 Econômico</span>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -552,14 +616,41 @@ export function PreferencesTab({ blogId, isClientContext = false }: PreferencesT
                 onValueChange={(v) => setPreferences(prev => ({ ...prev, ai_model_text: v }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione um modelo" />
+                  <SelectValue placeholder="Selecione um modelo">
+                    {preferences.ai_model_text && (
+                      <span className="flex items-center gap-2">
+                        {formatModelName(preferences.ai_model_text)}
+                        {textModels.length > 0 && (() => {
+                          const model = textModels.find(m => m.model_name === preferences.ai_model_text);
+                          if (model) {
+                            const tier = getModelTier(model, false);
+                            return <span className={cn("text-xs px-1.5 py-0.5 rounded", tier.color)}>{tier.badge}</span>;
+                          }
+                          return null;
+                        })()}
+                      </span>
+                    )}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {textModels.map(m => (
-                    <SelectItem key={m.model_name} value={m.model_name}>
-                      {m.model_name.replace('google/', '').replace('openai/', '')} - ${(m.cost_per_1k_input_tokens * 1000).toFixed(3)}/1M tokens
-                    </SelectItem>
-                  ))}
+                  {textModels.map(m => {
+                    const tier = getModelTier(m, false);
+                    return (
+                      <SelectItem key={m.model_name} value={m.model_name}>
+                        <div className="flex items-center justify-between gap-3 w-full">
+                          <div className="flex items-center gap-2">
+                            <span>{formatModelName(m.model_name)}</span>
+                            <span className={cn("text-xs px-1.5 py-0.5 rounded whitespace-nowrap", tier.color)}>
+                              {tier.badge} {tier.label}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            ${(m.cost_per_1k_input_tokens * 1000).toFixed(2)}/1M
+                          </span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
@@ -575,14 +666,41 @@ export function PreferencesTab({ blogId, isClientContext = false }: PreferencesT
                 onValueChange={(v) => setPreferences(prev => ({ ...prev, ai_model_image: v }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione um modelo" />
+                  <SelectValue placeholder="Selecione um modelo">
+                    {preferences.ai_model_image && (
+                      <span className="flex items-center gap-2">
+                        {formatModelName(preferences.ai_model_image)}
+                        {imageModels.length > 0 && (() => {
+                          const model = imageModels.find(m => m.model_name === preferences.ai_model_image);
+                          if (model) {
+                            const tier = getModelTier(model, true);
+                            return <span className={cn("text-xs px-1.5 py-0.5 rounded", tier.color)}>{tier.badge}</span>;
+                          }
+                          return null;
+                        })()}
+                      </span>
+                    )}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {imageModels.map(m => (
-                    <SelectItem key={m.model_name} value={m.model_name}>
-                      {m.model_name} - ${m.cost_per_image.toFixed(3)}/imagem
-                    </SelectItem>
-                  ))}
+                  {imageModels.map(m => {
+                    const tier = getModelTier(m, true);
+                    return (
+                      <SelectItem key={m.model_name} value={m.model_name}>
+                        <div className="flex items-center justify-between gap-3 w-full">
+                          <div className="flex items-center gap-2">
+                            <span>{formatModelName(m.model_name)}</span>
+                            <span className={cn("text-xs px-1.5 py-0.5 rounded whitespace-nowrap", tier.color)}>
+                              {tier.badge} {tier.label}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            ${m.cost_per_image.toFixed(3)}/img
+                          </span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
