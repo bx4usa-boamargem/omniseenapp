@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { 
-  Globe, Loader2, Plus, Trash2, ExternalLink, Sparkles, AlertCircle 
+  Globe, Loader2, Plus, Trash2, ExternalLink, Sparkles, AlertCircle, Eye, Target
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { CompetitorGapsModal } from './CompetitorGapsModal';
 
 interface Competitor {
   id: string;
@@ -21,6 +22,7 @@ interface Competitor {
   monthly_clicks?: number;
   keywords_ranked?: number;
   traffic_value_brl?: number;
+  gaps_count?: number;
 }
 
 interface ClientCompetitorsTabProps {
@@ -35,6 +37,8 @@ export function ClientCompetitorsTab({ blogId }: ClientCompetitorsTabProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newUrl, setNewUrl] = useState('');
+  const [selectedCompetitor, setSelectedCompetitor] = useState<Competitor | null>(null);
+  const [totalGaps, setTotalGaps] = useState(0);
 
   useEffect(() => {
     fetchCompetitors();
@@ -43,14 +47,46 @@ export function ClientCompetitorsTab({ blogId }: ClientCompetitorsTabProps) {
   const fetchCompetitors = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Fetch competitors
+      const { data: competitorsData, error } = await supabase
         .from('competitors')
         .select('*')
         .eq('blog_id', blogId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setCompetitors(data || []);
+
+      // Fetch gap counts per competitor
+      const { data: gapCounts, error: gapsError } = await supabase
+        .from('article_opportunities')
+        .select('competitor_id')
+        .eq('blog_id', blogId)
+        .eq('source', 'competitors')
+        .neq('status', 'converted');
+
+      if (gapsError) {
+        console.error('Error fetching gap counts:', gapsError);
+      }
+
+      // Build counts map
+      const countsMap: Record<string, number> = {};
+      let total = 0;
+      
+      (gapCounts || []).forEach(g => {
+        if (g.competitor_id) {
+          countsMap[g.competitor_id] = (countsMap[g.competitor_id] || 0) + 1;
+          total++;
+        }
+      });
+
+      // Add counts to competitors
+      const withCounts = (competitorsData || []).map(c => ({
+        ...c,
+        gaps_count: countsMap[c.id] || 0
+      }));
+
+      setCompetitors(withCounts);
+      setTotalGaps(total);
     } catch (error) {
       console.error('Error fetching competitors:', error);
     }
@@ -95,7 +131,7 @@ export function ClientCompetitorsTab({ blogId }: ClientCompetitorsTabProps) {
 
       if (error) throw error;
 
-      setCompetitors(prev => [data, ...prev]);
+      setCompetitors(prev => [{ ...data, gaps_count: 0 }, ...prev]);
       setNewName('');
       setNewUrl('');
       setDialogOpen(false);
@@ -138,16 +174,31 @@ export function ClientCompetitorsTab({ blogId }: ClientCompetitorsTabProps) {
 
       if (error) throw error;
 
-      toast.success('Análise concluída!', {
-        description: `${data?.gaps?.length || 0} gaps de conteúdo identificados.`
-      });
-
-      // Refresh opportunities tab
+      if (data?.gaps_created > 0) {
+        toast.success('Análise concluída!', {
+          description: `${data.gaps_created} novos gaps de conteúdo identificados.`
+        });
+        // Refresh to update counts
+        await fetchCompetitors();
+      } else if (data?.gaps_analyzed > 0) {
+        toast.info('Análise concluída', {
+          description: 'Todos os gaps já foram identificados anteriormente.'
+        });
+      } else {
+        toast.info('Nenhum novo gap encontrado', {
+          description: 'Tente novamente mais tarde ou adicione mais concorrentes.'
+        });
+      }
     } catch (error) {
       console.error('Error analyzing competitors:', error);
       toast.error('Erro ao analisar concorrentes');
     }
     setAnalyzing(false);
+  };
+
+  const handleGapConverted = () => {
+    // Refresh counts after a gap is converted
+    fetchCompetitors();
   };
 
   if (loading) {
@@ -163,7 +214,7 @@ export function ClientCompetitorsTab({ blogId }: ClientCompetitorsTabProps) {
       {/* Header Card */}
       <Card className="bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border-blue-500/20">
         <CardContent className="pt-6">
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between flex-wrap gap-4">
             <div className="flex items-start gap-4">
               <div className="p-3 rounded-xl bg-blue-500/20">
                 <Globe className="h-6 w-6 text-blue-600 dark:text-blue-400" />
@@ -173,6 +224,14 @@ export function ClientCompetitorsTab({ blogId }: ClientCompetitorsTabProps) {
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                   Cadastre até 5 concorrentes para identificar gaps de conteúdo e oportunidades.
                 </p>
+                {totalGaps > 0 && (
+                  <div className="mt-2">
+                    <Badge variant="secondary" className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
+                      <Target className="h-3 w-3 mr-1" />
+                      {totalGaps} {totalGaps === 1 ? 'gap identificado' : 'gaps identificados'}
+                    </Badge>
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex gap-2">
@@ -253,7 +312,7 @@ export function ClientCompetitorsTab({ blogId }: ClientCompetitorsTabProps) {
       ) : (
         <div className="grid gap-4">
           {competitors.map((competitor) => (
-            <Card key={competitor.id}>
+            <Card key={competitor.id} className="hover:shadow-md transition-shadow">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -280,15 +339,35 @@ export function ClientCompetitorsTab({ blogId }: ClientCompetitorsTabProps) {
                       </a>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    {/* Gap count badge */}
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setSelectedCompetitor(competitor)}
+                      disabled={competitor.gaps_count === 0}
+                      className={competitor.gaps_count && competitor.gaps_count > 0 
+                        ? 'border-green-500/50 hover:bg-green-50 dark:hover:bg-green-900/20' 
+                        : ''
+                      }
+                    >
+                      <Eye className="h-4 w-4 mr-1.5" />
+                      <span className={competitor.gaps_count && competitor.gaps_count > 0 
+                        ? 'text-green-700 dark:text-green-400 font-medium' 
+                        : ''
+                      }>
+                        {competitor.gaps_count || 0} {competitor.gaps_count === 1 ? 'gap' : 'gaps'}
+                      </span>
+                    </Button>
+                    
                     {competitor.monthly_clicks && (
-                      <div className="text-right">
+                      <div className="text-right hidden sm:block">
                         <p className="text-sm font-medium">{competitor.monthly_clicks.toLocaleString()}</p>
                         <p className="text-xs text-muted-foreground">cliques/mês</p>
                       </div>
                     )}
                     {competitor.keywords_ranked && (
-                      <div className="text-right">
+                      <div className="text-right hidden sm:block">
                         <p className="text-sm font-medium">{competitor.keywords_ranked.toLocaleString()}</p>
                         <p className="text-xs text-muted-foreground">keywords</p>
                       </div>
@@ -313,6 +392,17 @@ export function ClientCompetitorsTab({ blogId }: ClientCompetitorsTabProps) {
       <p className="text-sm text-muted-foreground text-center">
         {competitors.length}/5 concorrentes cadastrados
       </p>
+
+      {/* Gaps Modal */}
+      {selectedCompetitor && (
+        <CompetitorGapsModal 
+          competitor={selectedCompetitor}
+          blogId={blogId}
+          open={!!selectedCompetitor}
+          onClose={() => setSelectedCompetitor(null)}
+          onGapConverted={handleGapConverted}
+        />
+      )}
     </div>
   );
 }
