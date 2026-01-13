@@ -11,7 +11,8 @@ import {
   Search, 
   Compass, 
   TrendingUp,
-  FileText
+  FileText,
+  Activity
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -47,6 +48,7 @@ const navSections: NavSection[] = [
     label: 'INTELIGÊNCIA',
     items: [
       { icon: Compass, label: 'Radar de Oportunidades', path: '/client/radar' },
+      { icon: Activity, label: 'Análise de SEO', path: '/client/seo' },
     ]
   },
   {
