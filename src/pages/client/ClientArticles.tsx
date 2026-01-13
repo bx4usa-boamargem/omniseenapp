@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBlog } from '@/hooks/useBlog';
 import { supabase } from '@/integrations/supabase/client';
+import { getArticleUrl } from '@/utils/blogUrl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -231,12 +232,25 @@ export default function ClientArticles() {
   };
 
   const handleView = (article: Article) => {
-    // Use custom domain or slug-based URL
-    if (blog?.custom_domain) {
-      window.open(`https://${blog.custom_domain}/${article.slug}`, '_blank');
-    } else if (blog?.slug) {
-      window.open(`/blog/${blog.slug}/${article.slug}`, '_blank');
+    if (!blog) return;
+    
+    // Clean custom_domain of protocol and trailing slash
+    let cleanDomain = blog.custom_domain;
+    if (cleanDomain) {
+      cleanDomain = cleanDomain
+        .replace(/^https?:\/\//, '')  // Remove https:// or http://
+        .replace(/\/$/, '');          // Remove trailing slash
     }
+    
+    // Use utility function with proper domain_verified check
+    const url = getArticleUrl({
+      slug: blog.slug,
+      custom_domain: cleanDomain,
+      domain_verified: blog.domain_verified,
+      platform_subdomain: (blog as { platform_subdomain?: string }).platform_subdomain || null
+    }, article.slug);
+    
+    window.open(url, '_blank');
   };
 
   const handleArchive = async (id: string) => {

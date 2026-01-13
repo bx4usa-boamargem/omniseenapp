@@ -134,115 +134,24 @@ export function ContentIdeaCard({
     'awareness': 'topo'
   };
   
-  const handleCreateArticle = async () => {
+  // IMMEDIATE REDIRECT - No waiting for edge function
+  const handleCreateArticle = () => {
     if (creating) return;
-    setCreating(true);
     
-    try {
-      // Validar permissão do usuário para o blog
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('Usuário não autenticado');
-        setCreating(false);
-        return;
-      }
-
-      console.log('[ContentIdeaCard] Creating article', { title, blogId, opportunityId, userId: user.id });
-
-      const hasPermission = await validateBlogPermission(user.id);
-      if (!hasPermission) {
-        toast.error('Você não tem permissão para criar artigos neste blog');
-        setCreating(false);
-        return;
-      }
-
-      toast.info('Criando artigo a partir da ideia...');
-
-      // Se temos opportunityId, usar conversão direta via edge function
-      if (opportunityId) {
-        const { data, error } = await supabase.functions.invoke(
-          'convert-opportunity-to-article',
-          { body: { opportunityId, blogId } }
-        );
-        
-        if (error || !data?.success) {
-          throw new Error(data?.error || 'Erro na conversão');
-        }
-        
-        console.log('[RADAR->ARTICLE] converted opportunity_id=', opportunityId, 'to article_id=', data.article_id);
-        toast.success('Artigo criado com sucesso!');
-        navigate(`/client/articles/${data.article_id}/edit`);
-        return;
-      }
-      
-      // Criar artigo diretamente a partir da ideia do Radar (sem opportunityId)
-      // 1. Verificar idempotência - se já existe artigo com título similar
-      const { data: existing } = await supabase
-        .from('articles')
-        .select('id')
-        .eq('blog_id', blogId)
-        .ilike('title', title)
-        .limit(1)
-        .maybeSingle();
-
-      if (existing) {
-        console.log('[RADAR->ARTICLE] loaded existing article_id=', existing.id);
-        toast.info('Artigo já existe, abrindo editor...');
-        navigate(`/client/articles/${existing.id}/edit`);
-        return;
-      }
-
-      // 2. Criar payload de origem para rastreabilidade completa
-      const sourcePayload = {
-        angle,
-        why_now,
-        sources,
-        keywords,
-        original_goal: goal,
-        created_from: 'radar_idea'
-      };
-
-      // 3. Gerar slug único a partir do título
-      const slug = title
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '')
-        .substring(0, 80) + '-' + Date.now().toString(36);
-
-      // 4. Inserir artigo real com status draft
-      const { data: article, error: insertError } = await supabase
-        .from('articles')
-        .insert({
-          blog_id: blogId,
-          title: title,
-          slug: slug,
-          keywords: keywords,
-          status: 'draft',
-          generation_source: 'radar',
-          article_goal: goalMap[goal] || 'educar',
-          funnel_stage: funnelMap[goal] || 'topo',
-          source_payload: sourcePayload,
-        })
-        .select('id')
-        .single();
-
-      if (insertError) {
-        console.error('[RADAR->ARTICLE] insert error:', insertError);
-        throw insertError;
-      }
-
-      console.log('[RADAR->ARTICLE] created article_id=', article.id);
-      toast.success('Artigo criado com sucesso!');
-      navigate(`/client/articles/${article.id}/edit`);
-      
-    } catch (err) {
-      console.error('[ContentIdeaCard] Convert error:', err);
-      toast.error('Erro ao criar artigo. Tente novamente.');
-    } finally {
-      setCreating(false);
+    // Navigate immediately to editor with auto-run params
+    const params = new URLSearchParams({
+      quick: 'true',
+      theme: title,
+      mode: 'fast',
+      images: '1'
+    });
+    
+    // If we have opportunityId, include it for backend conversion
+    if (opportunityId) {
+      params.set('fromOpportunity', opportunityId);
     }
+    
+    navigate(`/client/create?${params.toString()}`);
   };
   
   return (

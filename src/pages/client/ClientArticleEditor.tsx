@@ -58,6 +58,7 @@ export default function ClientArticleEditor() {
   const themeParam = searchParams.get('theme');
   const modeParam = (searchParams.get('mode') as 'fast' | 'deep') || 'fast';
   const imagesParam = searchParams.get('images') !== '0';
+  const fromOpportunityParam = searchParams.get('fromOpportunity'); // NEW: Support opportunity conversion
   
   // Track if we're editing an existing article
   const [existingArticleId, setExistingArticleId] = useState<string | null>(null);
@@ -114,6 +115,48 @@ export default function ClientArticleEditor() {
     originalContent: string;
   } | null>(null);
   
+  // ====================================================================
+  // CONVERT OPPORTUNITY: Handle fromOpportunity param via edge function
+  // ====================================================================
+  const handleConvertOpportunity = async (oppId: string, blogId: string) => {
+    setPhase('generating');
+    setGenerationStage('analyzing');
+    setGenerationProgress(10);
+    
+    try {
+      // Gradual progress update
+      const progressInterval = setInterval(() => {
+        setGenerationProgress(prev => Math.min(prev + 8, 85));
+      }, 2000);
+      
+      console.log('[ConvertOpportunity] Starting conversion for opportunity:', oppId);
+      
+      const { data, error } = await supabase.functions.invoke('convert-opportunity-to-article', {
+        body: { opportunityId: oppId, blogId }
+      });
+      
+      clearInterval(progressInterval);
+      
+      if (error || !data?.success) {
+        throw new Error(data?.error || 'Erro na conversão');
+      }
+      
+      setGenerationProgress(100);
+      toast.success('Artigo criado com sucesso!');
+      
+      console.log('[ConvertOpportunity] Success, redirecting to article:', data.article_id);
+      
+      // Redirect to the real editor with the created article
+      navigate(`/client/articles/${data.article_id}/edit`, { replace: true });
+    } catch (err) {
+      console.error('[ConvertOpportunity] Error:', err);
+      toast.error('Erro ao criar artigo. Tente novamente.');
+      setPhase('form');
+      setGenerationProgress(0);
+      setGenerationStage(null);
+    }
+  };
+  
   // Persist view mode
   useEffect(() => {
     localStorage.setItem('article-editor-view-mode', viewMode);
@@ -157,31 +200,40 @@ export default function ClientArticleEditor() {
   }, [articleId, blog?.id]);
 
   // ====================================================================
-  // AUTO-RUN MODE: If quick=true and theme is provided, auto-generate
+  // AUTO-RUN MODE: If quick=true, auto-generate or convert opportunity
   // ====================================================================
   useEffect(() => {
     if (
       quickMode && 
-      themeParam && 
       blog?.id && 
       phase === 'form' && 
       !generationLockRef.current && 
       !autoGenerationTriggeredRef.current &&
       !articleId // Don't auto-generate when editing existing
     ) {
-      console.log('[Auto-run] Quick mode detected, starting generation...');
       autoGenerationTriggeredRef.current = true;
       
-      handleGenerate({
-        theme: themeParam,
-        generationMode: modeParam,
-        generateImages: imagesParam,
-        scheduleMode: 'now',
-        scheduledDate: null,
-        scheduledTime: null
-      });
+      // If fromOpportunity is provided, use edge function conversion
+      if (fromOpportunityParam) {
+        console.log('[Auto-run] Converting opportunity:', fromOpportunityParam);
+        handleConvertOpportunity(fromOpportunityParam, blog.id);
+        return;
+      }
+      
+      // Otherwise, use theme-based generation
+      if (themeParam) {
+        console.log('[Auto-run] Quick mode detected, starting generation...');
+        handleGenerate({
+          theme: themeParam,
+          generationMode: modeParam,
+          generateImages: imagesParam,
+          scheduleMode: 'now',
+          scheduledDate: null,
+          scheduledTime: null
+        });
+      }
     }
-  }, [quickMode, themeParam, blog?.id, phase, articleId]);
+  }, [quickMode, fromOpportunityParam, themeParam, blog?.id, phase, articleId]);
 
   const loadExistingArticle = async (id: string) => {
     try {

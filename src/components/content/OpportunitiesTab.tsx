@@ -301,13 +301,17 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
     setProcessing(false);
   };
 
+  // IMMEDIATE REDIRECT - Auto-run mode
   const handleCreateArticle = (opportunity: Opportunity) => {
     const params = new URLSearchParams({
-      title: opportunity.suggested_title,
-      keywords: opportunity.suggested_keywords?.join(",") || "",
-      opportunityId: opportunity.id,
+      quick: 'true',
+      fromOpportunity: opportunity.id,
+      theme: opportunity.suggested_title,
+      mode: 'fast',
+      images: '1'
     });
-    const basePath = isClient ? '/client/articles/new' : '/app/articles/new';
+    
+    const basePath = isClient ? '/client/create' : '/app/articles/new';
     navigate(`${basePath}?${params.toString()}`);
   };
 

@@ -155,31 +155,18 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
     }
   };
 
-  const [convertingId, setConvertingId] = useState<string | null>(null);
-
-  const handleCreateArticle = async (opportunity: Opportunity) => {
-    if (convertingId) return;
-    setConvertingId(opportunity.id);
-    toast.info('Criando artigo a partir da oportunidade...');
+  // IMMEDIATE REDIRECT - No waiting for edge function
+  const handleCreateArticle = (opportunity: Opportunity) => {
+    // Navigate immediately to editor with auto-run params
+    const params = new URLSearchParams({
+      quick: 'true',
+      fromOpportunity: opportunity.id,
+      theme: opportunity.suggested_title,
+      mode: 'fast',
+      images: '1'
+    });
     
-    try {
-      const { data, error } = await supabase.functions.invoke(
-        'convert-opportunity-to-article',
-        { body: { opportunityId: opportunity.id, blogId } }
-      );
-      
-      if (error || !data?.success) {
-        throw new Error(data?.error || 'Erro na conversão');
-      }
-      
-      toast.success('Artigo criado com sucesso!');
-      navigate(`/client/articles/${data.article_id}/edit`);
-    } catch (err) {
-      console.error('[ClientOpportunities] Convert error:', err);
-      toast.error('Erro ao criar artigo. Tente novamente.');
-    } finally {
-      setConvertingId(null);
-    }
+    navigate(`/client/create?${params.toString()}`);
   };
 
   const getSourceBadge = (opportunity: Opportunity) => {

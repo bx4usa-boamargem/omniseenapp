@@ -74,13 +74,16 @@ export function ContentSuggestionsCard({ blogId, topQueries }: ContentSuggestion
     }
   };
 
+  // IMMEDIATE REDIRECT - Auto-run mode
   const handleCreateArticle = (suggestion: ContentSuggestion) => {
-    navigate("/articles/new", {
-      state: {
-        suggestedTitle: suggestion.theme,
-        suggestedKeywords: suggestion.keywords,
-      },
+    const params = new URLSearchParams({
+      quick: 'true',
+      theme: suggestion.theme,
+      mode: 'fast',
+      images: '1'
     });
+    
+    navigate(`/app/articles/new?${params.toString()}`);
   };
 
   const getPotentialBadge = (potential: string) => {

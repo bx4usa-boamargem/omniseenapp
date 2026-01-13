@@ -78,32 +78,20 @@ export function CompetitorGapsModal({
     setLoading(false);
   };
 
-  const handleCreateArticle = async (gap: Gap) => {
-    setConverting(gap.id);
-    try {
-      const { data, error } = await supabase.functions.invoke('convert-opportunity-to-article', {
-        body: { opportunityId: gap.id, blogId }
-      });
-
-      if (error) throw error;
-
-      const articleId = data?.article_id || data?.data?.article_id;
-      
-      if (articleId) {
-        toast.success('Artigo criado!', {
-          description: 'Redirecionando para o editor...'
-        });
-        onGapConverted?.();
-        onClose();
-        navigate(`/client/articles/${articleId}/edit`);
-      } else {
-        throw new Error('ID do artigo não retornado');
-      }
-    } catch (error) {
-      console.error('Error converting gap:', error);
-      toast.error('Erro ao criar artigo');
-    }
-    setConverting(null);
+  // IMMEDIATE REDIRECT - No waiting for edge function
+  const handleCreateArticle = (gap: Gap) => {
+    // Navigate immediately to editor with auto-run params
+    const params = new URLSearchParams({
+      quick: 'true',
+      fromOpportunity: gap.id,
+      theme: gap.suggested_title,
+      mode: 'fast',
+      images: '1'
+    });
+    
+    onGapConverted?.();
+    onClose();
+    navigate(`/client/create?${params.toString()}`);
   };
 
   const getFunnelLabel = (stage: string) => {

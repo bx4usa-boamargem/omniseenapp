@@ -1,10 +1,8 @@
-import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScoreStars } from './ScoreStars';
-import { FileText, ExternalLink, Loader2 } from 'lucide-react';
+import { FileText, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface Opportunity {
@@ -28,7 +26,6 @@ export function TopOpportunitiesTable({
   blogId 
 }: TopOpportunitiesTableProps) {
   const navigate = useNavigate();
-  const [convertingId, setConvertingId] = useState<string | null>(null);
 
   // Filter unconverted, sort by score, take top N
   const topOpportunities = opportunities
@@ -36,36 +33,24 @@ export function TopOpportunitiesTable({
     .sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0))
     .slice(0, maxItems);
 
-  const handleCreateArticle = async (opportunity: Opportunity) => {
-    if (convertingId) return; // Prevent double-click
-    
+  // IMMEDIATE REDIRECT - No waiting for edge function
+  const handleCreateArticle = (opportunity: Opportunity) => {
     const effectiveBlogId = blogId || opportunity.blog_id;
     if (!effectiveBlogId) {
       toast.error('Blog não identificado. Tente novamente.');
       return;
     }
     
-    setConvertingId(opportunity.id);
-    toast.info('Criando artigo a partir da oportunidade...');
+    // Navigate immediately to editor with auto-run params
+    const params = new URLSearchParams({
+      quick: 'true',
+      fromOpportunity: opportunity.id,
+      theme: opportunity.suggested_title,
+      mode: 'fast',
+      images: '1'
+    });
     
-    try {
-      const { data, error } = await supabase.functions.invoke(
-        'convert-opportunity-to-article',
-        { body: { opportunityId: opportunity.id, blogId: effectiveBlogId } }
-      );
-      
-      if (error || !data?.success) {
-        throw new Error(data?.error || 'Erro na conversão');
-      }
-      
-      toast.success('Artigo criado com sucesso!');
-      navigate(`/client/articles/${data.article_id}/edit`);
-    } catch (err) {
-      console.error('[TopOpportunities] Convert error:', err);
-      toast.error('Erro ao criar artigo. Tente novamente.');
-    } finally {
-      setConvertingId(null);
-    }
+    navigate(`/client/create?${params.toString()}`);
   };
 
   if (topOpportunities.length === 0) {
@@ -126,19 +111,9 @@ export function TopOpportunitiesTable({
                 size="sm" 
                 className="shrink-0 gap-2"
                 onClick={() => handleCreateArticle(opportunity)}
-                disabled={convertingId === opportunity.id}
               >
-                {convertingId === opportunity.id ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Criando...
-                  </>
-                ) : (
-                  <>
-                    <ExternalLink className="h-4 w-4" />
-                    Criar Artigo
-                  </>
-                )}
+                <ExternalLink className="h-4 w-4" />
+                Criar Artigo
               </Button>
             </div>
           </div>
