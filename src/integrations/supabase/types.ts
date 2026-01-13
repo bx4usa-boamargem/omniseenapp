@@ -403,6 +403,8 @@ export type Database = {
       article_opportunities: {
         Row: {
           blog_id: string
+          competitor_id: string | null
+          competitor_name: string | null
           converted_article_id: string | null
           converted_at: string | null
           created_at: string | null
@@ -425,6 +427,8 @@ export type Database = {
         }
         Insert: {
           blog_id: string
+          competitor_id?: string | null
+          competitor_name?: string | null
           converted_article_id?: string | null
           converted_at?: string | null
           created_at?: string | null
@@ -447,6 +451,8 @@ export type Database = {
         }
         Update: {
           blog_id?: string
+          competitor_id?: string | null
+          competitor_name?: string | null
           converted_article_id?: string | null
           converted_at?: string | null
           created_at?: string | null
@@ -473,6 +479,13 @@ export type Database = {
             columns: ["blog_id"]
             isOneToOne: false
             referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_opportunities_competitor_id_fkey"
+            columns: ["competitor_id"]
+            isOneToOne: false
+            referencedRelation: "competitors"
             referencedColumns: ["id"]
           },
           {

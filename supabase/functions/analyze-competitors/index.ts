@@ -10,9 +10,18 @@ interface AnalyzeRequest {
   blogId: string;
 }
 
+interface GapData {
+  theme: string;
+  competitor: string;
+  suggested_title: string;
+  keywords: string[];
+  rationale: string;
+  funnel_stage?: string;
+}
+
 // Resilient parser to extract gaps even from partial/truncated JSON
-function extractGapsFromPartialJSON(content: string): any[] {
-  const gaps: any[] = [];
+function extractGapsFromPartialJSON(content: string): GapData[] {
+  const gaps: GapData[] = [];
   
   // Try to find individual gap objects using regex
   const gapRegex = /\{\s*"theme"\s*:\s*"([^"]+)"\s*,\s*"competitor"\s*:\s*"([^"]+)"\s*,\s*"suggested_title"\s*:\s*"([^"]+)"\s*,\s*"keywords"\s*:\s*\[([^\]]*)\]/g;
@@ -39,6 +48,53 @@ function extractGapsFromPartialJSON(content: string): any[] {
   }
   
   return gaps;
+}
+
+// Calculate relevance score based on keywords and context
+function calculateRelevanceScore(gap: GapData, businessContext: { niche: string; targetAudience: string }): number {
+  let score = 50; // Base score
+  
+  // Bonus for matching niche keywords
+  const nicheWords = businessContext.niche.toLowerCase().split(/\s+/);
+  const titleLower = gap.suggested_title.toLowerCase();
+  
+  for (const word of nicheWords) {
+    if (titleLower.includes(word)) {
+      score += 10;
+    }
+  }
+  
+  // Bonus for longer keyword lists (more SEO potential)
+  if (gap.keywords.length >= 3) score += 10;
+  if (gap.keywords.length >= 5) score += 5;
+  
+  // Cap at 100
+  return Math.min(score, 100);
+}
+
+// Determine funnel stage from gap context
+function determineFunnelStage(gap: GapData): string {
+  const title = gap.suggested_title.toLowerCase();
+  const theme = gap.theme.toLowerCase();
+  
+  // Bottom of funnel indicators
+  const bottomIndicators = ['comprar', 'preço', 'orçamento', 'contratar', 'melhor', 'comparativo', 'review', 'avaliação'];
+  for (const indicator of bottomIndicators) {
+    if (title.includes(indicator) || theme.includes(indicator)) {
+      return 'bottom';
+    }
+  }
+  
+  // Middle of funnel indicators
+  const middleIndicators = ['como', 'guia', 'passo a passo', 'dicas', 'estratégia', 'resolver', 'solução'];
+  for (const indicator of middleIndicators) {
+    if (title.includes(indicator) || theme.includes(indicator)) {
+      return 'middle';
+    }
+  }
+  
+  // Default to top of funnel
+  return 'top';
 }
 
 serve(async (req) => {
@@ -72,7 +128,8 @@ serve(async (req) => {
         JSON.stringify({ 
           success: false, 
           error: "No competitors found. Please add competitors first.",
-          gaps: []
+          gaps: [],
+          gaps_created: 0
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -85,9 +142,15 @@ serve(async (req) => {
       .eq("blog_id", blogId);
 
     const existingTitles = (existingArticles || []).map(a => a.title.toLowerCase());
-    const existingKeywords = (existingArticles || [])
-      .flatMap(a => a.keywords || [])
-      .map(k => k.toLowerCase());
+    
+    // Fetch existing opportunities to avoid duplicates
+    const { data: existingOpportunities } = await supabase
+      .from("article_opportunities")
+      .select("suggested_title")
+      .eq("blog_id", blogId)
+      .eq("source", "competitors");
+    
+    const existingOpportunityTitles = (existingOpportunities || []).map(o => o.suggested_title.toLowerCase());
 
     // Fetch business profile for context
     const { data: profile } = await supabase
@@ -128,18 +191,23 @@ ${competitorInfo.map(c => `- ${c.name}: ${c.url}`).join("\n")}
 Artigos existentes (evitar duplicatas):
 ${existingTitles.slice(0, 5).join(", ") || "nenhum"}
 
+Oportunidades já identificadas (evitar duplicatas):
+${existingOpportunityTitles.slice(0, 5).join(", ") || "nenhuma"}
+
 IMPORTANTE: Retorne APENAS JSON puro, sem markdown, sem explicações.
 Mantenha o "rationale" curto (máximo 25 palavras).
+O campo "competitor" deve ser EXATAMENTE o nome de um dos concorrentes listados.
 
 Formato exato:
-{"gaps":[{"theme":"tema","competitor":"nome","suggested_title":"título","keywords":["kw1","kw2"],"rationale":"justificativa curta"}]}`;
+{"gaps":[{"theme":"tema","competitor":"nome exato do concorrente","suggested_title":"título","keywords":["kw1","kw2","kw3"],"rationale":"justificativa curta"}]}`;
 
     const userPrompt = `Identifique 3-5 gaps de conteúdo para o nicho "${businessContext.niche}" na região "${businessContext.region}".
 
-Considere:
-1. Temas que os concorrentes cobrem mas o cliente não
-2. Palavras-chave de cauda longa
-3. FAQs comuns do setor
+Para cada gap:
+1. Associe a um concorrente específico (use o nome exato)
+2. Sugira um título SEO otimizado
+3. Liste 3-5 keywords relevantes
+4. Explique brevemente por que é uma oportunidade
 
 Responda APENAS com o JSON, sem explicações adicionais.`;
 
@@ -168,13 +236,13 @@ Responda APENAS com o JSON, sem explicações adicionais.`;
       
       if (response.status === 429) {
         return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
+          JSON.stringify({ error: "Rate limit exceeded. Please try again later.", gaps_created: 0 }),
           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       if (response.status === 402) {
         return new Response(
-          JSON.stringify({ error: "Payment required. Please add credits to your workspace." }),
+          JSON.stringify({ error: "Payment required. Please add credits to your workspace.", gaps_created: 0 }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -187,7 +255,7 @@ Responda APENAS com o JSON, sem explicações adicionais.`;
     console.log("AI response length:", content.length);
 
     // Parse the JSON response with resilient fallback
-    let analysis = { gaps: [] as any[] };
+    let analysis = { gaps: [] as GapData[] };
     try {
       const cleanContent = content.replace(/```json\n?|\n?```/g, "").trim();
       analysis = JSON.parse(cleanContent);
@@ -209,10 +277,58 @@ Responda APENAS com o JSON, sem explicações adicionais.`;
             success: false,
             error: "Não foi possível processar a análise da IA. Tente novamente.",
             competitors_analyzed: competitors.length,
-            gaps: []
+            gaps: [],
+            gaps_created: 0
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
+      }
+    }
+
+    // PERSIST GAPS TO article_opportunities
+    const insertedGaps: any[] = [];
+    
+    for (const gap of analysis.gaps) {
+      // Skip if already exists
+      const titleLower = gap.suggested_title.toLowerCase();
+      if (existingOpportunityTitles.includes(titleLower) || existingTitles.includes(titleLower)) {
+        console.log(`Skipping duplicate: ${gap.suggested_title}`);
+        continue;
+      }
+      
+      // Find the matching competitor
+      const matchedCompetitor = competitors.find(c => 
+        c.name.toLowerCase() === gap.competitor?.toLowerCase() ||
+        c.name.toLowerCase().includes(gap.competitor?.toLowerCase() || '') ||
+        gap.competitor?.toLowerCase().includes(c.name.toLowerCase())
+      );
+
+      const relevanceScore = calculateRelevanceScore(gap, businessContext);
+      const funnelStage = determineFunnelStage(gap);
+
+      const { data: inserted, error: insertError } = await supabase
+        .from('article_opportunities')
+        .insert({
+          blog_id: blogId,
+          suggested_title: gap.suggested_title,
+          suggested_keywords: gap.keywords || [],
+          source: 'competitors',
+          trend_source: 'competitors',
+          competitor_id: matchedCompetitor?.id || null,
+          competitor_name: gap.competitor || matchedCompetitor?.name || 'Concorrente',
+          why_now: gap.rationale,
+          status: 'pending',
+          relevance_score: relevanceScore,
+          funnel_stage: funnelStage,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("Error inserting gap:", insertError);
+      } else if (inserted) {
+        insertedGaps.push(inserted);
+        console.log(`Inserted gap: ${gap.suggested_title} (competitor: ${matchedCompetitor?.name || gap.competitor})`);
       }
     }
 
@@ -221,17 +337,19 @@ Responda APENAS com o JSON, sem explicações adicionais.`;
     for (const competitor of competitors) {
       await supabase
         .from("competitors")
-        .update({ last_analyzed_at: now } as Record<string, unknown>)
+        .update({ updated_at: now })
         .eq("id", competitor.id);
     }
 
-    console.log("Returning", analysis.gaps?.length || 0, "gaps");
+    console.log(`Returning ${insertedGaps.length} new gaps (${analysis.gaps.length} total analyzed)`);
 
     return new Response(
       JSON.stringify({
         success: true,
         competitors_analyzed: competitors.length,
-        ...analysis,
+        gaps_created: insertedGaps.length,
+        gaps_analyzed: analysis.gaps.length,
+        gaps: insertedGaps,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -242,7 +360,8 @@ Responda APENAS com o JSON, sem explicações adicionais.`;
       JSON.stringify({ 
         error: error instanceof Error ? error.message : "Unknown error",
         success: false,
-        gaps: []
+        gaps: [],
+        gaps_created: 0
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
