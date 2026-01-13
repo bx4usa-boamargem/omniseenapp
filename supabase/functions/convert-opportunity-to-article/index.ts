@@ -170,6 +170,68 @@ serve(async (req) => {
       // Non-blocking - article was created
     }
 
+    // =========================================================================
+    // 6. GERAR IMAGENS AUTOMATICAMENTE (NOVO!)
+    // Gera imagem de capa + 2 imagens do corpo para artigos convertidos
+    // =========================================================================
+    console.log(`[CONVERT] Generating images for article ${articleId}...`);
+
+    try {
+      // 6.1 Gerar imagem de capa
+      console.log(`[CONVERT] Generating cover image...`);
+      const coverResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-image`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          articleTitle: opportunity.suggested_title,
+          context: 'cover',
+          blog_id: blogId,
+          article_id: articleId,
+        }),
+      });
+
+      if (coverResponse.ok) {
+        const coverResult = await coverResponse.json();
+        console.log(`[CONVERT] Cover image generated: ${coverResult.publicUrl ? 'success' : 'no url'}`);
+      } else {
+        console.warn(`[CONVERT] Cover image generation failed: ${coverResponse.status}`);
+      }
+
+      // 6.2 Gerar imagens do corpo (problem + solution)
+      const bodyContexts = ['problem', 'solution'];
+      for (const ctx of bodyContexts) {
+        console.log(`[CONVERT] Generating ${ctx} image...`);
+        const imgResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-image`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            articleTitle: opportunity.suggested_title,
+            context: ctx,
+            blog_id: blogId,
+            article_id: articleId,
+          }),
+        });
+
+        if (imgResponse.ok) {
+          const imgResult = await imgResponse.json();
+          console.log(`[CONVERT] ${ctx} image generated: ${imgResult.publicUrl ? 'success' : 'no url'}`);
+        } else {
+          console.warn(`[CONVERT] ${ctx} image generation failed: ${imgResponse.status}`);
+        }
+      }
+
+      console.log(`[CONVERT] ✅ Images generated for article ${articleId}`);
+    } catch (imageError) {
+      // Non-blocking - article was created, images can be generated later
+      console.error("[CONVERT] Image generation error (non-blocking):", imageError);
+    }
+
     console.log(`[CONVERT] ✅ Conversion complete: Opportunity ${opportunityId} → Article ${articleId}`);
 
     return new Response(
