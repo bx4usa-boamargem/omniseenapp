@@ -10,6 +10,37 @@ interface AnalyzeRequest {
   blogId: string;
 }
 
+// Resilient parser to extract gaps even from partial/truncated JSON
+function extractGapsFromPartialJSON(content: string): any[] {
+  const gaps: any[] = [];
+  
+  // Try to find individual gap objects using regex
+  const gapRegex = /\{\s*"theme"\s*:\s*"([^"]+)"\s*,\s*"competitor"\s*:\s*"([^"]+)"\s*,\s*"suggested_title"\s*:\s*"([^"]+)"\s*,\s*"keywords"\s*:\s*\[([^\]]*)\]/g;
+  
+  let match;
+  while ((match = gapRegex.exec(content)) !== null) {
+    try {
+      const keywords = match[4]
+        .split(',')
+        .map(k => k.trim().replace(/"/g, ''))
+        .filter(k => k.length > 0);
+      
+      gaps.push({
+        theme: match[1],
+        competitor: match[2],
+        suggested_title: match[3],
+        keywords: keywords,
+        rationale: "Identificado via análise competitiva"
+      });
+    } catch (e) {
+      // Ignore malformed gaps
+      console.warn("Failed to parse gap match:", e);
+    }
+  }
+  
+  return gaps;
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -84,46 +115,35 @@ serve(async (req) => {
     }));
 
     const systemPrompt = `Você é um especialista em SEO e análise competitiva de conteúdo.
-Sua função é identificar gaps de conteúdo baseado na análise de concorrentes.
+Identifique gaps de conteúdo baseado nos concorrentes listados.
 
 Contexto do negócio:
 - Nicho: ${businessContext.niche}
 - Região: ${businessContext.region}
 - Público-alvo: ${businessContext.targetAudience}
 
-Concorrentes a analisar:
+Concorrentes:
 ${competitorInfo.map(c => `- ${c.name}: ${c.url}`).join("\n")}
 
-Artigos já existentes (evitar duplicatas):
-${existingTitles.slice(0, 10).join(", ")}
+Artigos existentes (evitar duplicatas):
+${existingTitles.slice(0, 5).join(", ") || "nenhum"}
 
-Palavras-chave já usadas:
-${existingKeywords.slice(0, 20).join(", ")}
+IMPORTANTE: Retorne APENAS JSON puro, sem markdown, sem explicações.
+Mantenha o "rationale" curto (máximo 25 palavras).
 
-Retorne EXATAMENTE um JSON válido sem markdown:
-{
-  "gaps": [
-    {
-      "theme": "tema do gap identificado",
-      "competitor": "nome do concorrente de referência",
-      "suggested_title": "título sugerido para artigo",
-      "keywords": ["keyword1", "keyword2"],
-      "rationale": "por que este tema é uma oportunidade"
-    }
-  ]
-}`;
+Formato exato:
+{"gaps":[{"theme":"tema","competitor":"nome","suggested_title":"título","keywords":["kw1","kw2"],"rationale":"justificativa curta"}]}`;
 
-    const userPrompt = `Analise os concorrentes listados e identifique 5-10 gaps de conteúdo que podem ser explorados.
+    const userPrompt = `Identifique 3-5 gaps de conteúdo para o nicho "${businessContext.niche}" na região "${businessContext.region}".
 
 Considere:
-1. Temas que os concorrentes provavelmente cobrem mas o cliente não
-2. Palavras-chave de cauda longa do nicho
-3. Conteúdo educacional que gera autoridade
-4. FAQs comuns do setor
-5. Tendências locais/regionais
+1. Temas que os concorrentes cobrem mas o cliente não
+2. Palavras-chave de cauda longa
+3. FAQs comuns do setor
 
-Evite sugerir temas muito similares aos artigos já existentes.
-Retorne apenas o JSON, sem explicações adicionais.`;
+Responda APENAS com o JSON, sem explicações adicionais.`;
+
+    console.log("Calling AI Gateway for competitor analysis...");
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -138,6 +158,7 @@ Retorne apenas o JSON, sem explicações adicionais.`;
           { role: "user", content: userPrompt }
         ],
         temperature: 0.7,
+        max_tokens: 4000,
       }),
     });
 
@@ -163,14 +184,36 @@ Retorne apenas o JSON, sem explicações adicionais.`;
     const aiResponse = await response.json();
     const content = aiResponse.choices?.[0]?.message?.content || "";
 
-    // Parse the JSON response
-    let analysis;
+    console.log("AI response length:", content.length);
+
+    // Parse the JSON response with resilient fallback
+    let analysis = { gaps: [] as any[] };
     try {
       const cleanContent = content.replace(/```json\n?|\n?```/g, "").trim();
       analysis = JSON.parse(cleanContent);
+      console.log("Successfully parsed JSON with", analysis.gaps?.length || 0, "gaps");
     } catch (parseError) {
-      console.error("Failed to parse AI response:", content);
-      analysis = { gaps: [] };
+      console.warn("Full JSON parse failed, attempting partial extraction...");
+      
+      // Try to extract gaps from partial response
+      const partialGaps = extractGapsFromPartialJSON(content);
+      
+      if (partialGaps.length > 0) {
+        console.log(`Recovered ${partialGaps.length} gaps from partial response`);
+        analysis = { gaps: partialGaps };
+      } else {
+        console.error("Failed to parse AI response:", content.substring(0, 500));
+        // Return with descriptive error instead of empty array
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Não foi possível processar a análise da IA. Tente novamente.",
+            competitors_analyzed: competitors.length,
+            gaps: []
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Update competitors with last analyzed timestamp
@@ -181,6 +224,8 @@ Retorne apenas o JSON, sem explicações adicionais.`;
         .update({ last_analyzed_at: now } as Record<string, unknown>)
         .eq("id", competitor.id);
     }
+
+    console.log("Returning", analysis.gaps?.length || 0, "gaps");
 
     return new Response(
       JSON.stringify({
