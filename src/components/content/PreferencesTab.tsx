@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,10 @@ import { Loader2, Save, Image, Lightbulb, Palette, PenTool, ClipboardCheck, Spar
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+
+// Default model values - NEVER empty
+const DEFAULT_TEXT_MODEL = 'google/gemini-2.5-flash';
+const DEFAULT_IMAGE_MODEL = 'google/gemini-2.5-flash-image-preview';
 
 interface ModelPricing {
   model_name: string;
@@ -92,8 +96,8 @@ export function PreferencesTab({ blogId, isClientContext = false }: PreferencesT
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [textModels, setTextModels] = useState<ModelPricing[]>([]);
-  const [imageModels, setImageModels] = useState<ModelPricing[]>([]);
+  const [textModels, setTextModels] = useState<ModelPricing[]>(FALLBACK_TEXT_MODELS);
+  const [imageModels, setImageModels] = useState<ModelPricing[]>(FALLBACK_IMAGE_MODELS);
   const [preferences, setPreferences] = useState<ContentPreferences>({
     use_ai_images: true,
     use_stock_images: false,
@@ -113,9 +117,22 @@ export function PreferencesTab({ blogId, isClientContext = false }: PreferencesT
     primary_color: "#7c3aed",
     primary_color_light: "#a78bfa",
     cta_text: "Leia o post inteiro através do link na bio",
-    ai_model_text: "google/gemini-2.5-flash",
-    ai_model_image: "google/gemini-2.5-flash-image-preview",
+    ai_model_text: DEFAULT_TEXT_MODEL,
+    ai_model_image: DEFAULT_IMAGE_MODEL,
   });
+
+  // Safe model values - ALWAYS returns a valid value from available models
+  const safeTextModel = useMemo(() => {
+    if (!preferences.ai_model_text) return DEFAULT_TEXT_MODEL;
+    const exists = textModels.some(m => m.model_name === preferences.ai_model_text);
+    return exists ? preferences.ai_model_text : DEFAULT_TEXT_MODEL;
+  }, [preferences.ai_model_text, textModels]);
+
+  const safeImageModel = useMemo(() => {
+    if (!preferences.ai_model_image) return DEFAULT_IMAGE_MODEL;
+    const exists = imageModels.some(m => m.model_name === preferences.ai_model_image);
+    return exists ? preferences.ai_model_image : DEFAULT_IMAGE_MODEL;
+  }, [preferences.ai_model_image, imageModels]);
 
   useEffect(() => {
     fetchPreferences();
@@ -612,24 +629,22 @@ export function PreferencesTab({ blogId, isClientContext = false }: PreferencesT
             <div className="space-y-2">
               <Label>Modelo para Texto (Artigos, SEO, Sugestões)</Label>
               <Select
-                value={preferences.ai_model_text}
+                value={safeTextModel}
                 onValueChange={(v) => setPreferences(prev => ({ ...prev, ai_model_text: v }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um modelo">
-                    {preferences.ai_model_text && (
-                      <span className="flex items-center gap-2">
-                        {formatModelName(preferences.ai_model_text)}
-                        {textModels.length > 0 && (() => {
-                          const model = textModels.find(m => m.model_name === preferences.ai_model_text);
-                          if (model) {
-                            const tier = getModelTier(model, false);
-                            return <span className={cn("text-xs px-1.5 py-0.5 rounded", tier.color)}>{tier.badge}</span>;
-                          }
-                          return null;
-                        })()}
-                      </span>
-                    )}
+                    <span className="flex items-center gap-2">
+                      {formatModelName(safeTextModel)}
+                      {(() => {
+                        const model = textModels.find(m => m.model_name === safeTextModel);
+                        if (model) {
+                          const tier = getModelTier(model, false);
+                          return <span className={cn("text-xs px-1.5 py-0.5 rounded", tier.color)}>{tier.badge}</span>;
+                        }
+                        return null;
+                      })()}
+                    </span>
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
@@ -662,24 +677,22 @@ export function PreferencesTab({ blogId, isClientContext = false }: PreferencesT
             <div className="space-y-2">
               <Label>Modelo para Imagens</Label>
               <Select
-                value={preferences.ai_model_image}
+                value={safeImageModel}
                 onValueChange={(v) => setPreferences(prev => ({ ...prev, ai_model_image: v }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione um modelo">
-                    {preferences.ai_model_image && (
-                      <span className="flex items-center gap-2">
-                        {formatModelName(preferences.ai_model_image)}
-                        {imageModels.length > 0 && (() => {
-                          const model = imageModels.find(m => m.model_name === preferences.ai_model_image);
-                          if (model) {
-                            const tier = getModelTier(model, true);
-                            return <span className={cn("text-xs px-1.5 py-0.5 rounded", tier.color)}>{tier.badge}</span>;
-                          }
-                          return null;
-                        })()}
-                      </span>
-                    )}
+                    <span className="flex items-center gap-2">
+                      {formatModelName(safeImageModel)}
+                      {(() => {
+                        const model = imageModels.find(m => m.model_name === safeImageModel);
+                        if (model) {
+                          const tier = getModelTier(model, true);
+                          return <span className={cn("text-xs px-1.5 py-0.5 rounded", tier.color)}>{tier.badge}</span>;
+                        }
+                        return null;
+                      })()}
+                    </span>
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
