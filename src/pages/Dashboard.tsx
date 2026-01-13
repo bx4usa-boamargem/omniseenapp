@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AutomationCard } from "@/components/automation/AutomationCard";
 import { ArticleQueue } from "@/components/automation/ArticleQueue";
 import { AnalyticsSummaryWidget } from "@/components/dashboard/AnalyticsSummaryWidget";
+import { GenerationHistoryCard } from "@/components/dashboard/GenerationHistoryCard";
 import { PermissionGate } from "@/components/auth/PermissionGate";
 import { BlogSelector } from "@/components/admin/BlogSelector";
 import { SetupChecklist } from "@/components/dashboard/SetupChecklist";
@@ -387,66 +388,68 @@ export default function Dashboard() {
           </div>
         </PermissionGate>
 
-        {/* Analytics Summary + Quick Actions */}
+        {/* Analytics Summary + Generation History */}
         <div className="grid gap-4 md:grid-cols-2 mb-8">
           {/* Analytics Summary Widget */}
           <AnalyticsSummaryWidget blogId={blog.id} />
 
-          {/* Quick Actions */}
-          <div className="space-y-4">
-            <Card className="hover:shadow-lg transition-all cursor-pointer" onClick={() => navigate("/app/calendar")}>
-              <CardContent className="flex items-center gap-4 py-4">
-                <div className="p-3 rounded-full bg-primary/10">
-                  <Calendar className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-display font-semibold">Calendário</h3>
-                  <p className="text-sm text-muted-foreground">Ver programação</p>
-                </div>
-              </CardContent>
-            </Card>
+          {/* Generation History */}
+          <GenerationHistoryCard blogId={blog.id} />
+        </div>
 
-            <Card className="hover:shadow-lg transition-all cursor-pointer" onClick={() => navigate("/app/performance")}>
-              <CardContent className="flex items-center gap-4 py-4">
-                <div className="p-3 rounded-full bg-primary/10">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-display font-semibold">Desempenho</h3>
-                  <p className="text-sm text-muted-foreground">Ver métricas</p>
-                </div>
-              </CardContent>
-            </Card>
+        {/* Quick Actions */}
+        <div className="grid gap-4 md:grid-cols-4 mb-8">
+          <Card className="hover:shadow-lg transition-all cursor-pointer" onClick={() => navigate("/app/calendar")}>
+            <CardContent className="flex items-center gap-4 py-4">
+              <div className="p-3 rounded-full bg-primary/10">
+                <Calendar className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-display font-semibold">Calendário</h3>
+                <p className="text-sm text-muted-foreground">Ver programação</p>
+              </div>
+            </CardContent>
+          </Card>
 
-            <Card className="hover:shadow-lg transition-all cursor-pointer" onClick={() => navigate("/app/articles")}>
-              <CardContent className="flex items-center gap-4 py-4">
-                <div className="p-3 rounded-full bg-primary/10">
-                  <FileText className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-display font-semibold">Gerenciar Artigos</h3>
-                  <p className="text-sm text-muted-foreground">Ver todos os artigos</p>
-                </div>
-              </CardContent>
-            </Card>
+          <Card className="hover:shadow-lg transition-all cursor-pointer" onClick={() => navigate("/app/performance")}>
+            <CardContent className="flex items-center gap-4 py-4">
+              <div className="p-3 rounded-full bg-primary/10">
+                <TrendingUp className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-display font-semibold">Desempenho</h3>
+                <p className="text-sm text-muted-foreground">Ver métricas</p>
+              </div>
+            </CardContent>
+          </Card>
 
-            {/* Editor Shortcut Card */}
-            <Card
-              className="hover:shadow-lg transition-all cursor-pointer bg-gradient-to-br from-primary/10 via-secondary/5 to-primary/5 border-primary/20"
-              onClick={() => navigate("/app/my-blog")}
-            >
-              <CardContent className="flex items-center gap-4 py-4">
-                <div className="p-3 rounded-full bg-gradient-to-br from-primary to-secondary">
-                  <Palette className="h-5 w-5 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-display font-semibold">Editor de Blog</h3>
-                  <p className="text-sm text-muted-foreground">Personalizar aparência</p>
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground" />
-              </CardContent>
-            </Card>
-          </div>
+          <Card className="hover:shadow-lg transition-all cursor-pointer" onClick={() => navigate("/app/articles")}>
+            <CardContent className="flex items-center gap-4 py-4">
+              <div className="p-3 rounded-full bg-primary/10">
+                <FileText className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h3 className="font-display font-semibold">Gerenciar Artigos</h3>
+                <p className="text-sm text-muted-foreground">Ver todos os artigos</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="hover:shadow-lg transition-all cursor-pointer bg-gradient-to-br from-primary/10 via-secondary/5 to-primary/5 border-primary/20"
+            onClick={() => navigate("/app/my-blog")}
+          >
+            <CardContent className="flex items-center gap-4 py-4">
+              <div className="p-3 rounded-full bg-gradient-to-br from-primary to-secondary">
+                <Palette className="h-5 w-5 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-display font-semibold">Editor de Blog</h3>
+                <p className="text-sm text-muted-foreground">Personalizar aparência</p>
+              </div>
+              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+            </CardContent>
+          </Card>
         </div>
 
         {/* Automation Section - Hidden for editors and viewers */}

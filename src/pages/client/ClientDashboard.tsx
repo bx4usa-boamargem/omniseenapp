@@ -17,8 +17,10 @@ import {
   Check,
   ChevronRight,
   Clock,
-  BarChart3
+  BarChart3,
+  Activity
 } from 'lucide-react';
+import { GenerationHistoryCard } from '@/components/dashboard/GenerationHistoryCard';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -393,6 +395,14 @@ export default function ClientDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Generation History */}
+      {blog?.id && (
+        <GenerationHistoryCard 
+          blogId={blog.id} 
+          className="client-card border-border/50"
+        />
+      )}
 
       {/* Recent Articles */}
       <div className="client-card p-6">
