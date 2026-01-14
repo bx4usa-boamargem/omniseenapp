@@ -9,6 +9,8 @@ import { DynamicTrackingScripts } from "@/components/public/DynamicTrackingScrip
 import { ArticleCard } from "@/components/public/ArticleCard";
 import { CategoryFilter } from "@/components/public/CategoryFilter";
 import { WhatsAppFloatButton } from "@/components/public/WhatsAppFloatButton";
+import { BrandSalesAgentWidget } from "@/components/public/BrandSalesAgentWidget";
+import { useBrandAgentConfig } from "@/hooks/useBrandAgentConfig";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { getBlogUrl } from "@/utils/blogUrl";
@@ -86,6 +88,9 @@ const PublicBlog = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  
+  // Brand Sales Agent
+  const { agentConfig, businessProfile } = useBrandAgentConfig(blog?.id || null);
 
   useEffect(() => {
     const fetchBlogAndArticles = async () => {
@@ -428,6 +433,16 @@ const PublicBlog = () => {
         <WhatsAppFloatButton 
           phoneNumber={whatsappButton.value} 
           message={whatsappButton.whatsapp_message || undefined}
+        />
+      )}
+
+      {/* Brand Sales Agent Widget */}
+      {blog && agentConfig && agentConfig.is_enabled && (
+        <BrandSalesAgentWidget
+          blogId={blog.id}
+          agentConfig={agentConfig}
+          businessProfile={businessProfile}
+          primaryColor={primaryColor}
         />
       )}
     </div>

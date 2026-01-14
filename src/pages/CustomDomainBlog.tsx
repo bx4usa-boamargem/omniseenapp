@@ -5,6 +5,8 @@ import { SEOHead } from "@/components/public/SEOHead";
 import { BlogHeader } from "@/components/public/BlogHeader";
 import { ArticleCard } from "@/components/public/ArticleCard";
 import { CategoryFilter } from "@/components/public/CategoryFilter";
+import { BrandSalesAgentWidget } from "@/components/public/BrandSalesAgentWidget";
+import { useBrandAgentConfig } from "@/hooks/useBrandAgentConfig";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface Blog {
@@ -45,6 +47,9 @@ export default function CustomDomainBlog({ blogId, blogSlug }: CustomDomainBlogP
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  
+  // Brand Sales Agent
+  const { agentConfig, businessProfile } = useBrandAgentConfig(blog?.id || null);
 
   useEffect(() => {
     const fetchBlog = async () => {
@@ -286,6 +291,16 @@ export default function CustomDomainBlog({ blogId, blogSlug }: CustomDomainBlogP
             © {new Date().getFullYear()} {blog.name}. Todos os direitos reservados.
           </div>
         </footer>
+
+        {/* Brand Sales Agent Widget */}
+        {blog && agentConfig && agentConfig.is_enabled && (
+          <BrandSalesAgentWidget
+            blogId={blog.id}
+            agentConfig={agentConfig}
+            businessProfile={businessProfile}
+            primaryColor={primaryColor}
+          />
+        )}
       </div>
     </>
   );
