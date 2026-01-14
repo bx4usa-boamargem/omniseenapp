@@ -11,6 +11,7 @@ interface SEOHeadProps {
   canonicalUrl?: string;
   keywords?: string[];
   faq?: { question: string; answer: string }[];
+  favicon?: string;
 }
 
 export const SEOHead = ({
@@ -23,6 +24,7 @@ export const SEOHead = ({
   canonicalUrl,
   keywords,
   faq,
+  favicon,
 }: SEOHeadProps) => {
   const { i18n } = useTranslation();
 
@@ -77,6 +79,27 @@ export const SEOHead = ({
       canonicalElement.setAttribute("href", canonicalUrl);
     }
 
+    // Favicon handling
+    if (favicon) {
+      let faviconLink = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+      if (!faviconLink) {
+        faviconLink = document.createElement("link");
+        faviconLink.setAttribute("rel", "icon");
+        faviconLink.setAttribute("type", "image/png");
+        document.head.appendChild(faviconLink);
+      }
+      faviconLink.setAttribute("href", favicon);
+      
+      // Also set apple-touch-icon for iOS
+      let appleTouchIcon = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement;
+      if (!appleTouchIcon) {
+        appleTouchIcon = document.createElement("link");
+        appleTouchIcon.setAttribute("rel", "apple-touch-icon");
+        document.head.appendChild(appleTouchIcon);
+      }
+      appleTouchIcon.setAttribute("href", favicon);
+    }
+
     const existingHreflangs = document.querySelectorAll('link[hreflang]');
     existingHreflangs.forEach(el => el.remove());
 
@@ -121,7 +144,7 @@ export const SEOHead = ({
       const schema = document.querySelector('script[type="application/ld+json"]');
       if (schema) schema.remove();
     };
-  }, [title, description, ogImage, ogType, articlePublishedTime, articleAuthor, canonicalUrl, keywords, faq, i18n.language]);
+  }, [title, description, ogImage, ogType, articlePublishedTime, articleAuthor, canonicalUrl, keywords, faq, favicon, i18n.language]);
 
   return null;
 };

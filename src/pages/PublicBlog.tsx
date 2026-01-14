@@ -221,6 +221,7 @@ const PublicBlog = () => {
         description={blog.description || `Leia os artigos do blog ${blog.name}`}
         ogImage={blog.logo_url || undefined}
         canonicalUrl={canonicalUrl}
+        favicon={(blog as any).favicon_url || undefined}
       />
 
       <BlogHeader
@@ -228,6 +229,7 @@ const PublicBlog = () => {
         blogName={blog.name}
         blogSlug={blog.slug}
         logoUrl={blog.logo_url}
+        logoNegativeUrl={blog.logo_negative_url}
         primaryColor={primaryColor}
         customDomain={blog.custom_domain}
         domainVerified={blog.domain_verified}
