@@ -13,11 +13,13 @@ import {
   Globe
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBlogUrl } from '@/utils/blogUrl';
+import { getCanonicalBlogUrl } from '@/utils/blogUrl';
 import { QRCodeModal } from './QRCodeModal';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PublicBlogLinkProps {
   blog: {
+    id: string;
     slug: string;
     name: string;
     custom_domain?: string | null;
@@ -30,13 +32,33 @@ export function PublicBlogLink({ blog }: PublicBlogLinkProps) {
   const [copied, setCopied] = useState(false);
   const [showQR, setShowQR] = useState(false);
   
-  const publicUrl = getBlogUrl(blog);
+  // Always use canonical URL for display and sharing
+  const publicUrl = getCanonicalBlogUrl(blog);
   const hasCustomDomain = blog.custom_domain && blog.domain_verified;
+  
+  // Track link events
+  const trackEvent = async (eventType: 'link_copy' | 'link_open' | 'qr_download') => {
+    try {
+      const isMobile = /mobile|android|iphone|ipad/i.test(navigator.userAgent);
+      await supabase.functions.invoke('track-link-click', {
+        body: {
+          blogId: blog.id,
+          eventType,
+          source: 'dashboard',
+          device: isMobile ? 'mobile' : 'desktop',
+          browser: navigator.userAgent.substring(0, 100),
+        }
+      });
+    } catch (e) {
+      console.error('Track event error:', e);
+    }
+  };
   
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(publicUrl);
       setCopied(true);
+      trackEvent('link_copy');
       toast.success('Link copiado! Pronto para compartilhar.');
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
@@ -45,7 +67,12 @@ export function PublicBlogLink({ blog }: PublicBlogLinkProps) {
   };
 
   const handleOpenBlog = () => {
+    trackEvent('link_open');
     window.open(publicUrl, '_blank');
+  };
+
+  const handleOpenQR = () => {
+    setShowQR(true);
   };
   
   return (
@@ -98,7 +125,7 @@ export function PublicBlogLink({ blog }: PublicBlogLinkProps) {
               <Button 
                 size="sm" 
                 variant="outline"
-                onClick={() => setShowQR(true)}
+                onClick={handleOpenQR}
                 className="gap-2"
               >
                 <QrCode className="h-4 w-4" />
@@ -122,8 +149,8 @@ export function PublicBlogLink({ blog }: PublicBlogLinkProps) {
                 <Globe className="h-4 w-4 text-blue-500 flex-shrink-0" />
                 <span>
                   Quer usar seu próprio domínio?{' '}
-                  <Link to="/client/settings" className="text-primary hover:underline font-medium">
-                    Configure aqui →
+                  <Link to="/client/account" className="text-primary hover:underline font-medium">
+                    Configure em Minha Conta →
                   </Link>
                 </span>
               </p>
@@ -138,6 +165,7 @@ export function PublicBlogLink({ blog }: PublicBlogLinkProps) {
         onClose={() => setShowQR(false)} 
         url={publicUrl}
         blogName={blog.name}
+        blogId={blog.id}
       />
     </>
   );

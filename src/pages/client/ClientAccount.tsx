@@ -8,15 +8,25 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { User, CreditCard, Globe, LogOut, Users, Plus, Trash2, Loader2, Mail, Moon } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { User, CreditCard, Globe, LogOut, Users, Plus, Trash2, Loader2, Mail, Moon, Camera, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import { ThemeToggle } from '@/components/client/ThemeToggle';
+import { AvatarUploadDialog } from '@/components/profile/AvatarUploadDialog';
+import { CustomDomainSettings } from '@/components/settings/CustomDomainSettings';
+import { LinkClickStats } from '@/components/dashboard/LinkClickStats';
 
 interface TeamMember {
   id: string;
   user_id: string;
   status: string | null;
+}
+
+interface Profile {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
 }
 
 export default function ClientAccount() {
@@ -31,14 +41,27 @@ export default function ClientAccount() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [newEmail, setNewEmail] = useState('');
   const [inviting, setInviting] = useState(false);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [showAvatarDialog, setShowAvatarDialog] = useState(false);
 
   useEffect(() => {
-    if (!blog?.id) return;
+    if (!blog?.id || !user?.id) return;
 
     const fetchData = async () => {
       setLoading(true);
 
       try {
+        // Fetch profile
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('id, full_name, avatar_url')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (profileData) {
+          setProfile(profileData);
+        }
+
         // Fetch subscription using raw query to avoid type recursion
         const { data: subscription } = await (supabase as any)
           .from('subscriptions')
@@ -66,7 +89,7 @@ export default function ClientAccount() {
     };
 
     fetchData();
-  }, [blog?.id]);
+  }, [blog?.id, user?.id]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -117,6 +140,21 @@ export default function ClientAccount() {
     toast.success('Idioma alterado!');
   };
 
+  const handleAvatarSave = (newUrl: string | null) => {
+    setProfile(prev => prev ? { ...prev, avatar_url: newUrl } : null);
+    setShowAvatarDialog(false);
+  };
+
+  const getUserInitials = () => {
+    if (profile?.full_name) {
+      return profile.full_name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    }
+    if (user?.email) {
+      return user.email.substring(0, 2).toUpperCase();
+    }
+    return 'U';
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -134,9 +172,60 @@ export default function ClientAccount() {
           Minha Conta
         </h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Gerencie sua conta e equipe
+          Gerencie sua conta, perfil e configurações
         </p>
       </div>
+
+      {/* Profile Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Camera className="h-5 w-5" />
+            Meu Perfil
+          </CardTitle>
+          <CardDescription>
+            Personalize sua foto de perfil
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-6">
+            <div className="relative">
+              <Avatar className="h-20 w-20 border-2 border-primary/20">
+                <AvatarImage src={profile?.avatar_url || undefined} alt="Avatar" />
+                <AvatarFallback className="bg-primary/10 text-primary text-xl font-medium">
+                  {getUserInitials()}
+                </AvatarFallback>
+              </Avatar>
+              <button 
+                onClick={() => setShowAvatarDialog(true)}
+                className="absolute bottom-0 right-0 bg-primary text-white rounded-full p-1.5 shadow-md hover:bg-primary/90 transition-colors"
+              >
+                <Camera className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="flex-1">
+              <div className="font-medium text-lg text-gray-800 dark:text-white">
+                {profile?.full_name || user?.email?.split('@')[0] || 'Usuário'}
+              </div>
+              <div className="text-sm text-muted-foreground">{user?.email}</div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-3"
+                onClick={() => setShowAvatarDialog(true)}
+              >
+                Alterar foto
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Link Stats */}
+      {blog?.id && <LinkClickStats blogId={blog.id} />}
+
+      {/* Custom Domain */}
+      {blog?.id && <CustomDomainSettings blogId={blog.id} />}
 
       {/* Plan */}
       <Card>
@@ -192,9 +281,12 @@ export default function ClientAccount() {
           {/* Current user */}
           <div className="flex items-center justify-between py-3 px-4 bg-gray-100 dark:bg-white/5 rounded-lg">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                <User className="h-5 w-5 text-primary" />
-              </div>
+              <Avatar className="h-10 w-10">
+                <AvatarImage src={profile?.avatar_url || undefined} />
+                <AvatarFallback className="bg-primary/20">
+                  <User className="h-5 w-5 text-primary" />
+                </AvatarFallback>
+              </Avatar>
               <div>
                 <div className="font-medium text-gray-800 dark:text-white">{user?.email}</div>
                 <div className="text-sm text-gray-500 dark:text-gray-400">Proprietário</div>
@@ -282,6 +374,14 @@ export default function ClientAccount() {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Avatar Upload Dialog */}
+      <AvatarUploadDialog
+        open={showAvatarDialog}
+        onOpenChange={setShowAvatarDialog}
+        currentAvatar={profile?.avatar_url || null}
+        onSave={handleAvatarSave}
+      />
     </div>
   );
 }

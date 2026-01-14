@@ -3043,6 +3043,65 @@ export type Database = {
         }
         Relationships: []
       }
+      link_click_events: {
+        Row: {
+          blog_id: string
+          browser: string | null
+          country: string | null
+          created_at: string | null
+          device: string | null
+          event_type: string
+          id: string
+          referrer: string | null
+          session_id: string | null
+          source: string | null
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          visitor_id: string | null
+        }
+        Insert: {
+          blog_id: string
+          browser?: string | null
+          country?: string | null
+          created_at?: string | null
+          device?: string | null
+          event_type: string
+          id?: string
+          referrer?: string | null
+          session_id?: string | null
+          source?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          visitor_id?: string | null
+        }
+        Update: {
+          blog_id?: string
+          browser?: string | null
+          country?: string | null
+          created_at?: string | null
+          device?: string | null
+          event_type?: string
+          id?: string
+          referrer?: string | null
+          session_id?: string | null
+          source?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          visitor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "link_click_events_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       linking_settings: {
         Row: {
           auto_linking_enabled: boolean | null

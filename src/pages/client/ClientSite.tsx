@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Globe, ExternalLink, Copy, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getBlogUrl } from '@/utils/blogUrl';
+import { getCanonicalBlogUrl } from '@/utils/blogUrl';
 import { MiniSiteEditor } from '@/components/client/minisite/MiniSiteEditor';
 import { MiniSitePreview } from '@/components/client/minisite/MiniSitePreview';
 import { ContactButton } from '@/components/client/minisite/sections/ContactButtonsSection';
@@ -183,7 +183,7 @@ export default function ClientSite() {
   const markChanged = useCallback(() => setHasChanges(true), []);
 
   // URL helpers
-  const getBlogUrlSafe = () => blog ? getBlogUrl(blog) : '';
+  const getBlogUrlSafe = () => blog ? getCanonicalBlogUrl(blog) : '';
   const openSite = () => {
     const url = getBlogUrlSafe();
     if (url) window.open(url, '_blank');

@@ -10,21 +10,44 @@ import {
 import { Button } from '@/components/ui/button';
 import { Download, Printer } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface QRCodeModalProps {
   open: boolean;
   onClose: () => void;
   url: string;
   blogName: string;
+  blogId?: string;
 }
 
-export function QRCodeModal({ open, onClose, url, blogName }: QRCodeModalProps) {
+export function QRCodeModal({ open, onClose, url, blogName, blogId }: QRCodeModalProps) {
   const qrRef = useRef<HTMLDivElement>(null);
   
   // Generate QR Code using free API
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}&bgcolor=ffffff&color=000000&margin=10`;
   
+  // Track QR download event
+  const trackQRDownload = async () => {
+    if (!blogId) return;
+    
+    try {
+      const isMobile = /mobile|android|iphone|ipad/i.test(navigator.userAgent);
+      await supabase.functions.invoke('track-link-click', {
+        body: {
+          blogId,
+          eventType: 'qr_download',
+          source: 'qr_modal',
+          device: isMobile ? 'mobile' : 'desktop',
+          browser: navigator.userAgent.substring(0, 100),
+        }
+      });
+    } catch (e) {
+      console.error('Track QR download error:', e);
+    }
+  };
+  
   const handleDownload = () => {
+    trackQRDownload();
     const link = document.createElement('a');
     link.href = qrCodeUrl;
     link.download = `qrcode-${blogName.toLowerCase().replace(/\s+/g, '-')}.png`;

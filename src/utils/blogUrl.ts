@@ -60,6 +60,35 @@ export function getBlogUrl(blog: BlogWithDomain): string {
 }
 
 /**
+ * ALWAYS returns the canonical production URL for sharing/display
+ * This URL is stable and does not change based on environment
+ * Use this for copy, share, QR code, and display purposes
+ */
+export function getCanonicalBlogUrl(blog: BlogWithDomain): string {
+  // Priority 1: Verified custom domain
+  if (blog.custom_domain && blog.domain_verified) {
+    const cleanDomain = blog.custom_domain
+      .replace('https://', '')
+      .replace('http://', '')
+      .replace(/\/$/, '');
+    return `https://${cleanDomain}`;
+  }
+  
+  // Priority 2: ALWAYS use canonical format blog.omniseen.app/{slug}
+  const slug = normalizeSubdomain(blog.platform_subdomain) || blog.slug;
+  return `https://blog.omniseen.app/${slug}`;
+}
+
+/**
+ * ALWAYS returns the canonical production URL for an article
+ * Use this for copy, share, and display purposes
+ */
+export function getCanonicalArticleUrl(blog: BlogWithDomain, articleSlug: string): string {
+  const baseUrl = getCanonicalBlogUrl(blog);
+  return `${baseUrl}/${articleSlug}`;
+}
+
+/**
  * Get the full URL for an article
  * Priority: 1. Custom domain, 2. Platform subdomain, 3. Fallback path
  */
