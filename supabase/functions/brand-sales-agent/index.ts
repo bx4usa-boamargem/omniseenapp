@@ -202,7 +202,10 @@ ${desires ? `- Desejo que atendemos: ${desires}` : ""}
 4. Responda de forma natural, como um vendedor experiente
 5. Faça perguntas para entender a necessidade do cliente
 6. Seja empático e consultivo, não agressivo
-7. Mantenha respostas curtas e objetivas (máximo 3 parágrafos)
+7. RESPOSTAS ULTRA-CURTAS: cada parágrafo deve ter NO MÁXIMO 2-3 linhas. Máximo 2 parágrafos por resposta.
+8. Use frases diretas e impactantes. Evite explicações longas.
+9. Prefira perguntas curtas para manter o diálogo fluindo.
+10. Nunca liste mais de 3 itens de uma vez.
 
 ## OBJETIVO DE CONVERSÃO
 Seu objetivo é: ${conversionGoals}
@@ -239,7 +242,7 @@ Lembre-se: você é um vendedor humano da ${companyName}, não um bot.`;
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: messagesForAI,
-        max_tokens: 500,
+        max_tokens: 200,
         temperature: 0.7,
       }),
     });
