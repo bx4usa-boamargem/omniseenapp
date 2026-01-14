@@ -9,6 +9,14 @@ const corsHeaders = {
 interface MarketIntelRequest {
   blogId: string;
   forceRegenerate?: boolean;
+  processAllTerritories?: boolean;
+}
+
+interface Territory {
+  id: string;
+  country: string;
+  state: string | null;
+  city: string | null;
 }
 
 interface MarketIntelPackage {
@@ -18,6 +26,8 @@ interface MarketIntelPackage {
     query_cost_estimate_usd: number;
     sources_count: number;
     source: "perplexity" | "fallback";
+    territory_id?: string;
+    territory_location?: string;
   };
   market_snapshot: string;
   trends: Array<{
@@ -54,107 +64,92 @@ interface MarketIntelPackage {
 function getStartOfWeek(): string {
   const now = new Date();
   const day = now.getDay();
-  const diff = now.getDate() - day + (day === 0 ? -6 : 1); // Adjust for Sunday
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
   const monday = new Date(now.setDate(diff));
   return monday.toISOString().split('T')[0];
 }
 
-serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+function getTerritoryLocation(territory: Territory): string {
+  if (territory.city) {
+    return `${territory.city}, ${territory.state || ''}, ${territory.country}`.replace(', ,', ',');
+  }
+  if (territory.state) {
+    return `${territory.state}, ${territory.country}`;
+  }
+  return territory.country;
+}
+
+async function generateIntelForTerritory(
+  supabase: any,
+  blogId: string,
+  weekOf: string,
+  territory: Territory | null,
+  profile: any,
+  strategy: any,
+  competitors: any[],
+  forceRegenerate: boolean
+): Promise<{ success: boolean; id?: string; error?: string; intelPackage?: MarketIntelPackage }> {
+  
+  const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+  const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+  const territoryLocation = territory ? getTerritoryLocation(territory) : (profile?.city || "");
+  const territoryId = territory?.id || null;
+
+  // Check if intel already exists for this week AND territory
+  const existingQuery = supabase
+    .from("market_intel_weekly")
+    .select("id")
+    .eq("blog_id", blogId)
+    .eq("week_of", weekOf);
+
+  // If territory exists, filter by it; otherwise look for null territory
+  if (territoryId) {
+    existingQuery.eq("territory_id", territoryId);
+  } else {
+    existingQuery.is("territory_id", null);
   }
 
-  try {
-    const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const { data: existingIntel } = await existingQuery.maybeSingle();
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { blogId, forceRegenerate }: MarketIntelRequest = await req.json();
+  if (existingIntel && !forceRegenerate) {
+    console.log(`Intel already exists for blog ${blogId}, territory ${territoryId || 'default'}, week ${weekOf}`);
+    return { success: true, id: existingIntel.id };
+  }
 
-    if (!blogId) {
-      throw new Error("blogId is required");
-    }
+  if (existingIntel && forceRegenerate) {
+    console.log(`Force regenerating intel for territory ${territoryId || 'default'}`);
+    await supabase.from("market_intel_weekly").delete().eq("id", existingIntel.id);
+  }
 
-    const weekOf = getStartOfWeek();
+  // Build context
+  const country = territory?.country || profile?.country || strategy?.regiao_atuacao || "Brasil";
+  const niche = profile?.niche || strategy?.tipo_negocio || "negócios";
+  const companyName = profile?.company_name || strategy?.empresa_nome || "";
+  const targetAudience = profile?.target_audience || strategy?.publico_alvo_tipo || "empresários";
+  const services = profile?.services || strategy?.oferta_principal || "";
+  const toneOfVoice = profile?.tone_of_voice || strategy?.tom_de_voz || "profissional";
+  const competitorUrls = competitors?.map(c => c.url).filter(Boolean).join(", ") || "";
 
-    // Check if intel already exists for this week
-    const { data: existingIntel } = await supabase
-      .from("market_intel_weekly")
-      .select("id")
-      .eq("blog_id", blogId)
-      .eq("week_of", weekOf)
-      .maybeSingle();
+  const isEnglish = country.toLowerCase().includes("us") || 
+                    country.toLowerCase().includes("estados unidos") ||
+                    country.toLowerCase().includes("united states");
+  
+  const language = isEnglish ? "English" : "Portuguese (Brazilian)";
 
-    // If exists and not forcing regeneration, return existing
-    if (existingIntel && !forceRegenerate) {
-      console.log(`Intel already exists for blog ${blogId}, week ${weekOf}. Use forceRegenerate=true to override.`);
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: "Intel already exists for this week",
-          id: existingIntel.id,
-          week_of: weekOf
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // If forcing regeneration, delete existing record
-    if (existingIntel && forceRegenerate) {
-      console.log(`Force regenerating intel for blog ${blogId}, week ${weekOf}. Deleting existing record...`);
-      await supabase.from("market_intel_weekly").delete().eq("id", existingIntel.id);
-    }
-
-    // Fetch business context
-    const { data: profile } = await supabase
-      .from("business_profile")
-      .select("*")
-      .eq("blog_id", blogId)
-      .maybeSingle();
-
-    const { data: strategy } = await supabase
-      .from("client_strategy")
-      .select("*")
-      .eq("blog_id", blogId)
-      .maybeSingle();
-
-    // Fetch competitors
-    const { data: competitors } = await supabase
-      .from("competitors")
-      .select("url, name")
-      .eq("blog_id", blogId);
-
-    // Build context from available data
-    const country = profile?.country || strategy?.regiao_atuacao || "Brasil";
-    const niche = profile?.niche || strategy?.tipo_negocio || "negócios";
-    const companyName = profile?.company_name || strategy?.empresa_nome || "";
-    const targetAudience = profile?.target_audience || strategy?.publico_alvo_tipo || "empresários";
-    const services = profile?.services || strategy?.oferta_principal || "";
-    const city = profile?.city || "";
-    const toneOfVoice = profile?.tone_of_voice || strategy?.tom_de_voz || "profissional";
-    const competitorUrls = competitors?.map(c => c.url).filter(Boolean).join(", ") || "";
-
-    // Determine language based on country
-    const isEnglish = country.toLowerCase().includes("us") || 
-                      country.toLowerCase().includes("estados unidos") ||
-                      country.toLowerCase().includes("united states");
-    
-    const language = isEnglish ? "English" : "Portuguese (Brazilian)";
-
-    // Build the comprehensive prompt
-    const systemPrompt = `You are a market intelligence analyst specializing in ${niche}.
+  const systemPrompt = `You are a market intelligence analyst specializing in ${niche}.
 Country/Region: ${country}
 Industry/Niche: ${niche}
 Company Name: ${companyName}
 Target Audience: ${targetAudience}
 Services/Products: ${services}
-City/Region: ${city}
+City/Region: ${territoryLocation || country}
 Tone of Voice: ${toneOfVoice}
 Competitors: ${competitorUrls}
 
-Task: Return a complete weekly market intelligence package for this business.
+Task: Return a complete weekly market intelligence package for this business in the region: ${territoryLocation || country}.
 
 Requirements:
 - Use real, up-to-date web data (last 7 days when possible)
@@ -162,7 +157,7 @@ Requirements:
 - Produce 5-10 ready-to-use content ideas for a blog
 - Each trend and content idea must include source URLs when available
 - Optimize for content that drives traffic and leads for small businesses
-- Tailor the language and market context to ${country}
+- Tailor the language and market context to ${territoryLocation || country}
 - Respond in ${language}
 
 Return STRICT JSON in this exact schema:
@@ -209,191 +204,340 @@ Return STRICT JSON in this exact schema:
   ]
 }`;
 
-    const userPrompt = `Generate a complete weekly market intelligence package for a ${niche} business in ${country}.
+  const userPrompt = `Generate a complete weekly market intelligence package for a ${niche} business specifically targeting the region: ${territoryLocation || country}.
 
 Focus on:
-1. What's trending in this industry right now
-2. Real questions the target audience (${targetAudience}) is asking
-3. Emerging keywords with SEO potential
-4. Content gaps compared to competitors
-5. 5-10 ready-to-publish article ideas
+1. What's trending in this industry in this specific region right now
+2. Real questions the target audience (${targetAudience}) in ${territoryLocation || country} is asking
+3. Emerging keywords with local SEO potential
+4. Content gaps compared to competitors in this region
+5. 5-10 ready-to-publish article ideas optimized for ${territoryLocation || country}
 
-The content should help drive traffic, establish authority, and generate leads.
+The content should help drive traffic, establish authority, and generate leads in ${territoryLocation || country}.
 Return only valid JSON, no markdown.`;
 
-    let intelPackage: MarketIntelPackage | null = null;
-    let provider: "perplexity" | "fallback" = "perplexity";
-    let sourcesCount = 0;
+  let intelPackage: MarketIntelPackage | null = null;
+  let provider: "perplexity" | "fallback" = "perplexity";
+  let sourcesCount = 0;
 
-    // Try Perplexity first
-    if (PERPLEXITY_API_KEY) {
-      try {
-        console.log("Attempting Perplexity API call...");
-        
-        const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${PERPLEXITY_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "sonar",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt }
-            ],
-            search_recency_filter: "week",
-            temperature: 0.3,
-          }),
-        });
-
-        if (perplexityResponse.ok) {
-          const data = await perplexityResponse.json();
-          const content = data.choices?.[0]?.message?.content || "";
-          const citations = data.citations || [];
-          sourcesCount = citations.length;
-
-          // Parse JSON response
-          try {
-            const cleanContent = content.replace(/```json\n?|\n?```/g, "").trim();
-            const parsed = JSON.parse(cleanContent);
-            
-            intelPackage = {
-              meta: {
-                country,
-                week_of: weekOf,
-                query_cost_estimate_usd: 0.0057,
-                sources_count: sourcesCount,
-                source: "perplexity"
-              },
-              market_snapshot: parsed.market_snapshot || "",
-              trends: parsed.trends || [],
-              questions: parsed.questions || [],
-              keywords: parsed.keywords || [],
-              competitor_gaps: parsed.competitor_gaps || [],
-              content_ideas: parsed.content_ideas || []
-            };
-
-            console.log("Perplexity response parsed successfully");
-          } catch (parseError) {
-            console.error("Failed to parse Perplexity response:", parseError);
-            throw new Error("Parse error - falling back");
-          }
-        } else {
-          const errorText = await perplexityResponse.text();
-          console.error("Perplexity API error:", perplexityResponse.status, errorText);
-          throw new Error(`Perplexity API error: ${perplexityResponse.status}`);
-        }
-      } catch (perplexityError) {
-        console.log("Perplexity failed, falling back to Lovable AI:", perplexityError);
-        provider = "fallback";
-      }
-    } else {
-      console.log("No Perplexity API key, using Lovable AI");
-      provider = "fallback";
-    }
-
-    // Fallback to Lovable AI
-    if (!intelPackage && LOVABLE_API_KEY) {
-      console.log("Using Lovable AI fallback...");
-      provider = "fallback";
-
-      const lovableResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  // Try Perplexity first
+  if (PERPLEXITY_API_KEY) {
+    try {
+      console.log(`Attempting Perplexity API call for territory: ${territoryLocation || 'default'}...`);
+      
+      const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+          "Authorization": `Bearer ${PERPLEXITY_API_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "sonar",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
           ],
-          temperature: 0.5,
+          search_recency_filter: "week",
+          temperature: 0.3,
         }),
       });
 
-      if (!lovableResponse.ok) {
-        const errorText = await lovableResponse.text();
-        console.error("Lovable AI error:", lovableResponse.status, errorText);
-        throw new Error(`AI Gateway error: ${lovableResponse.status}`);
+      if (perplexityResponse.ok) {
+        const data = await perplexityResponse.json();
+        const content = data.choices?.[0]?.message?.content || "";
+        const citations = data.citations || [];
+        sourcesCount = citations.length;
+
+        try {
+          const cleanContent = content.replace(/```json\n?|\n?```/g, "").trim();
+          const parsed = JSON.parse(cleanContent);
+          
+          intelPackage = {
+            meta: {
+              country,
+              week_of: weekOf,
+              query_cost_estimate_usd: 0.0057,
+              sources_count: sourcesCount,
+              source: "perplexity",
+              territory_id: territoryId || undefined,
+              territory_location: territoryLocation || undefined
+            },
+            market_snapshot: parsed.market_snapshot || "",
+            trends: parsed.trends || [],
+            questions: parsed.questions || [],
+            keywords: parsed.keywords || [],
+            competitor_gaps: parsed.competitor_gaps || [],
+            content_ideas: parsed.content_ideas || []
+          };
+
+          console.log(`Perplexity response parsed successfully for territory: ${territoryLocation || 'default'}`);
+        } catch (parseError) {
+          console.error("Failed to parse Perplexity response:", parseError);
+          throw new Error("Parse error - falling back");
+        }
+      } else {
+        const errorText = await perplexityResponse.text();
+        console.error("Perplexity API error:", perplexityResponse.status, errorText);
+        throw new Error(`Perplexity API error: ${perplexityResponse.status}`);
       }
+    } catch (perplexityError) {
+      console.log("Perplexity failed, falling back to Lovable AI:", perplexityError);
+      provider = "fallback";
+    }
+  } else {
+    console.log("No Perplexity API key, using Lovable AI");
+    provider = "fallback";
+  }
 
-      const lovableData = await lovableResponse.json();
-      const content = lovableData.choices?.[0]?.message?.content || "";
+  // Fallback to Lovable AI
+  if (!intelPackage && LOVABLE_API_KEY) {
+    console.log(`Using Lovable AI fallback for territory: ${territoryLocation || 'default'}...`);
+    provider = "fallback";
 
-      try {
-        const cleanContent = content.replace(/```json\n?|\n?```/g, "").trim();
-        const parsed = JSON.parse(cleanContent);
-        
-        intelPackage = {
-          meta: {
-            country,
-            week_of: weekOf,
-            query_cost_estimate_usd: 0,
-            sources_count: 0,
-            source: "fallback"
-          },
-          market_snapshot: parsed.market_snapshot || "",
-          trends: parsed.trends || [],
-          questions: parsed.questions || [],
-          keywords: parsed.keywords || [],
-          competitor_gaps: parsed.competitor_gaps || [],
-          content_ideas: parsed.content_ideas || []
-        };
+    const lovableResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        temperature: 0.5,
+      }),
+    });
 
-        console.log("Lovable AI response parsed successfully");
-      } catch (parseError) {
-        console.error("Failed to parse Lovable AI response:", content);
-        throw new Error("Failed to parse AI response");
-      }
+    if (!lovableResponse.ok) {
+      const errorText = await lovableResponse.text();
+      console.error("Lovable AI error:", lovableResponse.status, errorText);
+      return { success: false, error: `AI Gateway error: ${lovableResponse.status}` };
     }
 
-    if (!intelPackage) {
-      throw new Error("No AI provider available");
-    }
+    const lovableData = await lovableResponse.json();
+    const content = lovableData.choices?.[0]?.message?.content || "";
 
-    // Save to database
-    const { data: savedIntel, error: saveError } = await supabase
-      .from("market_intel_weekly")
+    try {
+      const cleanContent = content.replace(/```json\n?|\n?```/g, "").trim();
+      const parsed = JSON.parse(cleanContent);
+      
+      intelPackage = {
+        meta: {
+          country,
+          week_of: weekOf,
+          query_cost_estimate_usd: 0,
+          sources_count: 0,
+          source: "fallback",
+          territory_id: territoryId || undefined,
+          territory_location: territoryLocation || undefined
+        },
+        market_snapshot: parsed.market_snapshot || "",
+        trends: parsed.trends || [],
+        questions: parsed.questions || [],
+        keywords: parsed.keywords || [],
+        competitor_gaps: parsed.competitor_gaps || [],
+        content_ideas: parsed.content_ideas || []
+      };
+
+      console.log(`Lovable AI response parsed successfully for territory: ${territoryLocation || 'default'}`);
+    } catch (parseError) {
+      console.error("Failed to parse Lovable AI response:", content);
+      return { success: false, error: "Failed to parse AI response" };
+    }
+  }
+
+  if (!intelPackage) {
+    return { success: false, error: "No AI provider available" };
+  }
+
+  // Save to database with territory_id
+  const { data: savedIntel, error: saveError } = await supabase
+    .from("market_intel_weekly")
+    .insert({
+      blog_id: blogId,
+      week_of: weekOf,
+      country,
+      territory_id: territoryId,
+      market_snapshot: intelPackage.market_snapshot,
+      trends: intelPackage.trends,
+      questions: intelPackage.questions,
+      keywords: intelPackage.keywords,
+      competitor_gaps: intelPackage.competitor_gaps,
+      content_ideas: intelPackage.content_ideas,
+      source: provider,
+      query_cost_usd: provider === "perplexity" ? 0.0057 : 0,
+      sources_count: sourcesCount,
+      raw_response: intelPackage
+    })
+    .select()
+    .single();
+
+  if (saveError) {
+    console.error("Failed to save intel:", saveError);
+    return { success: false, error: `Failed to save intel: ${saveError.message}` };
+  }
+
+  // Log AI usage
+  await supabase.from("ai_usage_logs").insert({
+    blog_id: blogId,
+    provider,
+    endpoint: "weekly-market-intel",
+    country,
+    cost_usd: provider === "perplexity" ? 0.0057 : 0,
+    success: true,
+    metadata: {
+      sources_count: sourcesCount,
+      content_ideas_count: intelPackage.content_ideas.length,
+      trends_count: intelPackage.trends.length,
+      territory_id: territoryId,
+      territory_location: territoryLocation
+    }
+  });
+
+  // Map goal to funnel_stage
+  const mapGoalToFunnelStage = (goal: string): string => {
+    switch (goal) {
+      case 'lead': return 'topo';
+      case 'authority': return 'meio';
+      case 'conversion': return 'fundo';
+      default: return 'topo';
+    }
+  };
+
+  // Convert content ideas to opportunities with territory linkage
+  const highScoreOpportunities: string[] = [];
+  for (const idea of intelPackage.content_ideas) {
+    let score = 75;
+    if (idea.goal === "lead") score += 10;
+    if (idea.goal === "conversion") score += 15;
+    if (idea.angle === "authority") score += 5;
+    if (idea.sources && idea.sources.length > 0) score += 5;
+    score = Math.min(score, 100);
+
+    const { data: opportunity, error: oppError } = await supabase
+      .from("article_opportunities")
       .insert({
         blog_id: blogId,
-        week_of: weekOf,
-        country,
-        market_snapshot: intelPackage.market_snapshot,
-        trends: intelPackage.trends,
-        questions: intelPackage.questions,
-        keywords: intelPackage.keywords,
-        competitor_gaps: intelPackage.competitor_gaps,
-        content_ideas: intelPackage.content_ideas,
-        source: provider,
-        query_cost_usd: provider === "perplexity" ? 0.0057 : 0,
-        sources_count: sourcesCount,
-        raw_response: intelPackage
+        suggested_title: idea.title,
+        suggested_keywords: idea.keywords,
+        suggested_outline: { angle: idea.angle, goal: idea.goal },
+        relevance_score: score,
+        source_urls: idea.sources,
+        origin: "market_intel",
+        trend_source: provider,
+        why_now: idea.why_now,
+        goal: idea.goal,
+        funnel_stage: mapGoalToFunnelStage(idea.goal),
+        intel_week_id: savedIntel.id,
+        territory_id: territoryId,
+        relevance_factors: {
+          angle: idea.angle,
+          goal: idea.goal,
+          has_sources: idea.sources && idea.sources.length > 0,
+          territory: territory ? {
+            country: territory.country,
+            state: territory.state,
+            city: territory.city,
+            location: territoryLocation
+          } : null
+        }
       })
       .select()
       .single();
 
-    if (saveError) {
-      console.error("Failed to save intel:", saveError);
-      throw new Error(`Failed to save intel: ${saveError.message}`);
+    if (oppError) {
+      console.error("Failed to create opportunity:", oppError);
+      continue;
     }
 
-    // Log AI usage
-    await supabase.from("ai_usage_logs").insert({
-      blog_id: blogId,
-      provider,
-      endpoint: "weekly-market-intel",
-      country,
-      cost_usd: provider === "perplexity" ? 0.0057 : 0,
-      success: true,
-      metadata: {
-        sources_count: sourcesCount,
-        content_ideas_count: intelPackage.content_ideas.length,
-        trends_count: intelPackage.trends.length
+    const isHighScore = score >= 90;
+    
+    if (score >= 80 && opportunity) {
+      highScoreOpportunities.push(opportunity.id);
+      
+      try {
+        const notifyResponse = await fetch(`${SUPABASE_URL}/functions/v1/send-opportunity-notification`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            opportunityId: opportunity.id,
+            blogId,
+            title: idea.title,
+            score,
+            keywords: idea.keywords,
+            commercialAlignment: idea.goal,
+            isHighScore,
+            territoryInfo: territory ? {
+              id: territory.id,
+              country: territory.country,
+              state: territory.state,
+              city: territory.city,
+              location: territoryLocation
+            } : undefined
+          }),
+        });
+
+        if (!notifyResponse.ok) {
+          console.error("Failed to send notification:", await notifyResponse.text());
+        } else {
+          const urgentFlag = isHighScore ? " [URGENT]" : "";
+          console.log(`Notification sent for high-score opportunity${urgentFlag}: ${idea.title} (${score}%) - Territory: ${territoryLocation || 'default'}`);
+        }
+      } catch (notifyError) {
+        console.error("Error sending notification:", notifyError);
       }
-    });
+    }
+  }
+
+  console.log(`Market intel generated for territory ${territoryLocation || 'default'}, week ${weekOf}. High-score: ${highScoreOpportunities.length}`);
+
+  return { 
+    success: true, 
+    id: savedIntel.id, 
+    intelPackage 
+  };
+}
+
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const { blogId, forceRegenerate, processAllTerritories }: MarketIntelRequest = await req.json();
+
+    if (!blogId) {
+      throw new Error("blogId is required");
+    }
+
+    const weekOf = getStartOfWeek();
+
+    // Fetch business context
+    const { data: profile } = await supabase
+      .from("business_profile")
+      .select("*")
+      .eq("blog_id", blogId)
+      .maybeSingle();
+
+    const { data: strategy } = await supabase
+      .from("client_strategy")
+      .select("*")
+      .eq("blog_id", blogId)
+      .maybeSingle();
+
+    const { data: competitors } = await supabase
+      .from("competitors")
+      .select("url, name")
+      .eq("blog_id", blogId);
 
     // Fetch active territories for this blog
     const { data: activeTerritories } = await supabase
@@ -401,123 +545,74 @@ Return only valid JSON, no markdown.`;
       .select("id, country, state, city")
       .eq("blog_id", blogId)
       .eq("is_active", true);
-    
-    // Get primary territory (first active one)
-    const primaryTerritory = activeTerritories && activeTerritories.length > 0 
-      ? activeTerritories[0] 
-      : null;
 
-    // Convert high-score content ideas to opportunities and notify
-    const highScoreOpportunities: string[] = [];
-    for (const idea of intelPackage.content_ideas) {
-      // Calculate a relevance score based on goal and angle
-      let score = 75; // Base score
-      if (idea.goal === "lead") score += 10;
-      if (idea.goal === "conversion") score += 15;
-      if (idea.angle === "authority") score += 5;
-      if (idea.sources && idea.sources.length > 0) score += 5;
-      score = Math.min(score, 100);
+    const results: Array<{ territory_id: string | null; success: boolean; id?: string; error?: string }> = [];
 
-      // Map goal to funnel_stage (OBRIGATÓRIO)
-      const mapGoalToFunnelStage = (goal: string): string => {
-        switch (goal) {
-          case 'lead': return 'topo';
-          case 'authority': return 'meio';
-          case 'conversion': return 'fundo';
-          default: return 'topo';
-        }
-      };
-
-      // Create opportunity record with funnel_stage and territory
-      const { data: opportunity, error: oppError } = await supabase
-        .from("article_opportunities")
-        .insert({
-          blog_id: blogId,
-          suggested_title: idea.title,
-          suggested_keywords: idea.keywords,
-          suggested_outline: { angle: idea.angle, goal: idea.goal },
-          relevance_score: score,
-          source_urls: idea.sources,
-          origin: "market_intel",
-          trend_source: provider,
-          why_now: idea.why_now,
-          goal: idea.goal,
-          funnel_stage: mapGoalToFunnelStage(idea.goal),
-          intel_week_id: savedIntel.id,
-          territory_id: primaryTerritory?.id || null, // Link to primary territory
-          relevance_factors: {
-            angle: idea.angle,
-            goal: idea.goal,
-            has_sources: idea.sources && idea.sources.length > 0,
-            territory: primaryTerritory ? {
-              country: primaryTerritory.country,
-              state: primaryTerritory.state,
-              city: primaryTerritory.city
-            } : null
-          }
-        })
-        .select()
-        .single();
-
-      if (oppError) {
-        console.error("Failed to create opportunity:", oppError);
-        continue;
-      }
-
-      // Determine if this is a HIGH SCORE opportunity (>=90 for urgent alerts)
-      const isHighScore = score >= 90;
+    // If processAllTerritories is true OR no territories exist, process accordingly
+    if (processAllTerritories && activeTerritories && activeTerritories.length > 0) {
+      // Process EACH territory separately
+      console.log(`Processing ${activeTerritories.length} active territories for blog ${blogId}...`);
       
-      // If score >= 80, trigger notification (urgent for >= 90)
-      if (score >= 80 && opportunity) {
-        highScoreOpportunities.push(opportunity.id);
+      for (const territory of activeTerritories) {
+        const result = await generateIntelForTerritory(
+          supabase,
+          blogId,
+          weekOf,
+          territory,
+          profile,
+          strategy,
+          competitors || [],
+          forceRegenerate || false
+        );
         
-        try {
-          const notifyResponse = await fetch(`${SUPABASE_URL}/functions/v1/send-opportunity-notification`, {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              opportunityId: opportunity.id,
-              blogId,
-              title: idea.title,
-              score,
-              keywords: idea.keywords,
-              commercialAlignment: idea.goal,
-              isHighScore, // Flag for urgent notifications
-              territoryInfo: primaryTerritory ? {
-                id: primaryTerritory.id,
-                country: primaryTerritory.country,
-                state: primaryTerritory.state,
-                city: primaryTerritory.city
-              } : undefined
-            }),
-          });
+        results.push({
+          territory_id: territory.id,
+          success: result.success,
+          id: result.id,
+          error: result.error
+        });
 
-          if (!notifyResponse.ok) {
-            console.error("Failed to send notification:", await notifyResponse.text());
-          } else {
-            const urgentFlag = isHighScore ? " [URGENT]" : "";
-            console.log(`Notification sent for high-score opportunity${urgentFlag}: ${idea.title} (${score}%)`);
-          }
-        } catch (notifyError) {
-          console.error("Error sending notification:", notifyError);
+        // Rate limiting between territory calls
+        if (activeTerritories.indexOf(territory) < activeTerritories.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
+    } else {
+      // Fallback: process with primary territory or no territory (legacy mode)
+      const primaryTerritory = activeTerritories && activeTerritories.length > 0 
+        ? activeTerritories[0] 
+        : null;
+
+      const result = await generateIntelForTerritory(
+        supabase,
+        blogId,
+        weekOf,
+        primaryTerritory,
+        profile,
+        strategy,
+        competitors || [],
+        forceRegenerate || false
+      );
+
+      results.push({
+        territory_id: primaryTerritory?.id || null,
+        success: result.success,
+        id: result.id,
+        error: result.error
+      });
     }
 
-    console.log(`Market intel generated successfully for blog ${blogId}, week ${weekOf}. High-score opportunities: ${highScoreOpportunities.length}`);
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.filter(r => !r.success).length;
+
+    console.log(`Weekly intel completed for blog ${blogId}. Success: ${successCount}, Failed: ${failCount}`);
 
     return new Response(
       JSON.stringify({
-        success: true,
-        id: savedIntel.id,
+        success: failCount === 0,
         week_of: weekOf,
-        source: provider,
-        opportunities_created: intelPackage.content_ideas.length,
-        high_score_notified: highScoreOpportunities.length,
-        ...intelPackage
+        territories_processed: results.length,
+        results
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
@@ -525,7 +620,6 @@ Return only valid JSON, no markdown.`;
   } catch (error) {
     console.error("Error in weekly-market-intel:", error);
 
-    // Log failed attempt
     try {
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL")!,

@@ -113,7 +113,7 @@ serve(async (req) => {
 
         console.log(`[INTEL JOB] Processing blog: ${blogName} (${blogId})`);
 
-        // Call weekly-market-intel function
+        // Call weekly-market-intel function with processAllTerritories flag
         const intelResponse = await fetch(`${SUPABASE_URL}/functions/v1/weekly-market-intel`, {
           method: "POST",
           headers: {
@@ -122,7 +122,8 @@ serve(async (req) => {
           },
           body: JSON.stringify({ 
             blogId,
-            forceRegenerate: ALLOW_MULTIPLE
+            forceRegenerate: ALLOW_MULTIPLE,
+            processAllTerritories: true // Process all active territories
           }),
         });
 

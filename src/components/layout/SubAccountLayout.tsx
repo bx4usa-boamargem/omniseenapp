@@ -13,7 +13,8 @@ import {
   TrendingUp,
   FileText,
   Activity,
-  Shield
+  Shield,
+  MapPin
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -64,6 +65,7 @@ const navSections: NavSection[] = [
     label: 'OPERAÇÃO',
     items: [
       { icon: Zap, label: 'Automação', path: '/client/automation' },
+      { icon: MapPin, label: 'Territórios', path: '/client/territories' },
       { icon: Building2, label: 'Minha Empresa', path: '/client/company' },
       { icon: User, label: 'Minha Conta', path: '/client/account' },
     ]
