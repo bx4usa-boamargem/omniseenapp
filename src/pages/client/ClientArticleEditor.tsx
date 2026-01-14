@@ -707,6 +707,7 @@ export default function ClientArticleEditor() {
             blog_id: blog?.id,
             article_id: existingArticleId, // Persist directly if editing
             user_id: currentUser?.id, // ✅ CRITICAL: Pass user_id for cost logging
+            forceRegenerate: true, // ✅ Bypass cache for regeneration
           }
         });
         
@@ -740,6 +741,7 @@ export default function ClientArticleEditor() {
             articleTheme: title,
             blog_id: blog?.id,
             user_id: currentUser?.id, // ✅ CRITICAL: Pass user_id for cost logging
+            forceRegenerate: true, // ✅ Bypass cache for regeneration
           }
         });
         

@@ -15,6 +15,190 @@ interface ImageRequest {
   user_id?: string;
   blog_id?: string;
   article_id?: string;  // Se fornecido, faz upload e persiste no DB
+  forceRegenerate?: boolean; // Bypass cache for regeneration
+}
+
+// ============================================================================
+// NICHE_VISUAL_PROFILES - Perfis visuais por NICHO do negócio
+// Prioridade: nicho/serviços > título do artigo > fallback genérico
+// ============================================================================
+const NICHE_VISUAL_PROFILES: Record<string, string> = {
+  // SERVIÇOS DE CONTROLE DE PRAGAS
+  'pragas|dedetização|desinsetização|cupins|desratização|descupinização|baratas|formigas|mosquitos|extermínio|pest control|truly nolen': `
+    Cores: verde natural, marrom terra, branco clean.
+    Foco: casas residenciais, jardins, famílias protegidas, lares seguros.
+    Mostrar: ambientes domésticos, quintais, proteção do lar, inspeção técnica, casas antigas.
+    Evitar: tecnologia, circuitos, escritórios, dashboards, rostos em close.
+  `,
+  
+  // SALÕES DE BELEZA E ESTÉTICA
+  'salão|beleza|cabelo|cabeleireiro|manicure|pedicure|estética|spa|massagem|depilação|sobrancelha': `
+    Cores: rosa, dourado, branco, tons pastel, nude.
+    Foco: ambientes elegantes de salão, mãos cuidadas, cabelos bonitos.
+    Mostrar: espelhos, escovas, produtos de beleza, ambiente aconchegante e sofisticado.
+    Evitar: close de rostos, tecnologia, escritórios.
+  `,
+  
+  // PET SHOPS E VETERINÁRIAS
+  'pet|veterinár|animal|cachorro|gato|banho|tosa|ração|clínica veterinária': `
+    Cores: azul claro, verde, laranja alegre, branco.
+    Foco: animais fofos, ambiente de pet shop, cuidado animal.
+    Mostrar: patinhas, produtos pet, ambiente limpo e colorido, consultório veterinário.
+    Evitar: rostos humanos, tecnologia, escritórios.
+  `,
+  
+  // ACADEMIAS E FITNESS
+  'academia|fitness|musculação|treino|personal|crossfit|pilates|yoga|funcional': `
+    Cores: preto, laranja, vermelho energético, cinza.
+    Foco: equipamentos de academia, movimento, energia, saúde.
+    Mostrar: halteres, esteiras, ambiente de treino, motivação, superação.
+    Evitar: rostos em close, poses de stock photo.
+  `,
+  
+  // IMOBILIÁRIAS
+  'imobiliár|imóv|casa|apartamento|aluguel|venda|corretor|loteamento|condomínio': `
+    Cores: azul confiança, branco, dourado, verde.
+    Foco: fachadas de imóveis, interiores bonitos, chaves, contratos.
+    Mostrar: casas, apartamentos, salas de estar, jardins, varandas.
+    Evitar: rostos, tecnologia excessiva.
+  `,
+  
+  // CONTABILIDADE E FINANCEIRO
+  'contabil|contador|fiscal|tributár|financeiro|imposto|assessoria contábil': `
+    Cores: azul escuro, cinza, verde (dinheiro), branco.
+    Foco: documentos, calculadoras, planilhas, organização.
+    Mostrar: mesas organizadas, papéis, gráficos, profissionalismo, escritório.
+    Evitar: rostos em close, tecnologia futurista.
+  `,
+  
+  // ADVOCACIA E JURÍDICO
+  'advogad|advocacia|jurídico|direito|tribunal|lei|escritório de advocacia': `
+    Cores: azul escuro, dourado, cinza, bordô.
+    Foco: livros jurídicos, martelo de juiz, documentos, biblioteca.
+    Mostrar: ambiente de escritório tradicional, confiança, autoridade.
+    Evitar: tecnologia excessiva, rostos.
+  `,
+  
+  // SAÚDE E CLÍNICAS
+  'saúde|clínica|médico|odonto|dentista|fisioterapeuta|nutri|hospital|consultório': `
+    Cores: branco, azul claro, verde suave, menta.
+    Foco: ambiente clínico limpo, equipamentos médicos, cuidado.
+    Mostrar: consultórios, profissionais de jaleco (de costas), bem-estar.
+    Evitar: close de rostos, imagens perturbadoras.
+  `,
+  
+  // RESTAURANTES E GASTRONOMIA
+  'restaurante|culinária|gastronomia|buffet|chef|comida|pizzaria|lanchonete|cafeteria|padaria': `
+    Cores: vermelho, laranja, dourado, marrom.
+    Foco: pratos apetitosos, ingredientes frescos, ambiente aconchegante.
+    Mostrar: mesas postas, cozinha, ingredientes, ambiente de restaurante.
+    Evitar: rostos, tecnologia.
+  `,
+  
+  // CONSTRUÇÃO E REFORMAS
+  'construção|reforma|arquitetura|engenharia|pedreiro|obra|empreiteira|projeto': `
+    Cores: laranja, amarelo, cinza, azul.
+    Foco: canteiros de obra, plantas, ferramentas, imóveis.
+    Mostrar: projetos, edificações, transformação, trabalho manual, capacetes.
+    Evitar: rostos em close.
+  `,
+  
+  // EDUCAÇÃO E CURSOS
+  'educação|curso|escola|professor|ensino|aula|treinamento|coaching|mentoria': `
+    Cores: azul, verde, laranja alegre, amarelo.
+    Foco: salas de aula, livros, quadros, aprendizado.
+    Mostrar: ambiente educacional, materiais didáticos, progresso, conhecimento.
+    Evitar: rostos em close de alunos.
+  `,
+  
+  // LIMPEZA E CONSERVAÇÃO
+  'limpeza|faxina|conservação|higienização|lavanderia|passadoria': `
+    Cores: azul claro, branco, verde água.
+    Foco: ambientes limpos, produtos de limpeza, organização.
+    Mostrar: casas limpas, produtos, equipamentos, resultado do trabalho.
+    Evitar: rostos, tecnologia.
+  `,
+  
+  // JARDINAGEM E PAISAGISMO
+  'jardim|jardinagem|paisagismo|poda|grama|plantas|floricul': `
+    Cores: verde, marrom terra, amarelo, flores coloridas.
+    Foco: jardins bonitos, plantas, flores, natureza.
+    Mostrar: jardins, vasos, ferramentas de jardinagem, paisagens verdes.
+    Evitar: rostos, tecnologia.
+  `,
+  
+  // OFICINAS E MECÂNICAS
+  'oficina|mecânica|carro|moto|veículo|funilaria|auto center': `
+    Cores: vermelho, preto, cinza, laranja.
+    Foco: veículos, ferramentas, garagem, manutenção.
+    Mostrar: carros, peças, chaves, ambiente de oficina.
+    Evitar: rostos em close.
+  `,
+  
+  // FOTOGRAFIA E VÍDEO
+  'fotograf|vídeo|filmagem|ensaio|casamento|eventos': `
+    Cores: preto, branco, dourado, cores vibrantes.
+    Foco: câmeras, equipamentos, momentos capturados.
+    Mostrar: equipamentos fotográficos, cenários, luz, criatividade.
+    Evitar: rostos em close.
+  `,
+  
+  // SEGURANÇA E VIGILÂNCIA
+  'segurança|vigilância|alarme|câmera|monitoramento|portaria': `
+    Cores: azul escuro, preto, cinza, verde.
+    Foco: equipamentos de segurança, proteção, monitoramento.
+    Mostrar: câmeras, cercas, proteção residencial, tranquilidade.
+    Evitar: rostos.
+  `,
+  
+  // TECNOLOGIA (para empresas realmente tech)
+  'tecnologia|software|app|sistema|ti|desenvolvimento|programação|startup|saas': `
+    Cores: azul, roxo, ciano, neon.
+    Foco: telas, código, dashboards, interfaces.
+    Mostrar: computadores, workspaces tech, inovação, reuniões virtuais.
+    Evitar: rostos repetidos, stock photo genérico.
+  `,
+
+  // MARKETING E PUBLICIDADE
+  'marketing|publicidade|agência|redes sociais|social media|branding': `
+    Cores: laranja, coral, roxo, azul vibrante.
+    Foco: campanhas, métricas sociais, criatividade.
+    Mostrar: telas com analytics, brainstorming, post-its, ideias.
+    Evitar: rostos em close.
+  `,
+};
+
+// Função para obter perfil visual baseado no NICHO do negócio
+function getVisualProfileFromNiche(niche: string, services: string, title: string): string {
+  // Combinar contexto do negócio para análise
+  const businessContext = `${niche} ${services}`.toLowerCase();
+  
+  // Primeiro: tentar match pelo nicho/serviços da empresa
+  for (const [pattern, profile] of Object.entries(NICHE_VISUAL_PROFILES)) {
+    if (new RegExp(pattern, 'i').test(businessContext)) {
+      console.log(`Visual profile matched by BUSINESS: ${pattern.substring(0, 40)}...`);
+      return profile;
+    }
+  }
+  
+  // Segundo: tentar match pelo título do artigo (fallback)
+  const titleLower = title.toLowerCase();
+  for (const [pattern, profile] of Object.entries(NICHE_VISUAL_PROFILES)) {
+    if (new RegExp(pattern, 'i').test(titleLower)) {
+      console.log(`Visual profile matched by TITLE: ${pattern.substring(0, 40)}...`);
+      return profile;
+    }
+  }
+  
+  // Fallback genérico (NÃO tecnológico)
+  console.log('Visual profile: using GENERIC fallback (non-tech)');
+  return `
+    Cores: neutras e profissionais (azul, branco, cinza, bege).
+    Foco: ambiente de trabalho real relacionado ao tema do artigo.
+    Mostrar: contexto profissional, organização, qualidade, resultados.
+    Evitar: tecnologia excessiva, circuitos, dashboards futuristas, rostos em close.
+    Preferir: ambientes reais, objetos do cotidiano, conceitos visuais claros.
+  `;
 }
 
 // Generate a normalized hash for cache lookup
@@ -69,7 +253,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { prompt, context, articleTitle, articleTheme, targetAudience, user_id, blog_id, article_id }: ImageRequest = await req.json();
+    const { prompt, context, articleTitle, articleTheme, targetAudience, user_id, blog_id, article_id, forceRegenerate }: ImageRequest = await req.json();
 
     // Aceitar articleTitle OU articleTheme para máxima compatibilidade
     const effectiveTitle = articleTitle || articleTheme || '';
@@ -81,7 +265,8 @@ serve(async (req) => {
       hasTheme: !!articleTheme,
       effectiveTitle: effectiveTitle.substring(0, 50),
       context: effectiveContext, 
-      blog_id 
+      blog_id,
+      forceRegenerate: !!forceRegenerate
     });
 
     // Auto-generate prompt if missing - LÓGICA RESILIENTE
@@ -123,6 +308,30 @@ serve(async (req) => {
     }
 
     // ============================================================================
+    // BUSCAR BUSINESS PROFILE - Para perfil visual baseado no nicho
+    // ============================================================================
+    let businessNiche = '';
+    let businessServices = '';
+    let businessCity = '';
+    let businessCompanyName = '';
+
+    if (blog_id) {
+      const { data: profile } = await supabase
+        .from('business_profile')
+        .select('niche, services, city, company_name')
+        .eq('blog_id', blog_id)
+        .maybeSingle();
+      
+      if (profile) {
+        businessNiche = profile.niche || '';
+        businessServices = profile.services || '';
+        businessCity = profile.city || '';
+        businessCompanyName = profile.company_name || '';
+        console.log(`[${requestId}] Business profile: niche="${businessNiche}", services="${businessServices?.substring(0, 50)}..."`);
+      }
+    }
+
+    // ============================================================================
     // PROMPT EDITORIAL PROFISSIONAL - DIRETOR DE FOTOGRAFIA
     // Padrão: Estilo Forbes / Harvard Business Review
     // SISTEMA ANTI-CLONE V2.0 - Cada imagem é única
@@ -140,31 +349,10 @@ serve(async (req) => {
       result: 'Mostrar progresso, alívio, crescimento ou sucesso real e tangível.'
     };
 
-    // Visual profile by category for consistent but varied imagery
-    const getVisualProfile = (title: string): string => {
-      const text = title.toLowerCase();
-      if (/seo|ranqueamento|google|palavras?.?chave/i.test(text)) {
-        return 'Cores: azul e verde. Foco: resultados de busca, gráficos de crescimento, analytics, dashboards.';
-      }
-      if (/automaç|robô|bot|workflow|crm/i.test(text)) {
-        return 'Cores: roxo e ciano. Foco: workflows, engrenagens digitais, fluxos conectados, automação.';
-      }
-      if (/marketing|marca|campanha|redes?.?sociais/i.test(text)) {
-        return 'Cores: laranja e coral. Foco: campanhas, métricas sociais, megafones, engajamento.';
-      }
-      if (/ia|inteligência.?artificial|gpt|ai/i.test(text)) {
-        return 'Cores: azul escuro e neon. Foco: redes neurais, interfaces futuristas, código, circuitos.';
-      }
-      if (/venda|cliente|lead|conversão/i.test(text)) {
-        return 'Cores: verde e dourado. Foco: apertos de mão, contratos, celebrações, gráficos positivos.';
-      }
-      if (/produtiv|tempo|rotina|organização/i.test(text)) {
-        return 'Cores: teal e branco. Foco: mesas organizadas, checklists, timers, workspace clean.';
-      }
-      return 'Cores: navy e prata. Foco: ambiente profissional, tecnologia, escritório moderno.';
-    };
-
-    const visualProfile = getVisualProfile(effectiveTitle);
+    // ============================================================================
+    // USAR PERFIL VISUAL BASEADO NO NICHO DO NEGÓCIO (não apenas título)
+    // ============================================================================
+    const visualProfile = getVisualProfileFromNiche(businessNiche, businessServices, effectiveTitle);
 
     // SISTEMA ANTI-CLONE V2.0 - Regras absolutas
     const ANTI_CLONE_RULES = `
@@ -197,8 +385,14 @@ Crie uma imagem fotográfica realista que represente VISUALMENTE o conteúdo des
 
 ${ANTI_CLONE_RULES}
 
-PERFIL VISUAL DA CATEGORIA:
+PERFIL VISUAL BASEADO NO NICHO DO NEGÓCIO:
 ${visualProfile}
+
+CONTEXTO DO NEGÓCIO:
+${businessCompanyName ? `Empresa: ${businessCompanyName}` : ''}
+${businessNiche ? `Nicho: ${businessNiche}` : ''}
+${businessServices ? `Serviços: ${businessServices.substring(0, 150)}` : ''}
+${businessCity ? `Localização: ${businessCity}` : ''}
 
 CONTEXTO DO ARTIGO:
 Tema: ${effectiveTitle}
@@ -216,9 +410,9 @@ REQUISITOS TÉCNICOS:
 - Iluminação natural e profissional
 - Composição equilibrada
 - EVITAR: close-up de rostos, pessoas similares, stock photo genérico
-- PREFERIR: ambientes, telas, mãos, diagramas, conceitos visuais
+- PREFERIR: ambientes reais do nicho, objetos do cotidiano do serviço, conceitos visuais
 
-A imagem deve parecer uma fotografia real capturada no mundo real, não uma ilustração artificial.
+A imagem deve parecer uma fotografia real capturada no mundo real, relacionada ao nicho do negócio.
 NÃO inclua: texto, logotipos, marcas d'água, elementos caricatos, ilustrações genéricas, rostos repetidos.
 `.trim();
 
@@ -226,49 +420,56 @@ NÃO inclua: texto, logotipos, marcas d'água, elementos caricatos, ilustraçõe
     const cacheKey = `${finalPrompt}|${effectiveContext}|${effectiveTitle}`;
     const contentHash = generateHash(cacheKey);
 
-    console.log(`[${requestId}] Checking cache for image: ${effectiveContext}, hash: ${contentHash}`);
-    const { data: cacheHit } = await supabase
-      .from("ai_content_cache")
-      .select("*")
-      .eq("cache_type", "image")
-      .eq("content_hash", contentHash)
-      .gt("expires_at", new Date().toISOString())
-      .maybeSingle();
-
-    if (cacheHit) {
-      console.log(`CACHE HIT for image: ${context}`);
-      
-      // Increment hit counter
-      await supabase
+    // ============================================================================
+    // CACHE LOGIC - Bypass if forceRegenerate is true
+    // ============================================================================
+    if (!forceRegenerate) {
+      console.log(`[${requestId}] Checking cache for image: ${effectiveContext}, hash: ${contentHash}`);
+      const { data: cacheHit } = await supabase
         .from("ai_content_cache")
-        .update({ hits: (cacheHit.hits || 0) + 1 })
-        .eq("id", cacheHit.id);
+        .select("*")
+        .eq("cache_type", "image")
+        .eq("content_hash", contentHash)
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle();
 
-      // Log cache hit
-      if (user_id) {
-        await supabase.from("consumption_logs").insert({
-          user_id,
-          blog_id: blog_id || null,
-          action_type: "image_generation_cached",
-          action_description: `Cached Image: ${effectiveContext}`,
-          model_used: "cache",
-          input_tokens: 0,
-          output_tokens: 0,
-          images_generated: 0,
-          estimated_cost_usd: 0,
-          metadata: { context: effectiveContext, articleTitle: effectiveTitle, cache_hit: true },
-        });
+      if (cacheHit) {
+        console.log(`CACHE HIT for image: ${context}`);
+        
+        // Increment hit counter
+        await supabase
+          .from("ai_content_cache")
+          .update({ hits: (cacheHit.hits || 0) + 1 })
+          .eq("id", cacheHit.id);
+
+        // Log cache hit
+        if (user_id) {
+          await supabase.from("consumption_logs").insert({
+            user_id,
+            blog_id: blog_id || null,
+            action_type: "image_generation_cached",
+            action_description: `Cached Image: ${effectiveContext}`,
+            model_used: "cache",
+            input_tokens: 0,
+            output_tokens: 0,
+            images_generated: 0,
+            estimated_cost_usd: 0,
+            metadata: { context: effectiveContext, articleTitle: effectiveTitle, cache_hit: true },
+          });
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            imageBase64: (cacheHit.response_data as {imageBase64?: string})?.imageBase64,
+            context: effectiveContext,
+            from_cache: true
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          imageBase64: (cacheHit.response_data as {imageBase64?: string})?.imageBase64,
-          context: effectiveContext,
-          from_cache: true
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    } else {
+      console.log(`[${requestId}] FORCE REGENERATE - Skipping cache for ${effectiveContext}`);
     }
 
     // Ensure we use the correct model with -preview suffix for image generation
