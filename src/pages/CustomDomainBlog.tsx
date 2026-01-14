@@ -13,11 +13,14 @@ interface Blog {
   slug: string;
   description: string | null;
   logo_url: string | null;
+  logo_negative_url: string | null;
+  favicon_url: string | null;
   primary_color: string | null;
   secondary_color: string | null;
   custom_domain: string | null;
   domain_verified: boolean | null;
   platform_subdomain: string | null;
+  brand_display_mode: string | null;
 }
 
 interface Article {
@@ -175,6 +178,7 @@ export default function CustomDomainBlog({ blogId, blogSlug }: CustomDomainBlogP
         description={blog.description || `Blog ${blog.name}`}
         ogImage={blog.logo_url || undefined}
         canonicalUrl={canonicalUrl}
+        favicon={blog.favicon_url || undefined}
       />
 
 
@@ -183,9 +187,11 @@ export default function CustomDomainBlog({ blogId, blogSlug }: CustomDomainBlogP
           blogName={blog.name} 
           blogSlug={blog.slug} 
           logoUrl={blog.logo_url}
+          logoNegativeUrl={blog.logo_negative_url}
           primaryColor={primaryColor}
           customDomain={blog.custom_domain}
           domainVerified={blog.domain_verified}
+          brandDisplayMode={(blog.brand_display_mode as 'text' | 'image') || 'text'}
         />
 
         <main className="flex-1">

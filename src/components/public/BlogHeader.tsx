@@ -26,6 +26,7 @@ interface BlogHeaderProps {
   blogName: string;
   blogSlug: string;
   logoUrl?: string | null;
+  logoNegativeUrl?: string | null;
   primaryColor?: string;
   customDomain?: string | null;
   domainVerified?: boolean | null;
@@ -44,7 +45,8 @@ export const BlogHeader = ({
   blogId,
   blogName, 
   blogSlug, 
-  logoUrl, 
+  logoUrl,
+  logoNegativeUrl,
   primaryColor,
   customDomain,
   domainVerified,
@@ -113,20 +115,20 @@ export const BlogHeader = ({
 
   // Render brand based on display mode
   const renderHeaderBrand = () => {
-    // Mode IMAGE: show logo if available
+    // Mode IMAGE: show logo if available (header has light background, use logoUrl)
     if (brandDisplayMode === 'image' && logoUrl) {
       return (
         <img 
           src={logoUrl} 
           alt={blogName} 
-          className="h-10 md:h-12 w-auto object-contain"
+          className="h-12 md:h-14 w-auto object-contain"
         />
       );
     }
     
     // Mode TEXT or fallback: show text only
     return (
-      <span className="font-heading font-semibold text-lg text-gray-900">
+      <span className="font-heading font-semibold text-xl text-gray-900">
         {blogName}
       </span>
     );

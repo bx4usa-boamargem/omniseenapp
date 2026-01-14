@@ -102,7 +102,7 @@ export function BlogFooter({
 
   // Render brand based on display mode
   const renderFooterBrand = () => {
-    // Mode IMAGE: try logo_negative first, fallback to logo_url
+    // Mode IMAGE: try logo_negative first (for dark background), fallback to logo_url
     if (brandDisplayMode === 'image') {
       const effectiveLogo = logoNegativeUrl || logoUrl;
       if (effectiveLogo) {
@@ -110,7 +110,7 @@ export function BlogFooter({
           <img 
             src={effectiveLogo} 
             alt={blogName} 
-            className="h-8 md:h-10 w-auto object-contain"
+            className="h-10 md:h-12 w-auto object-contain"
           />
         );
       }
@@ -118,7 +118,7 @@ export function BlogFooter({
     
     // Mode TEXT or fallback: show text only
     return (
-      <span className="font-heading font-semibold text-lg text-white">
+      <span className="font-heading font-semibold text-xl text-white">
         {blogName}
       </span>
     );
