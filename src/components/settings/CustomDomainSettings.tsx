@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Globe, CheckCircle2, XCircle, Loader2, Copy, ExternalLink, Info } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Globe, CheckCircle2, XCircle, Loader2, Copy, ExternalLink, Info, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 interface Blog {
@@ -213,6 +213,22 @@ export const CustomDomainSettings = ({ blogId }: CustomDomainSettingsProps) => {
         {/* DNS Instructions */}
         {blog.custom_domain && !blog.domain_verified && (
           <div className="space-y-4">
+            {/* Important Warning about Lovable Configuration */}
+            <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-900/20">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertTitle className="text-amber-800 dark:text-amber-200">Configuração em duas etapas</AlertTitle>
+              <AlertDescription className="text-amber-700 dark:text-amber-300 space-y-2">
+                <p>Para que seu domínio funcione corretamente, você precisa:</p>
+                <ol className="list-decimal list-inside space-y-1 text-sm">
+                  <li>Configurar os registros DNS abaixo no seu provedor</li>
+                  <li><strong>Adicionar o domínio nas configurações do Lovable</strong> (Settings → Domains → Connect Domain)</li>
+                </ol>
+                <p className="text-xs mt-2">
+                  A etapa 2 é obrigatória para que a infraestrutura reconheça seu domínio e evite erros de redirecionamento.
+                </p>
+              </AlertDescription>
+            </Alert>
+
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription>
@@ -362,21 +378,34 @@ export const CustomDomainSettings = ({ blogId }: CustomDomainSettingsProps) => {
 
         {/* Verified domain info */}
         {blog.domain_verified && blog.custom_domain && (
-          <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20">
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800 dark:text-green-200">
-              Seu blog está acessível em{" "}
-              <a
-                href={`https://${blog.custom_domain}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium underline inline-flex items-center gap-1"
-              >
-                {blog.custom_domain}
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </AlertDescription>
-          </Alert>
+          <div className="space-y-3">
+            <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+              <AlertTitle className="text-green-800 dark:text-green-200">DNS Verificado</AlertTitle>
+              <AlertDescription className="text-green-700 dark:text-green-300">
+                Os registros DNS estão corretos. Seu blog será acessível em{" "}
+                <a
+                  href={`https://${blog.custom_domain}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium underline inline-flex items-center gap-1"
+                >
+                  {blog.custom_domain}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </AlertDescription>
+            </Alert>
+
+            {/* Reminder about Lovable configuration */}
+            <Alert className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20">
+              <Info className="h-4 w-4 text-blue-600" />
+              <AlertTitle className="text-blue-800 dark:text-blue-200">Última etapa</AlertTitle>
+              <AlertDescription className="text-blue-700 dark:text-blue-300 text-sm">
+                <p>Se o domínio ainda não estiver funcionando, certifique-se de que ele foi adicionado nas <strong>configurações do Lovable</strong>:</p>
+                <p className="mt-1 font-medium">Settings → Domains → Connect Domain → "{blog.custom_domain}"</p>
+              </AlertDescription>
+            </Alert>
+          </div>
         )}
       </CardContent>
     </Card>
