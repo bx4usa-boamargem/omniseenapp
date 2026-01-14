@@ -75,6 +75,7 @@ import ClientStrategy from "./pages/client/ClientStrategy";
 import ClientConsultantMetrics from "./pages/client/ClientConsultantMetrics";
 import ClientNotificationSettings from "./pages/client/ClientNotificationSettings";
 import ClientPosts from "./pages/client/ClientPosts";
+import ClientTerritoryAnalytics from "./pages/client/ClientTerritoryAnalytics";
 
 const queryClient = new QueryClient();
 
@@ -162,6 +163,7 @@ const ClientRoutes = () => (
         <Route path="automation" element={<ClientAutomation />} />
         <Route path="company" element={<ClientCompany />} />
         <Route path="account" element={<ClientAccount />} />
+        <Route path="territories" element={<ClientTerritoryAnalytics />} />
         
         {/* Integrações */}
         <Route path="integrations/gsc" element={<ClientGSCIntegration />} />

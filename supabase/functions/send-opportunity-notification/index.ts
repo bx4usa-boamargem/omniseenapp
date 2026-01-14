@@ -13,12 +13,22 @@ interface NotificationRequest {
   score: number;
   keywords: string[];
   commercialAlignment?: string;
+  isHighScore?: boolean;
+  territoryInfo?: {
+    id: string;
+    country: string;
+    state?: string;
+    city?: string;
+  };
 }
 
-function formatWhatsAppMessage(title: string, score: number, keywords: string[]): string {
+function formatWhatsAppMessage(title: string, score: number, keywords: string[], territory?: string): string {
   const keywordsList = keywords.slice(0, 3).join(', ');
+  const locationLine = territory ? `📍 ${territory}\n` : '';
+  
   return encodeURIComponent(
     `🎯 *Nova Oportunidade de Conteúdo*\n\n` +
+    locationLine +
     `📝 ${title}\n` +
     `📊 Relevância: ${score}%\n` +
     `🔑 Keywords: ${keywordsList}\n\n` +
@@ -26,9 +36,29 @@ function formatWhatsAppMessage(title: string, score: number, keywords: string[])
   );
 }
 
+function formatHighScoreWhatsAppMessage(title: string, score: number, keywords: string[], territory?: string): string {
+  const keywordsList = keywords.slice(0, 3).join(', ');
+  const locationLine = territory ? `📍 ${territory}\n` : '';
+  
+  return encodeURIComponent(
+    `🔥 *OPORTUNIDADE URGENTE - Score ${score}%*\n\n` +
+    locationLine +
+    `📝 "${title}"\n\n` +
+    `⚡ Alta demanda detectada${territory ? ' na sua região' : ''}!\n` +
+    `🔑 ${keywordsList}\n\n` +
+    `Crie o artigo agora para capturar esse tráfego.`
+  );
+}
+
 function formatPhoneNumber(phone: string): string {
   // Remove all non-numeric characters
   return phone.replace(/\D/g, '');
+}
+
+function formatTerritoryName(territory?: { country: string; state?: string; city?: string }): string {
+  if (!territory) return '';
+  const parts = [territory.city, territory.state, territory.country].filter(Boolean);
+  return parts.join(', ');
 }
 
 serve(async (req) => {
@@ -42,14 +72,38 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
-    const { opportunityId, blogId, title, score, keywords }: NotificationRequest = await req.json();
-    console.log('Sending notification for opportunity:', { opportunityId, blogId, title, score });
+    const { 
+      opportunityId, 
+      blogId, 
+      title, 
+      score, 
+      keywords, 
+      isHighScore,
+      territoryInfo 
+    }: NotificationRequest = await req.json();
+    
+    console.log('Sending notification for opportunity:', { 
+      opportunityId, 
+      blogId, 
+      title, 
+      score,
+      isHighScore,
+      territory: territoryInfo ? formatTerritoryName(territoryInfo) : null
+    });
 
     if (!blogId || !opportunityId) {
       return new Response(
         JSON.stringify({ error: 'blogId and opportunityId are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Mark high score alert as sent to prevent duplicates
+    if (isHighScore && score >= 90) {
+      await supabase
+        .from('article_opportunities')
+        .update({ high_score_alert_sent: true })
+        .eq('id', opportunityId);
     }
 
     // Fetch notification settings for all users of this blog
@@ -67,31 +121,42 @@ serve(async (req) => {
     }
 
     let notifiedCount = 0;
-    const notificationMessage = `Nova oportunidade de artigo com ${score}% de relevância: "${title}"`;
+    const territoryName = formatTerritoryName(territoryInfo);
+    const locationSuffix = territoryName ? ` em ${territoryName}` : '';
+    
+    // Different message for high score alerts
+    const notificationMessage = isHighScore && score >= 90
+      ? `🔥 URGENTE: Oportunidade com ${score}% de relevância${locationSuffix}: "${title}"`
+      : `Nova oportunidade de artigo com ${score}% de relevância${locationSuffix}: "${title}"`;
 
     for (const setting of settings) {
-      // Check if user only wants high score notifications
-      const threshold = setting.high_score_threshold || setting.min_relevance_score || 70;
-      if (setting.notify_high_score_only && score < threshold) {
-        console.log(`Score ${score} below high-score threshold ${threshold} for user ${setting.user_id}`);
-        continue;
+      // For HIGH SCORE alerts (>=90), bypass digest preferences - always send immediately
+      const isUrgentHighScore = isHighScore && score >= 90;
+      
+      if (!isUrgentHighScore) {
+        // Check if user only wants high score notifications
+        const threshold = setting.high_score_threshold || setting.min_relevance_score || 70;
+        if (setting.notify_high_score_only && score < threshold) {
+          console.log(`Score ${score} below high-score threshold ${threshold} for user ${setting.user_id}`);
+          continue;
+        }
+
+        // Check standard threshold
+        if (score < setting.min_relevance_score) {
+          console.log(`Score ${score} below threshold ${setting.min_relevance_score} for user ${setting.user_id}`);
+          continue;
+        }
+
+        // Check if user prefers digest (non-immediate notifications)
+        if (setting.notification_frequency && setting.notification_frequency !== 'immediate') {
+          console.log(`User ${setting.user_id} prefers ${setting.notification_frequency} digest, skipping immediate notification`);
+          // The digest function will handle these users
+          continue;
+        }
       }
 
-      // Check standard threshold
-      if (score < setting.min_relevance_score) {
-        console.log(`Score ${score} below threshold ${setting.min_relevance_score} for user ${setting.user_id}`);
-        continue;
-      }
-
-      // Check if user prefers digest (non-immediate notifications)
-      if (setting.notification_frequency && setting.notification_frequency !== 'immediate') {
-        console.log(`User ${setting.user_id} prefers ${setting.notification_frequency} digest, skipping immediate notification`);
-        // The digest function will handle these users
-        continue;
-      }
-
-      // Create in-app notification
-      if (setting.notify_in_app) {
+      // Create in-app notification (always for high score)
+      if (setting.notify_in_app || isUrgentHighScore) {
         const { error: inAppError } = await supabase
           .from('opportunity_notification_history')
           .insert({
@@ -99,7 +164,7 @@ serve(async (req) => {
             blog_id: blogId,
             user_id: setting.user_id,
             notification_type: 'in_app',
-            title: `🎯 Oportunidade ${score}%`,
+            title: isUrgentHighScore ? `🔥 Oportunidade Urgente ${score}%` : `🎯 Oportunidade ${score}%`,
             message: notificationMessage,
           });
 
@@ -121,6 +186,9 @@ serve(async (req) => {
             .maybeSingle();
 
           const language = profile?.preferred_language || 'pt-BR';
+          
+          // Use urgent template for high score
+          const template = isUrgentHighScore ? 'opportunity_urgent_alert' : 'opportunity_alert';
 
           // Call centralized send-email function
           const emailResponse = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
@@ -131,13 +199,15 @@ serve(async (req) => {
             },
             body: JSON.stringify({
               to: setting.email_address,
-              template: 'opportunity_alert',
+              template,
               language,
               variables: {
                 score: String(score),
                 title,
                 keywords: keywords.join(', '),
+                territory: territoryName,
                 opportunityUrl: `${SUPABASE_URL?.replace('.supabase.co', '.lovable.app')}/client/consultant`,
+                isUrgent: isUrgentHighScore ? 'true' : 'false',
               },
               blogId,
               userId: setting.user_id,
@@ -156,7 +226,7 @@ serve(async (req) => {
                 blog_id: blogId,
                 user_id: setting.user_id,
                 notification_type: 'email',
-                title: `🎯 Oportunidade ${score}%`,
+                title: isUrgentHighScore ? `🔥 Oportunidade Urgente ${score}%` : `🎯 Oportunidade ${score}%`,
                 message: notificationMessage,
               });
             notifiedCount++;
@@ -166,11 +236,16 @@ serve(async (req) => {
         }
       }
 
-      // Send WhatsApp notification if enabled
-      if (setting.notify_whatsapp && setting.whatsapp_number) {
+      // Send WhatsApp notification if enabled (always for high score)
+      if ((setting.notify_whatsapp && setting.whatsapp_number) || (isUrgentHighScore && setting.whatsapp_number)) {
         try {
           const formattedPhone = formatPhoneNumber(setting.whatsapp_number);
-          const whatsappMessage = formatWhatsAppMessage(title, score, keywords);
+          
+          // Use urgent message format for high score
+          const whatsappMessage = isUrgentHighScore
+            ? formatHighScoreWhatsAppMessage(title, score, keywords, territoryName)
+            : formatWhatsAppMessage(title, score, keywords, territoryName);
+          
           const whatsappUrl = `https://api.whatsapp.com/send?phone=${formattedPhone}&text=${whatsappMessage}`;
 
           // Log WhatsApp notification with the URL (user clicks to send)
@@ -181,11 +256,11 @@ serve(async (req) => {
               blog_id: blogId,
               user_id: setting.user_id,
               notification_type: 'whatsapp',
-              title: `🎯 Oportunidade ${score}%`,
+              title: isUrgentHighScore ? `🔥 Oportunidade Urgente ${score}%` : `🎯 Oportunidade ${score}%`,
               message: whatsappUrl,
             });
 
-          console.log(`WhatsApp notification prepared for ${formattedPhone}`);
+          console.log(`WhatsApp notification prepared for ${formattedPhone} (high_score: ${isUrgentHighScore})`);
           notifiedCount++;
         } catch (whatsappError) {
           console.error('Error preparing WhatsApp notification:', whatsappError);
@@ -193,10 +268,10 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Notified ${notifiedCount} users`);
+    console.log(`Notified ${notifiedCount} users (high_score: ${isHighScore}, score: ${score})`);
 
     return new Response(
-      JSON.stringify({ success: true, notified: notifiedCount }),
+      JSON.stringify({ success: true, notified: notifiedCount, isHighScore, score }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

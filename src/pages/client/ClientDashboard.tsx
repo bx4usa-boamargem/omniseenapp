@@ -22,10 +22,12 @@ import {
 } from 'lucide-react';
 import { GenerationHistoryCard } from '@/components/dashboard/GenerationHistoryCard';
 import { OpportunitiesCarouselBanner } from '@/components/dashboard/OpportunitiesCarouselBanner';
+import { TerritoryMetricsDashboard } from '@/components/dashboard/TerritoryMetricsDashboard';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getBlogUrl, getArticleUrl } from '@/utils/blogUrl';
+import { useTerritories } from '@/hooks/useTerritories';
 
 interface Article {
   id: string;
@@ -43,6 +45,7 @@ interface QueueItem {
 export default function ClientDashboard() {
   const navigate = useNavigate();
   const { blog } = useBlog();
+  const { territories } = useTerritories(blog?.id);
   const [loading, setLoading] = useState(true);
   const [automationActive, setAutomationActive] = useState(false);
   const [totalArticles, setTotalArticles] = useState(0);
@@ -323,6 +326,11 @@ export default function ClientDashboard() {
         {/* Opportunities Carousel Banner */}
         {blog?.id && (
           <OpportunitiesCarouselBanner blogId={blog.id} />
+        )}
+
+        {/* Territory Metrics Dashboard - Show if user has territories */}
+        {blog?.id && territories.length > 0 && (
+          <TerritoryMetricsDashboard blogId={blog.id} />
         )}
 
         {/* Second Row - Last Article & Last Update */}
