@@ -25,6 +25,8 @@ interface Blog {
   slug: string;
   description: string | null;
   logo_url: string | null;
+  logo_negative_url: string | null;
+  favicon_url: string | null;
   primary_color: string | null;
   author_name: string | null;
   author_bio: string | null;
@@ -37,6 +39,7 @@ interface Blog {
   cta_type: string | null;
   custom_domain: string | null;
   domain_verified: boolean | null;
+  brand_display_mode: string | null;
 }
 
 interface ContentImage {
@@ -335,6 +338,7 @@ export default function CustomDomainArticle({ blogId, blogSlug: propBlogSlug }: 
         articleAuthor={blog.author_name || undefined}
         keywords={article.keywords || undefined}
         faq={displayFaq || undefined}
+        favicon={blog.favicon_url || undefined}
       />
 
 
@@ -345,9 +349,11 @@ export default function CustomDomainArticle({ blogId, blogSlug: propBlogSlug }: 
           blogName={blog.name} 
           blogSlug={blog.slug} 
           logoUrl={blog.logo_url}
+          logoNegativeUrl={blog.logo_negative_url}
           primaryColor={primaryColor}
           customDomain={blog.custom_domain}
           domainVerified={blog.domain_verified}
+          brandDisplayMode={(blog.brand_display_mode as 'text' | 'image') || 'text'}
         />
 
         <FloatingShareBar

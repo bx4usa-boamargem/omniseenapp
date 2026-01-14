@@ -79,24 +79,37 @@ export const SEOHead = ({
       canonicalElement.setAttribute("href", canonicalUrl);
     }
 
-    // Favicon handling
+    // Favicon handling - comprehensive for all browsers
     if (favicon) {
+      // Standard icon
       let faviconLink = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
       if (!faviconLink) {
         faviconLink = document.createElement("link");
         faviconLink.setAttribute("rel", "icon");
-        faviconLink.setAttribute("type", "image/png");
         document.head.appendChild(faviconLink);
       }
+      faviconLink.setAttribute("type", "image/png");
+      faviconLink.setAttribute("sizes", "32x32");
       faviconLink.setAttribute("href", favicon);
       
-      // Also set apple-touch-icon for iOS
+      // Shortcut icon (legacy browsers)
+      let shortcutIcon = document.querySelector('link[rel="shortcut icon"]') as HTMLLinkElement;
+      if (!shortcutIcon) {
+        shortcutIcon = document.createElement("link");
+        shortcutIcon.setAttribute("rel", "shortcut icon");
+        document.head.appendChild(shortcutIcon);
+      }
+      shortcutIcon.setAttribute("type", "image/png");
+      shortcutIcon.setAttribute("href", favicon);
+      
+      // Apple touch icon for iOS
       let appleTouchIcon = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement;
       if (!appleTouchIcon) {
         appleTouchIcon = document.createElement("link");
         appleTouchIcon.setAttribute("rel", "apple-touch-icon");
         document.head.appendChild(appleTouchIcon);
       }
+      appleTouchIcon.setAttribute("sizes", "180x180");
       appleTouchIcon.setAttribute("href", favicon);
     }
 

@@ -3,6 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { SEOHead } from "@/components/public/SEOHead";
+import { BlogHeader } from "@/components/public/BlogHeader";
 import { ArticleContent } from "@/components/public/ArticleContent";
 import { AuthorBox } from "@/components/public/AuthorBox";
 import { CTABanner } from "@/components/public/CTABanner";
@@ -12,14 +13,13 @@ import { FloatingShareBar } from "@/components/public/FloatingShareBar";
 import { TableOfContents } from "@/components/public/TableOfContents";
 import { FocusedReadingMode } from "@/components/public/FocusedReadingMode";
 import { ArticleLanguageSelector } from "@/components/public/ArticleLanguageSelector";
-import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useLocaleFormat } from "@/hooks/useLocaleFormat";
 import { usePublicArticleTranslation } from "@/hooks/useArticleTranslations";
 import { getArticleUrl, getBlogPath } from "@/utils/blogUrl";
-import { Calendar, Clock, ChevronDown, ChevronUp, Eye, Share2, ArrowLeft, ExternalLink } from "lucide-react";
+import { Calendar, Clock, ChevronDown, ChevronUp, Eye, Share2, ArrowLeft } from "lucide-react";
 
 interface Blog {
   id: string;
@@ -27,6 +27,8 @@ interface Blog {
   slug: string;
   description: string | null;
   logo_url: string | null;
+  logo_negative_url: string | null;
+  favicon_url: string | null;
   primary_color: string | null;
   secondary_color: string | null;
   author_name: string | null;
@@ -40,6 +42,7 @@ interface Blog {
   cta_type: string | null;
   custom_domain: string | null;
   domain_verified: boolean | null;
+  brand_display_mode: string | null;
 }
 
 
@@ -308,49 +311,22 @@ const PublicArticle = () => {
         canonicalUrl={canonicalUrl}
         keywords={article.keywords || undefined}
         faq={displayedFaq || undefined}
+        favicon={blog.favicon_url || undefined}
       />
 
-      {/* Clean Header */}
-      <header className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border/40">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link 
-            to={blogPath} 
-            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-          >
-            {blog.logo_url ? (
-              <img src={blog.logo_url} alt={blog.name} className="h-8 w-auto" />
-            ) : (
-              <span 
-                className="font-heading font-bold text-xl"
-                style={{ color: blog.primary_color || 'hsl(var(--foreground))' }}
-              >
-                {blog.name}
-              </span>
-            )}
-          </Link>
-
-          
-          <div className="flex items-center gap-2 md:gap-3">
-            <LanguageSwitcher />
-            <Button variant="ghost" size="sm" asChild>
-              <a href={blog.cta_url || '/auth'}>{t('blog.login')}</a>
-            </Button>
-            <Button 
-              size="sm"
-              style={{ 
-                backgroundColor: blog.primary_color || 'hsl(var(--primary))',
-                color: 'white'
-              }}
-              asChild
-            >
-              <a href={blog.cta_url || '/auth'}>
-                {t('blog.startFreeTrial')}
-                <ExternalLink className="ml-2 h-3.5 w-3.5" />
-              </a>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <BlogHeader 
+        blogName={blog.name} 
+        blogSlug={blog.slug} 
+        logoUrl={blog.logo_url}
+        logoNegativeUrl={blog.logo_negative_url}
+        primaryColor={blog.primary_color || undefined}
+        customDomain={blog.custom_domain}
+        domainVerified={blog.domain_verified}
+        ctaText={blog.cta_text}
+        ctaUrl={blog.cta_url}
+        ctaType={blog.cta_type}
+        brandDisplayMode={(blog.brand_display_mode as 'text' | 'image') || 'text'}
+      />
 
       <main>
         {/* Article Hero Section */}

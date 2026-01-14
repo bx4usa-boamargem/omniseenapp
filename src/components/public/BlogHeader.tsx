@@ -121,14 +121,14 @@ export const BlogHeader = ({
         <img 
           src={logoUrl} 
           alt={blogName} 
-          className="h-12 md:h-14 w-auto object-contain"
+          className="h-14 md:h-16 w-auto object-contain"
         />
       );
     }
     
     // Mode TEXT or fallback: show text only
     return (
-      <span className="font-heading font-semibold text-xl text-gray-900">
+      <span className="font-heading font-bold text-2xl md:text-3xl text-gray-900">
         {blogName}
       </span>
     );

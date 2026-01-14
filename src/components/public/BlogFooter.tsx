@@ -110,7 +110,7 @@ export function BlogFooter({
           <img 
             src={effectiveLogo} 
             alt={blogName} 
-            className="h-10 md:h-12 w-auto object-contain"
+            className="h-12 md:h-14 w-auto object-contain"
           />
         );
       }
@@ -118,7 +118,7 @@ export function BlogFooter({
     
     // Mode TEXT or fallback: show text only
     return (
-      <span className="font-heading font-semibold text-xl text-white">
+      <span className="font-heading font-bold text-2xl md:text-3xl text-white">
         {blogName}
       </span>
     );
