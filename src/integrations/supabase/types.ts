@@ -3099,6 +3099,7 @@ export type Database = {
           raw_response: Json | null
           source: string | null
           sources_count: number | null
+          territory_id: string | null
           trends: Json | null
           week_of: string
         }
@@ -3119,6 +3120,7 @@ export type Database = {
           raw_response?: Json | null
           source?: string | null
           sources_count?: number | null
+          territory_id?: string | null
           trends?: Json | null
           week_of: string
         }
@@ -3139,6 +3141,7 @@ export type Database = {
           raw_response?: Json | null
           source?: string | null
           sources_count?: number | null
+          territory_id?: string | null
           trends?: Json | null
           week_of?: string
         }
@@ -3148,6 +3151,13 @@ export type Database = {
             columns: ["blog_id"]
             isOneToOne: false
             referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "market_intel_weekly_territory_id_fkey"
+            columns: ["territory_id"]
+            isOneToOne: false
+            referencedRelation: "territories"
             referencedColumns: ["id"]
           },
         ]
