@@ -246,7 +246,7 @@ export function GenerationHistoryCard({ blogId, className }: GenerationHistoryCa
 
   const handleItemClick = (item: GenerationItem) => {
     if (item.articleId) {
-      navigate(`/app/articles/${item.articleId}/edit`);
+      navigate(`/client/articles/${item.articleId}/edit`);
     }
   };
 
