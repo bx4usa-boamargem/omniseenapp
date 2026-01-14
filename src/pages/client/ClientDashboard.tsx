@@ -21,6 +21,7 @@ import {
   Activity
 } from 'lucide-react';
 import { GenerationHistoryCard } from '@/components/dashboard/GenerationHistoryCard';
+import { OpportunitiesCarouselBanner } from '@/components/dashboard/OpportunitiesCarouselBanner';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -318,6 +319,11 @@ export default function ClientDashboard() {
             <p className="text-gray-500 text-sm mt-2">Automação</p>
           </div>
         </div>
+
+        {/* Opportunities Carousel Banner */}
+        {blog?.id && (
+          <OpportunitiesCarouselBanner blogId={blog.id} />
+        )}
 
         {/* Second Row - Last Article & Last Update */}
         <div className="grid gap-4 md:grid-cols-2">
