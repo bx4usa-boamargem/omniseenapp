@@ -31,6 +31,10 @@ import { SessionDiagnosticsTab } from "@/components/admin/SessionDiagnosticsTab"
 import { GoalsManagementTab } from "@/components/admin/GoalsManagementTab";
 import { LandingConversionTab } from "@/components/admin/LandingConversionTab";
 import { MarketIntelCostsTab } from "@/components/admin/MarketIntelCostsTab";
+import { CostProjectionCard } from "@/components/admin/CostProjectionCard";
+import { SubaccountCostsTable } from "@/components/admin/SubaccountCostsTable";
+import { MissingCostsAlert } from "@/components/admin/MissingCostsAlert";
+import { QuickPeriodFilters } from "@/components/admin/QuickPeriodFilters";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
@@ -86,9 +90,10 @@ export default function Admin() {
   const [totalCost, setTotalCost] = useState(0);
   const [totalArticles, setTotalArticles] = useState(0);
   const [totalImages, setTotalImages] = useState(0);
-  const [period, setPeriod] = useState("30");
+  const [period, setPeriod] = useState("30d");
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [activePeriodLabel, setActivePeriodLabel] = useState("30d");
   
   // Model Pricing state
   const [modelPricing, setModelPricing] = useState<ModelPricing[]>([]);
@@ -404,29 +409,29 @@ export default function Admin() {
       </header>
 
       <main className="container mx-auto px-4 py-8 space-y-6">
-        {/* Filters */}
+        {/* Missing Costs Alert */}
+        <MissingCostsAlert onMigrationComplete={fetchConsumptionData} />
+
+        {/* Quick Period Filters */}
         <Card>
           <CardHeader className="pb-4">
             <CardTitle className="text-lg">Filtros de Período</CardTitle>
-            <SectionHelper title="" description="Período para visualização de dados." />
+            <SectionHelper title="" description="Selecione o período para análise de custos." />
           </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-4 items-end">
-              <div className="space-y-2">
-                <Label>Período</Label>
-                <Select value={period} onValueChange={handlePeriodChange}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Selecione o período" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="7">Últimos 7 dias</SelectItem>
-                    <SelectItem value="30">Últimos 30 dias</SelectItem>
-                    <SelectItem value="month">Este mês</SelectItem>
-                    <SelectItem value="custom">Personalizado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {/* Campos de data SEMPRE visíveis */}
+          <CardContent className="space-y-4">
+            {/* Quick Filters */}
+            <QuickPeriodFilters
+              activePeriod={activePeriodLabel}
+              onPeriodChange={(start, end, label) => {
+                setStartDate(start);
+                setEndDate(end);
+                setActivePeriodLabel(label);
+                setPeriod("custom");
+              }}
+            />
+            
+            {/* Manual Date Selection */}
+            <div className="flex flex-wrap gap-4 items-end pt-4 border-t border-border">
               <div className="space-y-2">
                 <Label>Data inicial</Label>
                 <Input
@@ -435,6 +440,7 @@ export default function Admin() {
                   onChange={(e) => {
                     setStartDate(e.target.value);
                     setPeriod("custom");
+                    setActivePeriodLabel("");
                   }}
                 />
               </div>
@@ -446,6 +452,7 @@ export default function Admin() {
                   onChange={(e) => {
                     setEndDate(e.target.value);
                     setPeriod("custom");
+                    setActivePeriodLabel("");
                   }}
                 />
               </div>
@@ -459,6 +466,13 @@ export default function Admin() {
           totalCost={totalCost} 
           startDate={startDate} 
           endDate={endDate} 
+        />
+
+        {/* Cost Projections */}
+        <CostProjectionCard 
+          logs={logs} 
+          startDate={new Date(startDate)} 
+          endDate={new Date(endDate)} 
         />
 
         {/* Summary Cards - Resumo de Custos */}
@@ -507,6 +521,16 @@ export default function Admin() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Subaccount Costs Table */}
+        <SubaccountCostsTable 
+          logs={logs.map(log => ({
+            blog_id: log.blog_id,
+            action_type: log.action_type,
+            images_generated: log.images_generated || 0,
+            estimated_cost_usd: log.estimated_cost_usd,
+          }))} 
+        />
 
         {/* Tabs */}
         <Tabs defaultValue={initialTab} className="space-y-4">
