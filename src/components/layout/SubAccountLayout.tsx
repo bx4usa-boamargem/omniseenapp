@@ -152,7 +152,7 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
-      <div className="p-6 border-b border-slate-200 dark:border-white/10">
+      <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-white/10">
         <OmniseenLogo size="lg" />
       </div>
 
@@ -163,14 +163,25 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
           <NavButton item={{ icon: Home, label: 'Início', path: '/client/dashboard' }} />
         </div>
 
-        {/* Seções organizadas */}
+        {/* Seções organizadas - with data-tour for guided tour */}
         {navSections.map((section) => (
           <div key={section.label}>
             <SectionLabel label={section.label} />
             <div className="px-4 space-y-1">
-              {section.items.map((item) => (
-                <NavButton key={item.path} item={item} />
-              ))}
+              {section.items.map((item) => {
+                // Add data-tour attributes for specific menu items
+                const tourId = item.path === '/client/radar' ? 'radar-menu' 
+                  : item.path === '/client/articles' ? 'articles-menu'
+                  : item.path === '/client/automation' ? 'automation-menu'
+                  : item.path === '/client/company' ? 'company-menu'
+                  : undefined;
+                
+                return (
+                  <div key={item.path} data-tour={tourId}>
+                    <NavButton item={item} />
+                  </div>
+                );
+              })}
             </div>
           </div>
         ))}
