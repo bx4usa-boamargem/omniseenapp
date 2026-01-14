@@ -362,13 +362,13 @@ export function PricingTable() {
                   )}
                 </div>
 
-                {/* Previous plan inclusion */}
-                {plan.key !== 'lite' && (
+                {/* Previous plan inclusion - only show for growth and pro */}
+                {(plan.key === 'growth' || plan.key === 'pro') && (
                   <div className="mb-4 p-3 rounded-lg bg-muted/50 text-center">
                     <span className="text-sm text-muted-foreground">
-                      {t('landing.pricing.allFeaturesIn', 'Todos os recursos do')}{' '}
+                      {t('landing.pricing.allFeaturesIn', 'Tudo do plano')}{' '}
                       <span className="font-semibold text-foreground">
-                        {plan.key === 'pro' ? 'Lite' : 'Pro'}
+                        {plan.key === 'growth' ? 'Starter' : 'Growth'}
                       </span>
                       {' '}{t('landing.pricing.plus', 'mais:')}
                     </span>
