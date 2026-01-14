@@ -104,24 +104,24 @@
       "allRightsReserved": "Todos los derechos reservados"
     },
     "hero": {
-      "badge": "100% Automatizado con IA",
-      "title1": "Blogs totalmente automatizados",
-      "title2": "con Inteligencia Artificial",
-      "subtitle": "Crea, publica y escala contenido optimizado para SEO — en automático.",
-      "startNow": "Crear mi blog ahora",
+      "badge": "Inteligencia de Búsqueda Local",
+      "title1": "OmniSeen lee lo que tu ciudad está buscando",
+      "title2": "y lo convierte en clientes para ti.",
+      "subtitle": "Nuestra IA analiza en tiempo real lo que las personas de tu región buscan en Google. Detecta oportunidades reales, crea contenido automáticamente y publica en tu propio dominio para captar a quienes ya están listos para comprar.",
+      "startNow": "Activar mi crecimiento orgánico",
       "watchDemo": "Ver Blog de Ejemplo",
       "users": "+500 usuarios",
       "rating": "4.9/5",
-      "trialBadge": "7 días gratis + 5 artículos de regalo"
+      "trialBadge": "7 días gratis"
     },
     "newHero": {
-      "badge": "100% Automatizado con IA",
-      "title1": "Blogs totalmente automatizados",
-      "title2": "con Inteligencia Artificial",
-      "subtitle": "Crea, publica y escala contenido optimizado para SEO — en automático.",
-      "subheadline": "De la idea al artículo publicado. Sin equipo. Sin WordPress. Sin complicaciones.",
-      "cta": "Crear mi blog ahora",
-      "ctaSecondary": "Empezar gratis",
+      "badge": "Inteligencia de Búsqueda Local",
+      "title1": "OmniSeen lee lo que tu ciudad está buscando",
+      "title2": "y lo convierte en clientes para ti.",
+      "subtitle": "Nuestra IA analiza en tiempo real lo que las personas de tu región buscan en Google. Detecta oportunidades reales, crea contenido automáticamente y publica en tu propio dominio para captar a quienes ya están listos para comprar.",
+      "subheadline": "Sin tarjeta. Sin agencia. Sin complicaciones.",
+      "cta": "Activar mi crecimiento orgánico",
+      "ctaSecondary": "7 días gratis",
       "noCreditCard": "Sin tarjeta de crédito",
       "seoScore": "Score SEO",
       "automation": "Automatización",
@@ -133,21 +133,22 @@
       "automated": "automatizado"
     },
     "problem": {
-      "line1": "Crear contenido es mucho trabajo.",
-      "line2": "Mantener consistencia es difícil.",
-      "line3": "El SEO cambia constantemente.",
-      "conclusion": "La mayoría de los blogs mueren antes de posicionar.",
-      "chartLabel": "Tráfico típico de un blog a lo largo del tiempo"
+      "title": "El mercado ya está hablando. El problema es que no estás escuchando.",
+      "line1": "Todos los días, personas de tu ciudad buscan servicios como el tuyo.",
+      "line2": "Estas búsquedas revelan intención real de compra.",
+      "line3": "Hoy no ves estas oportunidades.",
+      "conclusion": "Mientras tanto, alguien más ocupa el lugar que debería ser tuyo.",
+      "chartLabel": "Oportunidades perdidas diariamente"
     },
     "solution": {
-      "title": "Omniseen automatiza todo el proceso de creación de tu blog.",
-      "feature1": "IA elige temas",
-      "feature2": "IA escribe artículos",
-      "feature3": "IA optimiza SEO",
-      "feature4": "IA publica automáticamente",
-      "feature5": "IA mide rendimiento",
-      "highlight": "Crea artículos desde tu celular",
-      "highlightDesc": "Escribe 5 o 6 palabras en el chat y la IA hace el resto.",
+      "title": "OmniSeen transforma la búsqueda local en estrategia automática.",
+      "feature1": "Observa en tiempo real lo que tu ciudad busca",
+      "feature2": "Identifica patrones de intención comercial",
+      "feature3": "Sugiere decenas de oportunidades por mes",
+      "feature4": "Crea artículos listos automáticamente",
+      "feature5": "Aprende del rendimiento para mejorar",
+      "highlight": "Infraestructura de crecimiento orgánico",
+      "highlightDesc": "OmniSeen no es un blog. Es un motor de inteligencia que trabaja por ti.",
       "step1Label": "Tú escribes",
       "step2Label": "IA escribe",
       "step2Text": "2000+ palabras, optimizado para SEO",
@@ -156,24 +157,24 @@
       "step4Text": "En tu blog en segundos"
     },
     "realAutomation": {
-      "badge": "Automatización Real",
-      "title1": "Mientras otros prometen automatización,",
-      "title2": "Omniseen ejecuta por sí solo.",
+      "badge": "Crecimiento Orgánico Inteligente",
+      "title1": "Beneficios que trabajan por ti",
+      "title2": "24 horas al día, 7 días a la semana.",
       "feature1": {
-        "title": "Calendario Automático",
-        "desc": "IA programa posts en los mejores horarios"
+        "title": "Radar de Búsquedas Locales",
+        "desc": "Monitorea en tiempo real lo que tu región busca"
       },
       "feature2": {
-        "title": "Publicación Semanal",
-        "desc": "Nuevos artículos publicados automáticamente"
+        "title": "Oportunidades Automáticas",
+        "desc": "Decenas de ideas de contenido por mes"
       },
       "feature3": {
-        "title": "Clusters SEO",
-        "desc": "Agrupación automática de temas"
+        "title": "SEO Local Integrado",
+        "desc": "Artículos optimizados para tu ciudad"
       },
       "feature4": {
-        "title": "Correcciones de SEO",
-        "desc": "Optimizaciones automáticas de la IA"
+        "title": "Blog en Tu Dominio",
+        "desc": "tuempresa.omniseen.app o dominio propio"
       },
       "active": "Activo",
       "running": "Ejecutándose ahora",
@@ -235,18 +236,18 @@
     },
     "howItWorks": {
       "title": "¿Cómo funciona?",
-      "subtitle": "De cero a blog automatizado en 5 pasos simples",
+      "subtitle": "De cero a crecimiento orgánico en 3 simples pasos",
       "step1": {
-        "title": "Crea tu cuenta",
-        "desc": "Registro rápido en 30 segundos"
+        "title": "Conecta tu negocio",
+        "desc": "Ciudad, área y servicios"
       },
       "step2": {
-        "title": "Conecta tu dominio",
-        "desc": "O usa nuestro subdominio gratuito"
+        "title": "La IA escucha tu región",
+        "desc": "Identifica lo que las personas realmente buscan"
       },
       "step3": {
-        "title": "Define tu nicho",
-        "desc": "Cuéntanos sobre tu negocio"
+        "title": "El sistema crea y publica",
+        "desc": "Cada oportunidad se convierte en contenido optimizado"
       },
       "step4": {
         "title": "Activa la automatización",
@@ -258,10 +259,10 @@
       }
     },
     "finalCta": {
-      "title": "Tu blog trabajando por ti, 24/7.",
-      "subtitle": "Empieza ahora y ve resultados en la primera semana.",
-      "cta": "Crear mi blog ahora",
-      "ctaSecondary": "Empezar gratis",
+      "title": "Enciende ahora el motor de crecimiento de tu negocio.",
+      "subtitle": "No necesitas ser experto en SEO, ni escritor. Solo necesitas empezar.",
+      "cta": "Empezar gratis por 7 días",
+      "ctaSecondary": "Ver planes",
       "note": "Sin tarjeta de crédito"
     },
     "announcement": {
@@ -423,7 +424,7 @@
     },
     "pricing": {
       "title": "Precios",
-      "subtitle": "Automatiza tu blog. Obtén más tráfico de Google y ChatGPT.",
+      "subtitle": "Elige el plan ideal para dominar tu mercado local.",
       "trialInfo": "Comienza con 7 días gratis. Cancela cuando quieras.",
       "monthly": "Mensual",
       "yearly": "Anual",
@@ -432,8 +433,8 @@
       "perMonth": "mes",
       "savePercent": "Ahorra {{percent}}%",
       "popular": "Más Popular",
-      "startTrial": "Empezar Gratis",
-      "allFeaturesIn": "Todas las funciones de",
+      "startTrial": "Empezar gratis por 7 días",
+      "allFeaturesIn": "Todo de",
       "plus": "más:",
       "trustBadges": "Pago seguro via Stripe • Cancela cuando quieras • Soporte dedicado",
       "features": {
@@ -465,6 +466,54 @@
         "apiComingSoon": "API (próximamente)",
         "whiteLabel": "White label",
         "whiteLabelComingSoon": "White label (próximamente)",
+        "emailSupport": "Soporte por email",
+        "prioritySupport": "Soporte prioritario",
+        "dedicatedManager": "Gerente dedicado",
+        "contactSales": "¿Necesitas más blogs? Contacta ventas",
+        "cities": "ciudad cubierta",
+        "radarBasic": "Radar de oportunidades (básico)",
+        "radarComplete": "Radar completo de oportunidades",
+        "opportunities": "oportunidades de contenido",
+        "autoArticles": "Creación automática de artículos",
+        "blogSubdomain": "Blog en tuempresa.omniseen.app",
+        "seoBasic": "SEO básico automático",
+        "metricsBasic": "Métricas esenciales",
+        "trial": "Trial de 7 días incluido",
+        "seoOptimization": "Optimización de SEO en artículos",
+        "performanceAnalysis": "Análisis de rendimiento por artículo",
+        "oneClickSuggestions": "Mejoras con 1 clic",
+        "commercialMetrics": "Métricas de intención comercial",
+        "unlimitedOpportunities": "Oportunidades ilimitadas",
+        "multipleCities": "Múltiples ciudades",
+        "editorialStrategy": "Estrategia editorial automatizada",
+        "batchOptimization": "Optimización en lote",
+        "trendIntelligence": "Inteligencia de tendencias",
+        "earlyAccess": "Acceso anticipado a features"
+      },
+      "plans": {
+        "lite": {
+          "name": "Lite",
+          "description": "Para nuevos bloggers que están empezando"
+        },
+        "pro": {
+          "name": "Pro",
+          "description": "Para quienes quieren dominar el mercado local"
+        },
+        "business": {
+          "name": "Business",
+          "description": "Para equipos gestionando varios sitios"
+        },
+        "starter": {
+          "name": "Starter",
+          "description": "Para quienes empiezan a crecer orgánicamente"
+        },
+        "growth": {
+          "name": "Growth",
+          "description": "Para negocios listos para escalar"
+        }
+      },
+      "values": {
+        "unlimited": "Ilimitado",
         "emailSupport": "Soporte por email",
         "prioritySupport": "Soporte prioritario",
         "dedicatedManager": "Gerente dedicado",

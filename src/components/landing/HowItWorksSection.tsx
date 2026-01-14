@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
-import { UserPlus, Globe, Settings, Zap, Sparkles } from "lucide-react";
+import { UserPlus, Target, Zap } from "lucide-react";
 
 export const HowItWorksSection = () => {
   const { t } = useTranslation();
@@ -14,28 +14,16 @@ export const HowItWorksSection = () => {
       description: t('landing.howItWorks.step1.desc'),
     },
     {
-      icon: Globe,
+      icon: Target,
       number: 2,
       title: t('landing.howItWorks.step2.title'),
       description: t('landing.howItWorks.step2.desc'),
     },
     {
-      icon: Settings,
+      icon: Zap,
       number: 3,
       title: t('landing.howItWorks.step3.title'),
       description: t('landing.howItWorks.step3.desc'),
-    },
-    {
-      icon: Zap,
-      number: 4,
-      title: t('landing.howItWorks.step4.title'),
-      description: t('landing.howItWorks.step4.desc'),
-    },
-    {
-      icon: Sparkles,
-      number: 5,
-      title: t('landing.howItWorks.step5.title'),
-      description: t('landing.howItWorks.step5.desc'),
     },
   ];
 
@@ -44,7 +32,7 @@ export const HowItWorksSection = () => {
       {/* Background */}
       <div className="absolute inset-0 bg-gradient-to-b from-background via-primary/5 to-background" />
       
-      <div className="container max-w-6xl relative">
+      <div className="container max-w-5xl relative">
         {/* Header */}
         <div className={`text-center mb-16 transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <h2 className="text-3xl md:text-4xl lg:text-5xl font-display font-bold mb-4">
@@ -65,8 +53,8 @@ export const HowItWorksSection = () => {
             />
           </div>
           
-          {/* Steps */}
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-8 md:gap-4">
+          {/* Steps - 3 columns */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-6">
             {steps.map((step, index) => (
               <div
                 key={index}
@@ -88,7 +76,7 @@ export const HowItWorksSection = () => {
                   </div>
                   
                   {/* Content */}
-                  <h3 className="font-display font-bold mb-1">{step.title}</h3>
+                  <h3 className="font-display font-bold mb-2 text-lg">{step.title}</h3>
                   <p className="text-sm text-muted-foreground">{step.description}</p>
                 </div>
               </div>

@@ -23,6 +23,15 @@ export const ProblemSection = () => {
       
       <div className="container max-w-4xl relative">
         <div className="text-center">
+          {/* Main Title */}
+          <h2 
+            className={`text-3xl md:text-4xl lg:text-5xl font-display font-bold mb-12 transition-all duration-700 ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+          >
+            {t('landing.problem.title', 'O mercado já está falando. O problema é que você não está ouvindo.')}
+          </h2>
+
           {/* Problem statements */}
           <div className="space-y-6 mb-12">
             {problems.map((problem, index) => (
@@ -33,9 +42,9 @@ export const ProblemSection = () => {
                     ? 'opacity-100 translate-x-0' 
                     : 'opacity-0 -translate-x-12'
                 }`}
-                style={{ transitionDelay: `${index * 200}ms` }}
+                style={{ transitionDelay: `${200 + index * 200}ms` }}
               >
-                <div className={`p-2 rounded-lg bg-destructive/10 transition-all duration-500 ${isVisible ? 'scale-100' : 'scale-0'}`} style={{ transitionDelay: `${index * 200 + 100}ms` }}>
+                <div className={`p-2 rounded-lg bg-destructive/10 transition-all duration-500 ${isVisible ? 'scale-100' : 'scale-0'}`} style={{ transitionDelay: `${index * 200 + 300}ms` }}>
                   <problem.icon className="h-6 w-6 text-destructive/70" />
                 </div>
                 <p className="text-xl md:text-2xl text-muted-foreground font-medium">
@@ -52,7 +61,7 @@ export const ProblemSection = () => {
                 ? 'opacity-100 translate-y-0 scale-100' 
                 : 'opacity-0 translate-y-8 scale-95'
             }`}
-            style={{ transitionDelay: '700ms' }}
+            style={{ transitionDelay: '900ms' }}
           >
             <div className="inline-flex items-center gap-3 px-6 py-4 rounded-2xl bg-destructive/10 border border-destructive/20 hover-glow" style={{ '--tw-shadow-color': 'hsl(var(--destructive) / 0.3)' } as React.CSSProperties}>
               <XCircle className="h-8 w-8 text-destructive animate-pulse" />
@@ -69,7 +78,7 @@ export const ProblemSection = () => {
                 ? 'opacity-100 scale-100' 
                 : 'opacity-0 scale-90'
             }`}
-            style={{ transitionDelay: '900ms' }}
+            style={{ transitionDelay: '1100ms' }}
           >
             <div className="relative mx-auto max-w-md">
               {/* Animated declining chart */}
@@ -90,7 +99,7 @@ export const ProblemSection = () => {
                   style={{ 
                     strokeDasharray: 283,
                     strokeDashoffset: isVisible ? 0 : 283,
-                    transition: 'stroke-dashoffset 1.5s ease-out 1s'
+                    transition: 'stroke-dashoffset 1.5s ease-out 1.3s'
                   }}
                 />
                 <circle 
@@ -99,10 +108,10 @@ export const ProblemSection = () => {
                   r="4" 
                   fill="hsl(var(--destructive))" 
                   className={`transition-all duration-500 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
-                  style={{ transitionDelay: '2.5s' }}
+                  style={{ transitionDelay: '2.8s' }}
                 />
               </svg>
-              <p className={`text-sm text-muted-foreground mt-2 transition-all duration-500 ${isVisible ? 'opacity-100' : 'opacity-0'}`} style={{ transitionDelay: '1.2s' }}>
+              <p className={`text-sm text-muted-foreground mt-2 transition-all duration-500 ${isVisible ? 'opacity-100' : 'opacity-0'}`} style={{ transitionDelay: '1.5s' }}>
                 {t('landing.problem.chartLabel')}
               </p>
             </div>

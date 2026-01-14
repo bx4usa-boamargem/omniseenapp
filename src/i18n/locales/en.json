@@ -104,24 +104,24 @@
       "allRightsReserved": "All rights reserved"
     },
     "hero": {
-      "badge": "100% Automated with AI",
-      "title1": "Fully automated blogs",
-      "title2": "with Artificial Intelligence",
-      "subtitle": "Create, publish, and scale SEO-optimized content — on autopilot.",
-      "startNow": "Create my blog now",
+      "badge": "Local Search Intelligence",
+      "title1": "OmniSeen reads what your city is searching for",
+      "title2": "and turns it into customers for you.",
+      "subtitle": "Our AI analyzes in real-time what people in your region are searching on Google. It detects real opportunities, creates content automatically, and publishes to your own domain to capture those ready to buy.",
+      "startNow": "Activate my organic growth",
       "watchDemo": "See Example Blog",
       "users": "+500 users",
       "rating": "4.9/5",
-      "trialBadge": "7-day free trial + 5 bonus articles"
+      "trialBadge": "7-day free trial"
     },
     "newHero": {
-      "badge": "100% Automated with AI",
-      "title1": "Fully automated blogs",
-      "title2": "with Artificial Intelligence",
-      "subtitle": "Create, publish, and scale SEO-optimized content — on autopilot.",
-      "subheadline": "From idea to published article. No team. No WordPress. No hassle.",
-      "cta": "Create my blog now",
-      "ctaSecondary": "Start for free",
+      "badge": "Local Search Intelligence",
+      "title1": "OmniSeen reads what your city is searching for",
+      "title2": "and turns it into customers for you.",
+      "subtitle": "Our AI analyzes in real-time what people in your region are searching on Google. It detects real opportunities, creates content automatically, and publishes to your own domain to capture those ready to buy.",
+      "subheadline": "No credit card. No agency. No hassle.",
+      "cta": "Activate my organic growth",
+      "ctaSecondary": "7-day free trial",
       "noCreditCard": "No credit card required",
       "seoScore": "SEO Score",
       "automation": "Automation",
@@ -133,21 +133,22 @@
       "automated": "automated"
     },
     "problem": {
-      "line1": "Creating content is hard work.",
-      "line2": "Maintaining consistency is difficult.",
-      "line3": "SEO changes constantly.",
-      "conclusion": "Most blogs die before they rank.",
-      "chartLabel": "Typical blog traffic over time"
+      "title": "The market is already talking. The problem is you're not listening.",
+      "line1": "Every day, people in your city search for services like yours.",
+      "line2": "These searches reveal real buying intent.",
+      "line3": "Today you don't see these opportunities.",
+      "conclusion": "Meanwhile, someone else is taking the spot that should be yours.",
+      "chartLabel": "Opportunities lost daily"
     },
     "solution": {
-      "title": "Omniseen automates your entire blog creation process.",
-      "feature1": "AI chooses topics",
-      "feature2": "AI writes articles",
-      "feature3": "AI optimizes SEO",
-      "feature4": "AI publishes automatically",
-      "feature5": "AI measures performance",
-      "highlight": "Create articles from your phone",
-      "highlightDesc": "Just type 5-6 words in the chat and the AI does the rest.",
+      "title": "OmniSeen turns local search into automatic strategy.",
+      "feature1": "Monitors in real-time what your city searches",
+      "feature2": "Identifies commercial intent patterns",
+      "feature3": "Suggests dozens of opportunities per month",
+      "feature4": "Creates ready-to-publish articles automatically",
+      "feature5": "Learns from performance to improve",
+      "highlight": "Organic growth infrastructure",
+      "highlightDesc": "OmniSeen isn't a blog. It's an intelligence engine that works for you.",
       "step1Label": "You type",
       "step2Label": "AI writes",
       "step2Text": "2000+ words, SEO optimized",
@@ -156,24 +157,24 @@
       "step4Text": "Live on your blog in seconds"
     },
     "realAutomation": {
-      "badge": "Real Automation",
-      "title1": "While others promise automation,",
-      "title2": "Omniseen executes on its own.",
+      "badge": "Smart Organic Growth",
+      "title1": "Benefits that work for you",
+      "title2": "24 hours a day, 7 days a week.",
       "feature1": {
-        "title": "Automatic Calendar",
-        "desc": "AI schedules posts at optimal times"
+        "title": "Local Search Radar",
+        "desc": "Monitors in real-time what your region searches"
       },
       "feature2": {
-        "title": "Weekly Publishing",
-        "desc": "New articles posted automatically"
+        "title": "Automatic Opportunities",
+        "desc": "Dozens of content ideas per month"
       },
       "feature3": {
-        "title": "SEO Clusters",
-        "desc": "Automatic topic clustering"
+        "title": "Built-in Local SEO",
+        "desc": "Articles optimized for your city"
       },
       "feature4": {
-        "title": "AI SEO Fixes",
-        "desc": "Automatic optimization corrections"
+        "title": "Blog on Your Domain",
+        "desc": "yourcompany.omniseen.app or custom domain"
       },
       "active": "Active",
       "running": "Running now",
@@ -235,18 +236,18 @@
     },
     "howItWorks": {
       "title": "How it works",
-      "subtitle": "From zero to automated blog in 5 simple steps",
+      "subtitle": "From zero to organic growth in 3 simple steps",
       "step1": {
-        "title": "Create your account",
-        "desc": "Quick signup in 30 seconds"
+        "title": "Connect your business",
+        "desc": "City, area, and services"
       },
       "step2": {
-        "title": "Connect your domain",
-        "desc": "Or use our free subdomain"
+        "title": "AI listens to your region",
+        "desc": "Identifies what people are really searching"
       },
       "step3": {
-        "title": "Define your niche",
-        "desc": "Tell us about your business"
+        "title": "System creates and publishes",
+        "desc": "Every opportunity becomes optimized content"
       },
       "step4": {
         "title": "Activate automation",
@@ -258,10 +259,10 @@
       }
     },
     "finalCta": {
-      "title": "Your blog working for you, 24/7.",
-      "subtitle": "Start now and see results in the first week.",
-      "cta": "Create my blog now",
-      "ctaSecondary": "Start for free",
+      "title": "Turn on your business growth engine now.",
+      "subtitle": "You don't need to be an SEO expert or a writer. You just need to start.",
+      "cta": "Start free for 7 days",
+      "ctaSecondary": "View plans",
       "note": "No credit card required"
     },
     "announcement": {
@@ -423,7 +424,7 @@
     },
     "pricing": {
       "title": "Pricing",
-      "subtitle": "Automate your blog. Get more traffic from Google and ChatGPT.",
+      "subtitle": "Choose the ideal plan to dominate your local market.",
       "trialInfo": "Start with 7 days free. Cancel anytime.",
       "monthly": "Monthly",
       "yearly": "Yearly",
@@ -432,8 +433,8 @@
       "perMonth": "month",
       "savePercent": "Save {{percent}}%",
       "popular": "Most Popular",
-      "startTrial": "Start Free",
-      "allFeaturesIn": "All features from",
+      "startTrial": "Start free for 7 days",
+      "allFeaturesIn": "Everything in",
       "plus": "plus:",
       "trustBadges": "Secure payment via Stripe • Cancel anytime • Dedicated support",
       "features": {
@@ -468,7 +469,26 @@
         "emailSupport": "Email support",
         "prioritySupport": "Priority support",
         "dedicatedManager": "Dedicated manager",
-        "contactSales": "Need more blogs? Contact sales"
+        "contactSales": "Need more blogs? Contact sales",
+        "cities": "city covered",
+        "radarBasic": "Opportunity radar (basic)",
+        "radarComplete": "Complete opportunity radar",
+        "opportunities": "content opportunities",
+        "autoArticles": "Automatic article creation",
+        "blogSubdomain": "Blog at yourcompany.omniseen.app",
+        "seoBasic": "Basic automatic SEO",
+        "metricsBasic": "Essential metrics",
+        "trial": "7-day trial included",
+        "seoOptimization": "SEO optimization on articles",
+        "performanceAnalysis": "Performance analysis per article",
+        "oneClickSuggestions": "One-click improvements",
+        "commercialMetrics": "Commercial intent metrics",
+        "unlimitedOpportunities": "Unlimited opportunities",
+        "multipleCities": "Multiple cities",
+        "editorialStrategy": "Automated editorial strategy",
+        "batchOptimization": "Batch optimization",
+        "trendIntelligence": "Trend intelligence",
+        "earlyAccess": "Early access to features"
       },
       "plans": {
         "lite": {
@@ -477,23 +497,19 @@
         },
         "pro": {
           "name": "Pro",
-          "description": "For growing bloggers ready to expand"
+          "description": "For those who want to dominate the local market"
         },
         "business": {
           "name": "Business",
           "description": "For teams managing multiple sites"
         },
-        "essential": {
-          "name": "Essential",
-          "description": "Perfect to get started"
+        "starter": {
+          "name": "Starter",
+          "description": "For those starting to grow organically"
         },
-        "plus": {
-          "name": "Plus",
-          "description": "For serious creators"
-        },
-        "scale": {
-          "name": "Scale",
-          "description": "For agencies and businesses"
+        "growth": {
+          "name": "Growth",
+          "description": "For businesses ready to scale"
         }
       },
       "values": {

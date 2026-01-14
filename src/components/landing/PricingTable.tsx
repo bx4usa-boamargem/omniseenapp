@@ -83,66 +83,55 @@ interface Plan {
   features: PlanFeature[];
 }
 
-// Updated plans according to new pricing structure
+// Updated plans according to new pricing structure - Starter $37, Growth $97, Pro $147
 const plans: Plan[] = [
   {
-    key: 'lite',
+    key: 'starter',
     price: {
-      usd: { monthly: 17.99, yearly: 13.49 },
-      brl: { monthly: 89, yearly: 66.75 },
+      usd: { monthly: 37, yearly: 27.75 },
+      brl: { monthly: 187, yearly: 140.25 },
     },
     features: [
-      { key: 'articles', value: '8/mês', icon: 'FileText' },
-      { key: 'blogs', value: '1', icon: 'Globe' },
-      { key: 'keywords', value: '30-50', icon: 'Search' },
-      { key: 'teamMembers', value: '1', icon: 'User' },
-      { key: 'editorialCalendar', value: true, icon: 'Calendar' },
-      { key: 'autoTranslation', value: true, icon: 'Languages' },
-      { key: 'emailSupport', value: true, icon: 'Headphones' },
+      { key: 'cities', value: '1', icon: 'Globe' },
+      { key: 'radarBasic', value: true, icon: 'Target' },
+      { key: 'opportunities', value: '10/mês', icon: 'Lightbulb' },
+      { key: 'autoArticles', value: true, icon: 'FileText' },
+      { key: 'blogSubdomain', value: true, icon: 'Globe2' },
+      { key: 'seoBasic', value: true, icon: 'Search' },
+      { key: 'metricsBasic', value: true, icon: 'BarChart' },
+      { key: 'trial', value: true, icon: 'Zap' },
+    ],
+  },
+  {
+    key: 'growth',
+    price: {
+      usd: { monthly: 97, yearly: 72.75 },
+      brl: { monthly: 487, yearly: 365.25 },
+    },
+    popular: true,
+    features: [
+      { key: 'radarComplete', value: true, icon: 'Target' },
+      { key: 'opportunities', value: '40/mês', icon: 'Lightbulb' },
+      { key: 'seoOptimization', value: true, icon: 'TrendingUp' },
+      { key: 'performanceAnalysis', value: true, icon: 'BarChart' },
+      { key: 'oneClickSuggestions', value: true, icon: 'Sparkles' },
+      { key: 'commercialMetrics', value: true, icon: 'Target' },
     ],
   },
   {
     key: 'pro',
     price: {
-      usd: { monthly: 39.99, yearly: 29.99 },
-      brl: { monthly: 199, yearly: 149.25 },
-    },
-    popular: true,
-    features: [
-      { key: 'articles', value: '20/mês', icon: 'FileText' },
-      { key: 'blogs', value: '1', icon: 'Globe' },
-      { key: 'keywords', value: '120-150', icon: 'Search' },
-      { key: 'teamMembers', value: '3', icon: 'Users' },
-      { key: 'salesFunnel', value: true, icon: 'Target' },
-      { key: 'chatAI', value: true, icon: 'MessageSquare' },
-      { key: 'aiImagesLimited', value: true, icon: 'Image' },
-      { key: 'clustersBasic', value: true, icon: 'Layers' },
-      { key: 'ebooks', value: '1/mês', icon: 'BookOpen' },
-      { key: 'apiComingSoon', value: true, icon: 'Code' },
-      { key: 'whiteLabelComingSoon', value: true, icon: 'Tag' },
-      { key: 'prioritySupport', value: true, icon: 'Zap' },
-    ],
-  },
-  {
-    key: 'business',
-    price: {
-      usd: { monthly: 69.99, yearly: 52.49 },
-      brl: { monthly: 349, yearly: 261.75 },
+      usd: { monthly: 147, yearly: 110.25 },
+      brl: { monthly: 737, yearly: 552.75 },
     },
     features: [
-      { key: 'articles', value: '50/mês', icon: 'FileText' },
-      { key: 'blogs', value: '5', icon: 'Globe' },
-      { key: 'keywords', value: '300+', icon: 'Search' },
-      { key: 'teamMembers', value: '10', icon: 'Users' },
-      { key: 'salesFunnel', value: true, icon: 'Target' },
-      { key: 'chatAI', value: true, icon: 'MessageSquare' },
-      { key: 'aiImagesExpanded', value: true, icon: 'Image' },
-      { key: 'clustersAdvanced', value: true, icon: 'Layers' },
-      { key: 'ebooks', value: '4/mês', icon: 'BookOpen' },
-      { key: 'apiComingSoon', value: true, icon: 'Code' },
-      { key: 'whiteLabelComingSoon', value: true, icon: 'Tag' },
-      { key: 'prioritySupport', value: true, icon: 'Zap' },
-      { key: 'contactSales', value: true, icon: 'Sparkles' },
+      { key: 'unlimitedOpportunities', value: true, icon: 'Zap' },
+      { key: 'multipleCities', value: true, icon: 'Globe2' },
+      { key: 'editorialStrategy', value: true, icon: 'Calendar' },
+      { key: 'advancedSeo', value: true, icon: 'Search' },
+      { key: 'batchOptimization', value: true, icon: 'Layers' },
+      { key: 'trendIntelligence', value: true, icon: 'TrendingUp' },
+      { key: 'earlyAccess', value: true, icon: 'Sparkles' },
     ],
   },
 ];
@@ -204,26 +193,51 @@ export function PricingTable() {
       prioritySupport: t('landing.pricing.features.prioritySupport', 'Suporte prioritário'),
       dedicatedManager: t('landing.pricing.features.dedicatedManager', 'Gerente dedicado'),
       contactSales: t('landing.pricing.features.contactSales', 'Precisa de mais blogs? Fale com vendas'),
+      // New features for local search intelligence
+      cities: t('landing.pricing.features.cities', 'cidade coberta'),
+      radarBasic: t('landing.pricing.features.radarBasic', 'Radar de oportunidades (básico)'),
+      radarComplete: t('landing.pricing.features.radarComplete', 'Radar completo de oportunidades'),
+      opportunities: t('landing.pricing.features.opportunities', 'oportunidades de conteúdo'),
+      autoArticles: t('landing.pricing.features.autoArticles', 'Criação automática de artigos'),
+      blogSubdomain: t('landing.pricing.features.blogSubdomain', 'Blog em suaempresa.omniseen.app'),
+      seoBasic: t('landing.pricing.features.seoBasic', 'SEO básico automático'),
+      metricsBasic: t('landing.pricing.features.metricsBasic', 'Métricas essenciais'),
+      trial: t('landing.pricing.features.trial', 'Trial de 7 dias incluído'),
+      seoOptimization: t('landing.pricing.features.seoOptimization', 'Otimização de SEO em artigos'),
+      performanceAnalysis: t('landing.pricing.features.performanceAnalysis', 'Análise de performance por artigo'),
+      oneClickSuggestions: t('landing.pricing.features.oneClickSuggestions', 'Melhorias com 1 clique'),
+      commercialMetrics: t('landing.pricing.features.commercialMetrics', 'Métricas de intenção comercial'),
+      unlimitedOpportunities: t('landing.pricing.features.unlimitedOpportunities', 'Oportunidades ilimitadas'),
+      multipleCities: t('landing.pricing.features.multipleCities', 'Múltiplas cidades'),
+      editorialStrategy: t('landing.pricing.features.editorialStrategy', 'Estratégia editorial automatizada'),
+      batchOptimization: t('landing.pricing.features.batchOptimization', 'Otimização em lote'),
+      trendIntelligence: t('landing.pricing.features.trendIntelligence', 'Inteligência de tendências'),
+      earlyAccess: t('landing.pricing.features.earlyAccess', 'Acesso antecipado a features'),
     };
     return featureLabels[feature.key] || feature.key;
   };
 
   const getPlanName = (key: string): string => {
     const names: Record<string, string> = {
-      lite: 'Lite',
+      starter: 'Starter',
+      growth: 'Growth',
       pro: 'Pro',
+      lite: 'Lite',
       business: 'Business',
     };
     return names[key] || key;
   };
 
   const getPlanDescription = (key: string): string => {
+    const planKey = key as 'starter' | 'growth' | 'pro' | 'lite' | 'business';
     const descriptions: Record<string, string> = {
+      starter: t('landing.pricing.plans.starter.description', 'Para quem está começando a crescer organicamente'),
+      growth: t('landing.pricing.plans.growth.description', 'Para negócios prontos para escalar'),
+      pro: t('landing.pricing.plans.pro.description', 'Para quem quer dominar o mercado local'),
       lite: t('landing.pricing.plans.lite.description', 'Para novos blogueiros que estão começando'),
-      pro: t('landing.pricing.plans.pro.description', 'Para blogueiros em crescimento prontos para expandir'),
       business: t('landing.pricing.plans.business.description', 'Para equipes gerenciando vários sites'),
     };
-    return descriptions[key] || '';
+    return descriptions[planKey] || '';
   };
 
   const formatPrice = (price: number): string => {
