@@ -1430,6 +1430,207 @@ export type Database = {
           },
         ]
       }
+      brand_agent_config: {
+        Row: {
+          agent_avatar_url: string | null
+          agent_name: string | null
+          blog_id: string
+          conversion_goals: string[] | null
+          created_at: string | null
+          id: string
+          is_enabled: boolean | null
+          max_tokens_per_day: number | null
+          personality_traits: string[] | null
+          proactive_delay_seconds: number | null
+          tokens_reset_at: string | null
+          tokens_used_today: number | null
+          updated_at: string | null
+          webhook_secret: string | null
+          webhook_url: string | null
+          welcome_message: string | null
+        }
+        Insert: {
+          agent_avatar_url?: string | null
+          agent_name?: string | null
+          blog_id: string
+          conversion_goals?: string[] | null
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          max_tokens_per_day?: number | null
+          personality_traits?: string[] | null
+          proactive_delay_seconds?: number | null
+          tokens_reset_at?: string | null
+          tokens_used_today?: number | null
+          updated_at?: string | null
+          webhook_secret?: string | null
+          webhook_url?: string | null
+          welcome_message?: string | null
+        }
+        Update: {
+          agent_avatar_url?: string | null
+          agent_name?: string | null
+          blog_id?: string
+          conversion_goals?: string[] | null
+          created_at?: string | null
+          id?: string
+          is_enabled?: boolean | null
+          max_tokens_per_day?: number | null
+          personality_traits?: string[] | null
+          proactive_delay_seconds?: number | null
+          tokens_reset_at?: string | null
+          tokens_used_today?: number | null
+          updated_at?: string | null
+          webhook_secret?: string | null
+          webhook_url?: string | null
+          welcome_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_agent_config_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: true
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brand_agent_conversations: {
+        Row: {
+          article_id: string | null
+          blog_id: string
+          created_at: string | null
+          id: string
+          last_message_at: string | null
+          lead_captured: boolean | null
+          messages: Json | null
+          session_id: string
+          tokens_used: number | null
+          visitor_id: string
+        }
+        Insert: {
+          article_id?: string | null
+          blog_id: string
+          created_at?: string | null
+          id?: string
+          last_message_at?: string | null
+          lead_captured?: boolean | null
+          messages?: Json | null
+          session_id: string
+          tokens_used?: number | null
+          visitor_id: string
+        }
+        Update: {
+          article_id?: string | null
+          blog_id?: string
+          created_at?: string | null
+          id?: string
+          last_message_at?: string | null
+          lead_captured?: boolean | null
+          messages?: Json | null
+          session_id?: string
+          tokens_used?: number | null
+          visitor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_agent_conversations_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brand_agent_conversations_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      brand_agent_leads: {
+        Row: {
+          article_id: string | null
+          article_title: string | null
+          blog_id: string
+          conversation_id: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          interest_summary: string | null
+          lead_score: number | null
+          name: string | null
+          phone: string | null
+          utm_campaign: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          webhook_response: Json | null
+          webhook_sent_at: string | null
+          whatsapp: string | null
+        }
+        Insert: {
+          article_id?: string | null
+          article_title?: string | null
+          blog_id: string
+          conversation_id?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          interest_summary?: string | null
+          lead_score?: number | null
+          name?: string | null
+          phone?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          webhook_response?: Json | null
+          webhook_sent_at?: string | null
+          whatsapp?: string | null
+        }
+        Update: {
+          article_id?: string | null
+          article_title?: string | null
+          blog_id?: string
+          conversation_id?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          interest_summary?: string | null
+          lead_score?: number | null
+          name?: string | null
+          phone?: string | null
+          utm_campaign?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          webhook_response?: Json | null
+          webhook_sent_at?: string | null
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "brand_agent_leads_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brand_agent_leads_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brand_agent_leads_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "brand_agent_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       business_profile: {
         Row: {
           average_margin: number | null
@@ -4643,6 +4844,7 @@ export type Database = {
         Returns: string
       }
       recalculate_queue_dates: { Args: { p_blog_id: string }; Returns: number }
+      reset_brand_agent_daily_tokens: { Args: never; Returns: undefined }
       unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {

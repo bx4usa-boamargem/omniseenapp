@@ -13,6 +13,8 @@ import { FloatingShareBar } from "@/components/public/FloatingShareBar";
 import { TableOfContents } from "@/components/public/TableOfContents";
 import { FocusedReadingMode } from "@/components/public/FocusedReadingMode";
 import { ArticleLanguageSelector } from "@/components/public/ArticleLanguageSelector";
+import { BrandSalesAgentWidget } from "@/components/public/BrandSalesAgentWidget";
+import { useBrandAgentConfig } from "@/hooks/useBrandAgentConfig";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
