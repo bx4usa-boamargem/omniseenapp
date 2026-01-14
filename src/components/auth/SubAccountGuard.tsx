@@ -41,10 +41,9 @@ export function SubAccountGuard({ children }: SubAccountGuardProps) {
     return <Navigate to="/onboarding" replace />;
   }
 
-  // Not a subaccount - redirect to master dashboard
-  if (!isSubAccount) {
-    return <Navigate to="/app/dashboard" replace />;
-  }
+  // Note: We now allow ALL authenticated users with a blog to access /client/*
+  // The isSubAccount check has been removed to enable unified modern experience
+  // Platform admins can still access /admin/* via PlatformAdminGuard
 
   return <>{children}</>;
 }

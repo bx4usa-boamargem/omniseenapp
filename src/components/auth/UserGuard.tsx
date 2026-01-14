@@ -79,10 +79,9 @@ export function UserGuard({ children }: UserGuardProps) {
     return <Navigate to="/onboarding" replace />;
   }
 
-  // Redirect subaccounts to their dedicated experience
-  if (isSubAccount) {
-    return <Navigate to="/client/dashboard" replace />;
-  }
+  // All authenticated users with completed onboarding use the modern /client/* experience
+  // The legacy /app/* routes are now deprecated - redirect everyone to modern UI
+  return <Navigate to="/client/dashboard" replace />;
 
   // Note: We no longer redirect to /blocked here.
   // The DashboardLayout will show a mandatory modal when isBlocked is true.

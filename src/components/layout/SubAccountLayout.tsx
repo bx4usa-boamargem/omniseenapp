@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Home, 
@@ -12,7 +12,8 @@ import {
   Compass, 
   TrendingUp,
   FileText,
-  Activity
+  Activity,
+  Shield
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -20,6 +21,7 @@ import { OmniseenLogo } from '@/components/ui/OmniseenLogo';
 import { useAuth } from '@/hooks/useAuth';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { ThemeToggle } from '@/components/client/ThemeToggle';
+import { supabase } from '@/integrations/supabase/client';
 
 interface SubAccountLayoutProps {
   children: ReactNode;
@@ -75,8 +77,29 @@ const integrationItems: NavItem[] = [
 export function SubAccountLayout({ children }: SubAccountLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
+
+  // Check if user is platform admin to show Admin Panel link
+  useEffect(() => {
+    const checkAdminRole = async () => {
+      if (!user?.id) return;
+      
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id);
+      
+      const hasAdminRole = roles?.some(r => 
+        ['admin', 'platform_admin'].includes(r.role as string)
+      ) ?? false;
+      
+      setIsPlatformAdmin(hasAdminRole);
+    };
+    
+    checkAdminRole();
+  }, [user?.id]);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -156,6 +179,16 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
             ))}
           </div>
         </div>
+
+        {/* Admin Panel - only visible for platform admins */}
+        {isPlatformAdmin && (
+          <div>
+            <SectionLabel label="ADMINISTRAÇÃO" />
+            <div className="px-4 space-y-1">
+              <NavButton item={{ icon: Shield, label: 'Painel Admin', path: '/admin' }} />
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Theme Toggle */}
