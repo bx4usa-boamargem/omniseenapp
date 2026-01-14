@@ -57,6 +57,9 @@ export function ArticlesWithoutImagesDrawer({
     try {
       toast.loading('Gerando imagem de capa...', { id: `gen-image-${article.id}` });
 
+      // Get current user for cost tracking
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+
       // Enviar SEMPRE o título - prompt é gerado automaticamente pela edge function
       // Enviar article_id para persistência direta na edge function
       const { data, error } = await supabase.functions.invoke('generate-image', {
@@ -65,7 +68,8 @@ export function ArticlesWithoutImagesDrawer({
           articleTheme: article.title,
           context: 'cover',
           blog_id: blogId,
-          article_id: article.id  // Permite persistência direta no DB
+          article_id: article.id,  // Permite persistência direta no DB
+          user_id: currentUser?.id, // ✅ CRITICAL: Pass user_id for cost logging
         }
       });
 

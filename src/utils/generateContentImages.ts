@@ -75,7 +75,7 @@ Modern photography style, natural lighting.
 16:9 aspect ratio. Clean, editorial quality.`;
 }
 
-async function generateSingleImage(prompt: string, context: string, theme: string): Promise<{ base64: string | null; publicUrl: string | null }> {
+async function generateSingleImage(prompt: string, context: string, theme: string, userId?: string, blogId?: string): Promise<{ base64: string | null; publicUrl: string | null }> {
   try {
     // Use supabase.functions.invoke instead of direct fetch to avoid CORS issues
     const { data, error } = await supabase.functions.invoke('generate-image', {
@@ -84,6 +84,8 @@ async function generateSingleImage(prompt: string, context: string, theme: strin
         context,
         articleTitle: theme,
         articleTheme: theme,
+        user_id: userId, // ✅ CRITICAL: Pass user_id for cost logging
+        blog_id: blogId,
       }
     });
 
@@ -110,7 +112,9 @@ async function generateSingleImage(prompt: string, context: string, theme: strin
 async function generateImageWithFallback(
   imagePrompt: ImagePrompt,
   theme: string,
-  niche: string
+  niche: string,
+  userId?: string,
+  blogId?: string
 ): Promise<{ base64: string | null; publicUrl: string | null }> {
   const context = imagePrompt.context;
   
@@ -118,7 +122,7 @@ async function generateImageWithFallback(
   if (imagePrompt.section_title && imagePrompt.visual_concept) {
     console.log(`Attempt 1: Contextualized prompt for section ${imagePrompt.section_title}`);
     const contextualizedPrompt = buildContextualizedPrompt(imagePrompt, theme, niche);
-    const result = await generateSingleImage(contextualizedPrompt, context, theme);
+    const result = await generateSingleImage(contextualizedPrompt, context, theme, userId, blogId);
     if (result.publicUrl || result.base64) return result;
     console.log('Contextualized prompt failed, trying fallback...');
   }
@@ -127,7 +131,7 @@ async function generateImageWithFallback(
   if (imagePrompt.visual_concept) {
     console.log(`Attempt 2: Fallback with visual_concept for ${context}`);
     const fallbackPrompt = buildFallbackPrompt(imagePrompt.visual_concept, theme, niche);
-    const result = await generateSingleImage(fallbackPrompt, context, theme);
+    const result = await generateSingleImage(fallbackPrompt, context, theme, userId, blogId);
     if (result.publicUrl || result.base64) return result;
     console.log('Visual concept fallback failed, trying generic...');
   }
@@ -135,13 +139,13 @@ async function generateImageWithFallback(
   // Attempt 3: Generic prompt based on theme
   console.log(`Attempt 3: Generic fallback for ${context}`);
   const genericPrompt = buildGenericFallbackPrompt(theme, niche);
-  const result = await generateSingleImage(genericPrompt, context, theme);
+  const result = await generateSingleImage(genericPrompt, context, theme, userId, blogId);
   if (result.publicUrl || result.base64) return result;
   
   // Attempt 4: Original prompt as last resort
   if (imagePrompt.prompt) {
     console.log(`Attempt 4: Original prompt for ${context}`);
-    return await generateSingleImage(imagePrompt.prompt, context, theme);
+    return await generateSingleImage(imagePrompt.prompt, context, theme, userId, blogId);
   }
   
   return { base64: null, publicUrl: null };
@@ -154,7 +158,9 @@ export async function generateContentImages(
   heroPrompt: string,
   theme: string,
   onProgress?: (progress: ImageGenerationProgress) => void,
-  niche?: string
+  niche?: string,
+  userId?: string,
+  blogId?: string
 ): Promise<{ heroImage: string | null; contentImages: ContentImage[] }> {
   const totalImages = 1 + imagePrompts.length; // Hero + content images
   let currentImage = 0;
@@ -166,7 +172,7 @@ export async function generateContentImages(
   // Generate hero image first
   onProgress?.({ current: 1, total: totalImages, context: 'hero', status: 'generating' });
   
-  const heroResult = await generateSingleImage(heroPrompt, 'hero', theme);
+  const heroResult = await generateSingleImage(heroPrompt, 'hero', theme, userId, blogId);
   
   // Prefer publicUrl, fallback to uploading base64
   if (heroResult.publicUrl) {
@@ -189,7 +195,7 @@ export async function generateContentImages(
     });
 
     // Use intelligent fallback for content images
-    const imageResult = await generateImageWithFallback(imagePrompt, theme, detectedNiche);
+    const imageResult = await generateImageWithFallback(imagePrompt, theme, detectedNiche, userId, blogId);
     
     // Prefer publicUrl, fallback to uploading base64
     let uploadedUrl: string | null = null;

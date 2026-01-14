@@ -161,6 +161,9 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
     onStage?.('structuring');
     onProgress?.(15);
 
+    // Get current user for cost tracking
+    const { data: { user } } = await supabase.auth.getUser();
+
     // Use structured endpoint (non-streaming but returns complete article with image prompts)
     const response = await fetch(GENERATE_URL, {
       method: 'POST',
@@ -183,6 +186,7 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
         optimize_for_ai: optimizeForAI,
         source: source || 'form',
         blog_id: blogId,
+        user_id: user?.id, // ✅ CRITICAL: Pass user_id for cost logging
         funnel_mode: funnelMode || 'middle',
         article_goal: articleGoal || null,
         editorial_model: editorialModel || 'traditional',
