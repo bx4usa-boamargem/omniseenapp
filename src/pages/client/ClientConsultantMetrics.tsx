@@ -104,8 +104,8 @@ export default function ClientConsultantMetrics() {
     const convertedToArticles = opportunities.filter(o => o.status === 'converted').length;
     const publishedArticles = articles.filter(a => a.status === 'published').length;
     
-    const radarUtilizationRate = totalOpportunities > 0 
-      ? (convertedToArticles / totalOpportunities) * 100 
+    const radarUtilizationRate = highScoreOpportunities > 0 
+      ? (convertedToArticles / highScoreOpportunities) * 100 
       : 0;
     
     const totalViews = articles.reduce((sum, a) => sum + (a.view_count || 0), 0);
