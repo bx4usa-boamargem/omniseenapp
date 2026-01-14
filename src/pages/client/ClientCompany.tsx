@@ -11,6 +11,7 @@ import { Building2, Loader2, Save, CheckCircle2, MessageCircle, Globe, AlertCirc
 import { toast } from 'sonner';
 import { BusinessEconomicsSection } from '@/components/company/BusinessEconomicsSection';
 import { TerritoriesSection } from '@/components/company/TerritoriesSection';
+import { BrandAgentSettings } from '@/components/company/BrandAgentSettings';
 
 const BUSINESS_TYPES = [
   { value: 'servicos', label: 'Serviços' },
@@ -490,6 +491,11 @@ export default function ClientCompany() {
       {/* Economia do Negócio */}
       {blog?.id && (
         <BusinessEconomicsSection blogId={blog.id} />
+      )}
+
+      {/* Agente Comercial de IA */}
+      {blog?.id && (
+        <BrandAgentSettings blogId={blog.id} />
       )}
 
       {/* Info Card */}

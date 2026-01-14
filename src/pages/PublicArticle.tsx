@@ -131,6 +131,9 @@ const PublicArticle = () => {
   const [error, setError] = useState<string | null>(null);
   const [isFocusMode, setIsFocusMode] = useState(false);
   
+  // Brand Sales Agent
+  const { agentConfig, businessProfile } = useBrandAgentConfig(blog?.id || null);
+  
   // Fetch translation if a non-original language is selected
   const { data: translation, isLoading: isLoadingTranslation } = usePublicArticleTranslation(
     article?.id,
@@ -563,6 +566,18 @@ const PublicArticle = () => {
           </div>
         </div>
       </footer>
+
+      {/* Brand Sales Agent Widget */}
+      {blog && agentConfig && agentConfig.is_enabled && (
+        <BrandSalesAgentWidget
+          blogId={blog.id}
+          articleId={article.id}
+          articleTitle={article.title}
+          agentConfig={agentConfig}
+          businessProfile={businessProfile}
+          primaryColor={blog.primary_color || undefined}
+        />
+      )}
     </div>
   );
 };

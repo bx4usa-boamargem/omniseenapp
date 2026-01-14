@@ -16,6 +16,8 @@ import { FloatingShareBar } from "@/components/public/FloatingShareBar";
 import { TableOfContents } from "@/components/public/TableOfContents";
 import { FocusedReadingMode } from "@/components/public/FocusedReadingMode";
 import { ArticleLanguageSelector } from "@/components/public/ArticleLanguageSelector";
+import { BrandSalesAgentWidget } from "@/components/public/BrandSalesAgentWidget";
+import { useBrandAgentConfig } from "@/hooks/useBrandAgentConfig";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, ChevronDown } from "lucide-react";
 
@@ -129,6 +131,9 @@ export default function CustomDomainArticle({ blogId, blogSlug: propBlogSlug }: 
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Brand Sales Agent
+  const { agentConfig, businessProfile } = useBrandAgentConfig(blog?.id || null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -509,6 +514,18 @@ export default function CustomDomainArticle({ blogId, blogSlug: propBlogSlug }: 
           onToggle={() => setIsFocusedMode(!isFocusedMode)}
           primaryColor={primaryColor}
         />
+
+        {/* Brand Sales Agent Widget */}
+        {blog && article && agentConfig && agentConfig.is_enabled && (
+          <BrandSalesAgentWidget
+            blogId={blog.id}
+            articleId={article.id}
+            articleTitle={article.title}
+            agentConfig={agentConfig}
+            businessProfile={businessProfile}
+            primaryColor={primaryColor}
+          />
+        )}
       </div>
     </>
   );

@@ -15,7 +15,8 @@ import {
   Activity,
   Shield,
   MapPin,
-  HelpCircle
+  HelpCircle,
+  Users
 } from 'lucide-react';
 import { FloatingSupportChat } from '@/components/support/FloatingSupportChat';
 import { Button } from '@/components/ui/button';
@@ -47,6 +48,7 @@ const navSections: NavSection[] = [
     label: 'RESULTADOS',
     items: [
       { icon: TrendingUp, label: 'Resultados & ROI', path: '/client/results' },
+      { icon: Users, label: 'Leads Capturados', path: '/client/leads' },
     ]
   },
   {

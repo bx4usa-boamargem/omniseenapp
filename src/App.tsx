@@ -80,6 +80,7 @@ import ClientHelp from "./pages/client/ClientHelp";
 import ClientHelpCategory from "./pages/client/ClientHelpCategory";
 import ClientHelpArticle from "./pages/client/ClientHelpArticle";
 import ClientHelpSearch from "./pages/client/ClientHelpSearch";
+import ClientLeads from "./pages/client/ClientLeads";
 
 const queryClient = new QueryClient();
 
@@ -151,6 +152,7 @@ const ClientRoutes = () => (
         
         {/* Resultados & ROI */}
         <Route path="results" element={<ClientConsultantMetrics />} />
+        <Route path="leads" element={<ClientLeads />} />
         
         {/* Inteligência */}
         <Route path="radar" element={<ClientStrategy />} />
