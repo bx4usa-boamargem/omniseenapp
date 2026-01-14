@@ -473,6 +473,7 @@ export type Database = {
           created_at: string | null
           funnel_stage: string | null
           goal: string | null
+          high_score_alert_sent: boolean | null
           id: string
           intel_week_id: string | null
           origin: string | null
@@ -484,6 +485,7 @@ export type Database = {
           suggested_keywords: string[] | null
           suggested_outline: Json | null
           suggested_title: string
+          territory_id: string | null
           trend_source: string | null
           updated_at: string | null
           why_now: string | null
@@ -497,6 +499,7 @@ export type Database = {
           created_at?: string | null
           funnel_stage?: string | null
           goal?: string | null
+          high_score_alert_sent?: boolean | null
           id?: string
           intel_week_id?: string | null
           origin?: string | null
@@ -508,6 +511,7 @@ export type Database = {
           suggested_keywords?: string[] | null
           suggested_outline?: Json | null
           suggested_title: string
+          territory_id?: string | null
           trend_source?: string | null
           updated_at?: string | null
           why_now?: string | null
@@ -521,6 +525,7 @@ export type Database = {
           created_at?: string | null
           funnel_stage?: string | null
           goal?: string | null
+          high_score_alert_sent?: boolean | null
           id?: string
           intel_week_id?: string | null
           origin?: string | null
@@ -532,6 +537,7 @@ export type Database = {
           suggested_keywords?: string[] | null
           suggested_outline?: Json | null
           suggested_title?: string
+          territory_id?: string | null
           trend_source?: string | null
           updated_at?: string | null
           why_now?: string | null
@@ -563,6 +569,13 @@ export type Database = {
             columns: ["intel_week_id"]
             isOneToOne: false
             referencedRelation: "market_intel_weekly"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_opportunities_territory_id_fkey"
+            columns: ["territory_id"]
+            isOneToOne: false
+            referencedRelation: "territories"
             referencedColumns: ["id"]
           },
         ]

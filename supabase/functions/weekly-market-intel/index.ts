@@ -395,6 +395,18 @@ Return only valid JSON, no markdown.`;
       }
     });
 
+    // Fetch active territories for this blog
+    const { data: activeTerritories } = await supabase
+      .from("territories")
+      .select("id, country, state, city")
+      .eq("blog_id", blogId)
+      .eq("is_active", true);
+    
+    // Get primary territory (first active one)
+    const primaryTerritory = activeTerritories && activeTerritories.length > 0 
+      ? activeTerritories[0] 
+      : null;
+
     // Convert high-score content ideas to opportunities and notify
     const highScoreOpportunities: string[] = [];
     for (const idea of intelPackage.content_ideas) {
@@ -416,7 +428,7 @@ Return only valid JSON, no markdown.`;
         }
       };
 
-      // Create opportunity record with funnel_stage
+      // Create opportunity record with funnel_stage and territory
       const { data: opportunity, error: oppError } = await supabase
         .from("article_opportunities")
         .insert({
@@ -430,12 +442,18 @@ Return only valid JSON, no markdown.`;
           trend_source: provider,
           why_now: idea.why_now,
           goal: idea.goal,
-          funnel_stage: mapGoalToFunnelStage(idea.goal), // NOVO: Classificação automática no funil
+          funnel_stage: mapGoalToFunnelStage(idea.goal),
           intel_week_id: savedIntel.id,
+          territory_id: primaryTerritory?.id || null, // Link to primary territory
           relevance_factors: {
             angle: idea.angle,
             goal: idea.goal,
-            has_sources: idea.sources && idea.sources.length > 0
+            has_sources: idea.sources && idea.sources.length > 0,
+            territory: primaryTerritory ? {
+              country: primaryTerritory.country,
+              state: primaryTerritory.state,
+              city: primaryTerritory.city
+            } : null
           }
         })
         .select()
@@ -446,7 +464,10 @@ Return only valid JSON, no markdown.`;
         continue;
       }
 
-      // If high score (>=80), trigger notification
+      // Determine if this is a HIGH SCORE opportunity (>=90 for urgent alerts)
+      const isHighScore = score >= 90;
+      
+      // If score >= 80, trigger notification (urgent for >= 90)
       if (score >= 80 && opportunity) {
         highScoreOpportunities.push(opportunity.id);
         
@@ -463,14 +484,22 @@ Return only valid JSON, no markdown.`;
               title: idea.title,
               score,
               keywords: idea.keywords,
-              commercialAlignment: idea.goal
+              commercialAlignment: idea.goal,
+              isHighScore, // Flag for urgent notifications
+              territoryInfo: primaryTerritory ? {
+                id: primaryTerritory.id,
+                country: primaryTerritory.country,
+                state: primaryTerritory.state,
+                city: primaryTerritory.city
+              } : undefined
             }),
           });
 
           if (!notifyResponse.ok) {
             console.error("Failed to send notification:", await notifyResponse.text());
           } else {
-            console.log(`Notification sent for high-score opportunity: ${idea.title} (${score}%)`);
+            const urgentFlag = isHighScore ? " [URGENT]" : "";
+            console.log(`Notification sent for high-score opportunity${urgentFlag}: ${idea.title} (${score}%)`);
           }
         } catch (notifyError) {
           console.error("Error sending notification:", notifyError);
