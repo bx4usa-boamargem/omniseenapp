@@ -1001,12 +1001,16 @@ export default function EditArticle() {
     setIsGeneratingImage(true);
 
     try {
+      // Get current user for cost tracking
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
       const { data, error } = await supabase.functions.invoke('generate-image', {
         body: {
           articleTitle: title,
           articleTheme: title,
           context: 'hero',
           blog_id: article.blog_id,
+          user_id: currentUser?.id, // ✅ CRITICAL: Pass user_id for cost logging
         }
       });
 

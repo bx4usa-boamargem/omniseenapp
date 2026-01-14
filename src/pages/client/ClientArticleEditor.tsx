@@ -482,6 +482,9 @@ export default function ClientArticleEditor() {
     const totalImages = 4; // 1 cover + 3 internal
     
     try {
+      // Get current user for cost tracking
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
       // Generate featured image
       setImageProgress({ current: 1, total: totalImages, currentContext: 'Imagem de capa' });
       
@@ -492,6 +495,7 @@ export default function ClientArticleEditor() {
           context: 'cover',
           blog_id: blog.id,
           article_id: existingArticleId, // If editing, persist directly
+          user_id: currentUser?.id, // ✅ CRITICAL: Pass user_id for cost logging
         }
       });
       
@@ -536,6 +540,7 @@ export default function ClientArticleEditor() {
             articleTheme: articleData.title,
             blog_id: blog.id,
             article_id: existingArticleId, // CRITICAL: Pass article_id for persistence
+            user_id: currentUser?.id, // ✅ CRITICAL: Pass user_id for cost logging
           }
         });
         
@@ -585,6 +590,9 @@ export default function ClientArticleEditor() {
     const totalImages = 4; // 1 cover + 3 internal
     
     try {
+      // Get current user for cost tracking
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
       // Generate featured image
       setImageProgress({ current: 1, total: totalImages, currentContext: 'Imagem de capa' });
       
@@ -595,6 +603,7 @@ export default function ClientArticleEditor() {
           context: 'cover',
           blog_id: blog.id,
           article_id: articleId, // Use passed article_id for persistence
+          user_id: currentUser?.id, // ✅ CRITICAL: Pass user_id for cost logging
         }
       });
       
@@ -637,6 +646,7 @@ export default function ClientArticleEditor() {
             articleTheme: articleData.title,
             blog_id: blog.id,
             article_id: articleId, // Use passed article_id for persistence
+            user_id: currentUser?.id, // ✅ CRITICAL: Pass user_id for cost logging
           }
         });
         
@@ -683,6 +693,9 @@ export default function ClientArticleEditor() {
     
     setIsGeneratingImages(true);
     try {
+      // Get current user for cost tracking
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      
       if (type === 'cover') {
         setImageProgress({ current: 1, total: 1, currentContext: 'Regenerando capa' });
         
@@ -693,6 +706,7 @@ export default function ClientArticleEditor() {
             context: 'cover',
             blog_id: blog?.id,
             article_id: existingArticleId, // Persist directly if editing
+            user_id: currentUser?.id, // ✅ CRITICAL: Pass user_id for cost logging
           }
         });
         
@@ -725,6 +739,7 @@ export default function ClientArticleEditor() {
             articleTitle: title,
             articleTheme: title,
             blog_id: blog?.id,
+            user_id: currentUser?.id, // ✅ CRITICAL: Pass user_id for cost logging
           }
         });
         
