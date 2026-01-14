@@ -106,7 +106,24 @@ export const CustomDomainSettings = ({ blogId }: CustomDomainSettingsProps) => {
         toast.success("Domínio verificado com sucesso!");
         fetchBlog();
       } else {
-        toast.error(data.message || "Domínio ainda não verificado. Verifique os registros DNS.");
+        // Show detailed DNS status if available
+        if (data.dnsStatus) {
+          const { txt, a, cname, routingVerified } = data.dnsStatus;
+          if (!txt.verified) {
+            toast.error("Registro TXT não encontrado. Configure o registro de verificação.");
+          } else if (!routingVerified) {
+            const wrongIp = a.found.length > 0 && !a.verified;
+            if (wrongIp) {
+              toast.error(`DNS aponta para ${a.found.join(", ")} em vez de ${a.expected}. Corrija o registro A.`);
+            } else {
+              toast.error(`Configure o registro A para ${a.expected} ou CNAME para ${cname.expected}.`);
+            }
+          } else {
+            toast.error(data.message || "Aguarde a propagação do DNS.");
+          }
+        } else {
+          toast.error(data.message || "Domínio ainda não verificado. Verifique os registros DNS.");
+        }
       }
     } catch (err) {
       console.error("Error verifying domain:", err);
@@ -206,9 +223,51 @@ export const CustomDomainSettings = ({ blogId }: CustomDomainSettingsProps) => {
             <div className="bg-muted/50 rounded-lg p-4 space-y-4">
               <h4 className="font-semibold text-sm">Registros DNS necessários:</h4>
               
-              {/* CNAME Record */}
+            {/* A Record - Primary option */}
               <div className="space-y-2">
-                <p className="text-sm font-medium">1. Registro CNAME (obrigatório)</p>
+                <p className="text-sm font-medium">1. Registro A (recomendado)</p>
+                <div className="bg-background rounded border border-border p-3 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Tipo:</span>
+                    <code className="bg-muted px-2 py-0.5 rounded">A</code>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Nome:</span>
+                    <div className="flex items-center gap-2">
+                      <code className="bg-muted px-2 py-0.5 rounded">@</code>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => copyToClipboard("@")}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Valor:</span>
+                    <div className="flex items-center gap-2">
+                      <code className="bg-muted px-2 py-0.5 rounded font-bold text-primary">185.158.133.1</code>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => copyToClipboard("185.158.133.1")}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  ⚠️ Remova qualquer registro A existente antes de adicionar este.
+                </p>
+              </div>
+
+              {/* CNAME Record - Alternative */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Ou: Registro CNAME (alternativa para subdomínios)</p>
                 <div className="bg-background rounded border border-border p-3 space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Tipo:</span>
@@ -218,27 +277,19 @@ export const CustomDomainSettings = ({ blogId }: CustomDomainSettingsProps) => {
                     <span className="text-muted-foreground">Nome:</span>
                     <div className="flex items-center gap-2">
                       <code className="bg-muted px-2 py-0.5 rounded">
-                        {blog.custom_domain.split(".")[0] === blog.custom_domain ? "@" : blog.custom_domain.split(".")[0]}
+                        {blog.custom_domain.includes(".") ? blog.custom_domain.split(".")[0] : "@"}
                       </code>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => copyToClipboard(blog.custom_domain?.split(".")[0] || "@")}
-                      >
-                        <Copy className="h-3 w-3" />
-                      </Button>
                     </div>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Valor:</span>
                     <div className="flex items-center gap-2">
-                      <code className="bg-muted px-2 py-0.5 rounded">cname.omniseen.app</code>
+                      <code className="bg-muted px-2 py-0.5 rounded">cname.lovableproject.com</code>
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6"
-                        onClick={() => copyToClipboard("cname.omniseen.app")}
+                        onClick={() => copyToClipboard("cname.lovableproject.com")}
                       >
                         <Copy className="h-3 w-3" />
                       </Button>
