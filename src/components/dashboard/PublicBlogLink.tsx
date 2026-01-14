@@ -104,33 +104,37 @@ export function PublicBlogLink({ blog }: PublicBlogLinkProps) {
             </div>
             
             {/* Action Buttons */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Button 
                 size="sm" 
                 onClick={handleCopy}
-                className="gap-2 client-btn-primary"
+                className="gap-2 client-btn-primary flex-1 sm:flex-none"
               >
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 {copied ? 'Copiado!' : 'Copiar link'}
               </Button>
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={handleOpenBlog}
-                className="gap-2"
-              >
-                <ExternalLink className="h-4 w-4" />
-                Abrir blog
-              </Button>
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={handleOpenQR}
-                className="gap-2"
-              >
-                <QrCode className="h-4 w-4" />
-                QR Code
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={handleOpenBlog}
+                  className="gap-2 flex-1"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  <span className="hidden xs:inline">Abrir blog</span>
+                  <span className="xs:hidden">Abrir</span>
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={handleOpenQR}
+                  className="gap-2 flex-1"
+                >
+                  <QrCode className="h-4 w-4" />
+                  <span className="hidden xs:inline">QR Code</span>
+                  <span className="xs:hidden">QR</span>
+                </Button>
+              </div>
             </div>
           </div>
           

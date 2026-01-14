@@ -453,19 +453,19 @@ export default function ClientArticles() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-text-main flex items-center gap-3">
-            <FileText className="h-7 w-7 text-primary" />
+          <h1 className="text-xl sm:text-2xl font-bold text-text-main flex items-center gap-2 sm:gap-3">
+            <FileText className="h-6 w-6 sm:h-7 sm:w-7 text-primary" />
             Meus Artigos
           </h1>
-          <p className="text-text-muted text-sm mt-1">
+          <p className="text-text-muted text-xs sm:text-sm mt-1">
             Gerencie todos os seus artigos em um só lugar
           </p>
         </div>
         <Button 
           onClick={() => navigate('/client/create')}
-          className="gap-2 client-btn-primary"
+          className="gap-2 client-btn-primary w-full sm:w-auto"
         >
           <Plus className="h-4 w-4" />
           Criar Novo
@@ -497,22 +497,25 @@ export default function ClientArticles() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as typeof activeTab); setCurrentPage(1); }}>
-        <TabsList className="grid grid-cols-4 w-full max-w-md bg-muted">
-          <TabsTrigger value="all" className="gap-1.5">
-            Todos
-            <Badge variant="secondary" className="ml-1">{statusCounts.total}</Badge>
+        <TabsList className="flex overflow-x-auto scrollbar-hide w-full max-w-full sm:max-w-md bg-muted h-auto p-1">
+          <TabsTrigger value="all" className="gap-1 text-xs sm:text-sm flex-1 min-w-0 px-2 sm:px-3 py-1.5 sm:py-2">
+            <span className="truncate">Todos</span>
+            <Badge variant="secondary" className="ml-1 text-[10px] sm:text-xs">{statusCounts.total}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="published" className="gap-1.5">
-            Publicados
-            <Badge variant="secondary" className="ml-1">{statusCounts.published}</Badge>
+          <TabsTrigger value="published" className="gap-1 text-xs sm:text-sm flex-1 min-w-0 px-2 sm:px-3 py-1.5 sm:py-2">
+            <span className="truncate hidden xs:inline">Publicados</span>
+            <span className="truncate xs:hidden">Pub.</span>
+            <Badge variant="secondary" className="ml-1 text-[10px] sm:text-xs">{statusCounts.published}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="draft" className="gap-1.5">
-            Rascunhos
-            <Badge variant="secondary" className="ml-1">{statusCounts.draft}</Badge>
+          <TabsTrigger value="draft" className="gap-1 text-xs sm:text-sm flex-1 min-w-0 px-2 sm:px-3 py-1.5 sm:py-2">
+            <span className="truncate hidden xs:inline">Rascunhos</span>
+            <span className="truncate xs:hidden">Rasc.</span>
+            <Badge variant="secondary" className="ml-1 text-[10px] sm:text-xs">{statusCounts.draft}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="archived" className="gap-1.5">
-            Arquivados
-            <Badge variant="secondary" className="ml-1">{statusCounts.archived}</Badge>
+          <TabsTrigger value="archived" className="gap-1 text-xs sm:text-sm flex-1 min-w-0 px-2 sm:px-3 py-1.5 sm:py-2">
+            <span className="truncate hidden xs:inline">Arquivados</span>
+            <span className="truncate xs:hidden">Arq.</span>
+            <Badge variant="secondary" className="ml-1 text-[10px] sm:text-xs">{statusCounts.archived}</Badge>
           </TabsTrigger>
         </TabsList>
       </Tabs>

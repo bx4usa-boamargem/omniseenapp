@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 
 interface OmniseenLogoProps {
   size?: 'sm' | 'md' | 'lg';
+  variant?: 'light' | 'dark';
   className?: string;
 }
 
@@ -12,12 +13,18 @@ const sizeClasses = {
   lg: "h-14",
 };
 
-export function OmniseenLogo({ size = 'md', className }: OmniseenLogoProps) {
+export function OmniseenLogo({ size = 'md', variant = 'light', className }: OmniseenLogoProps) {
   return (
     <img 
       src={logoOmniseen} 
       alt="OMNISEEN" 
-      className={cn(sizeClasses[size], "w-auto object-contain", className)}
+      className={cn(
+        sizeClasses[size], 
+        "w-auto object-contain",
+        // Apply invert filter for dark backgrounds (light variant = dark logo for light backgrounds)
+        variant === 'dark' && "brightness-0 invert",
+        className
+      )}
     />
   );
 }

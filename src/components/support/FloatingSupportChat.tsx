@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,13 +8,13 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { 
-  MessageCircle, 
   X, 
   Send, 
   Loader2, 
   Bot,
   User,
-  Minimize2
+  Minimize2,
+  Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -125,6 +125,7 @@ export function FloatingSupportChat() {
   const { toast } = useToast();
   const { t, i18n } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
+  const [showSuggestionBubble, setShowSuggestionBubble] = useState(false);
   
   const getWelcomeMessage = () => t('supportChat.welcomeMessage');
   
@@ -142,6 +143,23 @@ export function FloatingSupportChat() {
     () => getContextualQuestions(location.pathname, t),
     [location.pathname, t]
   );
+
+  // Show proactive suggestion bubble after 4 seconds
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!isOpen) {
+        setShowSuggestionBubble(true);
+      }
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [isOpen]);
+
+  // Hide bubble when chat opens
+  useEffect(() => {
+    if (isOpen) {
+      setShowSuggestionBubble(false);
+    }
+  }, [isOpen]);
 
   const sendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -186,48 +204,81 @@ export function FloatingSupportChat() {
     }
   };
 
+  // Closed state - floating button with Omniseen eye icon
   if (!isOpen) {
     return (
-      <Button
-        onClick={() => setIsOpen(true)}
-        size="lg"
-        className="fixed bottom-6 left-6 md:right-6 md:left-auto z-[9999] h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all"
-      >
-        <MessageCircle className="h-6 w-6" />
-      </Button>
+      <>
+        {/* Proactive suggestion bubble */}
+        {showSuggestionBubble && (
+          <div 
+            className="fixed bottom-24 left-4 md:left-auto md:right-4 z-[9998] animate-in fade-in slide-in-from-bottom-2 duration-500"
+            onClick={() => {
+              setIsOpen(true);
+              setShowSuggestionBubble(false);
+            }}
+          >
+            <div className="bg-gradient-to-br from-purple-600 to-purple-800 rounded-2xl shadow-xl p-4 max-w-[260px] text-white cursor-pointer hover:scale-105 transition-transform">
+              <p className="text-sm font-medium">
+                Olá, vamo trabalhar pra trazer mais cliente pra você hoje? 🚀
+              </p>
+              <div className="absolute -bottom-2 left-6 md:left-auto md:right-6 w-4 h-4 bg-gradient-to-br from-purple-600 to-purple-800 rotate-45" />
+            </div>
+          </div>
+        )}
+
+        {/* Main floating button with Omniseen eye icon */}
+        <Button
+          onClick={() => setIsOpen(true)}
+          size="lg"
+          className="fixed bottom-6 left-6 md:right-6 md:left-auto z-[9999] h-14 w-14 rounded-full shadow-xl hover:shadow-2xl transition-all bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 hover:scale-110 p-0 border-2 border-white/20"
+        >
+          <div className="relative">
+            <Sparkles className="h-6 w-6 text-white" />
+            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-green-400 rounded-full animate-pulse" />
+          </div>
+        </Button>
+      </>
     );
   }
 
   return (
-    <Card className="fixed bottom-6 left-4 right-4 md:left-auto md:right-6 z-[9999] w-auto md:w-[380px] h-[70vh] md:h-[500px] max-h-[500px] shadow-2xl flex flex-col animate-in slide-in-from-bottom-5 duration-300">
-      <CardHeader className="flex-shrink-0 p-4 border-b flex-row items-center justify-between space-y-0">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Bot className="h-5 w-5 text-primary" />
-          OMNISEEN Assistant
-        </CardTitle>
-        <div className="flex gap-1">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-8 w-8"
-            onClick={() => setIsOpen(false)}
-          >
-            <Minimize2 className="h-4 w-4" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-8 w-8"
-            onClick={() => {
-              setIsOpen(false);
-              setMessages([{
-                role: 'assistant',
-                content: getWelcomeMessage()
-              }]);
-            }}
-          >
-            <X className="h-4 w-4" />
-          </Button>
+    <Card className="fixed bottom-4 left-4 right-4 md:left-auto md:right-6 z-[9999] w-auto md:w-[380px] h-[85vh] md:h-[500px] max-h-[550px] shadow-2xl flex flex-col animate-in slide-in-from-bottom-5 duration-300">
+      {/* Header with gradient */}
+      <CardHeader className="flex-shrink-0 p-0">
+        <div className="bg-gradient-to-r from-purple-600 to-purple-800 px-4 py-3 rounded-t-lg flex-row items-center justify-between flex space-y-0">
+          <CardTitle className="flex items-center gap-2 text-base text-white">
+            <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
+              <Sparkles className="h-4 w-4 text-white" />
+            </div>
+            <div>
+              <span className="font-semibold">OMNISEEN Assistant</span>
+              <p className="text-xs text-white/70 font-normal">Online • Responde na hora</p>
+            </div>
+          </CardTitle>
+          <div className="flex gap-1">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/20"
+              onClick={() => setIsOpen(false)}
+            >
+              <Minimize2 className="h-4 w-4" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8 text-white/80 hover:text-white hover:bg-white/20"
+              onClick={() => {
+                setIsOpen(false);
+                setMessages([{
+                  role: 'assistant',
+                  content: getWelcomeMessage()
+                }]);
+              }}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </CardHeader>
 
@@ -246,12 +297,12 @@ export function FloatingSupportChat() {
                   "flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center",
                   message.role === 'user' 
                     ? "bg-primary text-primary-foreground" 
-                    : "bg-muted"
+                    : "bg-gradient-to-br from-purple-500 to-purple-700"
                 )}>
                   {message.role === 'user' ? (
                     <User className="h-3.5 w-3.5" />
                   ) : (
-                    <Bot className="h-3.5 w-3.5" />
+                    <Bot className="h-3.5 w-3.5 text-white" />
                   )}
                 </div>
                 
@@ -268,8 +319,8 @@ export function FloatingSupportChat() {
             
             {isLoading && (
               <div className="flex gap-2">
-                <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-purple-500 to-purple-700 flex items-center justify-center">
+                  <Loader2 className="h-3.5 w-3.5 text-white animate-spin" />
                 </div>
                 <div className="bg-muted rounded-2xl rounded-bl-md px-3 py-2">
                   <p className="text-sm text-muted-foreground">{t('supportChat.typing')}</p>
@@ -310,13 +361,13 @@ export function FloatingSupportChat() {
               onKeyDown={handleKeyDown}
               placeholder={t('supportChat.inputPlaceholder')}
               disabled={isLoading}
-              className="flex-1 h-9 text-sm"
+              className="flex-1 h-10 text-base md:text-sm"
             />
             <Button 
               onClick={sendMessage} 
               disabled={!input.trim() || isLoading}
               size="icon"
-              className="h-9 w-9"
+              className="h-10 w-10 bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800"
             >
               {isLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
