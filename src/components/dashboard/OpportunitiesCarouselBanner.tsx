@@ -166,9 +166,15 @@ export function OpportunitiesCarouselBanner({ blogId, className }: Opportunities
                       </div>
 
                       {/* Title */}
-                      <h4 className="font-medium text-sm leading-tight mb-3 line-clamp-2 flex-grow group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+                      <h4 className="font-medium text-sm leading-tight mb-1 line-clamp-2 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
                         {opportunity.suggested_title}
                       </h4>
+
+                      {/* Research Date */}
+                      <div className="flex items-center gap-1 text-[10px] text-muted-foreground mb-2">
+                        <Clock className="h-2.5 w-2.5" />
+                        <span>Pesquisado {formatDistanceToNow(new Date(opportunity.created_at), { locale: ptBR, addSuffix: true })}</span>
+                      </div>
 
                       {/* Keywords */}
                       {opportunity.suggested_keywords && opportunity.suggested_keywords.length > 0 && (

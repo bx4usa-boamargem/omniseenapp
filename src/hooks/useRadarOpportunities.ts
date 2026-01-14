@@ -8,6 +8,7 @@ export interface RadarOpportunity {
   suggested_keywords: string[] | null;
   status: string | null;
   why_now: string | null;
+  created_at: string;
 }
 
 interface UseRadarOpportunitiesResult {
@@ -36,7 +37,7 @@ export function useRadarOpportunities(blogId: string | undefined, limit = 5): Us
       // Fetch top opportunities by relevance score (not converted/archived)
       const { data: opps, error: oppsError } = await supabase
         .from('article_opportunities')
-        .select('id, suggested_title, relevance_score, suggested_keywords, status, why_now')
+        .select('id, suggested_title, relevance_score, suggested_keywords, status, why_now, created_at')
         .eq('blog_id', blogId)
         .not('status', 'eq', 'converted')
         .not('status', 'eq', 'archived')

@@ -10,10 +10,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { 
   Lightbulb, Loader2, TrendingUp, Target, Sparkles, 
   Search, Check, Archive, RotateCcw, Star, ExternalLink,
-  Globe, Brain, Calendar
+  Globe, Brain, Calendar, Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Opportunity {
@@ -456,6 +456,10 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
                         {getWhyNowBadge(opportunity)}
                       </div>
                       <h4 className="font-medium line-clamp-2">{opportunity.suggested_title}</h4>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                        <Clock className="h-3 w-3" />
+                        <span>Pesquisado {formatDistanceToNow(new Date(opportunity.created_at), { locale: ptBR, addSuffix: true })}</span>
+                      </div>
                       {opportunity.suggested_keywords && opportunity.suggested_keywords.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {opportunity.suggested_keywords.slice(0, 3).map((kw, i) => (
@@ -517,6 +521,10 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
                         {getSourceUrlsTooltip(opportunity)}
                       </div>
                       <h4 className="font-medium">{opportunity.suggested_title}</h4>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                        <Clock className="h-3 w-3" />
+                        <span>Pesquisado {formatDistanceToNow(new Date(opportunity.created_at), { locale: ptBR, addSuffix: true })}</span>
+                      </div>
                     </div>
                     <Button 
                       size="sm"
