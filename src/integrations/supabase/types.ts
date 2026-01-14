@@ -842,6 +842,7 @@ export type Database = {
           status: string | null
           tags: string[] | null
           target_persona_id: string | null
+          territory_id: string | null
           title: string
           title_fingerprint: string | null
           updated_at: string
@@ -883,6 +884,7 @@ export type Database = {
           status?: string | null
           tags?: string[] | null
           target_persona_id?: string | null
+          territory_id?: string | null
           title: string
           title_fingerprint?: string | null
           updated_at?: string
@@ -924,6 +926,7 @@ export type Database = {
           status?: string | null
           tags?: string[] | null
           target_persona_id?: string | null
+          territory_id?: string | null
           title?: string
           title_fingerprint?: string | null
           updated_at?: string
@@ -949,6 +952,13 @@ export type Database = {
             columns: ["target_persona_id"]
             isOneToOne: false
             referencedRelation: "personas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "articles_territory_id_fkey"
+            columns: ["territory_id"]
+            isOneToOne: false
+            referencedRelation: "territories"
             referencedColumns: ["id"]
           },
         ]
@@ -4194,6 +4204,47 @@ export type Database = {
         }
         Relationships: []
       }
+      territories: {
+        Row: {
+          blog_id: string
+          city: string | null
+          country: string
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          state: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          blog_id: string
+          city?: string | null
+          country: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          state?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          blog_id?: string
+          city?: string | null
+          country?: string
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          state?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "territories_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       usage_tracking: {
         Row: {
           articles_generated: number | null
@@ -4208,8 +4259,10 @@ export type Database = {
           keywords_limit: number | null
           keywords_used: number | null
           month: string
+          radar_searches_used: number | null
           team_members_count: number | null
           team_members_limit: number | null
+          territories_count: number | null
           updated_at: string | null
           user_id: string
         }
@@ -4226,8 +4279,10 @@ export type Database = {
           keywords_limit?: number | null
           keywords_used?: number | null
           month: string
+          radar_searches_used?: number | null
           team_members_count?: number | null
           team_members_limit?: number | null
+          territories_count?: number | null
           updated_at?: string | null
           user_id: string
         }
@@ -4244,8 +4299,10 @@ export type Database = {
           keywords_limit?: number | null
           keywords_used?: number | null
           month?: string
+          radar_searches_used?: number | null
           team_members_count?: number | null
           team_members_limit?: number | null
+          territories_count?: number | null
           updated_at?: string | null
           user_id?: string
         }
