@@ -101,10 +101,17 @@ export function AvatarUploadDialog({
 
       const avatarUrl = publicUrlData.publicUrl;
 
+      // Use upsert to create profile if it doesn't exist
       const { error: updateError } = await supabase
         .from("profiles")
-        .update({ avatar_url: avatarUrl })
-        .eq("user_id", user.id);
+        .upsert({ 
+          user_id: user.id,
+          avatar_url: avatarUrl,
+          full_name: user.user_metadata?.full_name || null,
+          updated_at: new Date().toISOString()
+        }, { 
+          onConflict: 'user_id' 
+        });
 
       if (updateError) throw updateError;
 
@@ -124,10 +131,16 @@ export function AvatarUploadDialog({
 
     setRemoving(true);
     try {
+      // Use upsert to create profile if it doesn't exist
       const { error } = await supabase
         .from("profiles")
-        .update({ avatar_url: null })
-        .eq("user_id", user.id);
+        .upsert({ 
+          user_id: user.id,
+          avatar_url: null,
+          updated_at: new Date().toISOString()
+        }, { 
+          onConflict: 'user_id' 
+        });
 
       if (error) throw error;
 
