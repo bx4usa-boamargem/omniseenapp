@@ -9,77 +9,89 @@ const corsHeaders = {
 interface LimitsRequest {
   userId: string;
   action: 'check' | 'increment';
-  resource: 'articles' | 'images' | 'keywords' | 'ebooks' | 'blogs' | 'team_members';
+  resource: 'articles' | 'images' | 'keywords' | 'ebooks' | 'blogs' | 'team_members' | 'territories' | 'radar';
 }
 
 // Plan limits - using DB enum names (essential/plus/scale)
 // Display names: essential=Lite, plus=Pro, scale=Business
-// Updated according to new pricing structure (Jan 2026)
+// Updated according to NEW TERRITORIAL MODEL (Jan 2026)
 const PLAN_LIMITS = {
-  // Primary plans (DB enum values) - NEW LIMITS
+  // Primary plans (DB enum values) - TERRITORIAL MODEL
   essential: { 
-    articles_per_month: 8, 
-    images_per_month: 0, // Not available on Lite
+    articles_per_month: 8,
+    images_per_month: 8,
     blogs_limit: 1, 
     keywords_limit: 50, 
     team_members: 1,
-    ebooks_per_month: 0, // Not available on Lite
+    territories_limit: 1,      // 1 territory
+    ebooks_per_month: 0,
+    radar_searches: 0,         // No Radar access
     funnel_enabled: false,
     chat_ai_enabled: false,
     clusters_enabled: false,
   },
   plus: { 
-    articles_per_month: 20, 
-    images_per_month: 10, // Limited
+    articles_per_month: 20,
+    images_per_month: 20,
     blogs_limit: 1, 
     keywords_limit: 150, 
-    team_members: 3,
+    team_members: 5,           // Updated: 5 seats
+    territories_limit: 2,      // 2 territories
     ebooks_per_month: 1,
+    radar_searches: 10,        // 10 searches/month
     funnel_enabled: true,
     chat_ai_enabled: true,
     clusters_enabled: true,
   },
   scale: { 
-    articles_per_month: 50,
-    images_per_month: 50, // Expanded
-    blogs_limit: 5, 
+    articles_per_month: 100,   // Updated: 100 total
+    images_per_month: 100,
+    blogs_limit: 5,            // Updated: 5 blogs
     keywords_limit: 300,
-    team_members: 10,
+    team_members: 20,          // Updated: 20 seats
+    territories_limit: 10,     // 10 territories
     ebooks_per_month: 4,
+    radar_searches: 30,        // 30 searches/month per blog
     funnel_enabled: true,
     chat_ai_enabled: true,
     clusters_enabled: true,
   },
   // Aliases for display names (in case they get stored)
   lite: { 
-    articles_per_month: 8, 
-    images_per_month: 0,
+    articles_per_month: 8,
+    images_per_month: 8,
     blogs_limit: 1, 
     keywords_limit: 50, 
     team_members: 1,
+    territories_limit: 1,
     ebooks_per_month: 0,
+    radar_searches: 0,
     funnel_enabled: false,
     chat_ai_enabled: false,
     clusters_enabled: false,
   },
   pro: { 
-    articles_per_month: 20, 
-    images_per_month: 10,
+    articles_per_month: 20,
+    images_per_month: 20,
     blogs_limit: 1, 
     keywords_limit: 150, 
-    team_members: 3,
+    team_members: 5,
+    territories_limit: 2,
     ebooks_per_month: 1,
+    radar_searches: 10,
     funnel_enabled: true,
     chat_ai_enabled: true,
     clusters_enabled: true,
   },
   business: { 
-    articles_per_month: 50,
-    images_per_month: 50,
+    articles_per_month: 100,
+    images_per_month: 100,
     blogs_limit: 5, 
     keywords_limit: 300,
-    team_members: 10,
+    team_members: 20,
+    territories_limit: 10,
     ebooks_per_month: 4,
+    radar_searches: 30,
     funnel_enabled: true,
     chat_ai_enabled: true,
     clusters_enabled: true,
@@ -91,7 +103,9 @@ const PLAN_LIMITS = {
     blogs_limit: -1,
     keywords_limit: -1,
     team_members: -1,
+    territories_limit: -1,
     ebooks_per_month: -1,
+    radar_searches: -1,
     funnel_enabled: true,
     chat_ai_enabled: true,
     clusters_enabled: true,
@@ -204,6 +218,8 @@ serve(async (req) => {
           blogs_limit: limits.blogs_limit,
           team_members_count: 0,
           team_members_limit: limits.team_members,
+          territories_count: 0,
+          radar_searches_used: 0,
         })
         .select()
         .single();
@@ -223,6 +239,8 @@ serve(async (req) => {
       ebooks: { used: 'ebooks_generated', limit: limits.ebooks_per_month },
       blogs: { used: 'blogs_count', limit: limits.blogs_limit },
       team_members: { used: 'team_members_count', limit: limits.team_members },
+      territories: { used: 'territories_count', limit: limits.territories_limit },
+      radar: { used: 'radar_searches_used', limit: limits.radar_searches },
     };
 
     const resourceConfig = resourceMap[resource] || resourceMap.articles;
@@ -242,6 +260,8 @@ serve(async (req) => {
             ebooks_limit: limits.ebooks_per_month,
             blogs_limit: limits.blogs_limit,
             team_members_limit: limits.team_members,
+            territories_limit: limits.territories_limit,
+            radar_limit: limits.radar_searches,
           },
           usage: {
             articles_used: usage.articles_generated || 0,
@@ -250,6 +270,8 @@ serve(async (req) => {
             ebooks_used: usage.ebooks_generated || 0,
             blogs_used: usage.blogs_count || 0,
             team_members_used: usage.team_members_count || 0,
+            territories_used: (usage as any).territories_count || 0,
+            radar_used: (usage as any).radar_searches_used || 0,
           },
           resource,
           limitReached,

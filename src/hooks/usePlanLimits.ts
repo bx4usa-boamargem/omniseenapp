@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 
-export type ResourceType = 'articles' | 'images' | 'keywords' | 'ebooks' | 'blogs' | 'team_members';
+export type ResourceType = 'articles' | 'images' | 'keywords' | 'ebooks' | 'blogs' | 'team_members' | 'territories' | 'radar';
 
 interface LimitCheckResult {
   canCreate: boolean;
@@ -20,6 +20,8 @@ interface PlanLimits {
   ebooks_limit: number;
   blogs_limit: number;
   team_members_limit: number;
+  territories_limit: number;
+  radar_limit: number;
 }
 
 interface PlanUsage {
@@ -29,6 +31,8 @@ interface PlanUsage {
   ebooks_used: number;
   blogs_used: number;
   team_members_used: number;
+  territories_used: number;
+  radar_used: number;
 }
 
 export function usePlanLimits() {

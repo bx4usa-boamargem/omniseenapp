@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Building2, Loader2, Save, CheckCircle2, MessageCircle, Globe, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { BusinessEconomicsSection } from '@/components/company/BusinessEconomicsSection';
+import { TerritoriesSection } from '@/components/company/TerritoriesSection';
 
 const BUSINESS_TYPES = [
   { value: 'servicos', label: 'Serviços' },
@@ -481,7 +482,12 @@ export default function ClientCompany() {
         </Button>
       </div>
 
-      {/* Economia do Negócio - NEW SECTION */}
+      {/* Territórios - TERRITORIAL MODEL */}
+      {blog?.id && (
+        <TerritoriesSection blogId={blog.id} />
+      )}
+
+      {/* Economia do Negócio */}
       {blog?.id && (
         <BusinessEconomicsSection blogId={blog.id} />
       )}
