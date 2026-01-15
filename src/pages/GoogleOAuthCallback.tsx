@@ -91,7 +91,7 @@ export default function GoogleOAuthCallback() {
         
         // Redirect after 2 seconds
         setTimeout(() => {
-          navigate('/app/integrations/google');
+          navigate('/client/integrations/gsc');
         }, 2000);
       }
     } catch (e) {

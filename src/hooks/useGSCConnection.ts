@@ -83,7 +83,7 @@ export function useGSCConnection(blogId: string | undefined) {
         
         // Store code_verifier in sessionStorage for callback
         if (configData.codeVerifier) {
-          sessionStorage.setItem(`gsc_code_verifier_${blogId}`, configData.codeVerifier);
+          sessionStorage.setItem('gsc_code_verifier', configData.codeVerifier);
           console.log("useGSCConnection.connect: Stored code_verifier in sessionStorage");
         }
         
