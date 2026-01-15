@@ -22,6 +22,18 @@ export function useHostRouting(): UseHostRoutingResult {
   const [blogId, setBlogId] = useState<string | null>(null);
   const [blogSlug, setBlogSlug] = useState<string | null>(null);
 
+  // Safety timeout - if loading takes more than 5 seconds, fallback to platform mode
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.warn('[useHostRouting] Timeout after 5s - fallback to platform mode');
+        setMode('platform');
+        setLoading(false);
+      }
+    }, 5000);
+    return () => clearTimeout(timeout);
+  }, [loading]);
+
   useEffect(() => {
     const checkHostname = async () => {
       const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
