@@ -9,17 +9,14 @@ import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { OmniseenLogoHeader } from "@/components/ui/OmniseenLogoHeader";
 import { TrackingScripts } from "@/components/analytics/TrackingScripts";
 import { SalesAssistantChat } from "@/components/landing/SalesAssistantChat";
-import { HeroSection } from "@/components/landing/HeroSection";
+import { ManifestoHero } from "@/components/landing/ManifestoHero";
 import { ProblemSection } from "@/components/landing/ProblemSection";
-import { SolutionSection } from "@/components/landing/SolutionSection";
-import { RealAutomationSection } from "@/components/landing/RealAutomationSection";
-import { SEOSection } from "@/components/landing/SEOSection";
-import { AudienceSection } from "@/components/landing/AudienceSection";
-import { HowItWorksSection } from "@/components/landing/HowItWorksSection";
+import { AnimatedTimeline } from "@/components/landing/AnimatedTimeline";
+import { WhyManyArticles } from "@/components/landing/WhyManyArticles";
 import { FinalCTASection } from "@/components/landing/FinalCTASection";
 import { PricingTable } from "@/components/landing/PricingTable";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { ArrowRight, Loader2, Menu } from "lucide-react";
+import { ArrowRight, Loader2, Menu, LogIn } from "lucide-react";
 
 export default function Index() {
   const { t } = useTranslation();
@@ -38,8 +35,6 @@ export default function Index() {
     }
   }, [trackPageView]);
 
-  // No automatic redirect - users can browse the public site even when logged in
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -52,13 +47,17 @@ export default function Index() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const scrollToSection = (id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
   return (
     <div className="min-h-screen bg-background">
       <TrackingScripts />
       
-      {/* Header */}
+      {/* Header - Login sempre visível */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-b border-border/40 h-[64px] md:h-[72px]">
         <div className="container h-full flex items-center justify-between">
           {/* Logo */}
@@ -66,13 +65,19 @@ export default function Index() {
             <OmniseenLogoHeader />
           </Link>
 
-          {/* Navigation - Hidden on mobile */}
+          {/* Navigation - Desktop */}
           <nav className="hidden md:flex items-center gap-8">
             <button 
               onClick={scrollToTop}
               className="text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
             >
               {t('landing.header.home')}
+            </button>
+            <button 
+              onClick={() => scrollToSection('how-it-works')}
+              className="text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
+            >
+              {t('landing.header.howItWorks')}
             </button>
             <a 
               href="#pricing"
@@ -88,20 +93,25 @@ export default function Index() {
             </Link>
           </nav>
 
-          {/* Actions */}
+          {/* Actions - Login SEMPRE visível */}
           <div className="flex items-center gap-2 md:gap-4">
             <LanguageSwitcher />
-            <Link to="/auth" className="hidden sm:block">
-              <Button variant="ghost" size="sm">
+            
+            {/* Login button - visível desktop E mobile */}
+            <Link to="/auth">
+              <Button variant="ghost" size="sm" className="font-medium">
+                <LogIn className="h-4 w-4 mr-2" />
                 Login
               </Button>
             </Link>
-            <a href="#pricing" className="hidden sm:block">
+            
+            {/* CTA - hidden on mobile */}
+            <Link to="/auth?mode=signup" className="hidden sm:block">
               <Button size="sm">
-                {t('landing.header.startFree', 'Começar grátis')}
+                {t('landing.header.startFree')}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
-            </a>
+            </Link>
 
             {/* Mobile Menu */}
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -116,21 +126,27 @@ export default function Index() {
                   <nav className="flex flex-col gap-4">
                     <button 
                       onClick={() => { scrollToTop(); closeMobileMenu(); }} 
-                      className="text-left text-lg font-medium hover:text-[#4D148C] transition-colors"
+                      className="text-left text-lg font-medium hover:text-primary transition-colors"
                     >
                       {t('landing.header.home')}
+                    </button>
+                    <button 
+                      onClick={() => { scrollToSection('how-it-works'); closeMobileMenu(); }}
+                      className="text-left text-lg font-medium hover:text-primary transition-colors"
+                    >
+                      {t('landing.header.howItWorks')}
                     </button>
                     <a 
                       href="#pricing" 
                       onClick={closeMobileMenu}
-                      className="text-lg font-medium hover:text-[#4D148C] transition-colors"
+                      className="text-lg font-medium hover:text-primary transition-colors"
                     >
                       {t('landing.header.plans')}
                     </a>
                     <Link 
                       to="/blog" 
                       onClick={closeMobileMenu}
-                      className="text-lg font-medium hover:text-[#4D148C] transition-colors"
+                      className="text-lg font-medium hover:text-primary transition-colors"
                     >
                       {t('landing.header.blog')}
                     </Link>
@@ -138,15 +154,16 @@ export default function Index() {
                   <div className="flex flex-col gap-3 pt-4 border-t">
                     <Link to="/auth" onClick={closeMobileMenu}>
                       <Button variant="outline" className="w-full">
+                        <LogIn className="h-4 w-4 mr-2" />
                         Login
                       </Button>
                     </Link>
-                    <a href="#pricing" onClick={closeMobileMenu}>
+                    <Link to="/auth?mode=signup" onClick={closeMobileMenu}>
                       <Button className="w-full">
-                        {t('landing.header.startFree', 'Começar grátis')}
+                        {t('landing.header.startFree')}
                         <ArrowRight className="ml-2 h-4 w-4" />
                       </Button>
-                    </a>
+                    </Link>
                   </div>
                 </div>
               </SheetContent>
@@ -155,16 +172,26 @@ export default function Index() {
         </div>
       </header>
 
-      {/* 9 Sections with tracking context */}
+      {/* Main sections with tracking context */}
       <LandingTrackingContext.Provider value={{ trackSectionView, trackCTAClick, trackPlanSelect }}>
-        <HeroSection />
+        {/* 1. Hero Manifesto */}
+        <ManifestoHero />
+        
+        {/* 2. O Problema */}
         <ProblemSection />
-        <SolutionSection />
-        <RealAutomationSection />
-        <SEOSection />
-        <AudienceSection />
-        <HowItWorksSection />
+        
+        {/* 3. Como Funciona - Timeline Animada */}
+        <div id="how-it-works">
+          <AnimatedTimeline />
+        </div>
+        
+        {/* 4. Por que tantos artigos? */}
+        <WhyManyArticles />
+        
+        {/* 5. Planos */}
         <PricingTable />
+        
+        {/* 6. CTA Final */}
         <FinalCTASection />
       </LandingTrackingContext.Provider>
 
@@ -181,8 +208,11 @@ export default function Index() {
               <a href="#pricing" className="hover:text-white transition-colors">
                 {t('landing.header.plans')}
               </a>
-              <Link to="/auth" className="hover:text-white transition-colors">
-                {t('landing.header.login')}
+              <Link to="/blog" className="hover:text-white transition-colors">
+                {t('landing.header.blog')}
+              </Link>
+              <Link to="/auth" className="hover:text-white transition-colors font-medium">
+                Login
               </Link>
             </div>
             
@@ -210,13 +240,12 @@ export default function Index() {
 
           {/* All Rights Reserved */}
           <p className="text-center text-xs text-white/30 mt-2">
-            {t('landing.footer.allRightsReserved', 'Todos os direitos reservados')}
+            {t('landing.footer.allRightsReserved')}
           </p>
         </div>
       </footer>
 
-      {/* AI Support Chat */}
-      {/* Sales AI Chat for Lead Conversion */}
+      {/* AI Sales Chat */}
       <SalesAssistantChat />
     </div>
   );

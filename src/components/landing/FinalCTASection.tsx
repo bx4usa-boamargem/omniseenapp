@@ -1,7 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Sparkles, Clock } from "lucide-react";
+import { ArrowRight, LogIn, Zap } from "lucide-react";
+import { Link } from "react-router-dom";
 import { trackEvent } from "@/components/analytics/TrackingScripts";
 
 export const FinalCTASection = () => {
@@ -29,36 +30,36 @@ export const FinalCTASection = () => {
           <div className="relative z-10 text-primary-foreground">
             {/* Icon */}
             <div className={`w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center mx-auto mb-6 transition-all duration-700 ${isVisible ? 'scale-100 rotate-0' : 'scale-0 rotate-45'}`} style={{ transitionDelay: '200ms' }}>
-              <Clock className="h-8 w-8" />
+              <Zap className="h-8 w-8" />
             </div>
             
-            <h2 className={`text-3xl md:text-4xl lg:text-5xl font-display font-bold mb-4 transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '300ms' }}>
-              {t('landing.finalCta.title')}
+            {/* Message - Territory occupation */}
+            <h2 className={`text-2xl md:text-3xl lg:text-4xl font-display font-bold mb-2 transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '300ms' }}>
+              {t('landing.finalCtaNew.line1')}
             </h2>
-            
-            <p className={`text-xl opacity-90 mb-8 max-w-xl mx-auto transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '400ms' }}>
-              {t('landing.finalCta.subtitle')}
-            </p>
+            <h2 className={`text-2xl md:text-3xl lg:text-4xl font-display font-bold mb-6 transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '400ms' }}>
+              {t('landing.finalCtaNew.line2')}
+            </h2>
             
             {/* CTAs */}
             <div className={`flex flex-col sm:flex-row gap-4 justify-center transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`} style={{ transitionDelay: '500ms' }}>
-              <a href="#pricing" onClick={handleCTAClick}>
+              <Link to="/auth?mode=signup" onClick={handleCTAClick}>
                 <Button size="lg" variant="secondary" className="text-lg px-8 font-semibold hover-scale">
-                  {t('landing.finalCta.cta')}
+                  {t('landing.finalCtaNew.ctaPrimary')}
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
-              </a>
-              <a href="#pricing" onClick={handleCTAClick}>
+              </Link>
+              <Link to="/auth" onClick={handleCTAClick}>
                 <Button size="lg" variant="ghost" className="text-lg px-8 text-primary-foreground hover:bg-white/10 hover:text-primary-foreground hover-scale">
-                  {t('landing.finalCta.ctaSecondary')}
-                  <Sparkles className="ml-2 h-5 w-5" />
+                  <LogIn className="mr-2 h-5 w-5" />
+                  {t('landing.finalCtaNew.ctaSecondary')}
                 </Button>
-              </a>
+              </Link>
             </div>
             
             {/* Trust note */}
             <p className={`mt-6 text-sm opacity-80 transition-all duration-700 ${isVisible ? 'opacity-80' : 'opacity-0'}`} style={{ transitionDelay: '600ms' }}>
-              {t('landing.finalCta.note')}
+              {t('landing.finalCtaNew.note')}
             </p>
           </div>
         </div>
