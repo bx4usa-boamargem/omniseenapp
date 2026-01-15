@@ -26,6 +26,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { ThemeToggle } from '@/components/client/ThemeToggle';
 import { supabase } from '@/integrations/supabase/client';
+import { MobileBottomNav } from '@/components/mobile/MobileBottomNav';
+import { useMobileLayout } from '@/hooks/useMobileLayout';
 
 interface SubAccountLayoutProps {
   children: ReactNode;
@@ -85,6 +87,7 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { signOut, user } = useAuth();
+  const { isMobile } = useMobileLayout();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
 
@@ -237,33 +240,26 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
         <SidebarContent />
       </aside>
 
-      {/* Mobile Header - visible below md (< 768px) */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 client-sidebar z-50 flex items-center justify-between px-4 border-b border-slate-200 dark:border-white/10">
-        <OmniseenLogo size="md" />
-        
-        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-          <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-white/10">
-              <Menu className="h-6 w-6" />
-            </Button>
-          </SheetTrigger>
-          <SheetContent side="left" className="w-64 p-0 client-sidebar border-r-0">
-            <SidebarContent />
-          </SheetContent>
-        </Sheet>
-      </div>
-
+      {/* Mobile Header - Hidden on mobile, we use bottom nav instead */}
+      {/* Only show header on tablet/desktop when sidebar is visible */}
+      
       {/* Main Content */}
       <main className="flex-1 md:ml-64">
-        <div className="pt-16 md:pt-0 min-h-screen">
+        <div className={cn(
+          "min-h-screen",
+          isMobile ? "pb-20" : "" // Add padding for bottom nav on mobile
+        )}>
           <div className="p-4 md:p-8 max-w-5xl mx-auto">
             {children}
           </div>
         </div>
       </main>
 
-      {/* Floating AI Support Chat */}
-      <FloatingSupportChat />
+      {/* Mobile Bottom Navigation */}
+      {isMobile && <MobileBottomNav />}
+
+      {/* Floating AI Support Chat - Hidden on mobile to avoid conflict with bottom nav */}
+      {!isMobile && <FloatingSupportChat />}
     </div>
   );
 }
