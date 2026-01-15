@@ -85,6 +85,8 @@ import ClientHelpCategory from "./pages/client/ClientHelpCategory";
 import ClientHelpArticle from "./pages/client/ClientHelpArticle";
 import ClientHelpSearch from "./pages/client/ClientHelpSearch";
 import ClientLeads from "./pages/client/ClientLeads";
+import ClientEbooks from "./pages/client/ClientEbooks";
+import ClientEbookEditor from "./pages/client/ClientEbookEditor";
 
 const queryClient = new QueryClient();
 
@@ -169,6 +171,8 @@ const ClientRoutes = () => (
         <Route path="create" element={<ClientArticleEditor />} />
         <Route path="articles/:id/edit" element={<ClientArticleEditor />} />
         <Route path="review/:id" element={<ClientReviewCenter />} />
+        <Route path="ebooks" element={<ClientEbooks />} />
+        <Route path="ebooks/:id" element={<ClientEbookEditor />} />
         
         {/* Operação */}
         <Route path="automation" element={<ClientAutomation />} />

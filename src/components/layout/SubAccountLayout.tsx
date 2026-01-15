@@ -16,7 +16,8 @@ import {
   Shield,
   MapPin,
   HelpCircle,
-  Users
+  Users,
+  BookOpen
 } from 'lucide-react';
 import { FloatingSupportChat } from '@/components/support/FloatingSupportChat';
 import { Button } from '@/components/ui/button';
@@ -65,6 +66,7 @@ const navSections: NavSection[] = [
     items: [
       { icon: FileText, label: 'Artigos', path: '/client/articles' },
       { icon: Globe, label: 'Portal Público', path: '/client/portal' },
+      // eBooks item will be added dynamically for admins only
     ]
   },
   {
@@ -169,27 +171,38 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
         </div>
 
         {/* Seções organizadas - with data-tour for guided tour */}
-        {navSections.map((section) => (
-          <div key={section.label}>
-            <SectionLabel label={section.label} />
-            <div className="px-4 space-y-1">
-              {section.items.map((item) => {
-                // Add data-tour attributes for specific menu items
-                const tourId = item.path === '/client/radar' ? 'radar-menu' 
-                  : item.path === '/client/articles' ? 'articles-menu'
-                  : item.path === '/client/automation' ? 'automation-menu'
-                  : item.path === '/client/company' ? 'company-menu'
-                  : undefined;
-                
-                return (
-                  <div key={item.path} data-tour={tourId}>
-                    <NavButton item={item} />
-                  </div>
-                );
-              })}
+        {navSections.map((section) => {
+          // Build items list, adding eBooks for admins in CONTEÚDO section
+          let items = section.items;
+          if (section.label === 'CONTEÚDO' && isPlatformAdmin) {
+            items = [
+              ...section.items,
+              { icon: BookOpen, label: 'eBooks', path: '/client/ebooks' }
+            ];
+          }
+          
+          return (
+            <div key={section.label}>
+              <SectionLabel label={section.label} />
+              <div className="px-4 space-y-1">
+                {items.map((item) => {
+                  // Add data-tour attributes for specific menu items
+                  const tourId = item.path === '/client/radar' ? 'radar-menu' 
+                    : item.path === '/client/articles' ? 'articles-menu'
+                    : item.path === '/client/automation' ? 'automation-menu'
+                    : item.path === '/client/company' ? 'company-menu'
+                    : undefined;
+                  
+                  return (
+                    <div key={item.path} data-tour={tourId}>
+                      <NavButton item={item} />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {/* Integrações */}
         <div>
