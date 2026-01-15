@@ -9,13 +9,11 @@ import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { OmniseenLogoHeader } from "@/components/ui/OmniseenLogoHeader";
 import { TrackingScripts } from "@/components/analytics/TrackingScripts";
 import { SalesAssistantChat } from "@/components/landing/SalesAssistantChat";
-import { HeroSection } from "@/components/landing/HeroSection";
-import { HowItWorksSection } from "@/components/landing/HowItWorksSection";
-import { AudienceSection } from "@/components/landing/AudienceSection";
-import { SEOSection } from "@/components/landing/SEOSection";
-import { RealAutomationSection } from "@/components/landing/RealAutomationSection";
-import { FeaturesGrid } from "@/components/landing/FeaturesGrid";
-import { CaseStudies } from "@/components/landing/CaseStudies";
+import { ManifestoHero } from "@/components/landing/ManifestoHero";
+import { ProblemSection } from "@/components/landing/ProblemSection";
+import { AnimatedTimeline } from "@/components/landing/AnimatedTimeline";
+import { WhyManyArticles } from "@/components/landing/WhyManyArticles";
+import { TerritorialROICalculator } from "@/components/landing/TerritorialROICalculator";
 import { FinalCTASection } from "@/components/landing/FinalCTASection";
 import { PricingTable } from "@/components/landing/PricingTable";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -177,34 +175,28 @@ export default function Index() {
 
       {/* Main sections with tracking context */}
       <LandingTrackingContext.Provider value={{ trackSectionView, trackCTAClick, trackPlanSelect }}>
-        {/* 1. Hero */}
-        <HeroSection />
-        
-        {/* 2. Como Funciona */}
-        <div id="how-it-works">
-          <HowItWorksSection />
-        </div>
-        
-        {/* 3. Para Quem */}
-        <AudienceSection />
-        
-        {/* 4. SEO */}
-        <SEOSection />
-        
-        {/* 5. Automação Real */}
-        <RealAutomationSection />
-        
-        {/* 6. Features */}
-        <FeaturesGrid />
-        
-        {/* 7. Cases */}
-        <CaseStudies />
-        
-        {/* 8. Planos */}
-        <PricingTable />
-        
-        {/* 9. CTA Final */}
-        <FinalCTASection />
+            {/* 1. Hero Manifesto */}
+            <ManifestoHero />
+
+            {/* 2. Problema */}
+            <ProblemSection />
+
+            {/* 3. Como Funciona - Timeline Animado */}
+            <div id="how-it-works">
+              <AnimatedTimeline />
+            </div>
+
+            {/* 4. Por Que Muitos Artigos */}
+            <WhyManyArticles />
+
+            {/* 5. Calculadora de ROI Territorial */}
+            <TerritorialROICalculator />
+
+            {/* 6. Planos */}
+            <PricingTable />
+
+            {/* 7. CTA Final */}
+            <FinalCTASection />
       </LandingTrackingContext.Provider>
 
       {/* Footer */}
