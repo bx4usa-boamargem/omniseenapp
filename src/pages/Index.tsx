@@ -15,6 +15,7 @@ import { AnimatedTimeline } from "@/components/landing/AnimatedTimeline";
 import { WhyManyArticles } from "@/components/landing/WhyManyArticles";
 import { FinalCTASection } from "@/components/landing/FinalCTASection";
 import { PricingTable } from "@/components/landing/PricingTable";
+import { TerritorialROICalculator } from "@/components/landing/TerritorialROICalculator";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { ArrowRight, Loader2, Menu, LogIn } from "lucide-react";
 
@@ -188,7 +189,10 @@ export default function Index() {
         {/* 4. Por que tantos artigos? */}
         <WhyManyArticles />
         
-        {/* 5. Planos */}
+        {/* 5. Calculadora de ROI Territorial */}
+        <TerritorialROICalculator />
+        
+        {/* 6. Planos */}
         <PricingTable />
         
         {/* 6. CTA Final */}
