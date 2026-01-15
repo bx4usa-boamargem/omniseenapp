@@ -54,6 +54,10 @@ import ResetPassword from "./pages/ResetPassword";
 import Blocked from "./pages/Blocked";
 import TermsOfUse from "./pages/TermsOfUse";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Services from "./pages/Services";
+import TermsOfUseEN from "./pages/en/TermsOfUseEN";
+import PrivacyPolicyEN from "./pages/en/PrivacyPolicyEN";
+import ServicesEN from "./pages/en/ServicesEN";
 import Integrations from "./pages/Integrations";
 import GoogleIntegration from "./pages/GoogleIntegration";
 import GoogleOAuthCallback from "./pages/GoogleOAuthCallback";
@@ -234,6 +238,11 @@ const AppRoutes = () => {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/terms" element={<TermsOfUse />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/services" element={<Services />} />
+        <Route path="/servicos" element={<Navigate to="/services" replace />} />
+        <Route path="/en/terms" element={<TermsOfUseEN />} />
+        <Route path="/en/privacy" element={<PrivacyPolicyEN />} />
+        <Route path="/en/services" element={<ServicesEN />} />
         <Route path="/help" element={<Help />} />
         <Route path="/help/:slug" element={<HelpArticle />} />
         <Route path="/blog/:blogSlug" element={<PublicBlog />} />
