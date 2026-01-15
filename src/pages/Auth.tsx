@@ -381,9 +381,9 @@ export default function Auth() {
   }
 
   return (
-    <div className="min-h-screen flex relative">
-      {/* Language Switcher */}
-      <div className="absolute top-4 right-4 z-50">
+    <div className="min-h-screen flex flex-col lg:flex-row relative overflow-x-hidden">
+      {/* Language Switcher - adjusted for mobile */}
+      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-50">
         <LanguageSwitcher />
       </div>
 
@@ -429,55 +429,55 @@ export default function Auth() {
       </div>
 
       {/* Right side - Auth form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+      <div className="w-full lg:w-1/2 flex items-center justify-center px-4 py-8 sm:p-8 min-h-screen lg:min-h-0">
         <div className="w-full max-w-md">
-          <div className="lg:hidden flex items-center justify-center mb-8">
+          <div className="lg:hidden flex items-center justify-center mb-6 sm:mb-8 pt-8 sm:pt-0">
             <OmniseenLogo size="md" />
           </div>
 
-          <Card className="border-0 shadow-xl">
-            <CardHeader className="text-center pb-2">
+          <Card className="border-0 shadow-xl mx-auto">
+            <CardHeader className="text-center pb-2 px-4 sm:px-6">
               {/* Show selected plan badge */}
               {selectedPlan && PLAN_NAMES[selectedPlan] && (
-                <div className="flex justify-center mb-4">
-                  <Badge variant="secondary" className="gap-2 px-4 py-2 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                <div className="flex justify-center mb-3 sm:mb-4">
+                  <Badge variant="secondary" className="gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm">
+                    <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-500" />
                     {t('auth.selectedPlan', 'Plano selecionado')}: <span className="font-bold">{PLAN_NAMES[selectedPlan]}</span>
                   </Badge>
                 </div>
               )}
               {!selectedPlan && (
-                <div className="flex justify-center mb-4">
+                <div className="flex justify-center mb-3 sm:mb-4">
                   <Link to="/pricing">
-                    <Badge variant="outline" className="gap-2 px-4 py-2 text-sm cursor-pointer hover:bg-muted">
+                    <Badge variant="outline" className="gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm cursor-pointer hover:bg-muted">
                       {t('auth.noPlanSelected', 'Nenhum plano selecionado')} — {t('auth.choosePlan', 'Escolher plano')}
                     </Badge>
                   </Link>
                 </div>
               )}
-              <CardTitle className="text-2xl font-display">{t('auth.login.title')}</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-xl sm:text-2xl font-display">{t('auth.login.title')}</CardTitle>
+              <CardDescription className="text-sm">
                 {t('auth.login.description')}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-4 sm:px-6">
               <Tabs defaultValue="login" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-6">
-                  <TabsTrigger value="login">{t('auth.login.tabLogin')}</TabsTrigger>
-                  <TabsTrigger value="signup">{t('auth.login.tabSignup')}</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-2 mb-4 sm:mb-6 h-10 sm:h-11">
+                  <TabsTrigger value="login" className="text-sm sm:text-base py-2">{t('auth.login.tabLogin')}</TabsTrigger>
+                  <TabsTrigger value="signup" className="text-sm sm:text-base py-2">{t('auth.login.tabSignup')}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="login">
                   <form onSubmit={handleLogin} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="login-email">{t('auth.login.email')}</Label>
+                      <Label htmlFor="login-email" className="text-sm sm:text-base">{t('auth.login.email')}</Label>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                         <Input
                           id="login-email"
                           type="email"
                           placeholder="seu@email.com"
-                          className="pl-10"
+                          className="pl-10 h-11 sm:h-10 text-base sm:text-sm"
                           value={loginData.email}
                           onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
                           required
@@ -486,28 +486,30 @@ export default function Auth() {
                     </div>
                     
                     <div className="space-y-2">
-                      <Label htmlFor="login-password">{t('auth.login.password')}</Label>
+                      <Label htmlFor="login-password" className="text-sm sm:text-base">{t('auth.login.password')}</Label>
                       <div className="relative">
-                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                         <Input
                           id="login-password"
                           type="password"
                           placeholder="••••••••"
-                          className="pl-10"
+                          className="pl-10 h-11 sm:h-10 text-base sm:text-sm"
                           value={loginData.password}
                           onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                           required
                         />
                       </div>
-                      <a 
-                        href="/reset-password" 
-                        className="text-sm text-primary hover:underline"
-                      >
-                        {t('auth.login.forgotPassword')}
-                      </a>
+                      <div className="pt-1">
+                        <a 
+                          href="/reset-password" 
+                          className="text-sm text-primary hover:underline font-medium inline-block py-1"
+                        >
+                          {t('auth.login.forgotPassword')}
+                        </a>
+                      </div>
                     </div>
 
-                    <Button type="submit" className="w-full" disabled={isLoading}>
+                    <Button type="submit" className="w-full h-11 sm:h-10 text-base sm:text-sm" disabled={isLoading}>
                       {isLoading ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
@@ -534,11 +536,11 @@ export default function Auth() {
                     <Button 
                       type="button"
                       variant="outline" 
-                      className="w-full"
+                      className="w-full h-11 sm:h-10 text-base sm:text-sm"
                       onClick={handleGoogleSignIn}
                       disabled={isLoading}
                     >
-                      <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+                      <svg className="mr-2 h-4 w-4 flex-shrink-0" viewBox="0 0 24 24">
                         <path
                           d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                           fill="#4285F4"
@@ -564,14 +566,14 @@ export default function Auth() {
                 <TabsContent value="signup">
                   <form onSubmit={handleSignup} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="signup-name">{t('auth.signup.fullName')}</Label>
+                      <Label htmlFor="signup-name" className="text-sm sm:text-base">{t('auth.signup.fullName')}</Label>
                       <div className="relative">
-                        <User className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                         <Input
                           id="signup-name"
                           type="text"
-                          placeholder="Your name"
-                          className="pl-10"
+                          placeholder="Seu nome"
+                          className="pl-10 h-11 sm:h-10 text-base sm:text-sm"
                           value={signupData.fullName}
                           onChange={(e) => setSignupData({ ...signupData, fullName: e.target.value })}
                           required
@@ -580,14 +582,14 @@ export default function Auth() {
                     </div>
                     
                     <div className="space-y-2">
-                      <Label htmlFor="signup-email">{t('auth.login.email')}</Label>
+                      <Label htmlFor="signup-email" className="text-sm sm:text-base">{t('auth.login.email')}</Label>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                         <Input
                           id="signup-email"
                           type="email"
                           placeholder="seu@email.com"
-                          className="pl-10"
+                          className="pl-10 h-11 sm:h-10 text-base sm:text-sm"
                           value={signupData.email}
                           onChange={(e) => setSignupData({ ...signupData, email: e.target.value })}
                           required
@@ -596,14 +598,14 @@ export default function Auth() {
                     </div>
                     
                     <div className="space-y-2">
-                      <Label htmlFor="signup-password">{t('auth.login.password')}</Label>
+                      <Label htmlFor="signup-password" className="text-sm sm:text-base">{t('auth.login.password')}</Label>
                       <div className="relative">
-                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
                         <Input
                           id="signup-password"
                           type="password"
-                          placeholder="Min. 6 characters"
-                          className="pl-10"
+                          placeholder="Mínimo 6 caracteres"
+                          className="pl-10 h-11 sm:h-10 text-base sm:text-sm"
                           value={signupData.password}
                           onChange={(e) => setSignupData({ ...signupData, password: e.target.value })}
                           required
@@ -611,7 +613,7 @@ export default function Auth() {
                       </div>
                     </div>
 
-                    <Button type="submit" className="w-full" disabled={isLoading}>
+                    <Button type="submit" className="w-full h-11 sm:h-10 text-base sm:text-sm" disabled={isLoading}>
                       {isLoading ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
@@ -638,11 +640,11 @@ export default function Auth() {
                     <Button 
                       type="button"
                       variant="outline" 
-                      className="w-full"
+                      className="w-full h-11 sm:h-10 text-base sm:text-sm"
                       onClick={handleGoogleSignIn}
                       disabled={isLoading}
                     >
-                      <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+                      <svg className="mr-2 h-4 w-4 flex-shrink-0" viewBox="0 0 24 24">
                         <path
                           d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                           fill="#4285F4"
@@ -668,7 +670,7 @@ export default function Auth() {
             </CardContent>
           </Card>
 
-          <p className="text-center text-sm text-muted-foreground mt-6">
+          <p className="text-center text-xs sm:text-sm text-muted-foreground mt-4 sm:mt-6 pb-4 sm:pb-0">
             {t('auth.terms.agreement')}{" "}
             <Link to="/terms" className="text-primary hover:underline">{t('auth.terms.termsOfUse')}</Link>
             {" "}{t('auth.terms.and')}{" "}
