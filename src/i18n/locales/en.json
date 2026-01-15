@@ -875,5 +875,40 @@
       "copyLink": "Or copy the link:",
       "linkCopied": "Link copied!"
     }
+  },
+  "landing": {
+    "roiCalculator": {
+      "badge": "Potential Calculator",
+      "title": "Discover How Much Your Territory Can Generate",
+      "subtitle": "Transform organic presence into predictable revenue",
+      "configuration": "Configure your scenario",
+      "results": "Real-Time Results",
+      "niche": "Business Niche",
+      "city": "City / Territory",
+      "cityPlaceholder": "E.g.: Miami, Austin, New York",
+      "averageTicket": "Average Ticket per Client",
+      "conversionRate": "Estimated Conversion Rate",
+      "conservative": "Conservative (1%)",
+      "medium": "Medium (3%)",
+      "aggressive": "Aggressive (5%)",
+      "visits": "organic visits/month",
+      "leads": "leads/month",
+      "monthlyRevenue": "Potential Monthly Revenue",
+      "annualRevenue": "Annual projection",
+      "estimated": "estimated",
+      "opportunities": "real opportunities",
+      "message": "This is what happens when your business shows up every day on the topics your city is searching for.",
+      "cta": "Activate my machine now",
+      "disclaimer": "Values based on market averages. Results may vary based on execution and territory.",
+      "niches": {
+        "limpeza": "Cleaning",
+        "pragas": "Pest Control",
+        "estetica": "Beauty & Aesthetics",
+        "advocacia": "Law",
+        "construcao": "Construction & Renovation",
+        "saude": "Healthcare & Clinics",
+        "outro": "Other"
+      }
+    }
   }
 }
