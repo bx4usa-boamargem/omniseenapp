@@ -94,10 +94,11 @@ const ArticleEditRedirect = () => {
   return <Navigate to={`/app/articles/${id}/edit`} replace />;
 };
 
-// Loading component while checking hostname
+// Loading component while checking hostname - visible on iOS
 const HostnameLoader = () => (
-  <div className="min-h-screen flex items-center justify-center bg-background">
+  <div className="min-h-screen flex flex-col items-center justify-center bg-white dark:bg-gray-900 gap-4">
     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    <p className="text-sm text-gray-600 dark:text-gray-400">Carregando...</p>
   </div>
 );
 

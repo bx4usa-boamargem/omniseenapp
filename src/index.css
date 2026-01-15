@@ -304,6 +304,17 @@ body.focused-reading-active .prose p {
 /* Table of Contents smooth scroll */
 html {
   scroll-behavior: smooth;
+  background-color: #ffffff;
+}
+
+/* Prevent black flash on iOS */
+body {
+  background-color: #ffffff;
+}
+
+.dark body,
+body.dark {
+  background-color: hsl(240 10% 3.9%);
 }
 
 /* Hide scrollbar utility */
