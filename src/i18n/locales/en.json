@@ -909,6 +909,28 @@
         "saude": "Healthcare & Clinics",
         "outro": "Other"
       }
+    },
+    "marketStats": {
+      "title": "The biggest traffic engine on the internet isn't ads. It's content.",
+      "subtitle": "Who dominates content dominates demand. This isn't rhetoric. It's market data.",
+      "stats": {
+        "organic": {
+          "label": "Of website traffic comes from organic search",
+          "source": "BrightEdge"
+        },
+        "leads": {
+          "label": "Of B2B leads come from organic content",
+          "source": "DemandMetric"
+        },
+        "blog": {
+          "label": "Companies with active blogs generate up to 3x more leads",
+          "source": "HubSpot"
+        },
+        "firstPage": {
+          "label": "Of users never go past the first page of Google",
+          "source": "Backlinko"
+        }
+      }
     }
   }
 }

@@ -9,13 +9,11 @@ import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
 import { OmniseenLogoHeader } from "@/components/ui/OmniseenLogoHeader";
 import { TrackingScripts } from "@/components/analytics/TrackingScripts";
 import { SalesAssistantChat } from "@/components/landing/SalesAssistantChat";
-import { HeroSection } from "@/components/landing/HeroSection";
-import { HowItWorksSection } from "@/components/landing/HowItWorksSection";
-import { AudienceSection } from "@/components/landing/AudienceSection";
-import { SEOSection } from "@/components/landing/SEOSection";
-import { RealAutomationSection } from "@/components/landing/RealAutomationSection";
-import { FeaturesGrid } from "@/components/landing/FeaturesGrid";
-import { CaseStudies } from "@/components/landing/CaseStudies";
+import { ManifestoHero } from "@/components/landing/ManifestoHero";
+import { ProblemSection } from "@/components/landing/ProblemSection";
+import { MarketStatsSection } from "@/components/landing/MarketStatsSection";
+import { AnimatedTimeline } from "@/components/landing/AnimatedTimeline";
+import { WhyManyArticles } from "@/components/landing/WhyManyArticles";
 import { FinalCTASection } from "@/components/landing/FinalCTASection";
 import { PricingTable } from "@/components/landing/PricingTable";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -177,33 +175,27 @@ export default function Index() {
 
       {/* Main sections with tracking context */}
       <LandingTrackingContext.Provider value={{ trackSectionView, trackCTAClick, trackPlanSelect }}>
-        {/* 1. Hero */}
-        <HeroSection />
-        
-        {/* 2. Como Funciona */}
+        {/* 1. Hero Manifesto */}
+        <ManifestoHero />
+
+        {/* 2. O Problema */}
+        <ProblemSection />
+
+        {/* 3. Estatísticas de Mercado - Prova Social com Dados */}
+        <MarketStatsSection />
+
+        {/* 4. Como Funciona - Timeline Animado */}
         <div id="how-it-works">
-          <HowItWorksSection />
+          <AnimatedTimeline />
         </div>
-        
-        {/* 3. Para Quem */}
-        <AudienceSection />
-        
-        {/* 4. SEO */}
-        <SEOSection />
-        
-        {/* 5. Automação Real */}
-        <RealAutomationSection />
-        
-        {/* 6. Features */}
-        <FeaturesGrid />
-        
-        {/* 7. Cases */}
-        <CaseStudies />
-        
-        {/* 8. Planos */}
+
+        {/* 5. Por Que Tantos Artigos */}
+        <WhyManyArticles />
+
+        {/* 6. Planos */}
         <PricingTable />
-        
-        {/* 9. CTA Final */}
+
+        {/* 7. CTA Final */}
         <FinalCTASection />
       </LandingTrackingContext.Provider>
 

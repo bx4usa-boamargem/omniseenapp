@@ -909,6 +909,28 @@
         "saude": "Saúde & Clínicas",
         "outro": "Outro"
       }
+    },
+    "marketStats": {
+      "title": "O maior motor de tráfego da internet não é anúncio. É conteúdo.",
+      "subtitle": "Quem domina conteúdo domina demanda. Isso não é discurso. É dado de mercado.",
+      "stats": {
+        "organic": {
+          "label": "Do tráfego de sites vem de busca orgânica",
+          "source": "BrightEdge"
+        },
+        "leads": {
+          "label": "Dos leads B2B vêm de conteúdo orgânico",
+          "source": "DemandMetric"
+        },
+        "blog": {
+          "label": "Empresas com blog ativo geram até 3x mais leads",
+          "source": "HubSpot"
+        },
+        "firstPage": {
+          "label": "Dos usuários nunca passam da primeira página do Google",
+          "source": "Backlinko"
+        }
+      }
     }
   }
 }
