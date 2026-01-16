@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_structure_templates: {
+        Row: {
+          activity_slug: string
+          created_at: string | null
+          display_name: string
+          generation_prompt: string
+          id: string
+          required_sections: Json
+          structure_type: string
+          updated_at: string | null
+          validation_rules: Json
+        }
+        Insert: {
+          activity_slug: string
+          created_at?: string | null
+          display_name: string
+          generation_prompt: string
+          id?: string
+          required_sections?: Json
+          structure_type: string
+          updated_at?: string | null
+          validation_rules?: Json
+        }
+        Update: {
+          activity_slug?: string
+          created_at?: string | null
+          display_name?: string
+          generation_prompt?: string
+          id?: string
+          required_sections?: Json
+          structure_type?: string
+          updated_at?: string | null
+          validation_rules?: Json
+        }
+        Relationships: []
+      }
       admin_alert_history: {
         Row: {
           actual_cost: number
@@ -826,6 +862,7 @@ export type Database = {
           approved_at: string | null
           approved_by: string | null
           article_goal: string | null
+          article_structure_type: string | null
           blog_id: string
           category: string | null
           content: string | null
@@ -871,6 +908,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           article_goal?: string | null
+          article_structure_type?: string | null
           blog_id: string
           category?: string | null
           content?: string | null
@@ -916,6 +954,7 @@ export type Database = {
           approved_at?: string | null
           approved_by?: string | null
           article_goal?: string | null
+          article_structure_type?: string | null
           blog_id?: string
           category?: string | null
           content?: string | null

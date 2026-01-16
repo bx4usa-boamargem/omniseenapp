@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getNextStructureWithTemplate, type StructureType } from "../_shared/structureRotation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -80,7 +81,18 @@ serve(async (req) => {
       .eq("blog_id", blogId)
       .maybeSingle();
 
-    // 3. Gerar conteúdo via generate-article-structured
+    // 3. ROTAÇÃO ESTRUTURAL - Determinar próximo modelo editorial
+    console.log(`[CONVERT] Calculating next structure type for blog ${blogId}...`);
+    const { structureType, template, activitySlug } = await getNextStructureWithTemplate(
+      supabase,
+      blogId,
+      profile?.niche,
+      profile?.services
+    );
+    
+    console.log(`[CONVERT] Structure rotation: type=${structureType}, activity=${activitySlug}, template=${template?.display_name || 'fallback'}`);
+
+    // 4. Gerar conteúdo via generate-article-structured
     // Usando mode 'fast' para oportunidades - mais confiável e rápido
     console.log(`[CONVERT] Generating article content for: "${opportunity.suggested_title}"`);
 
@@ -100,6 +112,10 @@ serve(async (req) => {
         generation_mode: 'fast', // Use fast mode for opportunity conversion - more reliable
         source: 'opportunity',
         auto_publish: false, // SEMPRE draft
+        // NOVO: Parâmetros de estrutura editorial
+        article_structure_type: structureType,
+        structure_prompt: template?.generation_prompt || null,
+        activity_slug: activitySlug,
       }),
     });
 
