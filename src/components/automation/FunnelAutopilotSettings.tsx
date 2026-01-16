@@ -18,6 +18,9 @@ interface AutopilotConfig {
   autopilot_top: number;
   autopilot_middle: number;
   autopilot_bottom: number;
+  auto_publish_enabled: boolean;
+  publish_delay_hours: number;
+  quality_gate_enabled: boolean;
 }
 
 export function FunnelAutopilotSettings({ blogId }: FunnelAutopilotSettingsProps) {
@@ -28,6 +31,9 @@ export function FunnelAutopilotSettings({ blogId }: FunnelAutopilotSettingsProps
     autopilot_top: 1,
     autopilot_middle: 1,
     autopilot_bottom: 1,
+    auto_publish_enabled: true,
+    publish_delay_hours: 24,
+    quality_gate_enabled: true,
   });
   const { toast } = useToast();
 
@@ -42,7 +48,7 @@ export function FunnelAutopilotSettings({ blogId }: FunnelAutopilotSettingsProps
     
     const { data, error } = await supabase
       .from("blog_automation")
-      .select("funnel_autopilot, autopilot_top, autopilot_middle, autopilot_bottom")
+      .select("funnel_autopilot, autopilot_top, autopilot_middle, autopilot_bottom, auto_publish_enabled, publish_delay_hours, quality_gate_enabled")
       .eq("blog_id", blogId)
       .maybeSingle();
 

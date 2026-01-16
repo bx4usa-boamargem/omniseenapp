@@ -126,6 +126,75 @@ serve(async (req) => {
             });
 
             if (convertResponse.ok) {
+              const convertResult = await convertResponse.json();
+              const articleId = convertResult.article_id;
+
+              // Run Quality Gate on the new article
+              if (articleId) {
+                try {
+                  const gateResponse = await fetch(`${SUPABASE_URL}/functions/v1/quality-gate`, {
+                    method: "POST",
+                    headers: {
+                      "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                      "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                      articleId,
+                      blogId: blog_id,
+                    }),
+                  });
+
+                  if (gateResponse.ok) {
+                    const gateResult = await gateResponse.json();
+                    
+                    if (gateResult.approved) {
+                      // Get publish delay from automation settings
+                      const { data: autoSettings } = await supabase
+                        .from("blog_automation")
+                        .select("publish_delay_hours")
+                        .eq("blog_id", blog_id)
+                        .single();
+                      
+                      const delayHours = autoSettings?.publish_delay_hours || 24;
+                      const readyAt = new Date(Date.now() + delayHours * 60 * 60 * 1000).toISOString();
+
+                      // Mark as ready for publish
+                      await supabase
+                        .from("articles")
+                        .update({
+                          status: "ready_for_publish",
+                          ready_for_publish_at: readyAt,
+                          quality_gate_status: "approved",
+                        })
+                        .eq("id", articleId);
+
+                      console.log(`[AUTOPILOT] ✅ Article ${articleId} approved, ready at ${readyAt}`);
+                    } else if (gateResult.auto_fixable) {
+                      // Attempt auto-fix
+                      await fetch(`${SUPABASE_URL}/functions/v1/auto-fix-article`, {
+                        method: "POST",
+                        headers: {
+                          "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                          articleId,
+                          blogId: blog_id,
+                          fix_suggestions: gateResult.fix_suggestions,
+                          current_content: gateResult.fixed_content || "",
+                          attempt_number: 1,
+                        }),
+                      });
+                      console.log(`[AUTOPILOT] ⚠️ Article ${articleId} sent for auto-fix`);
+                    } else {
+                      console.log(`[AUTOPILOT] ❌ Article ${articleId} blocked by Quality Gate`);
+                    }
+                  }
+                } catch (gateError) {
+                  console.error(`[AUTOPILOT] Quality Gate error for ${articleId}:`, gateError);
+                }
+              }
+
               blogArticlesCreated++;
               totalArticlesCreated++;
               console.log(`[AUTOPILOT] ✅ Converted ${stage} opportunity ${opp.id}`);
@@ -137,9 +206,9 @@ serve(async (req) => {
           } catch (convertError) {
             console.error(`[AUTOPILOT] Error converting opportunity ${opp.id}:`, convertError);
             blogErrors.push(`Error converting ${stage} opportunity: ${opp.id}`);
-          }
         }
       }
+    }
 
       results.push({
         blog_id,

@@ -477,6 +477,7 @@ export type Database = {
           id: string
           intel_week_id: string | null
           origin: string | null
+          performance_boost: number | null
           relevance_factors: Json | null
           relevance_score: number | null
           source: string | null
@@ -503,6 +504,7 @@ export type Database = {
           id?: string
           intel_week_id?: string | null
           origin?: string | null
+          performance_boost?: number | null
           relevance_factors?: Json | null
           relevance_score?: number | null
           source?: string | null
@@ -529,6 +531,7 @@ export type Database = {
           id?: string
           intel_week_id?: string | null
           origin?: string | null
+          performance_boost?: number | null
           relevance_factors?: Json | null
           relevance_score?: number | null
           source?: string | null
@@ -846,7 +849,10 @@ export type Database = {
           mini_case: Json | null
           opportunity_id: string | null
           published_at: string | null
+          quality_gate_attempts: number | null
+          quality_gate_status: string | null
           reading_time: number | null
+          ready_for_publish_at: string | null
           scheduled_at: string | null
           share_count: number | null
           slug: string
@@ -888,7 +894,10 @@ export type Database = {
           mini_case?: Json | null
           opportunity_id?: string | null
           published_at?: string | null
+          quality_gate_attempts?: number | null
+          quality_gate_status?: string | null
           reading_time?: number | null
+          ready_for_publish_at?: string | null
           scheduled_at?: string | null
           share_count?: number | null
           slug: string
@@ -930,7 +939,10 @@ export type Database = {
           mini_case?: Json | null
           opportunity_id?: string | null
           published_at?: string | null
+          quality_gate_attempts?: number | null
+          quality_gate_status?: string | null
           reading_time?: number | null
+          ready_for_publish_at?: string | null
           scheduled_at?: string | null
           share_count?: number | null
           slug?: string
@@ -1030,7 +1042,9 @@ export type Database = {
       blog_automation: {
         Row: {
           articles_per_period: number | null
+          auto_fix_enabled: boolean | null
           auto_publish: boolean | null
+          auto_publish_enabled: boolean | null
           autopilot_bottom: number | null
           autopilot_middle: number | null
           autopilot_top: number | null
@@ -1042,16 +1056,22 @@ export type Database = {
           generate_images: boolean | null
           id: string
           is_active: boolean | null
+          max_auto_fix_attempts: number | null
+          min_word_count: number | null
           mode: string | null
           niche_keywords: string[] | null
           preferred_days: string[] | null
           preferred_time: string | null
+          publish_delay_hours: number | null
+          quality_gate_enabled: boolean | null
           tone: string | null
           updated_at: string | null
         }
         Insert: {
           articles_per_period?: number | null
+          auto_fix_enabled?: boolean | null
           auto_publish?: boolean | null
+          auto_publish_enabled?: boolean | null
           autopilot_bottom?: number | null
           autopilot_middle?: number | null
           autopilot_top?: number | null
@@ -1063,16 +1083,22 @@ export type Database = {
           generate_images?: boolean | null
           id?: string
           is_active?: boolean | null
+          max_auto_fix_attempts?: number | null
+          min_word_count?: number | null
           mode?: string | null
           niche_keywords?: string[] | null
           preferred_days?: string[] | null
           preferred_time?: string | null
+          publish_delay_hours?: number | null
+          quality_gate_enabled?: boolean | null
           tone?: string | null
           updated_at?: string | null
         }
         Update: {
           articles_per_period?: number | null
+          auto_fix_enabled?: boolean | null
           auto_publish?: boolean | null
+          auto_publish_enabled?: boolean | null
           autopilot_bottom?: number | null
           autopilot_middle?: number | null
           autopilot_top?: number | null
@@ -1084,10 +1110,14 @@ export type Database = {
           generate_images?: boolean | null
           id?: string
           is_active?: boolean | null
+          max_auto_fix_attempts?: number | null
+          min_word_count?: number | null
           mode?: string | null
           niche_keywords?: string[] | null
           preferred_days?: string[] | null
           preferred_time?: string | null
+          publish_delay_hours?: number | null
+          quality_gate_enabled?: boolean | null
           tone?: string | null
           updated_at?: string | null
         }
@@ -3247,6 +3277,54 @@ export type Database = {
         }
         Relationships: []
       }
+      indexnow_submissions: {
+        Row: {
+          article_id: string
+          blog_id: string
+          id: string
+          response_body: string | null
+          response_status: number | null
+          search_engine: string
+          submitted_at: string | null
+          url_submitted: string
+        }
+        Insert: {
+          article_id: string
+          blog_id: string
+          id?: string
+          response_body?: string | null
+          response_status?: number | null
+          search_engine: string
+          submitted_at?: string | null
+          url_submitted: string
+        }
+        Update: {
+          article_id?: string
+          blog_id?: string
+          id?: string
+          response_body?: string | null
+          response_status?: number | null
+          search_engine?: string
+          submitted_at?: string | null
+          url_submitted?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "indexnow_submissions_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "indexnow_submissions_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       keyword_analyses: {
         Row: {
           analyzed_at: string
@@ -3672,6 +3750,50 @@ export type Database = {
           },
         ]
       }
+      performance_learning_log: {
+        Row: {
+          analysis_period_end: string
+          analysis_period_start: string
+          applied_at: string | null
+          blog_id: string
+          decision_rationale: string | null
+          id: string
+          new_distribution: Json
+          performance_data: Json
+          previous_distribution: Json
+        }
+        Insert: {
+          analysis_period_end: string
+          analysis_period_start: string
+          applied_at?: string | null
+          blog_id: string
+          decision_rationale?: string | null
+          id?: string
+          new_distribution: Json
+          performance_data: Json
+          previous_distribution: Json
+        }
+        Update: {
+          analysis_period_end?: string
+          analysis_period_start?: string
+          applied_at?: string | null
+          blog_id?: string
+          decision_rationale?: string | null
+          id?: string
+          new_distribution?: Json
+          performance_data?: Json
+          previous_distribution?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "performance_learning_log_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       personas: {
         Row: {
           age_range: string | null
@@ -3877,6 +3999,81 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      quality_gate_audits: {
+        Row: {
+          approved: boolean
+          article_id: string
+          attempt_number: number | null
+          auto_fix_applied: boolean | null
+          auto_fix_changes: Json | null
+          blog_id: string
+          compliance_passed: boolean | null
+          failures: Json | null
+          fix_suggestions: Json | null
+          id: string
+          risk_level: string | null
+          seo_score: number | null
+          similarity_score: number | null
+          validated_at: string | null
+          validator_version: string | null
+          warnings: Json | null
+          word_count: number | null
+        }
+        Insert: {
+          approved: boolean
+          article_id: string
+          attempt_number?: number | null
+          auto_fix_applied?: boolean | null
+          auto_fix_changes?: Json | null
+          blog_id: string
+          compliance_passed?: boolean | null
+          failures?: Json | null
+          fix_suggestions?: Json | null
+          id?: string
+          risk_level?: string | null
+          seo_score?: number | null
+          similarity_score?: number | null
+          validated_at?: string | null
+          validator_version?: string | null
+          warnings?: Json | null
+          word_count?: number | null
+        }
+        Update: {
+          approved?: boolean
+          article_id?: string
+          attempt_number?: number | null
+          auto_fix_applied?: boolean | null
+          auto_fix_changes?: Json | null
+          blog_id?: string
+          compliance_passed?: boolean | null
+          failures?: Json | null
+          fix_suggestions?: Json | null
+          id?: string
+          risk_level?: string | null
+          seo_score?: number | null
+          similarity_score?: number | null
+          validated_at?: string | null
+          validator_version?: string | null
+          warnings?: Json | null
+          word_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quality_gate_audits_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quality_gate_audits_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
           },
         ]
       }
