@@ -12,20 +12,29 @@ i18n
   .use(initReactI18next)
   .init({
     resources: {
+      // Portuguese (Brazil) + aliases (some browsers detect just "pt" or "pt-PT")
       'pt-BR': { translation: ptBR },
+      'pt': { translation: ptBR },
+      'pt-PT': { translation: ptBR },
+
       'en': { translation: en },
-      'es': { translation: es }
+      'es': { translation: es },
     },
-    fallbackLng: 'pt-BR',
-    supportedLngs: ['pt-BR', 'en', 'es'],
+    fallbackLng: {
+      'pt': ['pt-BR'],
+      'pt-PT': ['pt-BR'],
+      default: ['pt-BR'],
+    },
+    supportedLngs: ['pt-BR', 'pt', 'pt-PT', 'en', 'es'],
+    nonExplicitSupportedLngs: true,
     detection: {
       order: ['localStorage', 'navigator', 'htmlTag'],
       caches: ['localStorage'],
-      lookupLocalStorage: 'i18nextLng'
+      lookupLocalStorage: 'i18nextLng',
     },
     interpolation: {
-      escapeValue: false
-    }
+      escapeValue: false,
+    },
   });
 
 export default i18n;
