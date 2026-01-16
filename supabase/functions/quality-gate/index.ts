@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { detectSensitiveNiche, validateCompliance, hasRequiredDisclaimer, injectDisclaimer } from "../_shared/complianceValidator.ts";
 import { checkSimilarity, checkTitleSimilarity } from "../_shared/similarityChecker.ts";
+import { validateStructure, generateStructureFixInstructions, isValidStructureType, type StructureType } from "../_shared/structureValidator.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -223,7 +224,36 @@ serve(async (req) => {
       fix_suggestions.push(`Disclaimer de ${detectedNiche} será adicionado automaticamente`);
     }
 
-    // ===== 5. VISUAL RHYTHM =====
+    // ===== 5. STRUCTURAL VALIDATION (NOVO!) =====
+    let structureValidationResult = null;
+    let structureScore = 100;
+    
+    if (article.article_structure_type && isValidStructureType(article.article_structure_type)) {
+      console.log(`[QUALITY-GATE] Validating structure type: ${article.article_structure_type}`);
+      
+      structureValidationResult = validateStructure(
+        content,
+        title,
+        article.article_structure_type as StructureType
+      );
+      
+      structureScore = structureValidationResult.score;
+      
+      if (!structureValidationResult.valid) {
+        reasons.push(`Estrutura ${article.article_structure_type} não validada (score: ${structureScore}%)`);
+        fix_suggestions.push(...structureValidationResult.fixSuggestions);
+        
+        // Gerar instruções de correção para o LLM
+        const fixInstructions = generateStructureFixInstructions(structureValidationResult);
+        if (fixInstructions) {
+          fix_suggestions.push(fixInstructions);
+        }
+      } else {
+        console.log(`[QUALITY-GATE] Structure validation passed: ${article.article_structure_type} (score: ${structureScore}%)`);
+      }
+    }
+
+    // ===== 6. VISUAL RHYTHM =====
     const visualIssues: string[] = [];
     
     // Check paragraph length
@@ -268,14 +298,17 @@ serve(async (req) => {
       criticalIssues > 0 ? 'high' :
       reasons.length > 3 ? 'medium' : 'low';
 
-    // Approval logic
+    // Approval logic - agora inclui validação estrutural
+    const structureValid = !structureValidationResult || structureValidationResult.valid;
+    
     const approved = 
       wordCount >= minWordCount &&
       !similarityResult.isSimilar &&
       !titleSimilarityResult.isSimilar &&
       complianceResult.passed &&
       h1Matches.length === 1 &&
-      hasCTA;
+      hasCTA &&
+      structureValid; // NOVO: Estrutura deve ser válida
 
     const result: QualityGateResult = {
       approved,
