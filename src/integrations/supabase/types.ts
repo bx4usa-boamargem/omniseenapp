@@ -160,6 +160,90 @@ export type Database = {
         }
         Relationships: []
       }
+      admin_health_alert_history: {
+        Row: {
+          alert_id: string | null
+          current_value: number | null
+          id: string
+          message: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          tenant_id: string | null
+          triggered_at: string | null
+        }
+        Insert: {
+          alert_id?: string | null
+          current_value?: number | null
+          id?: string
+          message?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          tenant_id?: string | null
+          triggered_at?: string | null
+        }
+        Update: {
+          alert_id?: string | null
+          current_value?: number | null
+          id?: string
+          message?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          tenant_id?: string | null
+          triggered_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_health_alert_history_alert_id_fkey"
+            columns: ["alert_id"]
+            isOneToOne: false
+            referencedRelation: "admin_health_alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_health_alert_history_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_health_alerts: {
+        Row: {
+          alert_type: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean | null
+          notification_email: string | null
+          threshold_unit: string | null
+          threshold_value: number
+          updated_at: string | null
+        }
+        Insert: {
+          alert_type: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          notification_email?: string | null
+          threshold_unit?: string | null
+          threshold_value: number
+          updated_at?: string | null
+        }
+        Update: {
+          alert_type?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean | null
+          notification_email?: string | null
+          threshold_unit?: string | null
+          threshold_value?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       ai_content_cache: {
         Row: {
           blog_id: string | null
