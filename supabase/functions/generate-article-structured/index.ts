@@ -398,8 +398,8 @@ Gere um artigo OBJETIVO e DIRETO, entre 400 e 1000 palavras.
 - CTA simples no final`
   },
   deep: {
-    minPercent: 0.85,
-    minWords: 1500,
+    minPercent: 0.80,
+    minWords: 1200,
     maxWords: 3000,
     autoRetry: true,
     maxRetries: 2,
