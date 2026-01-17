@@ -121,8 +121,15 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
   };
 
   const handleSignOut = async () => {
-    await signOut();
-    navigate('/auth');
+    try {
+      await signOut();
+      // Force navigation after sign out
+      window.location.href = '/auth';
+    } catch (error) {
+      console.error('Error signing out:', error);
+      // Force navigation even on error
+      window.location.href = '/auth';
+    }
   };
 
   const NavButton = ({ item }: { item: NavItem }) => {
