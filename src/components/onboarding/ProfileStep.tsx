@@ -1,4 +1,3 @@
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -7,7 +6,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Phone, Users } from "lucide-react";
+import { PhoneInput } from "@/components/ui/phone-input";
+import { Users } from "lucide-react";
 
 interface ProfileStepProps {
   phone: string;
@@ -32,28 +32,6 @@ export function ProfileStep({
   onPhoneChange,
   onReferralSourceChange,
 }: ProfileStepProps) {
-  const formatPhone = (value: string) => {
-    // Remove tudo que não é número
-    const numbers = value.replace(/\D/g, "");
-    
-    // Limita a 11 dígitos (celular com DDD)
-    const limited = numbers.slice(0, 11);
-    
-    // Formata: (XX) XXXXX-XXXX
-    if (limited.length <= 2) {
-      return limited;
-    } else if (limited.length <= 7) {
-      return `(${limited.slice(0, 2)}) ${limited.slice(2)}`;
-    } else {
-      return `(${limited.slice(0, 2)}) ${limited.slice(2, 7)}-${limited.slice(7)}`;
-    }
-  };
-
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatPhone(e.target.value);
-    onPhoneChange(formatted);
-  };
-
   return (
     <div className="space-y-8">
       <div>
@@ -67,20 +45,16 @@ export function ProfileStep({
 
       {/* Telefone */}
       <div className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Phone className="h-4 w-4 text-muted-foreground" />
-          <Label htmlFor="phone" className="text-base font-medium">
-            WhatsApp (opcional)
-          </Label>
+        <Label htmlFor="phone" className="text-base font-medium">
+          WhatsApp (opcional)
+        </Label>
+        <div className="max-w-sm">
+          <PhoneInput
+            id="phone"
+            value={phone}
+            onChange={onPhoneChange}
+          />
         </div>
-        <Input
-          id="phone"
-          type="tel"
-          placeholder="(11) 99999-9999"
-          value={phone}
-          onChange={handlePhoneChange}
-          className="max-w-xs"
-        />
         <p className="text-sm text-muted-foreground">
           Para suporte prioritário e novidades exclusivas
         </p>

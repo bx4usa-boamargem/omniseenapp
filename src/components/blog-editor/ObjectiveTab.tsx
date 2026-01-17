@@ -21,6 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ImageUpload } from "@/components/onboarding/ImageUpload";
 import { SectionHelper } from "./SectionHelper";
 import { useGlobalWhatsApp } from "@/hooks/useGlobalWhatsApp";
+import { PhoneInput } from "@/components/ui/phone-input";
 
 interface ObjectiveTabProps {
   ctaType: string;
@@ -240,14 +241,12 @@ export function ObjectiveTab({
                   <MessageCircle className="h-4 w-4 text-green-600" />
                   Número do WhatsApp
                 </Label>
-                <Input
+                <PhoneInput
                   value={ctaUrl}
-                  onChange={(e) => onCtaUrlChange(e.target.value)}
-                  placeholder="5511999999999"
-                  className="bg-white dark:bg-background"
+                  onChange={onCtaUrlChange}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Digite apenas números com código do país (ex: 5511999999999)
+                  Selecione o país e digite o número local
                 </p>
               </div>
 

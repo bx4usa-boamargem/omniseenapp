@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Plus, Trash2, ChevronUp, ChevronDown, MessageCircle, Phone, Mail, Instagram, Globe, Link, Check, AlertCircle, ExternalLink } from "lucide-react";
 import { sanitizeContactValue, getContactDisplayLabel, getContactPlaceholder, validateContactValue, getContactLinkPreview, getContactHref } from "@/lib/contactLinks";
 import { cn } from "@/lib/utils";
@@ -216,18 +217,25 @@ export function ContactButtonsSection({
                   )}
                 </div>
 
-                {/* Value Input with conditional border */}
-                <Input
-                  placeholder={instructions.example}
-                  value={button.value}
-                  onChange={(e) => updateButton(index, 'value', e.target.value)}
-                  className={cn(
-                    "bg-white text-gray-900 placeholder:text-gray-400",
-                    hasValue && !validation.isValid 
-                      ? "border-red-400 focus:ring-red-400 focus:border-red-400" 
-                      : "border-gray-200"
-                  )}
-                />
+                {/* Value Input - Use PhoneInput for phone types */}
+                {(button.button_type === 'whatsapp' || button.button_type === 'phone') ? (
+                  <PhoneInput
+                    value={button.value}
+                    onChange={(value) => updateButton(index, 'value', value)}
+                  />
+                ) : (
+                  <Input
+                    placeholder={instructions.example}
+                    value={button.value}
+                    onChange={(e) => updateButton(index, 'value', e.target.value)}
+                    className={cn(
+                      "bg-white text-gray-900 placeholder:text-gray-400",
+                      hasValue && !validation.isValid 
+                        ? "border-red-400 focus:ring-red-400 focus:border-red-400" 
+                        : "border-gray-200"
+                    )}
+                  />
+                )}
 
                 {/* Error Message (only if has value and invalid) */}
                 {hasValue && !validation.isValid && (

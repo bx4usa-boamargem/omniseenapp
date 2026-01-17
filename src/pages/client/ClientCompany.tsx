@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Building2, Loader2, Save, CheckCircle2, MessageCircle, Globe, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { BusinessEconomicsSection } from '@/components/company/BusinessEconomicsSection';
@@ -423,17 +424,13 @@ export default function ClientCompany() {
           {/* WhatsApp */}
           <div className="space-y-2">
             <Label htmlFor="whatsapp">WhatsApp para contato</Label>
-            <div className="flex gap-2">
-              <Input
-                id="whatsapp"
-                placeholder="Ex: 5511999999999"
-                value={whatsapp}
-                onChange={(e) => setWhatsapp(e.target.value.replace(/\D/g, ''))}
-                className="font-mono"
-              />
-            </div>
+            <PhoneInput
+              id="whatsapp"
+              value={whatsapp}
+              onChange={setWhatsapp}
+            />
             <p className="text-xs text-muted-foreground">
-              Apenas números, com código do país e DDD. Ex: 5511999999999
+              Selecione o país e digite o número local
             </p>
             
             {/* WhatsApp Link Preview - Uses Global Template */}
