@@ -31,13 +31,13 @@ interface TemplateLivePreviewProps {
   isDark?: boolean;
 }
 
-// Mock articles if none exist
+// Mock articles as fallback for preview
 const MOCK_ARTICLES: Article[] = [
   {
     id: '1',
     title: 'Como aumentar suas vendas em 2025',
     excerpt: 'Descubra as melhores estratégias para impulsionar seu negócio e alcançar resultados extraordinários.',
-    featured_image_url: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800',
+    featured_image_url: '/placeholder.svg',
     slug: 'aumentar-vendas-2025',
     reading_time: 5,
     created_at: new Date().toISOString(),
@@ -46,7 +46,7 @@ const MOCK_ARTICLES: Article[] = [
     id: '2',
     title: 'Guia completo de marketing digital',
     excerpt: 'Tudo que você precisa saber sobre marketing digital para iniciantes e profissionais.',
-    featured_image_url: 'https://images.unsplash.com/photo-1432888498266-38ffec3eaf0a?w=800',
+    featured_image_url: '/placeholder.svg',
     slug: 'guia-marketing-digital',
     reading_time: 8,
     created_at: new Date().toISOString(),
@@ -55,7 +55,7 @@ const MOCK_ARTICLES: Article[] = [
     id: '3',
     title: 'Tendências de tecnologia para ficar de olho',
     excerpt: 'As principais tendências tecnológicas que vão transformar o mercado nos próximos anos.',
-    featured_image_url: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800',
+    featured_image_url: '/placeholder.svg',
     slug: 'tendencias-tecnologia',
     reading_time: 6,
     created_at: new Date().toISOString(),
@@ -64,7 +64,7 @@ const MOCK_ARTICLES: Article[] = [
     id: '4',
     title: 'Produtividade: técnicas que funcionam',
     excerpt: 'Métodos comprovados para aumentar sua produtividade no trabalho e na vida pessoal.',
-    featured_image_url: 'https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?w=800',
+    featured_image_url: '/placeholder.svg',
     slug: 'produtividade-tecnicas',
     reading_time: 4,
     created_at: new Date().toISOString(),
@@ -73,7 +73,7 @@ const MOCK_ARTICLES: Article[] = [
     id: '5',
     title: 'O futuro do trabalho remoto',
     excerpt: 'Como as empresas estão se adaptando à nova realidade do trabalho híbrido.',
-    featured_image_url: 'https://images.unsplash.com/photo-1587825140708-dfaf72ae4b04?w=800',
+    featured_image_url: '/placeholder.svg',
     slug: 'futuro-trabalho-remoto',
     reading_time: 7,
     created_at: new Date().toISOString(),
@@ -82,7 +82,7 @@ const MOCK_ARTICLES: Article[] = [
     id: '6',
     title: 'Inovação em pequenos negócios',
     excerpt: 'Estratégias de inovação acessíveis para pequenas e médias empresas.',
-    featured_image_url: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=800',
+    featured_image_url: '/placeholder.svg',
     slug: 'inovacao-pequenos-negocios',
     reading_time: 5,
     created_at: new Date().toISOString(),
@@ -90,7 +90,8 @@ const MOCK_ARTICLES: Article[] = [
 ];
 
 export const TemplateLivePreview = ({ template, blog, articles, isDark = false }: TemplateLivePreviewProps) => {
-  const displayArticles = articles.length > 0 ? articles : MOCK_ARTICLES;
+  const isUsingMocks = articles.length === 0;
+  const displayArticles = isUsingMocks ? MOCK_ARTICLES : articles;
   const primaryColor = blog.primary_color || '#6366f1';
   const secondaryColor = blog.secondary_color || '#8b5cf6';
   

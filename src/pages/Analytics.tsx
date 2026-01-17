@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -139,9 +140,9 @@ export default function Analytics() {
     }
   }, [user, period]);
 
-  // TODO: Connect to useSubscription hook for plan control
-  // const { isPremium } = useSubscription();
-  const isPremium = true; // Placeholder for future monetization
+  // Connected to real subscription status
+  const { isActive, isTrial } = useSubscription();
+  const isPremium = isActive || isTrial;
 
   if (loading || loadingData) {
     return (
