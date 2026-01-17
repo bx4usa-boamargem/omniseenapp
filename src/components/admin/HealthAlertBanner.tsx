@@ -57,7 +57,8 @@ export function HealthAlertBanner() {
         id,
         name,
         owner_user_id,
-        created_at
+        created_at,
+        billing_email
       `)
       .eq("status", "active");
 
@@ -69,7 +70,7 @@ export function HealthAlertBanner() {
     // Fetch profiles for user info
     const { data: profilesData } = await supabase
       .from("profiles")
-      .select("user_id, email, updated_at");
+      .select("user_id, full_name, updated_at");
 
     // Fetch blogs with article counts
     const { data: blogsData } = await supabase
@@ -141,7 +142,7 @@ export function HealthAlertBanner() {
           tenantsHealth.push({
             id: tenant.id,
             name: tenant.name,
-            owner_email: profile?.email || "—",
+            owner_email: tenant.billing_email || profile?.full_name || "—",
             last_login: profile?.updated_at || null,
             articles_count: articlesCount,
             last_article_at: lastArticleAt,
