@@ -1769,6 +1769,7 @@ export type Database = {
           concepts: string[] | null
           country: string | null
           created_at: string
+          currency: string | null
           custom_opportunity_value: number | null
           default_template_id: string | null
           desires: string[] | null
@@ -1799,6 +1800,7 @@ export type Database = {
           concepts?: string[] | null
           country?: string | null
           created_at?: string
+          currency?: string | null
           custom_opportunity_value?: number | null
           default_template_id?: string | null
           desires?: string[] | null
@@ -1829,6 +1831,7 @@ export type Database = {
           concepts?: string[] | null
           country?: string | null
           created_at?: string
+          currency?: string | null
           custom_opportunity_value?: number | null
           default_template_id?: string | null
           desires?: string[] | null

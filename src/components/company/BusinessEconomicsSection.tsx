@@ -14,16 +14,26 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface BusinessEconomicsSectionProps {
   blogId: string;
 }
+
+export type CurrencyType = 'BRL' | 'USD';
 
 export function BusinessEconomicsSection({ blogId }: BusinessEconomicsSectionProps) {
   const [averageTicket, setAverageTicket] = useState<string>('');
   const [closingRate, setClosingRate] = useState<string>('');
   const [customOpportunityValue, setCustomOpportunityValue] = useState<string>('');
   const [averageMargin, setAverageMargin] = useState<string>('');
+  const [currency, setCurrency] = useState<CurrencyType>('BRL');
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -34,7 +44,7 @@ export function BusinessEconomicsSection({ blogId }: BusinessEconomicsSectionPro
       try {
         const { data, error } = await supabase
           .from('business_profile')
-          .select('average_ticket, closing_rate, custom_opportunity_value, average_margin')
+          .select('average_ticket, closing_rate, custom_opportunity_value, average_margin, currency')
           .eq('blog_id', blogId)
           .maybeSingle();
 
@@ -45,6 +55,7 @@ export function BusinessEconomicsSection({ blogId }: BusinessEconomicsSectionPro
           setClosingRate(data.closing_rate?.toString() || '');
           setCustomOpportunityValue(data.custom_opportunity_value?.toString() || '');
           setAverageMargin(data.average_margin?.toString() || '');
+          setCurrency((data.currency as CurrencyType) || 'BRL');
         }
       } catch (error) {
         console.error('Error fetching business economics:', error);
@@ -68,6 +79,7 @@ export function BusinessEconomicsSection({ blogId }: BusinessEconomicsSectionPro
           closing_rate: closingRate ? parseFloat(closingRate) : null,
           custom_opportunity_value: customOpportunityValue ? parseFloat(customOpportunityValue) : null,
           average_margin: averageMargin ? parseFloat(averageMargin) : null,
+          currency,
           business_economics_configured: !!(averageTicket && closingRate),
         })
         .eq('blog_id', blogId);
@@ -93,13 +105,15 @@ export function BusinessEconomicsSection({ blogId }: BusinessEconomicsSectionPro
   );
 
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
+    return new Intl.NumberFormat(currency === 'BRL' ? 'pt-BR' : 'en-US', {
       style: 'currency',
-      currency: 'BRL',
+      currency: currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(value);
   };
+
+  const currencySymbol = currency === 'BRL' ? 'R$' : '$';
 
   if (isLoading) {
     return (
@@ -118,9 +132,20 @@ export function BusinessEconomicsSection({ blogId }: BusinessEconomicsSectionPro
           <Calculator className="h-5 w-5 text-primary" />
           📊 Economia do Negócio
         </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Para calcular seu retorno com precisão, precisamos entender a economia do seu negócio.
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            Para calcular seu retorno com precisão, precisamos entender a economia do seu negócio.
+          </p>
+          <Select value={currency} onValueChange={(v) => setCurrency(v as CurrencyType)}>
+            <SelectTrigger className="w-[110px] h-9">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="BRL">🇧🇷 R$ BRL</SelectItem>
+              <SelectItem value="USD">🇺🇸 $ USD</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Campos principais */}
@@ -141,11 +166,11 @@ export function BusinessEconomicsSection({ blogId }: BusinessEconomicsSectionPro
               </TooltipProvider>
             </Label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">R$</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">{currencySymbol}</span>
               <Input
                 id="averageTicket"
                 type="number"
-                placeholder="500"
+                placeholder={currency === 'BRL' ? '500' : '100'}
                 value={averageTicket}
                 onChange={(e) => setAverageTicket(e.target.value)}
                 className="pl-10"
@@ -195,7 +220,7 @@ export function BusinessEconomicsSection({ blogId }: BusinessEconomicsSectionPro
                 <div className="text-muted-foreground text-xs mb-1">Valor por Oportunidade</div>
                 <div className="font-bold text-lg">{formatCurrency(opportunityValue)}</div>
                 <div className="text-xs text-muted-foreground">
-                  R$ {averageTicket} × {closingRate}%
+                  {currencySymbol} {averageTicket} × {closingRate}%
                 </div>
               </div>
               
@@ -232,7 +257,7 @@ export function BusinessEconomicsSection({ blogId }: BusinessEconomicsSectionPro
                   <span className="text-xs text-muted-foreground ml-2">(sobrescreve cálculo)</span>
                 </Label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">R$</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">{currencySymbol}</span>
                   <Input
                     id="customOpportunityValue"
                     type="number"

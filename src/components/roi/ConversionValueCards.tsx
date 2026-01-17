@@ -23,7 +23,7 @@ export function ConversionValueCards({
   currency = 'BRL'
 }: ConversionValueCardsProps) {
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
+    return new Intl.NumberFormat(currency === 'BRL' ? 'pt-BR' : 'en-US', {
       style: 'currency',
       currency,
       minimumFractionDigits: 0,

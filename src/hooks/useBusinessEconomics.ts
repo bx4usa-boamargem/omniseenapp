@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
+export type CurrencyType = 'BRL' | 'USD';
+
 export interface BusinessEconomics {
   averageTicket: number | null;
   closingRate: number | null;
   customOpportunityValue: number | null;
   averageMargin: number | null;
+  currency: CurrencyType;
   isConfigured: boolean;
   isLoading: boolean;
   
@@ -27,12 +30,14 @@ export function useBusinessEconomics(blogId: string | null): BusinessEconomics {
     closingRate: number | null;
     customOpportunityValue: number | null;
     averageMargin: number | null;
+    currency: CurrencyType;
     isConfigured: boolean;
   }>({
     averageTicket: null,
     closingRate: null,
     customOpportunityValue: null,
     averageMargin: null,
+    currency: 'BRL',
     isConfigured: false,
   });
   const [isLoading, setIsLoading] = useState(true);
@@ -46,7 +51,7 @@ export function useBusinessEconomics(blogId: string | null): BusinessEconomics {
     try {
       const { data: profile, error } = await supabase
         .from('business_profile')
-        .select('average_ticket, closing_rate, custom_opportunity_value, average_margin, business_economics_configured')
+        .select('average_ticket, closing_rate, custom_opportunity_value, average_margin, currency, business_economics_configured')
         .eq('blog_id', blogId)
         .maybeSingle();
 
@@ -58,6 +63,7 @@ export function useBusinessEconomics(blogId: string | null): BusinessEconomics {
           closingRate: profile.closing_rate,
           customOpportunityValue: profile.custom_opportunity_value,
           averageMargin: profile.average_margin,
+          currency: (profile.currency as CurrencyType) || 'BRL',
           isConfigured: profile.business_economics_configured || false,
         });
       }

@@ -9,9 +9,10 @@ import { toast } from 'sonner';
 
 interface ValuePerLeadSettingsProps {
   blogId: string;
+  currency?: 'BRL' | 'USD';
 }
 
-export function ValuePerLeadSettings({ blogId }: ValuePerLeadSettingsProps) {
+export function ValuePerLeadSettings({ blogId, currency = 'BRL' }: ValuePerLeadSettingsProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -110,7 +111,7 @@ export function ValuePerLeadSettings({ blogId }: ValuePerLeadSettingsProps) {
             </Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                R$
+                {currency === 'BRL' ? 'R$' : '$'}
               </span>
               <Input
                 id="valuePerVisibility"
@@ -135,7 +136,7 @@ export function ValuePerLeadSettings({ blogId }: ValuePerLeadSettingsProps) {
             </Label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                R$
+                {currency === 'BRL' ? 'R$' : '$'}
               </span>
               <Input
                 id="valuePerIntent"
@@ -162,8 +163,8 @@ export function ValuePerLeadSettings({ blogId }: ValuePerLeadSettingsProps) {
                 Como definir esses valores?
               </p>
               <ul className="text-muted-foreground mt-1 space-y-1">
-                <li>• <strong>Visibilidade:</strong> Valor de branding por pessoa alcançada (ex: R$ 2-10)</li>
-                <li>• <strong>Intenção:</strong> Valor de um lead qualificado no seu negócio (ex: R$ 20-100)</li>
+                <li>• <strong>Visibilidade:</strong> Valor de branding por pessoa alcançada (ex: {currency === 'BRL' ? 'R$ 2-10' : '$1-5'})</li>
+                <li>• <strong>Intenção:</strong> Valor de um lead qualificado no seu negócio (ex: {currency === 'BRL' ? 'R$ 20-100' : '$10-50'})</li>
               </ul>
             </div>
           </div>

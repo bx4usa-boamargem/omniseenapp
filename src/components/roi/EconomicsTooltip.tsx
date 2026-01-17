@@ -13,6 +13,7 @@ interface EconomicsTooltipProps {
   valuePerExposure: number;
   valuePerIntent: number;
   isConfigured: boolean;
+  currency?: 'BRL' | 'USD';
 }
 
 export function EconomicsTooltip({
@@ -22,11 +23,12 @@ export function EconomicsTooltip({
   valuePerExposure,
   valuePerIntent,
   isConfigured,
+  currency = 'BRL',
 }: EconomicsTooltipProps) {
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
+    return new Intl.NumberFormat(currency === 'BRL' ? 'pt-BR' : 'en-US', {
       style: 'currency',
-      currency: 'BRL',
+      currency: currency,
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
     }).format(value);
