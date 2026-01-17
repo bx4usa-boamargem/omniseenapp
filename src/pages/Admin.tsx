@@ -36,6 +36,9 @@ import { BrandAgentsTab } from "@/components/admin/BrandAgentsTab";
 import { SubaccountCostsTable } from "@/components/admin/SubaccountCostsTable";
 import { MissingCostsAlert } from "@/components/admin/MissingCostsAlert";
 import { QuickPeriodFilters } from "@/components/admin/QuickPeriodFilters";
+import { HealthAlertManager } from "@/components/admin/HealthAlertManager";
+import { HealthAlertBanner } from "@/components/admin/HealthAlertBanner";
+import { HeartPulse } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
@@ -469,6 +472,9 @@ export default function Admin() {
           endDate={endDate} 
         />
 
+        {/* Health Alert Banner */}
+        <HealthAlertBanner />
+
         {/* Cost Projections */}
         <CostProjectionCard 
           logs={logs} 
@@ -611,6 +617,10 @@ export default function Admin() {
             <TabsTrigger value="agents" className="gap-2">
               <Bot className="h-4 w-4" />
               Agentes IA
+            </TabsTrigger>
+            <TabsTrigger value="health" className="gap-2">
+              <HeartPulse className="h-4 w-4" />
+              Saúde
             </TabsTrigger>
           </TabsList>
 
@@ -1072,6 +1082,10 @@ export default function Admin() {
 
           <TabsContent value="agents">
             <BrandAgentsTab />
+          </TabsContent>
+
+          <TabsContent value="health">
+            <HealthAlertManager />
           </TabsContent>
         </Tabs>
       </main>
