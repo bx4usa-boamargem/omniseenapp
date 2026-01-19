@@ -2177,10 +2177,57 @@ export type Database = {
           },
         ]
       }
+      cms_credential_access_log: {
+        Row: {
+          access_type: string
+          accessed_at: string | null
+          accessed_by: string | null
+          id: string
+          integration_id: string | null
+          ip_address: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          access_type: string
+          accessed_at?: string | null
+          accessed_by?: string | null
+          id?: string
+          integration_id?: string | null
+          ip_address?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          access_type?: string
+          accessed_at?: string | null
+          accessed_by?: string | null
+          id?: string
+          integration_id?: string | null
+          ip_address?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cms_credential_access_log_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "cms_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cms_credential_access_log_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "cms_integrations_decrypted"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cms_integrations: {
         Row: {
           api_key: string | null
+          api_key_encrypted: string | null
           api_secret: string | null
+          api_secret_encrypted: string | null
           auto_publish: boolean | null
           blog_id: string
           created_at: string | null
@@ -2195,7 +2242,9 @@ export type Database = {
         }
         Insert: {
           api_key?: string | null
+          api_key_encrypted?: string | null
           api_secret?: string | null
+          api_secret_encrypted?: string | null
           auto_publish?: boolean | null
           blog_id: string
           created_at?: string | null
@@ -2210,7 +2259,9 @@ export type Database = {
         }
         Update: {
           api_key?: string | null
+          api_key_encrypted?: string | null
           api_secret?: string | null
+          api_secret_encrypted?: string | null
           auto_publish?: boolean | null
           blog_id?: string
           created_at?: string | null
@@ -2280,6 +2331,13 @@ export type Database = {
             columns: ["integration_id"]
             isOneToOne: false
             referencedRelation: "cms_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cms_publish_logs_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "cms_integrations_decrypted"
             referencedColumns: ["id"]
           },
         ]
@@ -5595,7 +5653,62 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      cms_integrations_decrypted: {
+        Row: {
+          api_key: string | null
+          api_secret: string | null
+          auto_publish: boolean | null
+          blog_id: string | null
+          created_at: string | null
+          id: string | null
+          is_active: boolean | null
+          last_sync_at: string | null
+          last_sync_status: string | null
+          platform: string | null
+          site_url: string | null
+          updated_at: string | null
+          username: string | null
+        }
+        Insert: {
+          api_key?: never
+          api_secret?: never
+          auto_publish?: boolean | null
+          blog_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          last_sync_status?: string | null
+          platform?: string | null
+          site_url?: string | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Update: {
+          api_key?: never
+          api_secret?: never
+          auto_publish?: boolean | null
+          blog_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          last_sync_status?: string | null
+          platform?: string | null
+          site_url?: string | null
+          updated_at?: string | null
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cms_integrations_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       calculate_payment_due_date: {
@@ -5620,6 +5733,14 @@ export type Database = {
           persona_id: string
           suggested_theme: string
         }[]
+      }
+      decrypt_credential: {
+        Args: { ciphertext: string; key_id: string }
+        Returns: string
+      }
+      encrypt_credential: {
+        Args: { key_id: string; plaintext: string }
+        Returns: string
       }
       generate_referral_code: { Args: never; Returns: string }
       has_role:

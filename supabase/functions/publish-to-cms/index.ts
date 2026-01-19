@@ -267,9 +267,9 @@ Deno.serve(async (req) => {
 
     console.log(`CMS action: ${action}, integration: ${integrationId}`);
 
-    // Fetch integration details
+    // Fetch integration details from decrypted view (credentials are encrypted at rest)
     const { data: integration, error: integrationError } = await supabaseClient
-      .from("cms_integrations")
+      .from("cms_integrations_decrypted")
       .select("*")
       .eq("id", integrationId)
       .single();
@@ -281,6 +281,12 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
       );
     }
+
+    // Log credential access for audit trail
+    await supabaseClient.from("cms_credential_access_log").insert({
+      integration_id: integrationId,
+      access_type: action === "test" ? "view" : "publish",
+    });
 
     const platform = integration.platform;
 
