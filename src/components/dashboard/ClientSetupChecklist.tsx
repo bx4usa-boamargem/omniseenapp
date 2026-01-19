@@ -62,7 +62,7 @@ export function ClientSetupChecklist({ blogId, userId, onComplete }: ClientSetup
       try {
         // Fetch all data in parallel
         const [profileRes, blogRes, articlesRes, strategyRes] = await Promise.all([
-          supabase.from('profiles').select('full_name, avatar_url').eq('id', userId).maybeSingle(),
+          supabase.from('profiles').select('full_name, avatar_url').eq('user_id', userId).maybeSingle(),
           supabase.from('blogs').select('primary_color, logo_url, cta_text').eq('id', blogId).maybeSingle(),
           supabase.from('articles').select('id').eq('blog_id', blogId).eq('status', 'published').limit(1),
           supabase.from('client_strategy').select('empresa_nome').eq('blog_id', blogId).maybeSingle()
