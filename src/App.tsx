@@ -261,8 +261,8 @@ const AppRoutes = () => {
   // Platform mode - authenticated app (app.omniseen.app or localhost)
   return (
     <Routes>
-      {/* Redirect root to dashboard */}
-      <Route path="/" element={<Navigate to="/app/dashboard" replace />} />
+      {/* Landing Page for all visitors */}
+      <Route path="/" element={<Index />} />
       
       {/* Landing page for dev/preview access */}
       <Route path="/landing" element={<Index />} />
