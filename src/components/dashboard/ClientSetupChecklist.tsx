@@ -39,6 +39,8 @@ interface ChecklistItem {
   completed: boolean;
 }
 
+const CELEBRATION_SHOWN_KEY = 'omniseen_setup_celebration_shown';
+
 const TOOLTIPS = {
   profile: "Define quem é você para o motor da Omniseen. Ajuda a IA a gerar conteúdos alinhados à sua marca.",
   colors: "Cria a identidade visual do seu blog público. Impacta como sua marca é percebida.",
@@ -162,22 +164,31 @@ export function ClientSetupChecklist({ blogId, userId, onComplete }: ClientSetup
 
         // Check if all items are complete
         const allComplete = checklistItems.every(item => item.completed);
+        const celebrationShown = localStorage.getItem(`${CELEBRATION_SHOWN_KEY}_${blogId}`);
+        
         if (allComplete && !hasTriggeredComplete.current) {
           hasTriggeredComplete.current = true;
-          // Big celebration!
-          setShowCelebration(true);
-          fireConfetti({ particleCount: 150 });
           
-          // Trigger achievement check
+          // Only show celebration if NEVER shown before for this blog
+          if (!celebrationShown) {
+            localStorage.setItem(`${CELEBRATION_SHOWN_KEY}_${blogId}`, 'true');
+            setShowCelebration(true);
+            fireConfetti({ particleCount: 150 });
+            
+            // Hide checklist after celebration
+            setTimeout(() => {
+              setShowCelebration(false);
+              onComplete?.();
+            }, 4000);
+          } else {
+            // Already saw celebration, just hide the checklist
+            onComplete?.();
+          }
+          
+          // Trigger achievement check always
           supabase.functions.invoke('check-achievements', {
             body: { userId, blogId }
           });
-
-          // Hide checklist after celebration
-          setTimeout(() => {
-            setShowCelebration(false);
-            onComplete?.();
-          }, 4000);
         }
       } catch (error) {
         console.error('Error fetching checklist status:', error);
