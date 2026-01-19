@@ -43,7 +43,7 @@ serve(async (req) => {
 
     console.log("[AUTO-PUBLISH] Starting auto-publish run...");
 
-    // Fetch articles ready for publishing
+    // Fetch articles ready for publishing (with content for word count check)
     const { data: readyArticles, error: fetchError } = await supabase
       .from("articles")
       .select(`
@@ -51,6 +51,7 @@ serve(async (req) => {
         blog_id,
         title,
         slug,
+        content,
         ready_for_publish_at,
         quality_gate_status,
         blogs!inner(
@@ -98,6 +99,43 @@ serve(async (req) => {
           console.log(`[AUTO-PUBLISH] Auto-publish disabled for blog ${article.blog_id}, skipping article ${article.id}`);
           results.push({ article_id: article.id, success: false, error: "Auto-publish disabled" });
           continue;
+        }
+
+        // ============================================
+        // OMNICORE HARD RULES CHECK
+        // ============================================
+        
+        // 1. Check word count >= 1200 (HARD RULE)
+        const articleContent = (article as any).content || '';
+        const wordCount = articleContent.split(/\s+/).filter((word: string) => word.length > 0).length;
+        if (wordCount < 1200) {
+          console.log(`[AUTO-PUBLISH] Word count ${wordCount} < 1200 for article ${article.id}, skipping`);
+          results.push({ article_id: article.id, success: false, error: `Word count ${wordCount} < 1200` });
+          continue;
+        }
+
+        // 2. Check OmniCore review if this is an OmniCore article
+        const { data: omnicoreArticle } = await supabase
+          .from("omnicore_articles")
+          .select("id")
+          .eq("article_id", article.id)
+          .maybeSingle();
+
+        if (omnicoreArticle) {
+          const { data: review } = await supabase
+            .from("omnicore_reviews")
+            .select("approved, word_count_validated")
+            .eq("omnicore_article_id", omnicoreArticle.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!review?.approved) {
+            console.log(`[AUTO-PUBLISH] OmniCore review not approved for article ${article.id}, skipping`);
+            results.push({ article_id: article.id, success: false, error: "OmniCore review not approved" });
+            continue;
+          }
+          console.log(`[AUTO-PUBLISH] OmniCore review approved for article ${article.id}`);
         }
 
         // Publish the article

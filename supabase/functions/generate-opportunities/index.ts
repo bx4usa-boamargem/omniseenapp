@@ -12,6 +12,8 @@ interface GenerateRequest {
   competitors?: { name: string; url: string }[];
   mode?: 'standard' | 'trends' | 'competitor_gaps';
   useTrends?: boolean;
+  signalId?: string; // NEW: Link to omnicore_signals
+  territory?: string; // NEW: Territory for OmniCore
 }
 
 interface RelevanceFactors {
@@ -130,14 +132,29 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
-    const { blogId, count = 5, competitors = [], mode = 'standard', useTrends = false }: GenerateRequest = await req.json();
-    console.log('Generating opportunities for blog:', blogId, 'count:', count, 'mode:', mode, 'competitors:', competitors.length);
+    const { blogId, count = 5, competitors = [], mode = 'standard', useTrends = false, signalId, territory }: GenerateRequest = await req.json();
+    console.log('Generating opportunities for blog:', blogId, 'count:', count, 'mode:', mode, 'competitors:', competitors.length, 'signalId:', signalId);
 
     if (!blogId) {
       return new Response(
         JSON.stringify({ error: 'blogId is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Fetch signal data if signalId provided (OmniCore flow)
+    let signalData = null;
+    if (signalId) {
+      const { data: signal } = await supabase
+        .from('omnicore_signals')
+        .select('*')
+        .eq('id', signalId)
+        .single();
+      
+      if (signal) {
+        signalData = signal;
+        console.log(`[OMNICORE] Using signal: ${signal.topic}`);
+      }
     }
 
     // Fetch business profile for context
@@ -343,6 +360,39 @@ Responda APENAS com um JSON válido no formato:
       if (insertError) {
         console.error('Error inserting opportunities:', insertError);
         throw new Error('Failed to save opportunities');
+      }
+
+      // ============================================
+      // OMNICORE: Save to omnicore_opportunities if signalId present
+      // ============================================
+      if (signalId && insertedData) {
+        console.log(`[OMNICORE] Saving ${insertedData.length} opportunities to omnicore_opportunities...`);
+        
+        for (const opp of insertedData) {
+          const omnicoreOpp = {
+            blog_id: blogId,
+            signal_id: signalId,
+            opportunity_id: opp.id,
+            territory: territory || signalData?.territory || 'Unknown',
+            slug: opp.suggested_title?.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 60) || null,
+            title: opp.suggested_title,
+            angle: 'local-authority',
+            primary_kw: opp.suggested_keywords?.[0] || null,
+            secondary_kw: opp.suggested_keywords?.slice(1) || [],
+            intent: 'informational',
+            status: 'pending',
+          };
+          
+          const { error: omnicoreError } = await supabase
+            .from('omnicore_opportunities')
+            .insert(omnicoreOpp);
+          
+          if (omnicoreError) {
+            console.warn(`[OMNICORE] Failed to save opportunity:`, omnicoreError);
+          }
+        }
+        
+        console.log(`[OMNICORE] Saved opportunities to omnicore_opportunities`);
       }
 
       // Check for high-relevance opportunities and send notifications

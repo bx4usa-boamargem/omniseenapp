@@ -10,6 +10,16 @@ interface TrendRequest {
   blogId: string;
   niche?: string;
   country?: string;
+  territory?: string; // NEW: OmniCore territory format "City, State, Country"
+  saveSignals?: boolean; // NEW: Save to omnicore_signals table
+}
+
+interface TrendSignal {
+  id?: string;
+  topic: string;
+  intent: string;
+  volume_hint: string;
+  sources: string[];
 }
 
 serve(async (req) => {
@@ -25,22 +35,26 @@ serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { blogId, niche, country }: TrendRequest = await req.json();
+    const { blogId, niche, country, territory, saveSignals = false }: TrendRequest = await req.json();
 
-    // Fetch business profile for context
+    // Parse territory if provided (format: "City, State, Country")
+    let parsedTerritory = territory || '';
     let businessNiche = niche || "negócios";
     let businessCountry = country || "Brasil";
 
     if (blogId) {
       const { data: profile } = await supabase
         .from("business_profile")
-        .select("niche, country, company_name")
+        .select("niche, country, company_name, city")
         .eq("blog_id", blogId)
         .maybeSingle();
 
       if (profile) {
         businessNiche = profile.niche || businessNiche;
         businessCountry = profile.country || businessCountry;
+        if (!parsedTerritory && profile.city) {
+          parsedTerritory = profile.city;
+        }
       }
 
       // Also check client_strategy
@@ -226,6 +240,47 @@ Retorne apenas o JSON, sem explicações.`;
       throw new Error("No AI provider available");
     }
 
+    // ============================================
+    // OMNICORE: Save signals to omnicore_signals table
+    // ============================================
+    const savedSignals: TrendSignal[] = [];
+    
+    if (saveSignals && blogId && trends.trends && Array.isArray(trends.trends)) {
+      console.log(`[OMNICORE] Saving ${trends.trends.length} signals to omnicore_signals...`);
+      
+      for (const trend of trends.trends) {
+        const signalData = {
+          blog_id: blogId,
+          territory: parsedTerritory || businessCountry,
+          niche: businessNiche,
+          topic: trend.topic || trend.keyword || 'Unknown topic',
+          intent: trend.intent || 'informational',
+          volume_hint: trend.volume_hint || trend.relevance || 'medium',
+          sources: trend.sources || citations.slice(0, 3) || [],
+        };
+        
+        const { data: insertedSignal, error: signalError } = await supabase
+          .from('omnicore_signals')
+          .insert(signalData)
+          .select('id')
+          .single();
+        
+        if (!signalError && insertedSignal) {
+          savedSignals.push({
+            id: insertedSignal.id,
+            topic: signalData.topic,
+            intent: signalData.intent,
+            volume_hint: signalData.volume_hint,
+            sources: signalData.sources,
+          });
+        } else {
+          console.warn(`[OMNICORE] Failed to save signal:`, signalError);
+        }
+      }
+      
+      console.log(`[OMNICORE] Saved ${savedSignals.length} signals`);
+    }
+
     // Log AI usage
     await supabase.from("ai_usage_logs").insert({
       blog_id: blogId || null,
@@ -236,7 +291,9 @@ Retorne apenas o JSON, sem explicações.`;
       success: true,
       metadata: {
         trends_count: trends.trends?.length || 0,
-        citations_count: citations.length
+        citations_count: citations.length,
+        signals_saved: savedSignals.length,
+        territory: parsedTerritory,
       }
     });
 
@@ -247,9 +304,11 @@ Retorne apenas o JSON, sem explicações.`;
         success: true,
         niche: businessNiche,
         region: businessCountry,
+        territory: parsedTerritory || businessCountry,
         period: `${month}/${year}`,
         source: provider,
         citations_count: citations.length,
+        signals: savedSignals.length > 0 ? savedSignals : undefined,
         ...trends,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
