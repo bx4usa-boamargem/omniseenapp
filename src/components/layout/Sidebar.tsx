@@ -84,7 +84,7 @@ export function Sidebar({ blogSlug, onSignOut, userRole }: SidebarProps) {
     { icon: BarChart3, label: t('sidebar.seoAnalysis'), path: "/app/performance" },
     ...(hasPermission("blog.settings") ? [{ icon: Zap, label: t('sidebar.automations'), path: "/app/automation" }] : []),
     { icon: Gift, label: t('sidebar.referrals'), path: "/app/referrals" },
-    ...(isPlatformAdmin ? [{ icon: Megaphone, label: t('sidebar.landingPage'), path: "/app/landing" }] : []),
+    // Landing page removed - SaaS only
   ];
 
   const bottomNavItems: NavItem[] = [

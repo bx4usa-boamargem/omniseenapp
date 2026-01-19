@@ -10,7 +10,7 @@ import { UserGuard } from "@/components/auth/UserGuard";
 import { PlatformAdminGuard } from "@/components/auth/PlatformAdminGuard";
 import { SubAccountGuard } from "@/components/auth/SubAccountGuard";
 import { SubAccountLayout } from "@/components/layout/SubAccountLayout";
-import Index from "./pages/Index";
+// Index page removed - redirects to /auth
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Onboarding from "./pages/Onboarding";
@@ -49,7 +49,7 @@ import MyBlog from "./pages/MyBlog";
 import ValidationDashboard from "./pages/ValidationDashboard";
 import Referrals from "./pages/Referrals";
 import QuickAccess from "./pages/QuickAccess";
-import LandingPageInternal from "./pages/LandingPageInternal";
+// LandingPageInternal removed - SaaS only
 import ResetPassword from "./pages/ResetPassword";
 import Blocked from "./pages/Blocked";
 import TermsOfUse from "./pages/TermsOfUse";
@@ -130,7 +130,7 @@ const UserRoutes = () => (
       <Route path="referrals" element={<Referrals />} />
       <Route path="subscription" element={<Subscription />} />
       <Route path="quick-access" element={<QuickAccess />} />
-      <Route path="landing" element={<LandingPageInternal />} />
+      {/* Landing page removed - SaaS only */}
       <Route path="integrations" element={<Integrations />} />
       <Route path="integrations/google" element={<GoogleIntegration />} />
       <Route path="articles/queue" element={<ArticleQueuePage />} />
@@ -233,11 +233,11 @@ const AppRoutes = () => {
     );
   }
 
-  // Landing mode - public marketing site (omniseen.app)
+  // Landing mode - now redirects to auth (omniseen.app)
   if (mode === 'landing') {
     return (
       <Routes>
-        <Route path="/" element={<Index />} />
+        <Route path="/" element={<Navigate to="/auth" replace />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/auth" element={<Auth />} />
         <Route path="/reset-password" element={<ResetPassword />} />
@@ -302,11 +302,8 @@ const AppRoutes = () => {
   // Platform mode - localhost/preview (development)
   return (
     <Routes>
-      {/* Landing Page for all visitors */}
-      <Route path="/" element={<Index />} />
-      
-      {/* Landing page for dev/preview access */}
-      <Route path="/landing" element={<Index />} />
+      {/* Redirect root to auth */}
+      <Route path="/" element={<Navigate to="/auth" replace />} />
       
       {/* Auth routes */}
       <Route path="/auth" element={<Auth />} />
