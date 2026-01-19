@@ -1429,6 +1429,7 @@ export type Database = {
           hero_background_color: string | null
           id: string
           integration_type: string | null
+          is_active: boolean | null
           layout_template: string | null
           logo_background_color: string | null
           logo_negative_background_color: string | null
@@ -1488,6 +1489,7 @@ export type Database = {
           hero_background_color?: string | null
           id?: string
           integration_type?: string | null
+          is_active?: boolean | null
           layout_template?: string | null
           logo_background_color?: string | null
           logo_negative_background_color?: string | null
@@ -1547,6 +1549,7 @@ export type Database = {
           hero_background_color?: string | null
           id?: string
           integration_type?: string | null
+          is_active?: boolean | null
           layout_template?: string | null
           logo_background_color?: string | null
           logo_negative_background_color?: string | null
@@ -5299,6 +5302,10 @@ export type Database = {
         Returns: undefined
       }
       is_team_member_of_blog: {
+        Args: { p_blog_id: string; p_user_id: string }
+        Returns: boolean
+      }
+      is_team_member_safe: {
         Args: { p_blog_id: string; p_user_id: string }
         Returns: boolean
       }
