@@ -29,7 +29,7 @@ import { CustomerAccountsTab } from "@/components/admin/CustomerAccountsTab";
 import { InternalStaffTab } from "@/components/admin/InternalStaffTab";
 import { SessionDiagnosticsTab } from "@/components/admin/SessionDiagnosticsTab";
 import { GoalsManagementTab } from "@/components/admin/GoalsManagementTab";
-import { LandingConversionTab } from "@/components/admin/LandingConversionTab";
+
 import { MarketIntelCostsTab } from "@/components/admin/MarketIntelCostsTab";
 import { CostProjectionCard } from "@/components/admin/CostProjectionCard";
 import { BrandAgentsTab } from "@/components/admin/BrandAgentsTab";
@@ -606,10 +606,6 @@ export default function Admin() {
               <Target className="h-4 w-4" />
               Metas
             </TabsTrigger>
-            <TabsTrigger value="landing" className="gap-2">
-              <LineChart className="h-4 w-4" />
-              Landing
-            </TabsTrigger>
             <TabsTrigger value="market-intel" className="gap-2">
               <Globe className="h-4 w-4" />
               Perplexity
@@ -1069,9 +1065,6 @@ export default function Admin() {
             <GoalsManagementTab />
           </TabsContent>
 
-          <TabsContent value="landing">
-            <LandingConversionTab />
-          </TabsContent>
 
           <TabsContent value="market-intel">
             <MarketIntelCostsTab 

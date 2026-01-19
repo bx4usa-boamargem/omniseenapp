@@ -102,7 +102,7 @@ export default function QuickAccess() {
     { title: "Central de Ajuda", route: "/help", icon: <HelpCircle className="h-5 w-5" />, description: "Tutoriais e suporte", category: "management" },
     
     // External
-    { title: "Landing Page", route: "/", icon: <Globe className="h-5 w-5" />, description: "Página de vendas do produto", category: "external", external: true, featured: true },
+    
     { title: "Ver Meu Blog", route: blog ? `/blog/${blog.slug}` : "#", icon: <ExternalLink className="h-5 w-5" />, description: "Visualizar blog público", category: "external", external: true },
     { title: "Pricing", route: "/pricing", icon: <DollarSign className="h-5 w-5" />, description: "Tabela de preços", category: "external", external: true },
     

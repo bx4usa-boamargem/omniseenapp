@@ -72,7 +72,7 @@ const getPages = (blogSlug?: string): PageItem[] => [
   // Suporte
   { title: 'Ajuda', route: '/help', icon: HelpCircle, keywords: ['suporte', 'faq', 'dúvidas'], category: 'suporte' },
   // Externo
-  { title: 'Landing Page', route: '/', icon: Megaphone, keywords: ['marketing', 'site', 'home', 'página inicial', 'omniseen'], category: 'externo' },
+  
   { title: 'Ver Blog', route: blogSlug ? `/blog/${blogSlug}` : '/blog', icon: Globe, keywords: ['site', 'público', 'visualizar'], category: 'externo', external: true },
   // Admin
   { title: 'Criar Subconta', route: '/admin?tab=customer-accounts', icon: UserPlus, keywords: ['cliente', 'conta', 'manual', 'subconta'], category: 'admin', adminOnly: true },

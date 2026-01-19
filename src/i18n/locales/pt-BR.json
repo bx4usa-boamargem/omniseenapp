@@ -8,7 +8,7 @@
     "seoAnalysis": "Análise SEO",
     "automations": "Automações",
     "referrals": "Indicações",
-    "landingPage": "Landing Page",
+    
     "integrations": "Integrações",
     "help": "Ajuda",
     "blogEditor": "Editor do Blog",
@@ -249,63 +249,6 @@
       "openDashboard": "Abrir Dashboard",
       "copyLink": "Ou copie o link:",
       "linkCopied": "Link copiado!"
-    }
-  },
-  "landing": {
-    "roiCalculator": {
-      "badge": "Calculadora de Potencial",
-      "title": "Descubra Quanto Seu Território Pode Gerar",
-      "subtitle": "Transforme presença orgânica em faturamento previsível",
-      "configuration": "Configure seu cenário",
-      "results": "Resultado em Tempo Real",
-      "niche": "Nicho do Negócio",
-      "city": "Cidade / Território",
-      "cityPlaceholder": "Ex: São Paulo, Campinas, Orlando",
-      "averageTicket": "Ticket Médio por Cliente",
-      "conversionRate": "Taxa de Conversão Estimada",
-      "conservative": "Conservador (1%)",
-      "medium": "Médio (3%)",
-      "aggressive": "Agressivo (5%)",
-      "visits": "visitas orgânicas/mês",
-      "leads": "leads/mês",
-      "monthlyRevenue": "Faturamento Mensal Potencial",
-      "annualRevenue": "Projeção anual",
-      "estimated": "estimativa",
-      "opportunities": "oportunidades reais",
-      "message": "Isso é o que acontece quando sua empresa aparece todos os dias nos assuntos que sua cidade está pesquisando.",
-      "cta": "Ativar minha máquina agora",
-      "disclaimer": "Valores baseados em médias de mercado. Resultados podem variar conforme execução e território.",
-      "niches": {
-        "limpeza": "Limpeza",
-        "pragas": "Controle de Pragas",
-        "estetica": "Estética & Beleza",
-        "advocacia": "Advocacia",
-        "construcao": "Construção & Reformas",
-        "saude": "Saúde & Clínicas",
-        "outro": "Outro"
-      }
-    },
-    "marketStats": {
-      "title": "O maior motor de tráfego da internet não é anúncio. É conteúdo.",
-      "subtitle": "Quem domina conteúdo domina demanda. Isso não é discurso. É dado de mercado.",
-      "stats": {
-        "organic": {
-          "label": "Do tráfego de sites vem de busca orgânica",
-          "source": "BrightEdge"
-        },
-        "leads": {
-          "label": "Dos leads B2B vêm de conteúdo orgânico",
-          "source": "DemandMetric"
-        },
-        "blog": {
-          "label": "Empresas com blog ativo geram até 3x mais leads",
-          "source": "HubSpot"
-        },
-        "firstPage": {
-          "label": "Dos usuários nunca passam da primeira página do Google",
-          "source": "Backlinko"
-        }
-      }
     }
   }
 }
