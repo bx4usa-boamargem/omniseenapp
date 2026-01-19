@@ -123,7 +123,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: textModel,
         messages: [
-          { role: 'system', content: 'Você é a OMNISEEN AI, a assistente virtual inteligente da OMNISEEN, especializada em criação de conteúdo SEO otimizado. Sempre responda em JSON válido.' },
+          { role: 'system', content: 'Você é a OMNISEEN AI, a assistente virtual inteligente da OMNISEEN, especializada em criação de conteúdo SEO otimizado. Data de referência: Janeiro de 2026. Todos os dados, tendências e referências devem ser contextualizados para esta data. Sempre responda em JSON válido.' },
           { role: 'user', content: prompt }
         ],
         stream: true,

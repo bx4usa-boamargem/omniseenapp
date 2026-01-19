@@ -5281,13 +5281,15 @@ export type Database = {
         }[]
       }
       generate_referral_code: { Args: never; Returns: string }
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
+      has_role:
+        | {
+            Args: {
+              _role: Database["public"]["Enums"]["app_role"]
+              _user_id: string
+            }
+            Returns: boolean
+          }
+        | { Args: { role_name: string }; Returns: boolean }
       increment_intent_count: {
         Args: { p_article_id: string }
         Returns: undefined
@@ -5301,10 +5303,9 @@ export type Database = {
         Args: { p_article_id: string }
         Returns: undefined
       }
-      is_team_member_of_blog: {
-        Args: { p_blog_id: string; p_user_id: string }
-        Returns: boolean
-      }
+      is_team_member_of_blog:
+        | { Args: { p_blog_id: string }; Returns: boolean }
+        | { Args: { p_blog_id: string; p_user_id: string }; Returns: boolean }
       is_team_member_safe: {
         Args: { p_blog_id: string; p_user_id: string }
         Returns: boolean
