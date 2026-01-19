@@ -396,6 +396,24 @@ Return only valid JSON, no markdown.`;
     }
   });
 
+  // Registrar também em consumption_logs para fallbacks (rastreabilidade completa)
+  if (provider === 'fallback') {
+    await supabase.from("consumption_logs").insert({
+      user_id: null, // Sistema
+      blog_id: blogId,
+      action_type: 'market_intel_fallback',
+      model_used: 'google/gemini-2.5-flash',
+      estimated_cost_usd: 0,
+      metadata: {
+        original_provider: 'perplexity',
+        fallback_reason: 'API error or key missing',
+        territory_id: territoryId,
+        territory_location: territoryLocation
+      }
+    });
+    console.log(`[FALLBACK LOG] Logged consumption for fallback provider - territory: ${territoryLocation || 'default'}`);
+  }
+
   // Map goal to funnel_stage
   const mapGoalToFunnelStage = (goal: string): string => {
     switch (goal) {
