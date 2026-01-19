@@ -81,6 +81,10 @@ interface ArticleRequest {
   editorial_model?: 'traditional' | 'strategic' | 'visual_guided';
   generation_mode?: GenerationMode;
   auto_publish?: boolean;
+  // OmniCore fields
+  omnicoreOpportunityId?: string;
+  outlineId?: string;
+  signalId?: string;
 }
 
 // ============ CATEGORIA E TAGS AUTOMÁTICAS ============
@@ -1864,7 +1868,10 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
       throw new Error(`DB_PERSIST_FAILED: Não foi possível salvar o artigo no banco. ${persistError instanceof Error ? persistError.message : 'Erro desconhecido'}`);
     }
 
-    // Retornar com os campos de persistência obrigatórios + categoria/tags
+    // OmniCore metadata - reuse existing textModel from generation
+    const writerModelUsed = 'google/gemini-2.5-flash'; // Model used for writing
+    const qaModelUsed = 'google/gemini-2.5-flash';     // QA model for OmniCore
+    
     return new Response(
       JSON.stringify({ 
         success: true, 
@@ -1873,9 +1880,12 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
           id: persistedArticle.id,
           slug: persistedArticle.slug,
           status: persistedArticle.status,
-          category: inferredCategory,  // Include in response
-          tags: inferredTags           // Include in response
-        }
+          category: inferredCategory,
+          tags: inferredTags
+        },
+        // OmniCore metadata
+        writer_model: writerModelUsed,
+        qa_model: qaModelUsed,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

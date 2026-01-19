@@ -3796,6 +3796,258 @@ export type Database = {
         }
         Relationships: []
       }
+      omnicore_articles: {
+        Row: {
+          article_id: string
+          created_at: string | null
+          id: string
+          omnicore_opportunity_id: string | null
+          outline_id: string | null
+          signal_id: string | null
+          status: string | null
+          word_count: number
+          writer_model: string
+        }
+        Insert: {
+          article_id: string
+          created_at?: string | null
+          id?: string
+          omnicore_opportunity_id?: string | null
+          outline_id?: string | null
+          signal_id?: string | null
+          status?: string | null
+          word_count?: number
+          writer_model: string
+        }
+        Update: {
+          article_id?: string
+          created_at?: string | null
+          id?: string
+          omnicore_opportunity_id?: string | null
+          outline_id?: string | null
+          signal_id?: string | null
+          status?: string | null
+          word_count?: number
+          writer_model?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omnicore_articles_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omnicore_articles_omnicore_opportunity_id_fkey"
+            columns: ["omnicore_opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "omnicore_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omnicore_articles_outline_id_fkey"
+            columns: ["outline_id"]
+            isOneToOne: false
+            referencedRelation: "omnicore_outlines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omnicore_articles_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "omnicore_signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omnicore_opportunities: {
+        Row: {
+          angle: string | null
+          blog_id: string
+          created_at: string | null
+          id: string
+          intent: string | null
+          opportunity_id: string | null
+          primary_kw: string | null
+          secondary_kw: string[] | null
+          signal_id: string | null
+          slug: string | null
+          status: string | null
+          territory: string
+          title: string
+        }
+        Insert: {
+          angle?: string | null
+          blog_id: string
+          created_at?: string | null
+          id?: string
+          intent?: string | null
+          opportunity_id?: string | null
+          primary_kw?: string | null
+          secondary_kw?: string[] | null
+          signal_id?: string | null
+          slug?: string | null
+          status?: string | null
+          territory: string
+          title: string
+        }
+        Update: {
+          angle?: string | null
+          blog_id?: string
+          created_at?: string | null
+          id?: string
+          intent?: string | null
+          opportunity_id?: string | null
+          primary_kw?: string | null
+          secondary_kw?: string[] | null
+          signal_id?: string | null
+          slug?: string | null
+          status?: string | null
+          territory?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omnicore_opportunities_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omnicore_opportunities_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "article_opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omnicore_opportunities_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "omnicore_signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omnicore_outlines: {
+        Row: {
+          created_at: string | null
+          id: string
+          omnicore_opportunity_id: string
+          outline: Json
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          omnicore_opportunity_id: string
+          outline: Json
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          omnicore_opportunity_id?: string
+          outline?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omnicore_outlines_omnicore_opportunity_id_fkey"
+            columns: ["omnicore_opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "omnicore_opportunities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omnicore_reviews: {
+        Row: {
+          approved: boolean | null
+          created_at: string | null
+          id: string
+          issues: Json | null
+          omnicore_article_id: string
+          qa_model: string | null
+          score: number | null
+          suggestions: Json | null
+          word_count_validated: number | null
+        }
+        Insert: {
+          approved?: boolean | null
+          created_at?: string | null
+          id?: string
+          issues?: Json | null
+          omnicore_article_id: string
+          qa_model?: string | null
+          score?: number | null
+          suggestions?: Json | null
+          word_count_validated?: number | null
+        }
+        Update: {
+          approved?: boolean | null
+          created_at?: string | null
+          id?: string
+          issues?: Json | null
+          omnicore_article_id?: string
+          qa_model?: string | null
+          score?: number | null
+          suggestions?: Json | null
+          word_count_validated?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omnicore_reviews_omnicore_article_id_fkey"
+            columns: ["omnicore_article_id"]
+            isOneToOne: false
+            referencedRelation: "omnicore_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      omnicore_signals: {
+        Row: {
+          blog_id: string
+          created_at: string | null
+          id: string
+          intent: string | null
+          niche: string
+          sources: Json | null
+          territory: string
+          topic: string
+          volume_hint: string | null
+        }
+        Insert: {
+          blog_id: string
+          created_at?: string | null
+          id?: string
+          intent?: string | null
+          niche: string
+          sources?: Json | null
+          territory: string
+          topic: string
+          volume_hint?: string | null
+        }
+        Update: {
+          blog_id?: string
+          created_at?: string | null
+          id?: string
+          intent?: string | null
+          niche?: string
+          sources?: Json | null
+          territory?: string
+          topic?: string
+          volume_hint?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "omnicore_signals_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       opportunity_notification_history: {
         Row: {
           blog_id: string
