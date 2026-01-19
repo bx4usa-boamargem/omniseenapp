@@ -151,32 +151,69 @@ export function FunnelReportDialog({
     try {
       const reportData = generateReportData();
       
-      // Generate PDF using html2pdf
-      const { default: html2pdf } = await import("html2pdf.js");
+      // Generate PDF using jsPDF + html2canvas (replacing vulnerable html2pdf.js)
+      const { default: jsPDF } = await import("jspdf");
+      const { default: html2canvas } = await import("html2canvas");
 
       const element = document.createElement("div");
       element.innerHTML = generatePdfHtml(reportData);
+      element.style.position = "absolute";
+      element.style.left = "-9999px";
       element.style.width = "800px";
       element.style.padding = "40px";
+      element.style.background = "white";
       document.body.appendChild(element);
 
-      await html2pdf()
-        .from(element)
-        .set({
-          margin: 10,
-          filename: `relatorio-funil-${format(new Date(), "yyyy-MM-dd")}.pdf`,
-          html2canvas: { scale: 2 },
-          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-        })
-        .save();
-
-      document.body.removeChild(element);
-
-      toast({ title: "PDF exportado com sucesso!" });
-      onOpenChange(false);
-    } catch (error: any) {
+      try {
+        // Render HTML to canvas
+        const canvas = await html2canvas(element, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: "#ffffff"
+        });
+        
+        // Create PDF from canvas
+        const imgData = canvas.toDataURL("image/jpeg", 0.95);
+        const pdf = new jsPDF({
+          orientation: "portrait",
+          unit: "mm",
+          format: "a4"
+        });
+        
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const margin = 10;
+        const contentWidth = pageWidth - (margin * 2);
+        const imgHeight = (canvas.height * contentWidth) / canvas.width;
+        
+        let heightLeft = imgHeight;
+        let position = margin;
+        
+        // Add first page
+        pdf.addImage(imgData, "JPEG", margin, position, contentWidth, imgHeight);
+        heightLeft -= (pageHeight - margin * 2);
+        
+        // Add additional pages if content overflows
+        while (heightLeft > 0) {
+          position = heightLeft - imgHeight + margin;
+          pdf.addPage();
+          pdf.addImage(imgData, "JPEG", margin, position, contentWidth, imgHeight);
+          heightLeft -= (pageHeight - margin * 2);
+        }
+        
+        // Save PDF
+        pdf.save(`relatorio-funil-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+        
+        toast({ title: "PDF exportado com sucesso!" });
+        onOpenChange(false);
+      } finally {
+        document.body.removeChild(element);
+      }
+    } catch (error: unknown) {
       console.error("Error exporting PDF:", error);
-      toast({ variant: "destructive", title: "Erro ao exportar PDF", description: error.message });
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+      toast({ variant: "destructive", title: "Erro ao exportar PDF", description: errorMessage });
     } finally {
       setLoading(false);
     }
