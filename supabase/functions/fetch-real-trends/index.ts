@@ -10,8 +10,20 @@ interface TrendRequest {
   blogId: string;
   niche?: string;
   country?: string;
-  territory?: string; // NEW: OmniCore territory format "City, State, Country"
-  saveSignals?: boolean; // NEW: Save to omnicore_signals table
+  territory?: string; // Legacy: OmniCore territory format "City, State, Country"
+  territoryId?: string; // NEW: Direct territory ID for validated territories
+  saveSignals?: boolean; // Save to omnicore_signals table
+}
+
+interface TerritoryData {
+  official_name: string | null;
+  neighborhood_tags: string[] | null;
+  radius_km: number | null;
+  lat: number | null;
+  lng: number | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
 }
 
 interface TrendSignal {
@@ -35,14 +47,39 @@ serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { blogId, niche, country, territory, saveSignals = false }: TrendRequest = await req.json();
+    const { blogId, niche, country, territory, territoryId, saveSignals = false }: TrendRequest = await req.json();
 
     // Parse territory if provided (format: "City, State, Country")
     let parsedTerritory = territory || '';
     let businessNiche = niche || "negócios";
     let businessCountry = country || "Brasil";
+    let neighborhoodTags: string[] = [];
+    let radiusKm = 15;
+    let territoryLat: number | null = null;
+    let territoryLng: number | null = null;
 
-    if (blogId) {
+    // PRIORITY 1: Use validated territory data if territoryId provided
+    if (territoryId) {
+      console.log(`[TERRITORIAL] Fetching validated territory: ${territoryId}`);
+      const { data: territoryData } = await supabase
+        .from('territories')
+        .select('official_name, neighborhood_tags, radius_km, lat, lng, city, state, country')
+        .eq('id', territoryId)
+        .single();
+
+      if (territoryData) {
+        parsedTerritory = territoryData.official_name || `${territoryData.city}, ${territoryData.state}, ${territoryData.country}`;
+        neighborhoodTags = territoryData.neighborhood_tags || [];
+        radiusKm = territoryData.radius_km || 15;
+        territoryLat = territoryData.lat;
+        territoryLng = territoryData.lng;
+        businessCountry = territoryData.country || businessCountry;
+        console.log(`[TERRITORIAL] Using validated data: ${parsedTerritory}, ${neighborhoodTags.length} neighborhoods, ${radiusKm}km radius`);
+      }
+    }
+
+    // PRIORITY 2: Fallback to blog profile data
+    if (blogId && !parsedTerritory) {
       const { data: profile } = await supabase
         .from("business_profile")
         .select("niche, country, company_name, city")
@@ -81,15 +118,26 @@ serve(async (req) => {
     
     const language = isEnglish ? "English" : "Portuguese (Brazilian)";
 
+    // Build territorial context for prompts
+    const hasValidatedTerritory = neighborhoodTags.length > 0;
+    const neighborhoodContext = hasValidatedTerritory 
+      ? `\nBairros validados para foco: ${neighborhoodTags.slice(0, 8).join(', ')}.`
+      : '';
+    const radiusContext = hasValidatedTerritory 
+      ? `\nRaio de atuação: ${radiusKm}km a partir do centro.`
+      : '';
+    const territoryLabel = parsedTerritory || businessCountry;
+
     const systemPrompt = `Você é um especialista em marketing de conteúdo e tendências de mercado.
-Sua função é identificar temas e tendências atuais relevantes para o nicho de ${businessNiche} na região de ${businessCountry}.
+Sua função é identificar temas e tendências atuais relevantes para o nicho de ${businessNiche} na região de ${territoryLabel}.
+${neighborhoodContext}${radiusContext}
 
 Baseie suas sugestões em:
 - Tendências sazonais e eventos relevantes para ${month}/${year}
-- Problemas comuns enfrentados pelo público-alvo
+- Problemas comuns enfrentados pelo público-alvo na região específica
 - Novidades tecnológicas e regulatórias do setor
-- Palavras-chave de alta demanda no nicho
-- Conteúdo educacional que gera autoridade
+- Palavras-chave de alta demanda no nicho + localidade
+- Conteúdo educacional que gera autoridade local
 
 Responda em ${language}.
 
@@ -101,19 +149,21 @@ Retorne EXATAMENTE um JSON válido sem markdown, no formato:
       "relevance": "descrição curta da relevância",
       "suggested_angle": "ângulo sugerido para o artigo",
       "keywords": ["keyword1", "keyword2", "keyword3"],
-      "sources": ["URL1", "URL2"]
+      "sources": ["URL1", "URL2"],
+      "target_neighborhoods": ["bairro1", "bairro2"]
     }
   ]
 }`;
 
-    const userPrompt = `Identifique 10 tendências e temas em alta para o nicho de "${businessNiche}" na região de "${businessCountry}" para ${month} de ${year}.
+    const userPrompt = `Identifique 10 tendências e temas em alta para o nicho de "${businessNiche}" na região de "${territoryLabel}" para ${month} de ${year}.
+${hasValidatedTerritory ? `\nFOCO TERRITORIAL: Estes são os bairros validados onde a empresa atua: ${neighborhoodTags.join(', ')}. Priorize tendências relevantes para essas localidades específicas.` : ''}
 
 Foque em:
-1. Tendências sazonais do período
-2. Problemas urgentes do público
-3. Novidades do setor
-4. Oportunidades de SEO local
-5. Conteúdo educacional de alto valor
+1. Tendências sazonais do período para a região
+2. Problemas urgentes do público local
+3. Novidades do setor na localidade
+4. Oportunidades de SEO local (geo-specific keywords)
+5. Conteúdo educacional que gera autoridade territorial
 
 Retorne apenas o JSON, sem explicações.`;
 
@@ -294,10 +344,14 @@ Retorne apenas o JSON, sem explicações.`;
         citations_count: citations.length,
         signals_saved: savedSignals.length,
         territory: parsedTerritory,
+        territory_id: territoryId || null,
+        neighborhoods_used: neighborhoodTags.slice(0, 5),
+        radius_km: radiusKm,
+        has_geo_validation: hasValidatedTerritory,
       }
     });
 
-    console.log(`Trends fetched successfully using ${provider}`);
+    console.log(`Trends fetched successfully using ${provider}${hasValidatedTerritory ? ' with territorial data' : ''}`);
 
     return new Response(
       JSON.stringify({
@@ -305,6 +359,11 @@ Retorne apenas o JSON, sem explicações.`;
         niche: businessNiche,
         region: businessCountry,
         territory: parsedTerritory || businessCountry,
+        territory_id: territoryId || null,
+        neighborhoods: neighborhoodTags,
+        radius_km: radiusKm,
+        geo_validated: hasValidatedTerritory,
+        coordinates: territoryLat && territoryLng ? { lat: territoryLat, lng: territoryLng } : null,
         period: `${month}/${year}`,
         source: provider,
         citations_count: citations.length,
