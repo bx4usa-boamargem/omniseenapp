@@ -1,11 +1,20 @@
 // ============================================================================
-// QUALITY VALIDATOR V1.0 - CONTRATO EDITORIAL ABSOLUTO
+// QUALITY VALIDATOR V2.0 - CONTRATO EDITORIAL ABSOLUTO + GEO AUTHORITY
 // ============================================================================
 // Nenhum artigo pode ser salvo sem passar por TODAS as validações
 // Violação de regras críticas = REJEIÇÃO AUTOMÁTICA
+// V2.0: Adiciona validações GEO para OmniCore GEO Writer
 // ============================================================================
 
 import type { FunnelMode } from './promptTypeCore.ts';
+import { 
+  GEO_WRITER_RULES, 
+  GEO_PHRASE_PATTERNS, 
+  FORBIDDEN_PATTERNS,
+  countGeoWords,
+  hasAnswerFirstPattern,
+  hasTerritorialMentions
+} from './geoWriterCore.ts';
 
 export interface ValidationResult {
   passed: boolean;
@@ -22,8 +31,10 @@ interface QualityCheck {
   severity: 'error' | 'warning';
 }
 
-interface ValidationOptions {
+export interface ValidationOptions {
   allowedBlocks?: string[];
+  geoMode?: boolean;           // Enable GEO checks
+  territories?: string[];      // Neighborhood names for territorial validation
 }
 
 // REGRA GLOBAL: Título exato da última seção
@@ -268,6 +279,98 @@ const QUALITY_CHECKS: QualityCheck[] = [
   }
 ];
 
+// =========================================================================
+// GEO QUALITY CHECKS - Validações específicas para OmniCore GEO Writer
+// =========================================================================
+const GEO_QUALITY_CHECKS: QualityCheck[] = [
+  // GEO RULE 1: Frases de autoridade temporal (mínimo 2)
+  {
+    name: 'has_geo_authority_phrases',
+    check: (content: string) => {
+      let count = 0;
+      for (const pattern of GEO_PHRASE_PATTERNS) {
+        if (pattern.test(content)) {
+          count++;
+        }
+      }
+      return count >= 2;
+    },
+    message: 'Artigo GEO deve conter pelo menos 2 frases de autoridade temporal (ex: "Segundo as atualizações de 2026...", "Motores generativos priorizam...")',
+    severity: 'error'
+  },
+
+  // GEO RULE 2: Answer-first pattern
+  {
+    name: 'has_answer_first_pattern',
+    check: (content: string) => {
+      return hasAnswerFirstPattern(content);
+    },
+    message: 'O artigo GEO deve começar com a resposta principal (answer-first pattern). Evite introduções genéricas como "No mundo de hoje..." ou "É inegável que..."',
+    severity: 'error'
+  },
+
+  // GEO RULE 3: Menções territoriais (quando aplicável)
+  {
+    name: 'has_territorial_mentions',
+    check: (content: string, _funnelMode: FunnelMode, options?: ValidationOptions) => {
+      if (!options?.territories?.length) return true; // Sem território = passa
+      return hasTerritorialMentions(content, options.territories);
+    },
+    message: 'Artigo territorial deve mencionar pelo menos 1 bairro/localidade real especificada no contexto.',
+    severity: 'warning'
+  },
+
+  // GEO RULE 4: Word count no range GEO (1200-3000)
+  {
+    name: 'geo_word_count_range',
+    check: (content: string) => {
+      const count = countGeoWords(content);
+      return count >= GEO_WRITER_RULES.word_count.min && count <= GEO_WRITER_RULES.word_count.max;
+    },
+    message: `Artigo GEO deve ter entre ${GEO_WRITER_RULES.word_count.min} e ${GEO_WRITER_RULES.word_count.max} palavras.`,
+    severity: 'error'
+  },
+
+  // GEO RULE 5: Sem padrões de IA genérica
+  {
+    name: 'no_forbidden_intro_patterns',
+    check: (content: string) => {
+      const lines = content.split('\n');
+      for (const line of lines.slice(0, 10)) { // Check first 10 lines
+        for (const pattern of FORBIDDEN_PATTERNS) {
+          if (pattern.test(line.trim())) {
+            return false;
+          }
+        }
+      }
+      return true;
+    },
+    message: 'Artigo GEO não pode conter introduções genéricas de IA (ex: "No mundo de hoje...", "É fundamental que...")',
+    severity: 'error'
+  },
+
+  // GEO RULE 6: H2 ultra-específicos (não genéricos)
+  {
+    name: 'has_specific_h2_titles',
+    check: (content: string) => {
+      const h2Matches = content.match(/^## .+$/gm) || [];
+      const genericPatterns = [
+        /^## (Introdução|Conclusão|O que é|Definição|Contexto|Visão Geral|Overview)$/i,
+        /^## (Considerações|Resumo|Sumário|Índice)$/i
+      ];
+      
+      const genericCount = h2Matches.filter(h2 => 
+        genericPatterns.some(pattern => pattern.test(h2))
+      ).length;
+      
+      // Allow max 1 generic H2 (like "Próximo passo")
+      return genericCount <= 1;
+    },
+    message: 'Artigo GEO deve ter H2s ultra-específicos. Evite títulos genéricos como "O que é", "Introdução", "Contexto".',
+    severity: 'warning'
+  }
+];
+
 /**
  * Valida a qualidade do artigo gerado conforme CONTRATO EDITORIAL ABSOLUTO
  * 
@@ -363,4 +466,117 @@ ${failures.map((f, i) => `${i + 1}. ${f}`).join('\n')}
 export function canSaveArticle(content: string, funnelMode: FunnelMode = 'middle'): boolean {
   const result = validateArticleQuality(content, funnelMode);
   return result.passed;
+}
+
+/**
+ * Valida a qualidade do artigo GEO conforme OmniCore GEO Writer rules
+ * 
+ * @param content - Conteúdo do artigo em Markdown
+ * @param funnelMode - Modo de funil para validação de CTA
+ * @param options - Opções de validação (territórios, etc.)
+ * @returns ValidationResult com status, falhas e score
+ */
+export function validateGeoArticleQuality(
+  content: string,
+  funnelMode: FunnelMode = 'middle',
+  options?: ValidationOptions
+): ValidationResult {
+  const failures: string[] = [];
+  const warnings: string[] = [];
+  let passedChecks = 0;
+  let criticalFailed = false;
+
+  console.log('[GEO QUALITY] Starting GEO validation with OmniCore GEO Writer rules...');
+
+  // Run standard quality checks first
+  for (const check of QUALITY_CHECKS) {
+    const passed = check.check(content, funnelMode, options);
+    
+    if (!passed) {
+      if (check.severity === 'error') {
+        failures.push(check.message);
+        criticalFailed = true;
+        console.log(`[GEO QUALITY] ❌ FAILED (error): ${check.name}`);
+      } else {
+        warnings.push(check.message);
+        console.log(`[GEO QUALITY] ⚠️ WARNING: ${check.name}`);
+      }
+    } else {
+      passedChecks++;
+      console.log(`[GEO QUALITY] ✅ PASSED: ${check.name}`);
+    }
+  }
+
+  // Run GEO-specific checks
+  for (const check of GEO_QUALITY_CHECKS) {
+    const passed = check.check(content, funnelMode, options);
+    
+    if (!passed) {
+      if (check.severity === 'error') {
+        failures.push(check.message);
+        criticalFailed = true;
+        console.log(`[GEO QUALITY] ❌ GEO FAILED (error): ${check.name}`);
+      } else {
+        warnings.push(check.message);
+        console.log(`[GEO QUALITY] ⚠️ GEO WARNING: ${check.name}`);
+      }
+    } else {
+      passedChecks++;
+      console.log(`[GEO QUALITY] ✅ GEO PASSED: ${check.name}`);
+    }
+  }
+
+  const totalChecks = QUALITY_CHECKS.length + GEO_QUALITY_CHECKS.length;
+  const score = Math.round((passedChecks / totalChecks) * 100);
+
+  console.log(`[GEO QUALITY] Final Score: ${score}/100 - Errors: ${failures.length}, Warnings: ${warnings.length}`);
+
+  return {
+    passed: !criticalFailed,
+    failures,
+    warnings,
+    score,
+    canRetry: failures.length <= 3 // GEO allows more retries due to complexity
+  };
+}
+
+/**
+ * Gera instruções de correção GEO específicas para retry baseado nas falhas
+ */
+export function generateGeoCorrectionInstructions(failures: string[]): string {
+  if (failures.length === 0) return '';
+
+  return `
+⛔ O ARTIGO ANTERIOR FOI REJEITADO PELO OMNICORE GEO QUALITY GATE.
+
+## CORREÇÕES OBRIGATÓRIAS (GEO AUTHORITY):
+
+${failures.map((f, i) => `${i + 1}. ${f}`).join('\n')}
+
+## REGRAS GEO ABSOLUTAS:
+
+### WORD COUNT (1.200 - 3.000 palavras):
+- Se o artigo tem menos de 1.200 palavras, EXPANDA cada seção
+- Se tem mais de 3.000 palavras, CONDENSE mantendo autoridade
+
+### FRASES DE AUTORIDADE TEMPORAL (mínimo 2):
+Use naturalmente ao longo do texto:
+- "Segundo as atualizações de 2026..."
+- "Motores generativos priorizam..."
+- "O consenso técnico atual aponta que..."
+- "Dados recentes indicam que..."
+
+### ANSWER-FIRST PATTERN:
+- O primeiro parágrafo após o H1 DEVE entregar a resposta principal
+- NUNCA comece com: "No mundo de hoje...", "É inegável...", "Quando falamos..."
+
+### H2 ULTRA-ESPECÍFICOS:
+- Evite títulos genéricos como "O que é", "Introdução", "Contexto"
+- Use títulos que respondam perguntas específicas
+
+### TERRITORIALIZAÇÃO (quando aplicável):
+- Mencione a localidade/bairros especificados naturalmente no texto
+
+⚠️ SE ESTAS CORREÇÕES NÃO FOREM APLICADAS, O ARTIGO SERÁ REJEITADO NOVAMENTE.
+`;
 }

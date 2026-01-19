@@ -2,8 +2,22 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildUniversalPrompt, type ClientStrategy, type FunnelMode, type ArticleGoal } from '../_shared/promptTypeCore.ts';
 import { resolveStrategy } from '../_shared/strategyResolver.ts';
-import { validateArticleQuality, generateCorrectionInstructions } from '../_shared/qualityValidator.ts';
+import { validateArticleQuality, validateGeoArticleQuality, generateCorrectionInstructions, generateGeoCorrectionInstructions } from '../_shared/qualityValidator.ts';
 import { generateAutoKeywords, mergeKeywords } from '../_shared/keywordGenerator.ts';
+import { 
+  GEO_WRITER_IDENTITY, 
+  GEO_WRITER_RULES,
+  fetchGeoResearchData, 
+  buildResearchInjection,
+  buildTerritorialContext,
+  countGeoWords,
+  countGeoPhrasesInContent,
+  hasAnswerFirstPattern,
+  hasTerritorialMentions,
+  generateGeoCorrectionInstructions as generateGeoCorrections,
+  type TerritoryData as GeoTerritoryData,
+  type GeoResearchData
+} from '../_shared/geoWriterCore.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -87,6 +101,8 @@ interface ArticleRequest {
   signalId?: string;
   // Territorial fields
   territoryId?: string;
+  // GEO Writer mode
+  geo_mode?: boolean;
 }
 
 // Territory data interface for geo-enriched articles
@@ -915,18 +931,56 @@ serve(async (req) => {
       editorial_model = 'traditional',
       generation_mode: requestedGenerationMode,
       auto_publish = true,
-      territoryId
+      territoryId,
+      geo_mode = false
     }: ArticleRequest & { funnel_mode?: FunnelMode; article_goal?: ArticleGoal | null; auto_publish?: boolean } = await req.json();
 
     // RESOLVER GENERATION_MODE: Nunca undefined - fast ou deep
-    const generation_mode = resolveGenerationMode(requestedGenerationMode, source);
-    console.log(`[GENERATION MODE] Resolved: ${generation_mode} (requested: ${requestedGenerationMode || 'undefined'}, source: ${source})`);
+    // GEO mode forces deep mode
+    const generation_mode = geo_mode ? 'deep' : resolveGenerationMode(requestedGenerationMode, source);
+    console.log(`[GENERATION MODE] Resolved: ${generation_mode} (requested: ${requestedGenerationMode || 'undefined'}, source: ${source}, geo_mode: ${geo_mode})`);
 
     if (!theme) {
       return new Response(
         JSON.stringify({ error: 'Theme is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // ========== GEO MODE INITIALIZATION ==========
+    let geoResearchData: GeoResearchData | null = null;
+    const PERPLEXITY_API_KEY = Deno.env.get('PERPLEXITY_API_KEY');
+    
+    if (geo_mode) {
+      console.log(`[GEO MODE] OmniCore GEO Writer activated for theme: "${theme}"`);
+      
+      // Fetch territory data first for GEO research context
+      let geoTerritoryData: GeoTerritoryData | null = null;
+      if (territoryId) {
+        const { data: territory } = await supabase
+          .from('territories')
+          .select('official_name, neighborhood_tags, lat, lng, radius_km')
+          .eq('id', territoryId)
+          .maybeSingle();
+        
+        if (territory) {
+          geoTerritoryData = territory as GeoTerritoryData;
+        }
+      }
+      
+      // STEP A: Fetch real-time research data via Perplexity (pre-generation)
+      if (PERPLEXITY_API_KEY) {
+        console.log('[GEO MODE] Fetching research data via Perplexity...');
+        geoResearchData = await fetchGeoResearchData(theme, geoTerritoryData, PERPLEXITY_API_KEY);
+        
+        if (geoResearchData) {
+          console.log(`[GEO MODE] Research fetched: ${geoResearchData.facts.length} facts, ${geoResearchData.trends.length} trends`);
+        } else {
+          console.warn('[GEO MODE] Perplexity research failed - continuing without real-time data');
+        }
+      } else {
+        console.warn('[GEO MODE] PERPLEXITY_API_KEY not configured - skipping pre-generation research');
+      }
     }
 
     // ========== RATE LIMIT CHECK (PROTEÇÃO CONTRA DUPLICAÇÃO EM MASSA) ==========
@@ -1192,15 +1246,34 @@ serve(async (req) => {
       console.log('[UNIVERSAL V1.0] No blog_id - using minimal default strategy');
     }
 
-    // SEMPRE usar Universal Prompt - SEM FALLBACK LEGADO
-    const systemPrompt = buildUniversalPrompt(
-      clientStrategy,
-      funnel_mode as FunnelMode,
-      article_goal as ArticleGoal | null,
-      theme,
-      keywords
-    ) + (territorialInstruction ? '\n\n' + territorialInstruction : '');
-    console.log(`[UNIVERSAL V1.0] Prompt built: funnel=${funnel_mode}, goal=${article_goal}, isDefault=${isDefaultStrategy}, hasTerritory=${!!territoryData}`);
+    // Build base prompt - use GEO Writer identity if geo_mode is enabled
+    let systemPrompt: string;
+    
+    if (geo_mode) {
+      // GEO MODE: Use OmniCore GEO Writer identity + research data + territorial context
+      const researchInjection = buildResearchInjection(geoResearchData);
+      const territorialContext = buildTerritorialContext(territoryData as GeoTerritoryData);
+      
+      systemPrompt = `${GEO_WRITER_IDENTITY}
+
+${researchInjection}
+${territorialContext}
+
+## CONTEXTO DO CLIENTE
+${buildUniversalPrompt(clientStrategy, funnel_mode as FunnelMode, article_goal as ArticleGoal | null, theme, keywords)}`;
+      
+      console.log(`[GEO MODE] GEO Writer prompt built with research: ${!!geoResearchData}, territory: ${!!territoryData}`);
+    } else {
+      // Standard mode: Use Universal Prompt
+      systemPrompt = buildUniversalPrompt(
+        clientStrategy,
+        funnel_mode as FunnelMode,
+        article_goal as ArticleGoal | null,
+        theme,
+        keywords
+      ) + (territorialInstruction ? '\n\n' + territorialInstruction : '');
+    }
+    console.log(`[UNIVERSAL V1.0] Prompt built: funnel=${funnel_mode}, goal=${article_goal}, isDefault=${isDefaultStrategy}, hasTerritory=${!!territoryData}, geoMode=${geo_mode}`);
 
 
     // ============ INJECT GENERATION MODE + EDITORIAL MODEL INSTRUCTIONS ============
