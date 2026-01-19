@@ -92,9 +92,31 @@ serve(async (req) => {
     
     console.log(`[CONVERT] Structure rotation: type=${structureType}, activity=${activitySlug}, template=${template?.display_name || 'fallback'}`);
 
-    // 4. Gerar conteúdo via generate-article-structured
-    // Usando mode 'fast' para oportunidades - mais confiável e rápido
-    console.log(`[CONVERT] Generating article content for: "${opportunity.suggested_title}"`);
+    // 4. Buscar dados adicionais para GEO mode (território e whatsapp)
+    const { data: territory } = await supabase
+      .from("territories")
+      .select("id, official_name, lat, lng, neighborhood_tags")
+      .eq("blog_id", blogId)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+
+    // Buscar artigos existentes para links internos
+    const { data: existingArticles } = await supabase
+      .from("articles")
+      .select("title, slug")
+      .eq("blog_id", blogId)
+      .eq("status", "published")
+      .limit(5);
+
+    const internalLinks = existingArticles?.map(a => ({
+      title: a.title,
+      url: `/blog/${a.slug}`
+    })) || [];
+
+    // 5. Gerar conteúdo via generate-article-structured
+    // V2.0: SEMPRE usa geo_mode=true e generation_mode='deep'
+    console.log(`[CONVERT] Generating article content for: "${opportunity.suggested_title}" with geo_mode=true`);
 
     const generateResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-article-structured`, {
       method: "POST",
@@ -106,13 +128,25 @@ serve(async (req) => {
         blog_id: blogId,
         theme: opportunity.suggested_title,
         keywords: opportunity.suggested_keywords || [],
-        word_count: 1000, // Reduced for faster generation
+        word_count: 1500, // GEO mode requires 1200-3000 words
         include_faq: true,
         include_conclusion: true,
-        generation_mode: 'fast', // Use fast mode for opportunity conversion - more reliable
+        generation_mode: 'deep', // GEO mode ALWAYS uses deep
+        geo_mode: true, // V2.0: ALWAYS true
         source: 'opportunity',
         auto_publish: false, // SEMPRE draft
-        // NOVO: Parâmetros de estrutura editorial
+        // Territorial data for GEO
+        territoryId: opportunity.territory_id || territory?.id,
+        google_place: territory ? {
+          official_name: territory.official_name,
+          lat: territory.lat,
+          lng: territory.lng,
+          neighborhood_tags: territory.neighborhood_tags || []
+        } : undefined,
+        // Links for GEO
+        internal_links: internalLinks,
+        whatsapp: profile?.whatsapp || null,
+        // Parâmetros de estrutura editorial
         article_structure_type: structureType,
         structure_prompt: template?.generation_prompt || null,
         activity_slug: activitySlug,

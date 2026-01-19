@@ -7,16 +7,25 @@ import { generateAutoKeywords, mergeKeywords } from '../_shared/keywordGenerator
 import { 
   GEO_WRITER_IDENTITY, 
   GEO_WRITER_RULES,
+  GEO_LINKING_RULES,
   fetchGeoResearchData, 
   buildResearchInjection,
   buildTerritorialContext,
+  buildWhatsAppCTABlock,
+  buildInternalLinksBlock,
+  buildExternalSourcesBlock,
   countGeoWords,
   countGeoPhrasesInContent,
   hasAnswerFirstPattern,
   hasTerritorialMentions,
+  countInternalLinks,
+  countExternalLinks,
+  hasWhatsAppCTA,
+  validateGeoArticleFull,
   generateGeoCorrectionInstructions,
   type TerritoryData as GeoTerritoryData,
-  type GeoResearchData
+  type GeoResearchData,
+  type GeoValidationResult
 } from '../_shared/geoWriterCore.ts';
 
 const corsHeaders = {
@@ -91,7 +100,7 @@ interface ArticleRequest {
   include_conclusion?: boolean;
   include_visual_blocks?: boolean;
   optimize_for_ai?: boolean;
-  source?: 'chat' | 'instagram' | 'youtube' | 'pdf' | 'url' | 'form';
+  source?: 'chat' | 'instagram' | 'youtube' | 'pdf' | 'url' | 'form' | 'opportunity';
   editorial_model?: 'traditional' | 'strategic' | 'visual_guided';
   generation_mode?: GenerationMode;
   auto_publish?: boolean;
@@ -101,8 +110,18 @@ interface ArticleRequest {
   signalId?: string;
   // Territorial fields
   territoryId?: string;
-  // GEO Writer mode
+  // GEO Writer mode - ALWAYS true (V2.0)
   geo_mode?: boolean;
+  // V2.0: New mandatory GEO fields
+  internal_links?: Array<{ title: string; url: string }>;
+  external_sources?: Array<{ title: string; url: string }>;
+  whatsapp?: string;
+  google_place?: {
+    official_name: string;
+    lat: number;
+    lng: number;
+    neighborhood_tags: string[];
+  };
 }
 
 // Territory data interface for geo-enriched articles
@@ -932,13 +951,24 @@ serve(async (req) => {
       generation_mode: requestedGenerationMode,
       auto_publish = true,
       territoryId,
-      geo_mode = false
+      // V2.0: GEO MODE IS NOW ALWAYS TRUE - HARDCODED
+      geo_mode: _geo_mode_ignored = true,
+      // V2.0: New GEO fields
+      internal_links,
+      external_sources,
+      whatsapp: requestWhatsapp,
+      google_place
     }: ArticleRequest & { funnel_mode?: FunnelMode; article_goal?: ArticleGoal | null; auto_publish?: boolean } = await req.json();
 
-    // RESOLVER GENERATION_MODE: Nunca undefined - fast ou deep
-    // GEO mode forces deep mode
-    const generation_mode = geo_mode ? 'deep' : resolveGenerationMode(requestedGenerationMode, source);
-    console.log(`[GENERATION MODE] Resolved: ${generation_mode} (requested: ${requestedGenerationMode || 'undefined'}, source: ${source}, geo_mode: ${geo_mode})`);
+    // ============================================================================
+    // V2.0: GEO MODE IS ALWAYS TRUE - NO EXCEPTIONS
+    // ============================================================================
+    const geo_mode = true; // HARDCODED - NEVER false
+    console.log(`[OMNICORE GEO V2.0] geo_mode=true FORCED - No article exists outside OmniCore GEO Writer`);
+
+    // RESOLVER GENERATION_MODE: Nunca undefined - GEO mode forces deep
+    const generation_mode = 'deep'; // GEO mode always uses deep mode
+    console.log(`[GENERATION MODE] Forced: deep (OmniCore GEO always generates 1200-3000 words)`);
 
     if (!theme) {
       return new Response(
@@ -1277,18 +1307,14 @@ ${buildUniversalPrompt(clientStrategy, funnel_mode as FunnelMode, article_goal a
 
 
     // ============ INJECT GENERATION MODE + EDITORIAL MODEL INSTRUCTIONS ============
-    // Obter instrução de modo (NUNCA undefined - sempre fast ou deep)
-    const modeInstruction = generationRules[generation_mode].promptInstruction;
+    // V2.0: GEO mode sempre usa 'deep' - instruções fixas
+    const modeInstruction = generationRules.deep.promptInstruction;
     
-    // Ajustar limites de palavras baseado no modo
-    const wordLimitInstruction = generation_mode === 'fast'
-      ? `- Tamanho: ENTRE 400 e 1.000 palavras (alvo: ${targetWordCount})`
-      : `- Tamanho: ENTRE 1.500 e 3.000 palavras (alvo: ${targetWordCount})`;
+    // V2.0: GEO mode sempre usa palavras profundas (1200-3000)
+    const wordLimitInstruction = `- Tamanho: ENTRE 1.200 e 3.000 palavras (alvo: ${targetWordCount})`;
     
-    // Ajustar seções baseado no modo
-    const sectionInstruction = generation_mode === 'fast'
-      ? `- Quantidade de seções H2: 3-5 seções (rápido e objetivo)`
-      : `- Quantidade de seções H2: EXATAMENTE ${effectiveSectionCount} seções`;
+    // V2.0: GEO mode sempre usa seções completas
+    const sectionInstruction = `- Quantidade de seções H2: EXATAMENTE ${effectiveSectionCount} seções`;
     
     const userPrompt = `${modeInstruction}
 
@@ -1933,12 +1959,10 @@ Retorne o artigo corrigido no formato JSON da tool create_article.`;
       const errorData = {
         code: 'AI_OUTPUT_TOO_SHORT',
         message: `O artigo gerado tem ${generatedWordCount} palavras após ${rules.maxRetries || 0} tentativas de expansão. Mínimo: ${Math.round(minAcceptableWords)} palavras.`,
-        suggestion: generation_mode === 'fast'
-          ? 'Para artigos mais extensos (1500-3000 palavras), utilize o modo Profundo ou importação de PDF, YouTube ou URL.'
-          : 'Tente novamente ou forneça mais conteúdo de referência sobre o tema.',
+        suggestion: 'O OmniCore GEO Writer requer artigos com 1200-3000 palavras. Tente novamente ou forneça mais conteúdo de referência sobre o tema.',
         generatedWords: generatedWordCount,
         requiredWords: Math.round(minAcceptableWords),
-        generationMode: generation_mode,
+        generationMode: 'deep', // V2.0: Always deep
         expansionAttempts: rules.maxRetries || 0
       };
       

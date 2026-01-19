@@ -987,6 +987,7 @@ export type Database = {
           title_fingerprint: string | null
           updated_at: string
           view_count: number | null
+          whatsapp: string | null
         }
         Insert: {
           approved_at?: string | null
@@ -1033,6 +1034,7 @@ export type Database = {
           title_fingerprint?: string | null
           updated_at?: string
           view_count?: number | null
+          whatsapp?: string | null
         }
         Update: {
           approved_at?: string | null
@@ -1079,6 +1081,7 @@ export type Database = {
           title_fingerprint?: string | null
           updated_at?: string
           view_count?: number | null
+          whatsapp?: string | null
         }
         Relationships: [
           {

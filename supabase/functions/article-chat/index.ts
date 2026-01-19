@@ -79,8 +79,30 @@ Contexto do Negócio:
       const theme = extractThemeFromMessages(messages);
       console.log(`[CHAT→UNIVERSAL] Extracted theme: "${theme}"`);
       
+      // Buscar dados GEO antes de delegar
+      const { data: territory } = await supabase
+        .from('territories')
+        .select('id, official_name, lat, lng, neighborhood_tags')
+        .eq('blog_id', blogId)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      // Buscar artigos existentes para links internos
+      const { data: existingArticles } = await supabase
+        .from('articles')
+        .select('title, slug')
+        .eq('blog_id', blogId)
+        .eq('status', 'published')
+        .limit(5);
+
+      const internalLinks = existingArticles?.map(a => ({
+        title: a.title,
+        url: `/blog/${a.slug}`
+      })) || [];
+
       // DELEGAR para generate-article-structured (Motor Universal)
-      // IMPORTANTE: Chat SEMPRE usa generation_mode: 'fast' (400-1000 palavras)
+      // V2.0: Chat agora usa geo_mode=true e generation_mode='deep' (OmniCore padrão)
       const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-article-structured`, {
         method: 'POST',
         headers: {
@@ -91,12 +113,23 @@ Contexto do Negócio:
           theme,
           blog_id: blogId,
           source: 'chat',
-          generation_mode: 'fast', // SEMPRE fast para chat - nunca undefined
+          geo_mode: true, // V2.0: ALWAYS true
+          generation_mode: 'deep', // GEO mode requires deep
           funnel_mode: 'top',
           article_goal: 'educar',
-          word_count: 800,
+          word_count: 1500, // GEO minimum
           include_faq: true,
-          include_visual_blocks: true
+          include_visual_blocks: true,
+          // GEO data
+          territoryId: territory?.id,
+          google_place: territory ? {
+            official_name: territory.official_name,
+            lat: territory.lat,
+            lng: territory.lng,
+            neighborhood_tags: territory.neighborhood_tags || []
+          } : undefined,
+          internal_links: internalLinks,
+          whatsapp: businessProfile?.whatsapp || null
         }),
       });
 

@@ -1,5 +1,5 @@
 // ============================================================================
-// GEO WRITER CORE V1.0 - OmniCore GEO Authority Engine
+// GEO WRITER CORE V2.0 - OmniCore GEO Authority Engine
 // ============================================================================
 // Motor de geração de Artigos de Autoridade GEO para 2026+
 // Otimizado para Google SGE, Perplexity, Gemini, GPT
@@ -34,8 +34,116 @@ export const GEO_WRITER_RULES = {
     expert_voice: true,
     causal_explanations: true,  // Não apenas descritivo
     depth_over_breadth: true
+  },
+  
+  // V2.0: Regras de linkagem obrigatória
+  linking: {
+    internal_min: 2,
+    external_min: 2
   }
 };
+
+// Fontes externas de autoridade aprovadas
+export const GEO_EXTERNAL_SOURCES = [
+  'support.google.com',
+  'developers.google.com',
+  'thinkwithgoogle.com',
+  'moz.com',
+  'ahrefs.com',
+  'semrush.com',
+  'searchengineland.com',
+  'sba.gov',
+  'sebrae.com.br',
+  'ibge.gov.br',
+  'gov.br',
+  'census.gov',
+  'statista.com',
+  'forbes.com',
+  'hbr.org'
+];
+
+// Regras de linkagem para prompt
+export const GEO_LINKING_RULES = `
+## REGRAS DE LINKAGEM (OBRIGATÓRIAS - SEM EXCEÇÃO)
+
+📌 LINKS INTERNOS (mínimo 2):
+- Use o formato: [texto âncora relevante](/blog/slug-do-artigo)
+- Links devem ser contextualmente relevantes
+- Distribua ao longo do artigo (não apenas no final)
+
+📌 LINKS EXTERNOS (mínimo 2):
+- Cite fontes de autoridade: Google, Moz, Ahrefs, Sebrae, IBGE, etc.
+- Use o formato: [fonte](https://url-completa.com)
+- Sempre abra em nova aba (adicionar target="_blank" no frontend)
+
+⛔ ARTIGOS SEM LINKS SERÃO AUTOMATICAMENTE REJEITADOS
+`;
+
+// Prompt de CTA WhatsApp obrigatório
+export function buildWhatsAppCTABlock(whatsapp: string | null): string {
+  if (!whatsapp) return '';
+  
+  const cleanNumber = whatsapp.replace(/\D/g, '');
+  return `
+## CTA WHATSAPP OBRIGATÓRIO (SEÇÃO FINAL)
+
+O artigo DEVE terminar com um CTA direto para WhatsApp.
+Use este formato exato no parágrafo final:
+
+**[Fale agora pelo WhatsApp](https://wa.me/${cleanNumber})**
+
+Ou variação:
+**Entre em contato agora: [WhatsApp](https://wa.me/${cleanNumber})**
+
+O número é: ${whatsapp}
+`;
+}
+
+// Prompt de links internos
+export function buildInternalLinksBlock(links: Array<{ title: string; url: string }> | undefined): string {
+  if (!links || links.length === 0) return '';
+  
+  const formattedLinks = links.slice(0, 5).map(l => `- [${l.title}](${l.url})`).join('\n');
+  
+  return `
+## LINKS INTERNOS DISPONÍVEIS (USE PELO MENOS 2)
+
+${formattedLinks}
+
+📌 Insira estes links de forma NATURAL no texto, onde fizerem sentido contextual.
+Distribua ao longo do artigo, não concentre no final.
+`;
+}
+
+// Prompt de fontes externas
+export function buildExternalSourcesBlock(sources: Array<{ title: string; url: string }> | undefined): string {
+  if (!sources || sources.length === 0) {
+    // Default: instrução para usar fontes de autoridade
+    return `
+## FONTES EXTERNAS (CITE PELO MENOS 2)
+
+Use fontes de autoridade como:
+- Google Search Central (support.google.com)
+- Moz (moz.com)
+- Ahrefs (ahrefs.com)
+- Sebrae (sebrae.com.br)
+- IBGE (ibge.gov.br)
+- Gov.br (gov.br)
+
+Cite dados e estatísticas reais com links para as fontes originais.
+`;
+  }
+  
+  const formattedSources = sources.slice(0, 5).map(s => `- ${s.title}: ${s.url}`).join('\n');
+  
+  return `
+## FONTES EXTERNAS PARA CITAR (USE PELO MENOS 2)
+
+${formattedSources}
+
+📌 Cite estas fontes como autoridade quando mencionar dados ou tendências.
+`;
+}
 
 // Frases de autoridade GEO obrigatórias (usar 3-5 ao longo do texto)
 export const GEO_AUTHORITY_PHRASES = [
@@ -110,6 +218,11 @@ REGRAS ABSOLUTAS:
    - Incluir menções naturais a bairros e áreas reais
    - Inserir contexto local como prova de autoridade
 
+8. LINKAGEM OBRIGATÓRIA:
+   - Mínimo 2 links internos para outros artigos do blog
+   - Mínimo 2 links externos para fontes de autoridade
+   - Distribuir links ao longo do texto, não concentrar no final
+
 O objetivo não é "criar um post".
 É criar um ATIVO DE AUTORIDADE que possa ser:
 - Citado por IAs
@@ -138,6 +251,21 @@ export interface TerritoryData {
   radius_km: number | null;
 }
 
+// Interface para validação GEO completa
+export interface GeoValidationResult {
+  passed: boolean;
+  issues: string[];
+  metrics: {
+    wordCount: number;
+    geoPhrasesCount: number;
+    hasAnswerFirst: boolean;
+    hasTerritorialMentions: boolean;
+    internalLinksCount: number;
+    externalLinksCount: number;
+    hasWhatsAppCTA: boolean;
+  };
+}
+
 // Função para buscar dados de pesquisa via Perplexity (pré-geração)
 export async function fetchGeoResearchData(
   theme: string,
@@ -148,26 +276,11 @@ export async function fetchGeoResearchData(
     console.log(`[GEO RESEARCH] Fetching research data for theme: "${theme}"`);
     
     const territorialContext = territory?.official_name 
-      ? `\n- Contexto local: ${territory.official_name}${territory.neighborhood_tags?.length ? ` (bairros: ${territory.neighborhood_tags.join(', ')})` : ''}`
+      ? ` na região de ${territory.official_name}` 
       : '';
-
-    const researchPrompt = `Pesquise dados atualizados sobre: "${theme}"
-
-Foco (retorne informações FACTUAIS e ATUAIS):
-- Tendências GEO 2026 relevantes para o tema
-- Como IAs (Google SGE, Perplexity) avaliam autoridade em conteúdo sobre este assunto
-- Mudanças recentes em SEO generativo relacionadas ao tema
-- Estatísticas ou dados de mercado relevantes${territorialContext}
-
-Retorne um JSON estruturado com:
-{
-  "facts": ["fato 1", "fato 2", ...],   // 3-5 fatos verificáveis
-  "trends": ["tendência 1", ...],        // 2-3 tendências de 2026
-  "sources": ["fonte 1", ...]            // URLs ou referências
-}
-
-IMPORTANTE: Retorne APENAS o JSON válido, sem texto adicional.`;
-
+    
+    const query = `${theme}${territorialContext} tendências 2026 dados estatísticas Brasil`;
+    
     const response = await fetch('https://api.perplexity.ai/chat/completions', {
       method: 'POST',
       headers: {
@@ -175,129 +288,120 @@ IMPORTANTE: Retorne APENAS o JSON válido, sem texto adicional.`;
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'sonar',
+        model: 'sonar-pro',
         messages: [
-          { 
-            role: 'system', 
-            content: 'Você é um pesquisador especializado em buscar dados atuais e factuais. Retorne apenas JSON válido com fatos verificáveis, tendências de 2026 e fontes.' 
+          {
+            role: 'system',
+            content: `Você é um pesquisador especializado em coletar dados factuais e tendências de mercado.
+Retorne APENAS um JSON válido no formato:
+{
+  "facts": ["fato 1", "fato 2", ...],
+  "trends": ["tendência 1", "tendência 2", ...],
+  "sources": ["fonte 1", "fonte 2", ...]
+}
+
+Regras:
+- Fatos devem ser dados específicos, números, estatísticas
+- Tendências devem ser insights de mercado para 2026
+- Fontes devem ser URLs ou nomes de instituições citadas
+- Máximo 5 itens por categoria`
           },
-          { role: 'user', content: researchPrompt }
+          {
+            role: 'user',
+            content: `Pesquise dados factuais sobre: ${query}`
+          }
         ],
         temperature: 0.3,
+        max_tokens: 1000
       }),
     });
 
     if (!response.ok) {
-      console.error(`[GEO RESEARCH] Perplexity API error: ${response.status}`);
+      console.warn(`[GEO RESEARCH] Perplexity API error: ${response.status}`);
       return null;
     }
 
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-
-    if (!content) {
-      console.warn('[GEO RESEARCH] Empty response from Perplexity');
+    const content = data.choices?.[0]?.message?.content || '';
+    
+    // Parse JSON from response
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      console.warn('[GEO RESEARCH] No valid JSON in response');
       return null;
     }
 
-    // Parse JSON response
-    try {
-      // Extract JSON from potential markdown code blocks
-      let jsonContent = content;
-      const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      if (jsonMatch) {
-        jsonContent = jsonMatch[1];
-      }
-      
-      const parsed = JSON.parse(jsonContent.trim());
-      
-      const researchData: GeoResearchData = {
-        facts: Array.isArray(parsed.facts) ? parsed.facts.slice(0, 5) : [],
-        trends: Array.isArray(parsed.trends) ? parsed.trends.slice(0, 3) : [],
-        sources: Array.isArray(parsed.sources) ? parsed.sources.slice(0, 3) : [],
-        rawQuery: theme,
-        fetchedAt: new Date().toISOString()
-      };
-
-      console.log(`[GEO RESEARCH] ✅ Fetched ${researchData.facts.length} facts, ${researchData.trends.length} trends`);
-      return researchData;
-    } catch (parseError) {
-      console.error('[GEO RESEARCH] Failed to parse Perplexity response:', parseError);
-      return null;
-    }
+    const parsed = JSON.parse(jsonMatch[0]);
+    
+    return {
+      facts: parsed.facts || [],
+      trends: parsed.trends || [],
+      sources: parsed.sources || [],
+      rawQuery: query,
+      fetchedAt: new Date().toISOString()
+    };
   } catch (error) {
-    console.error('[GEO RESEARCH] Error fetching research data:', error);
+    console.error('[GEO RESEARCH] Error fetching data:', error);
     return null;
   }
 }
 
-// Função para construir injeção de dados de pesquisa no prompt
+// Função para injetar dados de pesquisa no prompt
 export function buildResearchInjection(researchData: GeoResearchData | null): string {
-  if (!researchData || (researchData.facts.length === 0 && researchData.trends.length === 0)) {
-    return '';
+  if (!researchData) {
+    return `
+## DADOS DE PESQUISA (GENÉRICO)
+Use dados e estatísticas plausíveis para 2026.
+Cite tendências de mercado atuais.
+Mencione fontes como Sebrae, IBGE, Google quando aplicável.
+`;
   }
 
-  const factsSection = researchData.facts.length > 0
-    ? `📊 DADOS ATUALIZADOS PARA USAR (fonte: pesquisa em tempo real):
-${researchData.facts.map(f => `- ${f}`).join('\n')}`
-    : '';
-
-  const trendsSection = researchData.trends.length > 0
-    ? `🔥 TENDÊNCIAS 2026:
-${researchData.trends.map(t => `- ${t}`).join('\n')}`
-    : '';
-
-  const sourcesSection = researchData.sources.length > 0
-    ? `📎 FONTES PARA CITAR:
-${researchData.sources.join('\n')}`
-    : '';
-
   return `
+## DADOS DE PESQUISA REAL (USE OBRIGATORIAMENTE)
 
----
-## DADOS DE PESQUISA REAL-TIME (OBRIGATÓRIO USAR NO ARTIGO)
+📊 FATOS VERIFICADOS:
+${researchData.facts.map(f => `- ${f}`).join('\n')}
 
-${factsSection}
+📈 TENDÊNCIAS 2026:
+${researchData.trends.map(t => `- ${t}`).join('\n')}
 
-${trendsSection}
+📚 FONTES CITÁVEIS:
+${researchData.sources.map(s => `- ${s}`).join('\n')}
 
-${sourcesSection}
-
-⚠️ USE ESTES DADOS NATURALMENTE NO TEXTO para aumentar autoridade factual.
-Integre pelo menos 2-3 destes fatos/tendências ao longo do artigo.
----
-
+⛔ VOCÊ DEVE incorporar estes dados no artigo de forma natural.
+Use as estatísticas para dar autoridade ao conteúdo.
+Cite as fontes quando mencionar dados específicos.
 `;
 }
 
-// Função para construir prompt territorial
+// Função para construir contexto territorial
 export function buildTerritorialContext(territory: TerritoryData | null): string {
-  if (!territory?.official_name) return '';
+  if (!territory || !territory.official_name) {
+    return '';
+  }
 
-  const neighborhoods = territory.neighborhood_tags?.length 
-    ? territory.neighborhood_tags.join(', ')
-    : '';
-
-  const coords = territory.lat && territory.lng
-    ? `(${territory.lat.toFixed(4)}, ${territory.lng.toFixed(4)})`
-    : '';
+  const neighborhoods = territory.neighborhood_tags?.slice(0, 5) || [];
+  const neighborhoodList = neighborhoods.length > 0 
+    ? neighborhoods.join(', ')
+    : 'bairros da região';
 
   return `
+## ANCORAGEM TERRITORIAL OBRIGATÓRIA
 
----
-## CONTEXTO TERRITORIAL (AUTORIDADE LOCAL OBRIGATÓRIA)
+🌍 REGIÃO: ${territory.official_name}
+📍 BAIRROS: ${neighborhoodList}
+${territory.lat && territory.lng ? `🗺️ COORDENADAS: ${territory.lat}, ${territory.lng}` : ''}
 
-📍 **Localidade Principal:** ${territory.official_name}
-${neighborhoods ? `🏘️ **Bairros/Áreas:** ${neighborhoods}` : ''}
-${coords ? `📐 **Coordenadas:** ${coords}` : ''}
-${territory.radius_km ? `📏 **Raio de Atuação:** ${territory.radius_km}km` : ''}
+INSTRUÇÕES:
+1. MENCIONE a região e/ou bairros pelo menos 2x no artigo
+2. Use contexto local para exemplos práticos
+3. Integre os nomes naturalmente, sem forçar
+4. Posicione a empresa como autoridade LOCAL
 
-### REGRAS TERRITORIAIS:
-- Mencione a localidade (${territory.official_name}) naturalmente 2-3 vezes no texto
-${neighborhoods ? `- Cite pelo menos 1 bairro específico (${neighborhoods.split(',')[0].trim()})` : ''}
-- Use expressões como "na região de ${territory.official_name}" ou "moradores de ${territory.official_name}"
-- Conecte o tema do artigo com a realidade local
-- Isso gera JSON-LD GeoCoordinates automático para SEO local
+Exemplo de menção natural:
+"Empresas em ${neighborhoods[0] || territory.official_name} que adotaram..."
+"Clientes da região de ${territory.official_name} frequentemente..."
 
 ---
 
@@ -366,13 +470,110 @@ export function hasTerritorialMentions(content: string, neighborhoods: string[])
   return neighborhoods.some(n => contentLower.includes(n.toLowerCase()));
 }
 
+// V2.0: Função para contar links internos
+export function countInternalLinks(content: string): number {
+  // Match markdown links that start with / (internal paths)
+  const internalLinkPattern = /\[.+?\]\(\/.+?\)/g;
+  const matches = content.match(internalLinkPattern);
+  return matches?.length || 0;
+}
+
+// V2.0: Função para contar links externos
+export function countExternalLinks(content: string): number {
+  // Match markdown links that start with http:// or https://
+  const externalLinkPattern = /\[.+?\]\(https?:\/\/.+?\)/g;
+  const matches = content.match(externalLinkPattern);
+  return matches?.length || 0;
+}
+
+// V2.0: Função para verificar CTA WhatsApp
+export function hasWhatsAppCTA(content: string): boolean {
+  // Check for WhatsApp links
+  const whatsappPattern = /wa\.me\/|whatsapp\.com\/|whatsapp/i;
+  return whatsappPattern.test(content);
+}
+
+// V2.0: Validação GEO completa
+export function validateGeoArticleFull(
+  content: string,
+  territory: TerritoryData | null,
+  whatsapp: string | null
+): GeoValidationResult {
+  const wordCount = countGeoWords(content);
+  const geoPhrasesCount = countGeoPhrasesInContent(content);
+  const answerFirst = hasAnswerFirstPattern(content);
+  const territorialMentions = territory?.neighborhood_tags?.length 
+    ? hasTerritorialMentions(content, territory.neighborhood_tags)
+    : true;
+  const internalLinks = countInternalLinks(content);
+  const externalLinks = countExternalLinks(content);
+  const whatsappCTA = whatsapp ? hasWhatsAppCTA(content) : true;
+
+  const issues: string[] = [];
+
+  // Word count validation
+  if (wordCount < GEO_WRITER_RULES.word_count.min) {
+    issues.push(`Word count: ${wordCount}/${GEO_WRITER_RULES.word_count.min} mínimo`);
+  }
+  if (wordCount > GEO_WRITER_RULES.word_count.max) {
+    issues.push(`Word count: ${wordCount}/${GEO_WRITER_RULES.word_count.max} máximo`);
+  }
+
+  // Answer-first validation
+  if (!answerFirst) {
+    issues.push('Falta padrão Answer-First no primeiro parágrafo');
+  }
+
+  // GEO phrases validation (minimum 2)
+  if (geoPhrasesCount < 2) {
+    issues.push(`Frases GEO: ${geoPhrasesCount}/2 mínimo`);
+  }
+
+  // Territorial mentions validation
+  if (territory?.neighborhood_tags?.length && !territorialMentions) {
+    issues.push('Falta menção ao território/bairros');
+  }
+
+  // Internal links validation
+  if (internalLinks < GEO_WRITER_RULES.linking.internal_min) {
+    issues.push(`Links internos: ${internalLinks}/${GEO_WRITER_RULES.linking.internal_min} mínimo`);
+  }
+
+  // External links validation
+  if (externalLinks < GEO_WRITER_RULES.linking.external_min) {
+    issues.push(`Links externos: ${externalLinks}/${GEO_WRITER_RULES.linking.external_min} mínimo`);
+  }
+
+  // WhatsApp CTA validation
+  if (whatsapp && !whatsappCTA) {
+    issues.push('Falta CTA com WhatsApp na seção final');
+  }
+
+  return {
+    passed: issues.length === 0,
+    issues,
+    metrics: {
+      wordCount,
+      geoPhrasesCount,
+      hasAnswerFirst: answerFirst,
+      hasTerritorialMentions: territorialMentions,
+      internalLinksCount: internalLinks,
+      externalLinksCount: externalLinks,
+      hasWhatsAppCTA: whatsappCTA
+    }
+  };
+}
+
 // Função para gerar instruções de correção GEO
 export function generateGeoCorrectionInstructions(
   wordCount: number,
   geoPhrasesCount: number,
   hasAnswerFirst: boolean,
   hasTerritorial: boolean,
-  territoriesAvailable: boolean
+  territoriesAvailable: boolean,
+  internalLinksCount: number = 0,
+  externalLinksCount: number = 0,
+  hasWhatsApp: boolean = true
 ): string {
   const corrections: string[] = [];
 
@@ -396,6 +597,18 @@ export function generateGeoCorrectionInstructions(
     corrections.push(`⛔ TERRITORIAL: O artigo NÃO menciona a localidade/bairros especificados. ADICIONE menções naturais à região no texto.`);
   }
 
+  if (internalLinksCount < GEO_WRITER_RULES.linking.internal_min) {
+    corrections.push(`⛔ LINKS INTERNOS: O artigo tem apenas ${internalLinksCount} links internos. ADICIONE pelo menos ${GEO_WRITER_RULES.linking.internal_min} links para outros artigos do blog usando o formato [texto âncora](/blog/slug).`);
+  }
+
+  if (externalLinksCount < GEO_WRITER_RULES.linking.external_min) {
+    corrections.push(`⛔ LINKS EXTERNOS: O artigo tem apenas ${externalLinksCount} links externos. ADICIONE pelo menos ${GEO_WRITER_RULES.linking.external_min} links para fontes de autoridade (Google, Moz, Sebrae, IBGE, etc.) usando o formato [fonte](https://url).`);
+  }
+
+  if (!hasWhatsApp) {
+    corrections.push(`⛔ CTA WHATSAPP: A seção final NÃO contém um CTA com WhatsApp. ADICIONE um link direto para WhatsApp no formato [Fale conosco](https://wa.me/NUMERO).`);
+  }
+
   if (corrections.length === 0) return '';
 
   return `
@@ -410,6 +623,8 @@ ${corrections.join('\n\n')}
 - Use frases de autoridade temporal (2026)
 - Mantenha answer-first pattern
 - Word count: ${GEO_WRITER_RULES.word_count.min}-${GEO_WRITER_RULES.word_count.max} palavras
+- Mínimo 2 links internos + 2 links externos
+- CTA com WhatsApp obrigatório
 
 ⚠️ SE ESTAS CORREÇÕES NÃO FOREM APLICADAS, O ARTIGO SERÁ REJEITADO NOVAMENTE.
 `;
