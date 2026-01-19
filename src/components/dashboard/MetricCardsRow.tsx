@@ -3,14 +3,12 @@ import {
   CheckCircle, 
   Eye, 
   Users, 
-  DollarSign,
   TrendingUp,
   TrendingDown,
   Minus
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDashboardMetrics } from '@/hooks/useDashboardMetrics';
-import { useCurrentUserRole } from '@/hooks/useCurrentUserRole';
 
 interface MetricCardsRowProps {
   blogId: string | undefined;
@@ -70,10 +68,6 @@ function MetricCard({ icon, iconBg, label, value, delta, loading, prefix }: Metr
 
 export function MetricCardsRow({ blogId }: MetricCardsRowProps) {
   const metrics = useDashboardMetrics(blogId);
-  const { isAdmin, isOwner } = useCurrentUserRole();
-  
-  // Only show AI cost to admins/owners
-  const showAiCost = isAdmin || isOwner;
 
   const cards = [
     {
@@ -106,17 +100,8 @@ export function MetricCardsRow({ blogId }: MetricCardsRowProps) {
     },
   ];
 
-  // AI cost card data (separate to avoid type issues)
-  const aiCostCard = showAiCost ? {
-    icon: <DollarSign className="h-5 w-5 text-slate-600 dark:text-slate-400" />,
-    iconBg: 'bg-slate-100 dark:bg-slate-500/20',
-    label: 'Custo IA (Mês)',
-    value: `$${metrics.aiCostMonth.toFixed(2)}`,
-    delta: undefined as number | undefined,
-  } : null;
-
   return (
-    <div className={`grid gap-4 ${showAiCost ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-5' : 'grid-cols-2 md:grid-cols-4'}`}>
+    <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
       {cards.map((card, index) => (
         <MetricCard
           key={index}
@@ -128,16 +113,6 @@ export function MetricCardsRow({ blogId }: MetricCardsRowProps) {
           loading={metrics.loading}
         />
       ))}
-      {aiCostCard && (
-        <MetricCard
-          icon={aiCostCard.icon}
-          iconBg={aiCostCard.iconBg}
-          label={aiCostCard.label}
-          value={aiCostCard.value}
-          delta={aiCostCard.delta}
-          loading={metrics.loading}
-        />
-      )}
     </div>
   );
 }

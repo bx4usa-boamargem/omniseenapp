@@ -11,7 +11,6 @@ export interface DashboardMetrics {
   viewsDelta: number;
   leadsGenerated: number;
   leadsDelta: number;
-  aiCostMonth: number;
   loading: boolean;
   error: string | null;
 }
@@ -26,7 +25,6 @@ export function useDashboardMetrics(blogId: string | undefined) {
     viewsDelta: 0,
     leadsGenerated: 0,
     leadsDelta: 0,
-    aiCostMonth: 0,
     loading: true,
     error: null,
   });
@@ -80,16 +78,6 @@ export function useDashboardMetrics(blogId: string | undefined) {
 
       const leadsGenerated = leadsCount || 0;
 
-      // Fetch AI costs for current month
-      const { data: aiLogs, error: aiError } = await supabase
-        .from('ai_usage_logs')
-        .select('cost_usd')
-        .eq('blog_id', blogId)
-        .gte('created_at', currentMonthStart.toISOString());
-
-      // AI logs might fail due to RLS - handle gracefully
-      const aiCostMonth = aiError ? 0 : (aiLogs?.reduce((sum, log) => sum + (log.cost_usd || 0), 0) || 0);
-
       setMetrics({
         totalArticles,
         totalArticlesDelta,
@@ -99,7 +87,6 @@ export function useDashboardMetrics(blogId: string | undefined) {
         viewsDelta: 0, // Would need historical data to calculate
         leadsGenerated,
         leadsDelta: 0,
-        aiCostMonth,
         loading: false,
         error: null,
       });
