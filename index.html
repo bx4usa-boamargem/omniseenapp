@@ -33,7 +33,16 @@
 </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Fallback loader while React initializes -->
+      <div id="loading-fallback" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0f0a1a;">
+        <div style="text-align:center;">
+          <div style="width:40px;height:40px;border:3px solid #7c3aed;border-top-color:transparent;border-radius:50%;animation:lov-spin 1s linear infinite;margin:0 auto;"></div>
+          <p style="margin-top:16px;color:#9ca3af;font-family:system-ui,sans-serif;">Carregando...</p>
+        </div>
+      </div>
+      <style>@keyframes lov-spin{to{transform:rotate(360deg);}}</style>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
