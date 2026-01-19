@@ -5644,6 +5644,7 @@ export type Database = {
         Args: { p_article_id: string }
         Returns: undefined
       }
+      is_blog_owner: { Args: { p_blog_id: string }; Returns: boolean }
       is_team_member_of_blog:
         | { Args: { p_blog_id: string }; Returns: boolean }
         | { Args: { p_blog_id: string; p_user_id: string }; Returns: boolean }
