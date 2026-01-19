@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { computeSeoScore, stripHtml, type SEOResult } from "../_shared/seoScoring.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,17 +13,51 @@ serve(async (req) => {
   }
 
   try {
-    const { blog_id } = await req.json();
+    const body = await req.json();
+    const { blog_id, article_id } = body;
 
-    if (!blog_id) {
-      throw new Error("blog_id is required");
+    if (!blog_id && !article_id) {
+      throw new Error("blog_id or article_id is required");
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch all published articles
+    // Mode 1: Single article score
+    if (article_id) {
+      const { data: article, error: articleError } = await supabase
+        .from("articles")
+        .select("id, title, meta_description, content, keywords, featured_image_url")
+        .eq("id", article_id)
+        .single();
+
+      if (articleError || !article) {
+        throw new Error(`Article not found: ${articleError?.message}`);
+      }
+
+      const cleanContent = stripHtml(article.content || '');
+      const seoResult = computeSeoScore({
+        title: article.title || '',
+        meta_description: article.meta_description || '',
+        content_text: cleanContent,
+        keywords: article.keywords || [],
+        has_featured_image: !!article.featured_image_url
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          article_id,
+          score_total: seoResult.score_total,
+          breakdown: seoResult.breakdown,
+          diagnostics: seoResult.diagnostics
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Mode 2: Blog aggregate snapshot (original behavior)
     const { data: articles, error: articlesError } = await supabase
       .from("articles")
       .select("id, title, meta_description, content, keywords, featured_image_url")
@@ -40,38 +75,17 @@ serve(async (req) => {
       );
     }
 
-    // Calculate SEO scores for each article
+    // Calculate SEO scores using the shared module
     const scores = articles.map((article) => {
-      let score = 0;
-      const maxScore = 100;
-
-      // Title score (max 25)
-      const titleLen = article.title?.length || 0;
-      if (titleLen >= 50 && titleLen <= 60) score += 25;
-      else if (titleLen >= 30 && titleLen <= 70) score += 15;
-      else if (titleLen > 0) score += 5;
-
-      // Meta description score (max 25)
-      const metaLen = article.meta_description?.length || 0;
-      if (metaLen >= 140 && metaLen <= 160) score += 25;
-      else if (metaLen >= 100 && metaLen <= 180) score += 15;
-      else if (metaLen > 50) score += 5;
-
-      // Content score (max 25)
-      const wordCount = (article.content || "").split(/\s+/).filter((w: string) => w.length > 0).length;
-      if (wordCount >= 1500) score += 25;
-      else if (wordCount >= 800) score += 15;
-      else if (wordCount >= 300) score += 10;
-
-      // Keywords score (max 15)
-      const keywordCount = (article.keywords || []).length;
-      if (keywordCount >= 3 && keywordCount <= 7) score += 15;
-      else if (keywordCount >= 1) score += 8;
-
-      // Image score (max 10)
-      if (article.featured_image_url) score += 10;
-
-      return Math.min(score, maxScore);
+      const cleanContent = stripHtml(article.content || '');
+      const result = computeSeoScore({
+        title: article.title || '',
+        meta_description: article.meta_description || '',
+        content_text: cleanContent,
+        keywords: article.keywords || [],
+        has_featured_image: !!article.featured_image_url
+      });
+      return result.score_total;
     });
 
     // Calculate aggregated stats

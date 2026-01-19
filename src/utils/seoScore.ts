@@ -20,9 +20,45 @@ export interface SEOScoreResult {
   };
 }
 
+/**
+ * Strip HTML tags and extract clean text
+ * Critical for accurate keyword density calculation
+ */
+export function stripHtml(html: string): string {
+  if (!html) return '';
+  
+  return html
+    // Remove script tags and content
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    // Remove style tags and content
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    // Remove HTML comments
+    .replace(/<!--[\s\S]*?-->/g, '')
+    // Replace br and p tags with spaces for proper word separation
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/p>/gi, ' ')
+    .replace(/<\/div>/gi, ' ')
+    .replace(/<\/li>/gi, ' ')
+    .replace(/<\/h[1-6]>/gi, ' ')
+    // Remove all remaining HTML tags
+    .replace(/<[^>]+>/g, ' ')
+    // Decode HTML entities
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    // Normalize whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function calculateSEOScore(params: SEOScoreParams): SEOScoreResult {
   const { title, metaDescription, content, keywords, featuredImage } = params;
-  const contentText = content || '';
+  
+  // BUGFIX: Use stripped HTML for accurate word count and density
+  const contentText = stripHtml(content || '');
   const wordCount = contentText.split(/\s+/).filter(w => w.length > 0).length;
   
   const details = {
@@ -80,22 +116,34 @@ export function calculateSEOScore(params: SEOScoreParams): SEOScoreResult {
     details.content.score = Math.min(wordCount / 100, 5);
   }
 
-  // 5. Density check (20 points max)
+  // 5. Density check (20 points max) - BUGFIX: use clean text
   const contentLower = contentText.toLowerCase();
   const avgDensity = keywords.length > 0 
     ? keywords.reduce((acc, kw) => {
-        const matches = contentLower.match(new RegExp(kw.toLowerCase(), 'gi'));
+        if (!kw) return acc;
+        // Escape regex special characters
+        const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(escapedKw.toLowerCase(), 'gi');
+        const matches = contentLower.match(regex);
         return acc + ((matches?.length || 0) / Math.max(wordCount, 1)) * 100;
       }, 0) / keywords.length
     : 0;
+  
   const mainKeywordFound = keywords.some(kw => {
-    const matches = contentLower.match(new RegExp(kw.toLowerCase(), 'gi'));
-    return (matches?.length || 0) >= 3;
+    if (!kw) return false;
+    const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escapedKw.toLowerCase(), 'gi');
+    const matches = contentLower.match(regex);
+    return (matches?.length || 0) >= 2; // At least 2 occurrences
   });
   
   if (avgDensity >= 0.5 && avgDensity <= 2.5 && mainKeywordFound) {
     details.density.score = 20;
+  } else if (mainKeywordFound && avgDensity > 0) {
+    // Give partial credit if keyword found but density not optimal
+    details.density.score = avgDensity < 0.5 ? 12 : 10; // Low density or over-optimization
   } else if (avgDensity > 0) {
+    details.density.score = 8; // Keywords present but not prominent enough
     details.density.score = 10;
   }
 
@@ -153,8 +201,8 @@ export function validateSEOForPublish(params: SEOScoreParams): SEOValidationResu
     warnings.push('Muitas palavras-chave (recomendado até 7)');
   }
   
-  // Content length: min 300 words (blocking)
-  const contentText = params.content || '';
+  // Content length: min 300 words (blocking) - use stripped HTML
+  const contentText = stripHtml(params.content || '');
   const wordCount = contentText.split(/\s+/).filter(w => w.length > 0).length;
   
   if (wordCount < 300) {
