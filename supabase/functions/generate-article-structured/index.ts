@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildUniversalPrompt, type ClientStrategy, type FunnelMode, type ArticleGoal } from '../_shared/promptTypeCore.ts';
 import { resolveStrategy } from '../_shared/strategyResolver.ts';
-import { validateArticleQuality, validateGeoArticleQuality, generateCorrectionInstructions, generateGeoCorrectionInstructions } from '../_shared/qualityValidator.ts';
+import { validateArticleQuality, validateGeoArticleQuality, generateCorrectionInstructions } from '../_shared/qualityValidator.ts';
 import { generateAutoKeywords, mergeKeywords } from '../_shared/keywordGenerator.ts';
 import { 
   GEO_WRITER_IDENTITY, 
@@ -14,7 +14,7 @@ import {
   countGeoPhrasesInContent,
   hasAnswerFirstPattern,
   hasTerritorialMentions,
-  generateGeoCorrectionInstructions as generateGeoCorrections,
+  generateGeoCorrectionInstructions,
   type TerritoryData as GeoTerritoryData,
   type GeoResearchData
 } from '../_shared/geoWriterCore.ts';
@@ -1745,6 +1745,133 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
     }
     
     console.log(`EDITORIAL MODEL VALIDATION: Model=${editorial_model}, H2s=${h2Count}, Blocks=${blockCount}`);
+
+    // ========================================================================
+    // GEO QUALITY GATE LOOP - OMNICORE GEO WRITER
+    // ========================================================================
+    // When geo_mode=true, validates article against GEO rules and regenerates
+    // automatically up to 3 times if it doesn't pass the Quality Gate
+    // ========================================================================
+
+    if (geo_mode) {
+      console.log('[GEO QUALITY GATE] Starting GEO validation loop...');
+      
+      const neighborhoodTags = territoryData?.neighborhood_tags || [];
+      let geoAttempts = 0;
+      let currentContent = articleData.content as string;
+      
+      while (geoAttempts < GEO_WRITER_RULES.max_retries) {
+        geoAttempts++;
+        console.log(`[GEO QUALITY GATE] Attempt ${geoAttempts}/${GEO_WRITER_RULES.max_retries}`);
+        
+        // Validate with GEO-specific rules
+        const geoValidation = validateGeoArticleQuality(
+          currentContent,
+          funnel_mode as FunnelMode,
+          { geoMode: true, territories: neighborhoodTags }
+        );
+        
+        console.log(`[GEO QUALITY GATE] Score: ${geoValidation.score}/100, Passed: ${geoValidation.passed}`);
+        
+        if (geoValidation.passed) {
+          console.log(`[GEO QUALITY GATE] ✅ Article passed on attempt ${geoAttempts}`);
+          break;
+        }
+        
+        // If max retries reached, throw error
+        if (geoAttempts >= GEO_WRITER_RULES.max_retries) {
+          console.error(`[GEO QUALITY GATE] ❌ Failed after ${geoAttempts} attempts`);
+          console.error(`[GEO QUALITY GATE] Failures: ${geoValidation.failures.join(', ')}`);
+          throw new Error('OmniCore Quality Gate Failed: Article did not meet GEO standards after 3 attempts');
+        }
+        
+        // Generate correction instructions using geoWriterCore
+        const geoWordCount = countGeoWords(currentContent);
+        const geoPhrasesCount = countGeoPhrasesInContent(currentContent);
+        const hasAnswerFirst = hasAnswerFirstPattern(currentContent);
+        const hasTerritorial = hasTerritorialMentions(currentContent, neighborhoodTags);
+        
+        const correctionPrompt = generateGeoCorrectionInstructions(
+          geoWordCount,
+          geoPhrasesCount,
+          hasAnswerFirst,
+          hasTerritorial,
+          neighborhoodTags.length > 0
+        );
+        
+        console.log(`[GEO QUALITY GATE] Regenerating with corrections...`);
+        console.log(`  - Word count: ${geoWordCount} (need ${GEO_WRITER_RULES.word_count.min}-${GEO_WRITER_RULES.word_count.max})`);
+        console.log(`  - GEO phrases: ${geoPhrasesCount} (need 2+)`);
+        console.log(`  - Answer-first: ${hasAnswerFirst}`);
+        console.log(`  - Territorial: ${hasTerritorial}`);
+        
+        // Regenerate with corrections
+        const correctionUserPrompt = `${correctionPrompt}
+
+---
+
+ARTIGO ORIGINAL A CORRIGIR:
+
+${currentContent}
+
+---
+
+REESCREVA o artigo completo aplicando TODAS as correções listadas.
+Mantenha o tema, estrutura e informações, mas corrija os problemas identificados.
+Retorne o artigo corrigido no formato JSON da tool create_article.`;
+
+        try {
+          const correctionResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: textModel,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: correctionUserPrompt }
+              ],
+              tools: [toolSchema],
+              tool_choice: { type: 'function', function: { name: 'create_article' } }
+            }),
+          });
+          
+          if (!correctionResponse.ok) {
+            console.error(`[GEO QUALITY GATE] Regeneration failed: ${correctionResponse.status}`);
+            continue; // Try again
+          }
+          
+          const correctionData = await correctionResponse.json();
+          const correctionToolCall = correctionData.choices?.[0]?.message?.tool_calls?.[0];
+          
+          if (correctionToolCall?.function?.name === 'create_article') {
+            const correctedArticle = parseArticleJSON(correctionToolCall.function.arguments);
+            currentContent = correctedArticle.content as string;
+            
+            // Update articleData with corrected content
+            articleData.content = currentContent;
+            articleData.title = correctedArticle.title || articleData.title;
+            articleData.meta_description = correctedArticle.meta_description || articleData.meta_description;
+            
+            console.log(`[GEO QUALITY GATE] Content regenerated, new word count: ${countGeoWords(currentContent)}`);
+          }
+        } catch (regenError) {
+          console.error(`[GEO QUALITY GATE] Regeneration error:`, regenError);
+          // Continue to next attempt
+        }
+      }
+      
+      // Final log of GEO validation result
+      const finalGeoValidation = validateGeoArticleQuality(
+        articleData.content as string,
+        funnel_mode as FunnelMode,
+        { geoMode: true, territories: neighborhoodTags }
+      );
+      
+      console.log(`[GEO QUALITY GATE] Final state: Score=${finalGeoValidation.score}, Passed=${finalGeoValidation.passed}, Attempts=${geoAttempts}`);
+    }
 
     // Validate word count using generation_mode rules (NUNCA sourceValidationRules)
     const rules = generationRules[generation_mode];
