@@ -9,6 +9,7 @@ import { ArticleSEOList, ArticleSEOItem } from '@/components/seo/ArticleSEOList'
 import { SEOAnalysisModal } from '@/components/seo/SEOAnalysisModal';
 import { SEOTrendChart } from '@/components/seo/SEOTrendChart';
 import { SEOTrendStats } from '@/components/seo/SEOTrendStats';
+import { BatchInternalLinksButton } from '@/components/seo/BatchInternalLinksButton';
 import { useSEOTrends } from '@/hooks/useSEOTrends';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -413,6 +414,17 @@ export default function ClientSEO() {
                   <span className="text-2xl font-bold text-foreground">{dim.score}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">{dim.description}</p>
+                
+                {/* Botão de Links Internos com IA */}
+                {dim.id === 'links' && dim.status !== 'good' && blog?.id && (
+                  <div className="mt-4 pt-3 border-t border-border">
+                    <BatchInternalLinksButton 
+                      blogId={blog.id} 
+                      onComplete={handleArticleUpdated}
+                      variant="compact"
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
