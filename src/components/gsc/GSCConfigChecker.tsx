@@ -45,13 +45,19 @@ export function GSCConfigChecker({ blogId, onStatusChange }: GSCConfigCheckerPro
       }
 
       const isReady = data?.configured === true;
+      
+      // Check for whitespace issues in clientId
+      const hasWhitespaceIssue = data?.clientId && data.clientId !== data.clientId.trim();
+      
       setStatus({
         clientIdConfigured: data?.configured || false,
-        redirectUri: data?.redirectUri || '',
-        error: data?.error,
+        redirectUri: (data?.redirectUri || '').trim(),
+        error: hasWhitespaceIssue 
+          ? 'O Client ID contém espaços em branco. Remova-os nas configurações de Secrets.'
+          : data?.error,
         loading: false
       });
-      onStatusChange?.(isReady);
+      onStatusChange?.(isReady && !hasWhitespaceIssue);
     } catch (err) {
       setStatus({
         clientIdConfigured: false,

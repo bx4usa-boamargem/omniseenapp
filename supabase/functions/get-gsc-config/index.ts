@@ -52,12 +52,23 @@ serve(async (req) => {
     const PUBLIC_APP_URL = Deno.env.get('PUBLIC_APP_URL') || 'https://omniseeblog.lovable.app';
     const redirectUri = `${PUBLIC_APP_URL}/oauth/google/callback`;
     
-    const clientId = Deno.env.get('GOOGLE_CLIENT_ID') || '';
+    // Apply trim() to remove accidental whitespace from secrets
+    const clientId = (Deno.env.get('GOOGLE_CLIENT_ID') || '').trim();
     
     if (!clientId) {
       return new Response(JSON.stringify({
         configured: false,
         error: 'Google OAuth não está configurado. Configure GOOGLE_CLIENT_ID.'
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    // Validate client ID format
+    if (!clientId.endsWith('.apps.googleusercontent.com')) {
+      return new Response(JSON.stringify({
+        configured: false,
+        error: 'GOOGLE_CLIENT_ID inválido. O ID deve terminar com .apps.googleusercontent.com'
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
