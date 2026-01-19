@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Compass, FileText, Zap, User } from 'lucide-react';
+import { LayoutDashboard, Compass, FileText, Zap, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -9,7 +9,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { path: '/client/dashboard', icon: Home, label: 'Dashboard' },
+  { path: '/client/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/client/radar', icon: Compass, label: 'Radar' },
   { path: '/client/articles', icon: FileText, label: 'Artigos' },
   { path: '/client/automation', icon: Zap, label: 'Máquina' },

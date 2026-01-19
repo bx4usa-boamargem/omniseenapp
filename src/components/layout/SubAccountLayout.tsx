@@ -1,7 +1,7 @@
 import { ReactNode, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
-  Home, 
+  LayoutDashboard, 
   Globe, 
   Zap, 
   Building2, 
@@ -172,9 +172,9 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto scrollbar-hide">
-        {/* Home - sempre primeiro */}
-        <div className="p-4 pb-0">
-          <NavButton item={{ icon: Home, label: 'Início', path: '/client/dashboard' }} />
+        {/* Dashboard - sempre primeiro */}
+        <div className="p-4 pb-0" data-tour="dashboard-menu">
+          <NavButton item={{ icon: LayoutDashboard, label: 'Dashboard', path: '/client/dashboard' }} />
         </div>
 
         {/* Seções organizadas - with data-tour for guided tour */}
