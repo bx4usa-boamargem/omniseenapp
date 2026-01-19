@@ -266,33 +266,20 @@ export interface GeoValidationResult {
   };
 }
 
-// Função para buscar dados de pesquisa via Perplexity (pré-geração)
+// Função para buscar dados de pesquisa via Perplexity com fallback para Lovable AI (Gemini)
 export async function fetchGeoResearchData(
   theme: string,
   territory: TerritoryData | null,
-  PERPLEXITY_API_KEY: string
+  PERPLEXITY_API_KEY: string,
+  LOVABLE_API_KEY?: string  // NOVO: Parâmetro opcional para fallback
 ): Promise<GeoResearchData | null> {
-  try {
-    console.log(`[GEO RESEARCH] Fetching research data for theme: "${theme}"`);
-    
-    const territorialContext = territory?.official_name 
-      ? ` na região de ${territory.official_name}` 
-      : '';
-    
-    const query = `${theme}${territorialContext} tendências 2026 dados estatísticas Brasil`;
-    
-    const response = await fetch('https://api.perplexity.ai/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'sonar-pro',
-        messages: [
-          {
-            role: 'system',
-            content: `Você é um pesquisador especializado em coletar dados factuais e tendências de mercado.
+  const territorialContext = territory?.official_name 
+    ? ` na região de ${territory.official_name}` 
+    : '';
+  
+  const query = `${theme}${territorialContext} tendências 2026 dados estatísticas Brasil`;
+  
+  const systemPrompt = `Você é um pesquisador especializado em coletar dados factuais e tendências de mercado.
 Retorne APENAS um JSON válido no formato:
 {
   "facts": ["fato 1", "fato 2", ...],
@@ -304,46 +291,114 @@ Regras:
 - Fatos devem ser dados específicos, números, estatísticas
 - Tendências devem ser insights de mercado para 2026
 - Fontes devem ser URLs ou nomes de instituições citadas
-- Máximo 5 itens por categoria`
-          },
-          {
-            role: 'user',
-            content: `Pesquise dados factuais sobre: ${query}`
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 1000
-      }),
-    });
+- Máximo 5 itens por categoria`;
 
-    if (!response.ok) {
-      console.warn(`[GEO RESEARCH] Perplexity API error: ${response.status}`);
-      return null;
+  const userPrompt = `Pesquise dados factuais sobre: ${query}`;
+
+  // Tentar Perplexity primeiro
+  if (PERPLEXITY_API_KEY) {
+    try {
+      console.log(`[GEO RESEARCH] Fetching research data for theme: "${theme}" via Perplexity`);
+      
+      const response = await fetch('https://api.perplexity.ai/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'sonar-pro',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 1000
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const content = data.choices?.[0]?.message?.content || '';
+        
+        // Parse JSON from response
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          
+          console.log('[GEO RESEARCH] Perplexity research data parsed successfully');
+          return {
+            facts: parsed.facts || [],
+            trends: parsed.trends || [],
+            sources: parsed.sources || [],
+            rawQuery: query,
+            fetchedAt: new Date().toISOString()
+          };
+        }
+        
+        console.warn('[GEO RESEARCH] No valid JSON in Perplexity response, trying fallback...');
+      } else {
+        console.warn(`[GEO RESEARCH] Perplexity API error: ${response.status}, trying fallback...`);
+      }
+    } catch (perplexityError) {
+      console.error('[GEO RESEARCH] Perplexity error:', perplexityError);
+      console.log('[GEO RESEARCH] Trying Lovable AI (Gemini) fallback...');
     }
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
-    
-    // Parse JSON from response
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.warn('[GEO RESEARCH] No valid JSON in response');
-      return null;
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    
-    return {
-      facts: parsed.facts || [],
-      trends: parsed.trends || [],
-      sources: parsed.sources || [],
-      rawQuery: query,
-      fetchedAt: new Date().toISOString()
-    };
-  } catch (error) {
-    console.error('[GEO RESEARCH] Error fetching data:', error);
-    return null;
   }
+
+  // Fallback para Lovable AI (Gemini)
+  if (LOVABLE_API_KEY) {
+    try {
+      console.log(`[GEO RESEARCH] Using Lovable AI (Gemini) fallback for theme: "${theme}"`);
+      
+      const fallbackResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0.3,
+          max_tokens: 1000
+        }),
+      });
+
+      if (fallbackResponse.ok) {
+        const fallbackData = await fallbackResponse.json();
+        const fallbackContent = fallbackData.choices?.[0]?.message?.content || '';
+        
+        // Parse JSON from fallback response
+        const jsonMatch = fallbackContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          
+          console.log('[GEO RESEARCH] Lovable AI (Gemini) fallback data parsed successfully');
+          return {
+            facts: parsed.facts || [],
+            trends: parsed.trends || [],
+            sources: parsed.sources || [],
+            rawQuery: query,
+            fetchedAt: new Date().toISOString()
+          };
+        }
+        
+        console.warn('[GEO RESEARCH] No valid JSON in Lovable AI fallback response');
+      } else {
+        console.error(`[GEO RESEARCH] Lovable AI fallback error: ${fallbackResponse.status}`);
+      }
+    } catch (fallbackError) {
+      console.error('[GEO RESEARCH] Fallback also failed:', fallbackError);
+    }
+  }
+
+  // Se ambos falharam, retornar null
+  console.warn('[GEO RESEARCH] No AI provider available or both failed');
+  return null;
 }
 
 // Função para injetar dados de pesquisa no prompt
