@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useLocaleFormat } from "@/hooks/useLocaleFormat";
 import { usePublicArticleTranslation } from "@/hooks/useArticleTranslations";
-import { getArticleUrl, getBlogPath } from "@/utils/blogUrl";
+import { getCanonicalArticleUrl, getBlogPath } from "@/utils/blogUrl";
 import { Calendar, Clock, ChevronDown, ChevronUp, Eye, Share2, ArrowLeft } from "lucide-react";
 
 interface Blog {
@@ -45,6 +45,7 @@ interface Blog {
   custom_domain: string | null;
   domain_verified: boolean | null;
   brand_display_mode: string | null;
+  platform_subdomain: string | null;
 }
 
 
@@ -322,7 +323,7 @@ const PublicArticle = () => {
   }
 
   const readingTime = calculateReadingTime(displayedContent);
-  const canonicalUrl = getArticleUrl(blog, article.slug);
+  const canonicalUrl = getCanonicalArticleUrl(blog, article.slug);
   const blogPath = getBlogPath(blog);
 
   return (

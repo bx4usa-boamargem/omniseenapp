@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { isBlogDomainAccess, getCurrentHostname, getArticleUrl } from "@/utils/blogUrl";
+import { isBlogDomainAccess, getCurrentHostname, getCanonicalArticleUrl } from "@/utils/blogUrl";
 import { Loader2 } from "lucide-react";
 
 // Import components from PublicArticle
@@ -42,6 +42,7 @@ interface Blog {
   custom_domain: string | null;
   domain_verified: boolean | null;
   brand_display_mode: string | null;
+  platform_subdomain: string | null;
 }
 
 interface ContentImage {
@@ -320,7 +321,7 @@ export default function CustomDomainArticle({ blogId, blogSlug: propBlogSlug }: 
   })();
 
   const readingTime = calculateReadingTime(displayContent);
-  const canonicalUrl = getArticleUrl(blog, article.slug);
+  const canonicalUrl = getCanonicalArticleUrl(blog, article.slug);
   const primaryColor = blog.primary_color || "#6366f1";
   
   // State for focused reading mode

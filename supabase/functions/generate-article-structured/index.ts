@@ -263,8 +263,22 @@ async function persistArticleToDb(
     .replace(/(^-|-$)/g, '')          // Remove hífens nas pontas
     .slice(0, 60);                     // Limita tamanho
   
-  // Adiciona timestamp para garantir unicidade
-  const uniqueSlug = `${baseSlug}-${Date.now()}`;
+  // Verificar colisão e gerar slug único inteligente (-2, -3, etc.)
+  const { data: existingSlugs } = await supabaseClient
+    .from('articles')
+    .select('slug')
+    .eq('blog_id', blogId)
+    .like('slug', `${baseSlug}%`)
+    .limit(50);
+  
+  let uniqueSlug = baseSlug;
+  if (existingSlugs && existingSlugs.some((a: { slug: string }) => a.slug === baseSlug)) {
+    let counter = 2;
+    while (existingSlugs.some((a: { slug: string }) => a.slug === `${baseSlug}-${counter}`)) {
+      counter++;
+    }
+    uniqueSlug = `${baseSlug}-${counter}`;
+  }
   
   // Calcular reading_time se não existir
   const wordCount = (articleData.content || '').split(/\s+/).filter(Boolean).length;

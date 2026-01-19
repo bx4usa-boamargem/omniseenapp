@@ -628,17 +628,34 @@ export default function NewArticle() {
     setShowPublishDialog(false);
 
     try {
-      const slug = article.title
+      const baseSlug = article.title
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-|-$/g, '');
+        .replace(/^-|-$/g, '')
+        .slice(0, 60);
+
+      // Verificar colisão de slug e gerar sufixo inteligente (-2, -3, etc.)
+      const { data: existingSlugs } = await supabase
+        .from('articles')
+        .select('slug')
+        .eq('blog_id', blogId)
+        .like('slug', `${baseSlug}%`);
+      
+      let finalSlug = baseSlug;
+      if (existingSlugs && existingSlugs.some(a => a.slug === baseSlug)) {
+        let counter = 2;
+        while (existingSlugs.some(a => a.slug === `${baseSlug}-${counter}`)) {
+          counter++;
+        }
+        finalSlug = `${baseSlug}-${counter}`;
+      }
 
       const insertData: Record<string, unknown> = {
         blog_id: blogId,
         title: article.title,
-        slug: `${slug}-${Date.now()}`,
+        slug: finalSlug,
         content: article.content,
         excerpt: article.excerpt,
         meta_description: article.meta_description,
