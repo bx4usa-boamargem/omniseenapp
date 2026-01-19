@@ -4805,6 +4805,71 @@ export type Database = {
           },
         ]
       }
+      seo_ai_runs: {
+        Row: {
+          action: string
+          after: Json | null
+          after_score: number | null
+          article_id: string
+          before: Json | null
+          before_score: number | null
+          created_at: string | null
+          error_message: string | null
+          id: string
+          keyword_density_after: Json | null
+          keyword_density_before: Json | null
+          model: string | null
+          provider: string
+          status: string
+          word_count_after: number | null
+          word_count_before: number | null
+        }
+        Insert: {
+          action: string
+          after?: Json | null
+          after_score?: number | null
+          article_id: string
+          before?: Json | null
+          before_score?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          keyword_density_after?: Json | null
+          keyword_density_before?: Json | null
+          model?: string | null
+          provider: string
+          status: string
+          word_count_after?: number | null
+          word_count_before?: number | null
+        }
+        Update: {
+          action?: string
+          after?: Json | null
+          after_score?: number | null
+          article_id?: string
+          before?: Json | null
+          before_score?: number | null
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          keyword_density_after?: Json | null
+          keyword_density_before?: Json | null
+          model?: string | null
+          provider?: string
+          status?: string
+          word_count_after?: number | null
+          word_count_before?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seo_ai_runs_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       seo_daily_snapshots: {
         Row: {
           articles_above_80: number | null
