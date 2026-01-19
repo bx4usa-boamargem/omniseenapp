@@ -85,6 +85,17 @@ interface ArticleRequest {
   omnicoreOpportunityId?: string;
   outlineId?: string;
   signalId?: string;
+  // Territorial fields
+  territoryId?: string;
+}
+
+// Territory data interface for geo-enriched articles
+interface TerritoryData {
+  official_name: string | null;
+  neighborhood_tags: string[] | null;
+  lat: number | null;
+  lng: number | null;
+  radius_km: number | null;
 }
 
 // ============ CATEGORIA E TAGS AUTOMÁTICAS ============
@@ -903,7 +914,8 @@ serve(async (req) => {
       article_goal = null,
       editorial_model = 'traditional',
       generation_mode: requestedGenerationMode,
-      auto_publish = true
+      auto_publish = true,
+      territoryId
     }: ArticleRequest & { funnel_mode?: FunnelMode; article_goal?: ArticleGoal | null; auto_publish?: boolean } = await req.json();
 
     // RESOLVER GENERATION_MODE: Nunca undefined - fast ou deep
@@ -1109,6 +1121,39 @@ serve(async (req) => {
 
     console.log(`Cache MISS - Generating structured article for theme: ${theme}`, editorial_template ? '(with template)' : '');
 
+    // ============ TERRITORIAL DATA FETCH ============
+    // Fetch validated territory data for geo-enriched articles
+    let territoryData: TerritoryData | null = null;
+
+    if (territoryId) {
+      console.log(`[TERRITORY] Fetching data for territory: ${territoryId}`);
+      
+      const { data: territory, error: territoryError } = await supabase
+        .from('territories')
+        .select('official_name, neighborhood_tags, lat, lng, radius_km')
+        .eq('id', territoryId)
+        .maybeSingle();
+      
+      if (territory && !territoryError) {
+        territoryData = territory as TerritoryData;
+        console.log(`[TERRITORY] Found: ${territoryData.official_name}, Bairros: ${(territoryData.neighborhood_tags || []).join(', ')}`);
+      } else {
+        console.warn(`[TERRITORY] Not found or error: ${territoryError?.message || 'not found'}`);
+      }
+    }
+
+    // Build territorial instruction for prompt enrichment
+    const territorialInstruction = territoryData?.neighborhood_tags?.length 
+      ? `
+🌍 ANCORAGEM TERRITORIAL OBRIGATÓRIA:
+- Este artigo é para a região de: ${territoryData.official_name || 'região local'}
+- INCLUA menções naturais a estes bairros: ${territoryData.neighborhood_tags.slice(0, 5).join(', ')}
+- Use os bairros como exemplos de áreas atendidas ou contextos locais
+- Mencione pelo menos 2 bairros de forma natural no conteúdo
+- Evite parecer forçado - integre os nomes organicamente nas frases
+`
+      : '';
+
     // ========================================================================
     // UNIVERSAL PROMPT TYPE V1.0 - OBRIGATÓRIO SEM FALLBACK
     // ========================================================================
@@ -1154,8 +1199,9 @@ serve(async (req) => {
       article_goal as ArticleGoal | null,
       theme,
       keywords
-    );
-    console.log(`[UNIVERSAL V1.0] Prompt built: funnel=${funnel_mode}, goal=${article_goal}, isDefault=${isDefaultStrategy}`);
+    ) + (territorialInstruction ? '\n\n' + territorialInstruction : '');
+    console.log(`[UNIVERSAL V1.0] Prompt built: funnel=${funnel_mode}, goal=${article_goal}, isDefault=${isDefaultStrategy}, hasTerritory=${!!territoryData}`);
+
 
     // ============ INJECT GENERATION MODE + EDITORIAL MODEL INSTRUCTIONS ============
     // Obter instrução de modo (NUNCA undefined - sempre fast ou deep)
@@ -1813,7 +1859,12 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
             quality_passed: qualityValidation.passed,
             quality_score: qualityValidation.score,
             quality_failures: qualityValidation.failures,
-            source: source
+            source: source,
+            // TERRITORIAL TRACKING
+            territory_id: territoryId || null,
+            territory_name: territoryData?.official_name || null,
+            neighborhoods_injected: territoryData?.neighborhood_tags?.slice(0, 5) || [],
+            has_geo_coordinates: !!(territoryData?.lat && territoryData?.lng)
           },
         });
         console.log("[UNIVERSAL V1.0] Consumption logged with full metadata");
@@ -1886,6 +1937,16 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
         // OmniCore metadata
         writer_model: writerModelUsed,
         qa_model: qaModelUsed,
+        // Territorial metadata for frontend JSON-LD injection
+        territorial: territoryData ? {
+          official_name: territoryData.official_name,
+          neighborhoods_used: territoryData.neighborhood_tags?.slice(0, 5) || [],
+          geo: territoryData.lat && territoryData.lng ? {
+            '@type': 'GeoCoordinates',
+            latitude: territoryData.lat,
+            longitude: territoryData.lng
+          } : null
+        } : null
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
