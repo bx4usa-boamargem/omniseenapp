@@ -19,12 +19,20 @@ i18n
     fallbackLng: 'pt-BR',
     supportedLngs: ['pt-BR', 'pt', 'en', 'es'],
     detection: {
-      order: ['localStorage', 'navigator'],
+      order: ['localStorage', 'querystring', 'navigator'],
+      lookupQuerystring: 'lang',
       caches: ['localStorage'],
     },
     interpolation: {
       escapeValue: false,
     },
+    debug: import.meta.env.DEV,
   });
+
+// Forçar pt-BR no primeiro carregamento se nenhum idioma estiver configurado
+if (!localStorage.getItem('i18nextLng')) {
+  console.log('[i18n] Nenhum idioma salvo - forçando pt-BR');
+  i18n.changeLanguage('pt-BR');
+}
 
 export default i18n;

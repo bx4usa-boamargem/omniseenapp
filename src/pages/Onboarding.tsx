@@ -136,6 +136,7 @@ export default function Onboarding() {
       const blogPayload = {
         name: data.blogName,
         slug: data.blogSlug,
+        platform_subdomain: data.blogSlug, // Ativa subdomínio instantaneamente
         user_id: user.id,
         onboarding_completed: true,
         // Default values - user can customize later
