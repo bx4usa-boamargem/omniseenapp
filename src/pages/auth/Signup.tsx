@@ -106,13 +106,22 @@ function SignupContent() {
       const { error } = await signUp(email, password, fullName);
 
       if (error) {
-        let message = 'Erro ao criar conta';
-        if (error.message.includes('already registered') || error.message.includes('User already registered')) {
-          message = 'Este email já está cadastrado. Faça login ou use outro email.';
+        // Verificar se é erro de email duplicado - redirecionar para login
+        if (error.message.includes('already registered') || 
+            error.message.includes('User already registered') ||
+            error.message.includes('already exists')) {
+          toast({
+            title: 'Email já cadastrado',
+            description: 'Redirecionando para o login...',
+          });
+          // Redirecionar para login com email preenchido
+          navigate(`/login?email=${encodeURIComponent(email)}`);
+          return;
         }
+        
         toast({
           title: 'Erro',
-          description: message,
+          description: error.message || 'Erro ao criar conta',
           variant: 'destructive',
         });
         setIsLoading(false);
