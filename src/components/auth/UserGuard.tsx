@@ -81,11 +81,6 @@ export function UserGuard({ children }: UserGuardProps) {
 
   // All authenticated users with completed onboarding use the modern /client/* experience
   // The legacy /app/* routes are now deprecated - redirect everyone to modern UI
+  // Note: We no longer redirect to /blocked here - DashboardLayout shows payment modal when isBlocked
   return <Navigate to="/client/dashboard" replace />;
-
-  // Note: We no longer redirect to /blocked here.
-  // The DashboardLayout will show a mandatory modal when isBlocked is true.
-  // This allows users to stay on the dashboard and complete payment.
-
-  return <>{children}</>;
 }

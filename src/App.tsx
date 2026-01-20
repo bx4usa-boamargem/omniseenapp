@@ -280,6 +280,7 @@ const AppRoutes = () => {
   }
 
   // Blog mode - domain resolved to an active blog via tenant_domains
+  // Includes both public blog routes AND authenticated client routes
   if (mode === 'blog') {
     if (!blogId) {
       return (
@@ -291,8 +292,20 @@ const AppRoutes = () => {
     
     return (
       <Routes>
+        {/* Public Blog Routes */}
         <Route path="/" element={<CustomDomainBlog blogId={blogId} blogSlug={null} />} />
         <Route path="/:articleSlug" element={<CustomDomainArticle blogId={blogId} blogSlug={null} />} />
+        
+        {/* Auth Routes - Allow login on subdomain */}
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/oauth/google/callback" element={<GoogleOAuthCallback />} />
+        
+        {/* Client (SubAccount) Routes - Dashboard on subdomain */}
+        <Route path="/client/*" element={<ClientRoutes />} />
+        
+        {/* Fallback */}
         <Route path="*" element={<NotFound />} />
       </Routes>
     );

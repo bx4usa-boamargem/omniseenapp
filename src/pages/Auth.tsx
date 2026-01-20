@@ -74,7 +74,6 @@ export default function Auth() {
     
     const currentHost = window.location.hostname;
     const isLandingDomain = currentHost === 'omniseen.app' || currentHost === 'www.omniseen.app';
-    const appBaseUrl = isLandingDomain ? 'https://app.omniseen.app' : '';
 
     // If user has a plan selected, try to start trial
     if (selectedPlan && PLAN_NAMES[selectedPlan]) {
@@ -98,10 +97,11 @@ export default function Auth() {
       }
     }
 
+    // Always redirect to /client/dashboard on current origin
     if (isLandingDomain) {
-      window.location.href = `${appBaseUrl}/app/dashboard`;
+      window.location.href = 'https://app.omniseen.app/client/dashboard';
     } else {
-      navigate("/app/dashboard");
+      window.location.href = `${window.location.origin}/client/dashboard`;
     }
   };
 
@@ -109,12 +109,10 @@ export default function Auth() {
   const [showRedirectScreen, setShowRedirectScreen] = useState(false);
   const [redirectFailed, setRedirectFailed] = useState(false);
 
-  // Handle redirect after successful login/signup
-  // Handle redirect after successful login/signup - ALWAYS go to Dashboard
+  // Handle redirect after successful login/signup - ALWAYS go to /client/dashboard
   const handleSuccessfulAuth = async () => {
     const currentHost = window.location.hostname;
     const isLandingDomain = currentHost === 'omniseen.app' || currentHost === 'www.omniseen.app';
-    const appBaseUrl = isLandingDomain ? 'https://app.omniseen.app' : '';
 
     // If user selected a plan, start trial
     if (selectedPlan && PLAN_NAMES[selectedPlan]) {
@@ -138,15 +136,15 @@ export default function Auth() {
       }
     }
 
-    // Always redirect to Dashboard
+    // Always redirect to /client/dashboard on current origin
     if (isLandingDomain) {
       setShowRedirectScreen(true);
       setTimeout(() => {
-        window.location.href = `${appBaseUrl}/app/dashboard`;
+        window.location.href = 'https://app.omniseen.app/client/dashboard';
       }, 1500);
       setTimeout(() => setRedirectFailed(true), 6000);
     } else {
-      navigate("/app/dashboard");
+      window.location.href = `${window.location.origin}/client/dashboard`;
     }
   };
 
@@ -290,7 +288,7 @@ export default function Auth() {
 
   // Show redirect transition screen
   if (showRedirectScreen) {
-    const dashboardUrl = 'https://app.omniseen.app/app/dashboard';
+    const dashboardUrl = 'https://app.omniseen.app/client/dashboard';
     
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-6 p-4">
