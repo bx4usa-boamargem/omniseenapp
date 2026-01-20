@@ -115,7 +115,8 @@ export function AddDomainDialog({
 
     setIsLoading(true);
     try {
-      const fullDomain = `${subdomainName.toLowerCase()}.omniseen.app`;
+      // NOVO PADRÃO: {nome}.app.omniseen.app
+      const fullDomain = `${subdomainName.toLowerCase()}.app.omniseen.app`;
 
       // Check if domain already exists
       const { data: existing } = await supabase
@@ -144,9 +145,10 @@ export function AddDomainDialog({
       if (error) throw error;
 
       // Also update the blog's platform_subdomain for backwards compatibility
+      // NOVO PADRÃO: salva apenas o slug, sem sufixo
       await supabase
         .from('blogs')
-        .update({ platform_subdomain: subdomainName.toLowerCase() })
+        .update({ platform_subdomain: `${subdomainName.toLowerCase()}.app.omniseen.app` })
         .eq('id', selectedBlogId);
 
       toast.success('Subdomínio criado com sucesso!');
@@ -292,7 +294,7 @@ export function AddDomainDialog({
                 <Layers className="mb-3 h-6 w-6" />
                 <span className="text-sm font-medium">Subdomínio Omniseen</span>
                 <span className="text-xs text-muted-foreground text-center mt-1">
-                  nome.omniseen.app
+                  nome.app.omniseen.app
                 </span>
               </Label>
             </div>
@@ -328,12 +330,12 @@ export function AddDomainDialog({
                   className="flex-1"
                 />
                 <span className="text-sm text-muted-foreground whitespace-nowrap">
-                  .omniseen.app
+                  .app.omniseen.app
                 </span>
               </div>
               {subdomainName && (
                 <p className="text-xs text-muted-foreground">
-                  Preview: <strong className="text-foreground">{subdomainName}.omniseen.app</strong>
+                  Preview: <strong className="text-foreground">{subdomainName}.app.omniseen.app</strong>
                 </p>
               )}
             </div>

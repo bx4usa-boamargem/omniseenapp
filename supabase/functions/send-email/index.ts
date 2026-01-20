@@ -350,7 +350,7 @@ function generateWelcomeEmail(lang: Language, variables: Record<string, string>)
     <p>${t(lang, 'greeting', variables)} ${variables.userName || ''},</p>
     <p>${t(lang, 'welcome_body', variables)}</p>
     <p style="text-align: center;">
-      <a href="${variables.loginUrl || 'https://omniseen.app'}" class="button">${t(lang, 'welcome_cta', variables)}</a>
+      <a href="${variables.loginUrl || 'https://app.omniseen.app/login'}" class="button">${t(lang, 'welcome_cta', variables)}</a>
     </p>
   `;
   return { subject, html: getBaseTemplate(content, lang) };

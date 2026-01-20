@@ -313,7 +313,7 @@ serve(async (req) => {
 
       reportHtml += `
           <div style="text-align: center; margin-top: 30px;">
-            <a href="https://omniseen.app/dashboard" 
+            <a href="https://app.omniseen.app/client/dashboard" 
                style="background: #6366f1; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; display: inline-block;">
               Ver Dashboard Completo
             </a>

@@ -27,7 +27,7 @@ const DomainNotFound: React.FC<DomainNotFoundProps> = ({ domain }) => {
         </p>
         
         <Button 
-          onClick={() => window.location.href = 'https://app.omniseen.app/auth'}
+          onClick={() => window.location.href = 'https://app.omniseen.app/login'}
           className="bg-primary hover:bg-primary/90"
         >
           Acessar Plataforma

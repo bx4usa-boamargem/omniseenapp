@@ -288,7 +288,8 @@ serve(async (req) => {
           tenant_id: tenantId,
           name: blogName || `Blog de ${fullName}`,
           slug: tenantSlug,
-          platform_subdomain: `${tenantSlug}.omniseen.app`,
+          // NOVO PADRÃO: {slug}.app.omniseen.app
+          platform_subdomain: `${tenantSlug}.app.omniseen.app`,
           onboarding_completed: true, // Skip onboarding for admin-created accounts
         })
         .select()

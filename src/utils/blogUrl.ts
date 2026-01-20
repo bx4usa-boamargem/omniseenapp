@@ -1,7 +1,14 @@
 /**
  * Utility functions for generating blog and article URLs
  * Supports custom domain when verified, platform subdomain, and fallback paths
+ * 
+ * REGRAS DE DOMÍNIO:
+ * - omniseen.app = Landing page APENAS
+ * - app.omniseen.app = Plataforma SaaS
+ * - {slug}.app.omniseen.app = Blogs de subcontas
  */
+
+import { SUBDOMAIN_SUFFIX } from './platformUrls';
 
 export interface BlogWithDomain {
   slug: string;
@@ -16,25 +23,27 @@ export interface BlogWithDomain {
 export function isProductionEnvironment(): boolean {
   if (typeof window === 'undefined') return false;
   const host = window.location.hostname;
-  return host.endsWith('omniseen.app');
+  // Inclui app.omniseen.app e subdomínios *.app.omniseen.app
+  return host.endsWith('.omniseen.app') || host === 'omniseen.app';
 }
 
 /**
- * Get the base URL for a blog
- * Priority: 1. Custom domain (if verified), 2. Platform subdomain, 3. Fallback path
- */
-/**
- * Normalize subdomain: remove any .omniseen.app suffix or https:// prefix
+ * Normalize subdomain: remove any .app.omniseen.app or .omniseen.app suffix
  */
 function normalizeSubdomain(subdomain: string | null | undefined): string | null {
   if (!subdomain) return null;
   return subdomain
     .replace('https://', '')
     .replace('http://', '')
+    .replace('.app.omniseen.app', '')
     .replace('.omniseen.app', '')
     .replace(/\/$/, ''); // Remove trailing slash
 }
 
+/**
+ * Get the base URL for a blog
+ * Priority: 1. Custom domain (if verified), 2. Platform subdomain, 3. Fallback path
+ */
 export function getBlogUrl(blog: BlogWithDomain): string {
   // Priority 1: Verified custom domain
   if (blog.custom_domain && blog.domain_verified) {
@@ -45,10 +54,10 @@ export function getBlogUrl(blog: BlogWithDomain): string {
     return `https://${cleanDomain}`;
   }
   
-  // Priority 2: Platform subdomain (only in production)
+  // Priority 2: Platform subdomain (only in production) - NOVO PADRÃO: {slug}.app.omniseen.app
   if (isProductionEnvironment()) {
     const subdomain = normalizeSubdomain(blog.platform_subdomain) || blog.slug;
-    return `https://${subdomain}.omniseen.app`;
+    return `https://${subdomain}${SUBDOMAIN_SUFFIX}`;
   }
   
   // Priority 3: Fallback path (for dev/preview)
@@ -74,9 +83,9 @@ export function getCanonicalBlogUrl(blog: BlogWithDomain): string {
     return `https://${cleanDomain}`;
   }
   
-  // Priority 2: ALWAYS use canonical subdomain format {slug}.omniseen.app
+  // Priority 2: ALWAYS use canonical subdomain format {slug}.app.omniseen.app
   const slug = normalizeSubdomain(blog.platform_subdomain) || blog.slug;
-  return `https://${slug}.omniseen.app`;
+  return `https://${slug}${SUBDOMAIN_SUFFIX}`;
 }
 
 /**
@@ -102,10 +111,10 @@ export function getArticleUrl(blog: BlogWithDomain, articleSlug: string): string
     return `https://${cleanDomain}/${articleSlug}`;
   }
   
-  // Priority 2: Platform subdomain (only in production)
+  // Priority 2: Platform subdomain (only in production) - NOVO PADRÃO: {slug}.app.omniseen.app
   if (isProductionEnvironment()) {
     const subdomain = normalizeSubdomain(blog.platform_subdomain) || blog.slug;
-    return `https://${subdomain}.omniseen.app/${articleSlug}`;
+    return `https://${subdomain}${SUBDOMAIN_SUFFIX}/${articleSlug}`;
   }
   
   // Priority 3: Fallback path (for dev/preview)
@@ -165,7 +174,7 @@ export function isBlogDomainAccess(): boolean {
     return false;
   }
   
-  // Platform subdomain ({slug}.omniseen.app) or custom domain
+  // Subdomínio de subconta ({slug}.app.omniseen.app) ou domínio customizado
   return true;
 }
 

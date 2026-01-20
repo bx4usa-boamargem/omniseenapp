@@ -136,8 +136,8 @@ serve(async (req) => {
                 totalOpportunities: String(opportunities.length),
                 opportunityList: opportunityListHtml,
                 dashboardUrl: blogSubdomain 
-                  ? `https://${blogSubdomain}.omniseen.app/client/consultant`
-                  : `${SUPABASE_URL.replace('.supabase.co', '.lovable.app')}/client/consultant`,
+                  ? `https://${blogSubdomain}.app.omniseen.app/client/consultant`
+                  : `https://app.omniseen.app/client/consultant`,
               },
               blogId: setting.blog_id,
               userId: setting.user_id,

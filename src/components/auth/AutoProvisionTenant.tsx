@@ -20,7 +20,8 @@ import { Loader2, AlertTriangle, LogIn, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
 
-const SUBDOMAIN_SUFFIX = '.omniseen.app';
+// NOVO PADRÃO: {slug}.app.omniseen.app
+const SUBDOMAIN_SUFFIX = '.app.omniseen.app';
 const MAX_SLUG_ATTEMPTS = 5;
 
 // Gera slug a partir do email
