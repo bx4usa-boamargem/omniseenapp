@@ -1,4 +1,4 @@
-import { Toaster } from "@/components/ui/toaster";
+// UNIFICADO: Usando apenas Sonner para evitar conflitos de DOM
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -279,7 +279,7 @@ const App = () => (
         <AuthProvider>
           <TenantProvider>
             <TooltipProvider>
-              <Toaster />
+              {/* UNIFICADO: Usando apenas Sonner para evitar conflitos de DOM */}
               <Sonner />
               <BrowserRouter>
                 <PlatformRoutes />
