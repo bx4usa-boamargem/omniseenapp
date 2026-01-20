@@ -1825,18 +1825,24 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
           throw new Error('OmniCore Quality Gate Failed: Article did not meet GEO standards after 3 attempts');
         }
         
-        // Generate correction instructions using geoWriterCore
+        // Generate correction instructions using geoWriterCore with ALL parameters
         const geoWordCount = countGeoWords(currentContent);
         const geoPhrasesCount = countGeoPhrasesInContent(currentContent);
         const hasAnswerFirst = hasAnswerFirstPattern(currentContent);
         const hasTerritorial = hasTerritorialMentions(currentContent, neighborhoodTags);
+        const internalLinksCount = countInternalLinks(currentContent);
+        const externalLinksCount = countExternalLinks(currentContent);
+        const hasWhatsApp = hasWhatsAppCTA(currentContent);
         
         const correctionPrompt = generateGeoCorrectionInstructions(
           geoWordCount,
           geoPhrasesCount,
           hasAnswerFirst,
           hasTerritorial,
-          neighborhoodTags.length > 0
+          neighborhoodTags.length > 0,
+          internalLinksCount,
+          externalLinksCount,
+          hasWhatsApp
         );
         
         console.log(`[GEO QUALITY GATE] Regenerating with corrections...`);
@@ -1844,21 +1850,39 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
         console.log(`  - GEO phrases: ${geoPhrasesCount} (need 2+)`);
         console.log(`  - Answer-first: ${hasAnswerFirst}`);
         console.log(`  - Territorial: ${hasTerritorial}`);
+        console.log(`  - Internal links: ${internalLinksCount} (need 2+)`);
+        console.log(`  - External links: ${externalLinksCount} (need 2+)`);
+        console.log(`  - WhatsApp CTA: ${hasWhatsApp}`);
         
-        // Regenerate with corrections
+        // Calculate how many more words are needed
+        const wordsNeeded = Math.max(0, GEO_WRITER_RULES.word_count.min - geoWordCount);
+        
+        // Regenerate with corrections - emphasize word count strongly
         const correctionUserPrompt = `${correctionPrompt}
+
+⛔⛔⛔ ATENÇÃO CRÍTICA: O ARTIGO PRECISA TER NO MÍNIMO ${GEO_WRITER_RULES.word_count.min} PALAVRAS ⛔⛔⛔
+O artigo atual tem apenas ${geoWordCount} palavras. Você precisa ADICIONAR pelo menos ${wordsNeeded} palavras.
+
+COMO EXPANDIR O CONTEÚDO:
+1. Adicione mais exemplos práticos em cada seção
+2. Inclua dados, estatísticas e números específicos
+3. Detalhe explicações causais (por que X causa Y)
+4. Adicione cenários reais de aplicação
+5. Inclua benefícios secundários e nuances
+6. Use mais bullet points com detalhes
 
 ---
 
-ARTIGO ORIGINAL A CORRIGIR:
+ARTIGO ORIGINAL A EXPANDIR E CORRIGIR:
 
 ${currentContent}
 
 ---
 
-REESCREVA o artigo completo aplicando TODAS as correções listadas.
-Mantenha o tema, estrutura e informações, mas corrija os problemas identificados.
-Retorne o artigo corrigido no formato JSON da tool create_article.`;
+REESCREVA o artigo EXPANDIDO aplicando TODAS as correções listadas.
+O artigo FINAL deve ter NO MÍNIMO ${GEO_WRITER_RULES.word_count.min} palavras (atualmente: ${geoWordCount}).
+Mantenha o tema e estrutura, mas EXPANDA SIGNIFICATIVAMENTE cada seção.
+Retorne o artigo completo e expandido no formato JSON da tool create_article.`;
 
         try {
           const correctionResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -1883,19 +1907,46 @@ Retorne o artigo corrigido no formato JSON da tool create_article.`;
             continue; // Try again
           }
           
-          const correctionData = await correctionResponse.json();
+          // Handle potential truncated JSON responses
+          const responseText = await correctionResponse.text();
+          if (!responseText || responseText.trim().length === 0) {
+            console.error(`[GEO QUALITY GATE] Empty response from regeneration`);
+            continue;
+          }
+          
+          let correctionData;
+          try {
+            correctionData = JSON.parse(responseText);
+          } catch (parseErr) {
+            console.error(`[GEO QUALITY GATE] JSON parse error - response may be truncated. Length: ${responseText.length}`);
+            console.error(`[GEO QUALITY GATE] Response preview: ${responseText.substring(0, 200)}...`);
+            continue; // Try again
+          }
+          
           const correctionToolCall = correctionData.choices?.[0]?.message?.tool_calls?.[0];
           
           if (correctionToolCall?.function?.name === 'create_article') {
-            const correctedArticle = parseArticleJSON(correctionToolCall.function.arguments);
-            currentContent = correctedArticle.content as string;
-            
-            // Update articleData with corrected content
-            articleData.content = currentContent;
-            articleData.title = correctedArticle.title || articleData.title;
-            articleData.meta_description = correctedArticle.meta_description || articleData.meta_description;
-            
-            console.log(`[GEO QUALITY GATE] Content regenerated, new word count: ${countGeoWords(currentContent)}`);
+            try {
+              const correctedArticle = parseArticleJSON(correctionToolCall.function.arguments);
+              const newWordCount = countGeoWords(correctedArticle.content as string);
+              
+              // Only accept if we actually got more words
+              if (newWordCount > geoWordCount) {
+                currentContent = correctedArticle.content as string;
+                
+                // Update articleData with corrected content
+                articleData.content = currentContent;
+                articleData.title = correctedArticle.title || articleData.title;
+                articleData.meta_description = correctedArticle.meta_description || articleData.meta_description;
+                
+                console.log(`[GEO QUALITY GATE] Content regenerated: ${geoWordCount} → ${newWordCount} words (+${newWordCount - geoWordCount})`);
+              } else {
+                console.warn(`[GEO QUALITY GATE] Regeneration didn't expand content: ${newWordCount} words (was ${geoWordCount})`);
+              }
+            } catch (parseArticleErr) {
+              console.error(`[GEO QUALITY GATE] Failed to parse regenerated article:`, parseArticleErr);
+              continue;
+            }
           }
         } catch (regenError) {
           console.error(`[GEO QUALITY GATE] Regeneration error:`, regenError);
