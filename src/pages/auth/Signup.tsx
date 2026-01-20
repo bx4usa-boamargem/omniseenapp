@@ -121,8 +121,12 @@ function SignupContent() {
 
       toast({
         title: 'Conta criada!',
-        description: 'Bem-vindo ao Omniseen!',
+        description: 'Configurando seu workspace...',
       });
+      
+      // Wait a moment for auth state to propagate before navigating
+      // This ensures the session is established before TenantGuard runs
+      await new Promise(resolve => setTimeout(resolve, 800));
       
       // Redirect para app (auto-provisioning nos guards)
       navigate('/client/dashboard', { replace: true });
