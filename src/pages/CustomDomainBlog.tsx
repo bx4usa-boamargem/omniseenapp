@@ -72,40 +72,33 @@ export default function CustomDomainBlog({ blogId, blogSlug }: CustomDomainBlogP
         }
       }
       
-      // Fallback: try to find by hostname
+      // Fallback: try to find by hostname using RPC resolve_domain
       if (!blogData) {
         const hostname = getCurrentHostname();
-        console.log('[CustomDomainBlog] Trying hostname lookup:', hostname);
+        console.log('[CustomDomainBlog] Trying hostname lookup via RPC:', hostname);
         
-        // Check if it's a platform subdomain
-        const subdomainMatch = hostname.match(/^([a-z0-9-]+)\.omniseen\.app$/i);
-        if (subdomainMatch) {
-          const slug = subdomainMatch[1];
+        // Use RPC resolve_domain as single source of truth
+        const { data: domainData, error: rpcError } = await supabase.rpc('resolve_domain', {
+          p_hostname: hostname
+        });
+        
+        if (rpcError) {
+          console.error('[CustomDomainBlog] RPC error:', rpcError);
+        } else if (domainData && domainData.length > 0 && domainData[0].blog_id) {
+          // Fetch blog by resolved blog_id
           const { data, error: fetchError } = await supabase
             .from("blogs")
             .select("*")
-            .or(`slug.eq.${slug},platform_subdomain.eq.${slug}`)
+            .eq("id", domainData[0].blog_id)
             .maybeSingle();
           
           if (fetchError) {
-            console.error('[CustomDomainBlog] Error fetching by subdomain:', fetchError);
+            console.error('[CustomDomainBlog] Error fetching by resolved blog_id:', fetchError);
           } else {
             blogData = data;
           }
         } else {
-          // Try custom domain
-          const { data, error: fetchError } = await supabase
-            .from("blogs")
-            .select("*")
-            .eq("custom_domain", hostname)
-            .eq("domain_verified", true)
-            .maybeSingle();
-          
-          if (fetchError) {
-            console.error('[CustomDomainBlog] Error fetching by custom domain:', fetchError);
-          } else {
-            blogData = data;
-          }
+          console.log('[CustomDomainBlog] No domain found via RPC for:', hostname);
         }
       }
 

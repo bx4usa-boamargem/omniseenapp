@@ -17,6 +17,7 @@ import { ImproveArticleDialog } from '@/components/editor/ImproveArticleDialog';
 import { CTAPreview } from '@/components/editor/CTAPreview';
 import { extractImageUrl, uploadImageToStorage, updateArticleImage } from '@/utils/imageUtils';
 import { ensureSingleArticle, normalizeForFingerprint } from '@/lib/articleFlowGuard';
+import { getCanonicalArticleUrl } from '@/utils/blogUrl';
 import { 
   ArrowLeft, 
   Save, 
@@ -29,7 +30,8 @@ import {
   Columns,
   Sparkles,
   Image as ImageIcon,
-  RefreshCw
+  RefreshCw,
+  ExternalLink
 } from 'lucide-react';
 
 type EditorPhase = 'form' | 'generating' | 'editing';
@@ -62,6 +64,7 @@ export default function ClientArticleEditor() {
   
   // Track if we're editing an existing article
   const [existingArticleId, setExistingArticleId] = useState<string | null>(null);
+  const [existingArticleSlug, setExistingArticleSlug] = useState<string | null>(null);
   
   // Track if auto-generation was triggered
   const autoGenerationTriggeredRef = useRef(false);
@@ -251,6 +254,7 @@ export default function ClientArticleEditor() {
 
       // Populate state from existing article
       setExistingArticleId(data.id);
+      setExistingArticleSlug(data.slug || null);
       setTitle(data.title || '');
       setContent(data.content || '');
       setExcerpt(data.excerpt || '');
@@ -1239,6 +1243,21 @@ export default function ClientArticleEditor() {
               </Button>
             )}
             
+            {/* View on Site Button - Show when article is saved and has a slug */}
+            {existingArticleId && existingArticleSlug && blog && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const url = getCanonicalArticleUrl(blog, existingArticleSlug);
+                  window.open(url, '_blank');
+                }}
+                className="gap-2 border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Ver no site
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"

@@ -62,6 +62,7 @@ export const getSubdomainDashboardUrl = (slug: string): string => `${getSubdomai
 
 /**
  * Verifica se o hostname atual é da plataforma principal
+ * APENAS app.omniseen.app, NÃO inclui subdomínios
  */
 export const isPlatformHost = (): boolean => {
   if (typeof window === 'undefined') return false;
@@ -70,6 +71,7 @@ export const isPlatformHost = (): boolean => {
 
 /**
  * Verifica se o hostname atual é um subdomínio de subconta
+ * PADRÃO IMUTÁVEL: {slug}.app.omniseen.app
  * @example 'trulynolen.app.omniseen.app' => true
  * @example 'app.omniseen.app' => false
  * @example 'omniseen.app' => false
@@ -77,6 +79,7 @@ export const isPlatformHost = (): boolean => {
 export const isSubaccountHost = (): boolean => {
   if (typeof window === 'undefined') return false;
   const host = window.location.hostname;
+  // Must end with .app.omniseen.app but NOT be app.omniseen.app itself
   return host.endsWith('.app.omniseen.app') && host !== 'app.omniseen.app';
 };
 
@@ -87,6 +90,29 @@ export const isLandingHost = (): boolean => {
   if (typeof window === 'undefined') return false;
   const host = window.location.hostname;
   return host === 'omniseen.app' || host === 'www.omniseen.app';
+};
+
+/**
+ * Verifica se o hostname atual é um domínio customizado (não omniseen)
+ * @example 'blog.meusite.com.br' => true
+ * @example 'trulynolen.app.omniseen.app' => false
+ */
+export const isCustomDomainHost = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  
+  // Exclude all omniseen domains
+  if (host.endsWith('omniseen.app') || host === 'omniseen.app') {
+    return false;
+  }
+  
+  // Exclude development/preview hosts
+  const devHosts = ['localhost', '127.0.0.1', '0.0.0.0'];
+  if (devHosts.some(h => host.includes(h)) || host.includes('lovable.app') || host.includes('lovableproject.com')) {
+    return false;
+  }
+  
+  return true;
 };
 
 /**
