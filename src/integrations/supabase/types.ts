@@ -5830,6 +5830,7 @@ export type Database = {
         Returns: undefined
       }
       is_blog_owner: { Args: { p_blog_id: string }; Returns: boolean }
+      is_blog_team_admin: { Args: { p_blog_id: string }; Returns: boolean }
       is_team_member_of_blog:
         | { Args: { p_blog_id: string }; Returns: boolean }
         | { Args: { p_blog_id: string; p_user_id: string }; Returns: boolean }
