@@ -5,7 +5,7 @@
  * 1. User está autenticado?
  * 2. User tem pelo menos um tenant?
  * 
- * Se não tem tenant -> redireciona para /onboarding
+ * Se não tem tenant -> auto-provisiona (sem onboarding manual)
  * Se tem tenant -> renderiza children
  */
 import { ReactNode } from 'react';
@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTenantContext } from '@/contexts/TenantContext';
 import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { AutoProvisionTenant } from './AutoProvisionTenant';
 
 interface TenantGuardProps {
   children: ReactNode;
@@ -78,10 +79,10 @@ export function TenantGuard({ children, requireAdmin = false }: TenantGuardProps
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Sem tenant -> onboarding
+  // Sem tenant -> auto-provisionar (sem onboarding manual)
   if (!hasTenant || !currentTenant) {
-    console.log('[TenantGuard] No tenant, redirecting to onboarding');
-    return <Navigate to="/onboarding" replace />;
+    console.log('[TenantGuard] No tenant, auto-provisioning...');
+    return <AutoProvisionTenant />;
   }
 
   // Requer admin mas não é admin

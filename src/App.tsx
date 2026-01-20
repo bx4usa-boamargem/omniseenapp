@@ -15,7 +15,6 @@ import { SubAccountLayout } from "@/components/layout/SubAccountLayout";
 // New Auth Pages
 import Login from "./pages/auth/Login";
 import Signup from "./pages/auth/Signup";
-import NewOnboarding from "./pages/auth/Onboarding";
 
 // Legacy pages (to be migrated)
 import Dashboard from "./pages/Dashboard";
@@ -218,7 +217,7 @@ const PlatformRoutes = () => (
     {/* New Auth routes */}
     <Route path="/login" element={<Login />} />
     <Route path="/signup" element={<Signup />} />
-    <Route path="/onboarding" element={<NewOnboarding />} />
+    {/* /onboarding removido - auto-provisioning nos guards */}
     <Route path="/reset-password" element={<ResetPassword />} />
     <Route path="/blocked" element={<Blocked />} />
     <Route path="/access-denied" element={<AccessDenied />} />

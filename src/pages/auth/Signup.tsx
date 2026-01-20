@@ -4,7 +4,7 @@
  * Características:
  * - Sem Radix/Portal nos componentes críticos
  * - ErrorBoundary para evitar tela branca
- * - Redirect para /onboarding após signup
+ * - Redirect para /client/dashboard após signup (auto-provisioning nos guards)
  */
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
@@ -82,8 +82,8 @@ function SignupContent() {
   // Redirect se já logado
   useEffect(() => {
     if (user && !authLoading) {
-      console.log('[Signup] User already logged in, redirecting to /onboarding');
-      navigate('/onboarding', { replace: true });
+      console.log('[Signup] User already logged in, redirecting to /client/dashboard');
+      navigate('/client/dashboard', { replace: true });
     }
   }, [user, authLoading, navigate]);
 
@@ -124,8 +124,8 @@ function SignupContent() {
         description: 'Bem-vindo ao Omniseen!',
       });
       
-      // Redirect para onboarding
-      navigate('/onboarding', { replace: true });
+      // Redirect para app (auto-provisioning nos guards)
+      navigate('/client/dashboard', { replace: true });
 
     } catch (err) {
       console.error('[Signup] Unexpected error:', err);
