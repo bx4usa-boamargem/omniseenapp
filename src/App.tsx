@@ -2,7 +2,7 @@
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { ErrorBoundary } from "react-error-boundary";
 import { AuthProvider } from "@/hooks/useAuth";
@@ -11,6 +11,8 @@ import { TenantGuard } from "@/components/auth/TenantGuard";
 import { PlatformAdminGuard } from "@/components/auth/PlatformAdminGuard";
 import { SubAccountGuard } from "@/components/auth/SubAccountGuard";
 import { SubAccountLayout } from "@/components/layout/SubAccountLayout";
+import { isPlatformHost, isSubaccountHost, isCustomDomainHost } from "@/utils/platformUrls";
+import { BlogRoutes } from "@/routes/BlogRoutes";
 
 // New Auth Pages
 import Login from "./pages/auth/Login";
@@ -208,7 +210,7 @@ const ClientRoutes = () => (
   </SubAccountGuard>
 );
 
-// Platform routes - SIMPLIFIED without hostname-based mode switching
+// Platform routes - for app.omniseen.app only
 const PlatformRoutes = () => (
   <Routes>
     {/* Redirect root to login */}
@@ -262,6 +264,61 @@ const PlatformRoutes = () => (
   </Routes>
 );
 
+/**
+ * SubaccountRouteDecider: Para subdomínios {slug}.app.omniseen.app
+ * Decide se mostra o blog público ou as rotas de plataforma
+ */
+const SubaccountRouteDecider = () => {
+  const location = useLocation();
+  const pathname = location.pathname;
+  
+  // Paths que devem ir para a plataforma (mesmo em subdomínio)
+  const platformPaths = ['/login', '/signup', '/reset-password', '/client', '/app', '/admin', '/oauth', '/invite', '/blocked', '/access-denied'];
+  const isPlatformPath = platformPaths.some(p => pathname.startsWith(p));
+  
+  if (isPlatformPath) {
+    // Renderiza rotas de plataforma para paths admin/auth
+    return <PlatformRoutes />;
+  }
+  
+  // Rotas públicas do blog (/, /:articleSlug)
+  return <BlogRoutes />;
+};
+
+/**
+ * CustomDomainRouteDecider: Para domínios customizados (blog.cliente.com.br)
+ * Sempre mostra o blog público
+ */
+const CustomDomainRouteDecider = () => {
+  return <BlogRoutes />;
+};
+
+/**
+ * AppRoutes: Componente principal que decide o modo da aplicação por hostname
+ * 
+ * REGRAS ABSOLUTAS:
+ * - app.omniseen.app → PlatformRoutes (plataforma SaaS)
+ * - {slug}.app.omniseen.app → SubaccountRouteDecider (blog + admin isolado)
+ * - domínio customizado → CustomDomainRouteDecider (blog público apenas)
+ * - Lovable preview/localhost → PlatformRoutes (dev mode)
+ */
+const AppRoutes = () => {
+  // Check host type
+  if (isSubaccountHost()) {
+    console.log('[AppRoutes] Subaccount host detected, using SubaccountRouteDecider');
+    return <SubaccountRouteDecider />;
+  }
+  
+  if (isCustomDomainHost()) {
+    console.log('[AppRoutes] Custom domain host detected, using CustomDomainRouteDecider');
+    return <CustomDomainRouteDecider />;
+  }
+  
+  // Platform host (app.omniseen.app) or dev/preview
+  console.log('[AppRoutes] Platform/dev host, using PlatformRoutes');
+  return <PlatformRoutes />;
+};
+
 // Main App - with global ErrorBoundary for crash protection
 const App = () => (
   <ErrorBoundary 
@@ -282,7 +339,7 @@ const App = () => (
               {/* UNIFICADO: Usando apenas Sonner para evitar conflitos de DOM */}
               <Sonner />
               <BrowserRouter>
-                <PlatformRoutes />
+                <AppRoutes />
               </BrowserRouter>
             </TooltipProvider>
           </TenantProvider>
