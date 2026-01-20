@@ -1,13 +1,6 @@
 import { useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Users, Phone } from "lucide-react";
 
 interface ProfileStepProps {
@@ -59,7 +52,7 @@ export function ProfileStep({
         </p>
       </div>
 
-      {/* Telefone - SIMPLIFICADO TEMPORARIAMENTE */}
+      {/* Telefone - SIMPLIFICADO */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Phone className="h-4 w-4 text-muted-foreground" />
@@ -68,7 +61,6 @@ export function ProfileStep({
           </Label>
         </div>
         <div className="max-w-sm">
-          {/* Input simples em vez de PhoneInput complexo */}
           <Input
             id="phone"
             type="tel"
@@ -86,7 +78,7 @@ export function ProfileStep({
         </p>
       </div>
 
-      {/* Como conheceu */}
+      {/* Como conheceu - SELECT NATIVO (sem Portal - evita crash removeChild) */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Users className="h-4 w-4 text-muted-foreground" />
@@ -94,24 +86,22 @@ export function ProfileStep({
             Como conheceu o OMNISEEN?
           </Label>
         </div>
-        <Select 
-          value={referralSource || ""} 
-          onValueChange={(value) => {
-            console.log('[ProfileStep] Referral source changed:', value);
-            onReferralSourceChange(value);
+        <select
+          id="referral"
+          value={referralSource || ""}
+          onChange={(e) => {
+            console.log('[ProfileStep] Referral source changed:', e.target.value);
+            onReferralSourceChange(e.target.value);
           }}
+          className="flex h-10 w-full max-w-sm items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <SelectTrigger className="max-w-sm">
-            <SelectValue placeholder="Selecione uma opção" />
-          </SelectTrigger>
-          <SelectContent>
-            {REFERRAL_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <option value="">Selecione uma opção</option>
+          {REFERRAL_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Dica de valor */}

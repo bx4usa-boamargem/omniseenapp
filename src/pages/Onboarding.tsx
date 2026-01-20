@@ -333,7 +333,7 @@ export default function Onboarding() {
           FallbackComponent={OnboardingErrorFallback}
           onReset={handleErrorReset}
         >
-          <div className="bg-card rounded-2xl border shadow-sm p-6 md:p-8 animate-fade-in" key={currentStep}>
+          <div className="bg-card rounded-2xl border shadow-sm p-6 md:p-8 animate-fade-in">
             {currentStep === 1 && (
               <ContextStep
                 blogObjective={data.blogObjective}
