@@ -1,26 +1,26 @@
+/**
+ * SubAccountGuard - Guard para rotas /client/*
+ * 
+ * REBUILD v2: Usa TenantContext em vez de useBlog/useIsSubAccount
+ * - Verifica autenticação
+ * - Verifica se user tem tenant
+ * - Redireciona para /onboarding se não tem tenant
+ */
 import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { useBlog } from '@/hooks/useBlog';
-import { useIsSubAccount } from '@/hooks/useIsSubAccount';
+import { useTenantContext } from '@/contexts/TenantContext';
 import { Loader2 } from 'lucide-react';
 
 interface SubAccountGuardProps {
   children: ReactNode;
 }
 
-/**
- * Guard for subaccount routes (/client/*)
- * - Redirects non-authenticated users to /auth
- * - Redirects non-subaccounts to /app/dashboard
- * - Allows subaccounts to access client routes
- */
 export function SubAccountGuard({ children }: SubAccountGuardProps) {
   const { user, loading: authLoading } = useAuth();
-  const { blog, loading: blogLoading } = useBlog();
-  const { isSubAccount, loading: subAccountLoading } = useIsSubAccount();
+  const { currentTenant, loading: tenantLoading, hasTenant } = useTenantContext();
 
-  const isLoading = authLoading || blogLoading || subAccountLoading;
+  const isLoading = authLoading || tenantLoading;
 
   if (isLoading) {
     return (
@@ -31,19 +31,17 @@ export function SubAccountGuard({ children }: SubAccountGuardProps) {
     );
   }
 
-  // Not authenticated
+  // Not authenticated -> login
   if (!user) {
-    return <Navigate to="/auth" replace />;
+    console.log('[SubAccountGuard] No user, redirecting to /login');
+    return <Navigate to="/login" replace />;
   }
 
-  // No blog yet - go to onboarding
-  if (!blog) {
+  // No tenant -> onboarding
+  if (!hasTenant || !currentTenant) {
+    console.log('[SubAccountGuard] No tenant, redirecting to /onboarding');
     return <Navigate to="/onboarding" replace />;
   }
-
-  // Note: We now allow ALL authenticated users with a blog to access /client/*
-  // The isSubAccount check has been removed to enable unified modern experience
-  // Platform admins can still access /admin/* via PlatformAdminGuard
 
   return <>{children}</>;
 }
