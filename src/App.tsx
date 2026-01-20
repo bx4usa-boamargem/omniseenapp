@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/hooks/useAuth";
-import { useHostRouting } from "@/hooks/useHostRouting";
+import { TenantDomainProvider, useTenantDomainContext } from "@/contexts/TenantDomainContext";
 import { UserGuard } from "@/components/auth/UserGuard";
 import { PlatformAdminGuard } from "@/components/auth/PlatformAdminGuard";
 import { SubAccountGuard } from "@/components/auth/SubAccountGuard";
@@ -62,6 +62,7 @@ import Integrations from "./pages/Integrations";
 import GoogleIntegration from "./pages/GoogleIntegration";
 import GoogleOAuthCallback from "./pages/GoogleOAuthCallback";
 import ArticleQueuePage from "./pages/ArticleQueuePage";
+import DomainNotFound from "./pages/DomainNotFound";
 
 // Client (SubAccount) pages
 import ClientDashboard from "./pages/client/ClientDashboard";
@@ -204,149 +205,99 @@ const ClientRoutes = () => (
   </SubAccountGuard>
 );
 
-// Component that renders appropriate routes based on domain access
-const AppRoutes = () => {
-  const { mode, loading, blogId, blogSlug } = useHostRouting();
+// Platform routes (app.omniseen.app, localhost, preview)
+const PlatformRoutes = () => (
+  <Routes>
+    {/* Redirect root to auth */}
+    <Route path="/" element={<Navigate to="/auth" replace />} />
+    
+    {/* Auth routes */}
+    <Route path="/auth" element={<Auth />} />
+    <Route path="/reset-password" element={<ResetPassword />} />
+    <Route path="/blocked" element={<Blocked />} />
+    <Route path="/onboarding" element={<Onboarding />} />
+    <Route path="/access-denied" element={<AccessDenied />} />
+    <Route path="/invite/accept" element={<AcceptInvite />} />
+    <Route path="/oauth/google/callback" element={<GoogleOAuthCallback />} />
+    
+    {/* Public content */}
+    <Route path="/help" element={<Help />} />
+    <Route path="/help/:slug" element={<HelpArticle />} />
+    <Route path="/terms" element={<TermsOfUse />} />
+    <Route path="/privacy" element={<PrivacyPolicy />} />
+    <Route path="/services" element={<Services />} />
+    <Route path="/servicos" element={<Navigate to="/services" replace />} />
+    <Route path="/en/terms" element={<TermsOfUseEN />} />
+    <Route path="/en/privacy" element={<PrivacyPolicyEN />} />
+    <Route path="/en/services" element={<ServicesEN />} />
+    <Route path="/pricing" element={<Pricing />} />
+    <Route path="/ebook/:slug" element={<PublicEbook />} />
+    <Route path="/review/:token" element={<ClientReview />} />
+    <Route path="/blog/:blogSlug" element={<PublicBlog />} />
+    <Route path="/blog/:blogSlug/:articleSlug" element={<PublicArticle />} />
 
-  // Show loading while checking hostname
+    {/* Protected user routes */}
+    <Route path="/app/*" element={<UserRoutes />} />
+
+    {/* Protected admin routes */}
+    <Route path="/admin/*" element={<AdminRoutes />} />
+
+    {/* SubAccount (Client) routes */}
+    <Route path="/client/*" element={<ClientRoutes />} />
+
+    {/* Legacy redirects */}
+    <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
+    <Route path="/articles" element={<Navigate to="/app/articles" replace />} />
+    <Route path="/articles/new" element={<Navigate to="/app/articles/new" replace />} />
+    <Route path="/articles/new-chat" element={<Navigate to="/app/articles/new-chat" replace />} />
+    <Route path="/articles/:id/edit" element={<ArticleEditRedirect />} />
+    <Route path="/profile" element={<Navigate to="/app/profile" replace />} />
+    <Route path="/quick-access" element={<Navigate to="/app/quick-access" replace />} />
+
+    {/* Catch-all */}
+    <Route path="*" element={<NotFound />} />
+  </Routes>
+);
+
+// Component that renders appropriate routes based on domain resolution via tenant_domains
+const AppRoutes = () => {
+  const { mode, loading, blogId, domain } = useTenantDomainContext();
+
+  // Show loading while resolving domain
   if (loading) {
     return <HostnameLoader />;
   }
 
-  // Blog mode - for verified custom domain blogs OR platform subdomain blogs
+  // Unknown mode - domain not found in tenant_domains
+  if (mode === 'unknown') {
+    return (
+      <Routes>
+        <Route path="*" element={<DomainNotFound domain={domain} />} />
+      </Routes>
+    );
+  }
+
+  // Blog mode - domain resolved to an active blog via tenant_domains
   if (mode === 'blog') {
-    // Blog not found - show 404 page
     if (!blogId) {
       return (
         <Routes>
-          <Route path="*" element={<NotFound />} />
+          <Route path="*" element={<DomainNotFound domain={domain} />} />
         </Routes>
       );
     }
     
     return (
       <Routes>
-        <Route path="/" element={<CustomDomainBlog blogId={blogId} blogSlug={blogSlug} />} />
-        <Route path="/:articleSlug" element={<CustomDomainArticle blogId={blogId} blogSlug={blogSlug} />} />
+        <Route path="/" element={<CustomDomainBlog blogId={blogId} blogSlug={null} />} />
+        <Route path="/:articleSlug" element={<CustomDomainArticle blogId={blogId} blogSlug={null} />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     );
   }
 
-  // Landing mode - now redirects to auth (omniseen.app)
-  if (mode === 'landing') {
-    return (
-      <Routes>
-        <Route path="/" element={<Navigate to="/auth" replace />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/terms" element={<TermsOfUse />} />
-        <Route path="/privacy" element={<PrivacyPolicy />} />
-        <Route path="/services" element={<Services />} />
-        <Route path="/servicos" element={<Navigate to="/services" replace />} />
-        <Route path="/en/terms" element={<TermsOfUseEN />} />
-        <Route path="/en/privacy" element={<PrivacyPolicyEN />} />
-        <Route path="/en/services" element={<ServicesEN />} />
-        <Route path="/help" element={<Help />} />
-        <Route path="/help/:slug" element={<HelpArticle />} />
-        <Route path="/blog/:blogSlug" element={<PublicBlog />} />
-        <Route path="/blog/:blogSlug/:articleSlug" element={<PublicArticle />} />
-        <Route path="/ebook/:slug" element={<PublicEbook />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    );
-  }
-
-  // App mode - app.omniseen.app redirects root to /auth
-  if (mode === 'app') {
-    return (
-      <Routes>
-        {/* Root redirects to auth for app subdomain */}
-        <Route path="/" element={<Navigate to="/auth" replace />} />
-        
-        {/* Auth routes */}
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/blocked" element={<Blocked />} />
-        <Route path="/onboarding" element={<Onboarding />} />
-        <Route path="/access-denied" element={<AccessDenied />} />
-        <Route path="/invite/accept" element={<AcceptInvite />} />
-        <Route path="/oauth/google/callback" element={<GoogleOAuthCallback />} />
-        
-        {/* Protected user routes */}
-        <Route path="/app/*" element={<UserRoutes />} />
-        
-        {/* Protected admin routes */}
-        <Route path="/admin/*" element={<AdminRoutes />} />
-        
-        {/* SubAccount (Client) routes */}
-        <Route path="/client/*" element={<ClientRoutes />} />
-        
-        {/* Public content */}
-        <Route path="/help" element={<Help />} />
-        <Route path="/terms" element={<TermsOfUse />} />
-        <Route path="/privacy" element={<PrivacyPolicy />} />
-        <Route path="/pricing" element={<Pricing />} />
-        <Route path="/ebook/:slug" element={<PublicEbook />} />
-        <Route path="/review/:token" element={<ClientReview />} />
-        <Route path="/blog/:blogSlug" element={<PublicBlog />} />
-        <Route path="/blog/:blogSlug/:articleSlug" element={<PublicArticle />} />
-        
-        {/* Catch-all */}
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    );
-  }
-
-  // Platform mode - localhost/preview (development)
-  return (
-    <Routes>
-      {/* Redirect root to auth */}
-      <Route path="/" element={<Navigate to="/auth" replace />} />
-      
-      {/* Auth routes */}
-      <Route path="/auth" element={<Auth />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/blocked" element={<Blocked />} />
-      <Route path="/onboarding" element={<Onboarding />} />
-      <Route path="/access-denied" element={<AccessDenied />} />
-      <Route path="/invite/accept" element={<AcceptInvite />} />
-      <Route path="/oauth/google/callback" element={<GoogleOAuthCallback />} />
-      
-      {/* Public content (also accessible on platform) */}
-      <Route path="/help" element={<Help />} />
-      <Route path="/help/:slug" element={<HelpArticle />} />
-      <Route path="/terms" element={<TermsOfUse />} />
-      <Route path="/privacy" element={<PrivacyPolicy />} />
-      <Route path="/pricing" element={<Pricing />} />
-      <Route path="/ebook/:slug" element={<PublicEbook />} />
-      <Route path="/review/:token" element={<ClientReview />} />
-      <Route path="/blog/:blogSlug" element={<PublicBlog />} />
-      <Route path="/blog/:blogSlug/:articleSlug" element={<PublicArticle />} />
-
-      {/* Protected user routes */}
-      <Route path="/app/*" element={<UserRoutes />} />
-
-      {/* Protected admin routes */}
-      <Route path="/admin/*" element={<AdminRoutes />} />
-
-      {/* SubAccount (Client) routes */}
-      <Route path="/client/*" element={<ClientRoutes />} />
-
-      {/* Legacy redirects */}
-      <Route path="/dashboard" element={<Navigate to="/app/dashboard" replace />} />
-      <Route path="/articles" element={<Navigate to="/app/articles" replace />} />
-      <Route path="/articles/new" element={<Navigate to="/app/articles/new" replace />} />
-      <Route path="/articles/new-chat" element={<Navigate to="/app/articles/new-chat" replace />} />
-      <Route path="/articles/:id/edit" element={<ArticleEditRedirect />} />
-      <Route path="/profile" element={<Navigate to="/app/profile" replace />} />
-      <Route path="/quick-access" element={<Navigate to="/app/quick-access" replace />} />
-
-      {/* Catch-all */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
-  );
+  // Platform mode - all standard application routes
+  return <PlatformRoutes />;
 };
 
 const App = () => (
@@ -358,13 +309,15 @@ const App = () => (
       disableTransitionOnChange
     >
       <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </TooltipProvider>
+        <TenantDomainProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </TooltipProvider>
+        </TenantDomainProvider>
       </AuthProvider>
     </ThemeProvider>
   </QueryClientProvider>

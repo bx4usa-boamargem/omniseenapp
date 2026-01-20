@@ -5284,6 +5284,69 @@ export type Database = {
           },
         ]
       }
+      tenant_domains: {
+        Row: {
+          blog_id: string | null
+          created_at: string | null
+          dns_status: Json | null
+          domain: string
+          domain_type: string
+          error_message: string | null
+          id: string
+          is_primary: boolean | null
+          status: string | null
+          tenant_id: string | null
+          updated_at: string | null
+          verification_token: string | null
+          verified_at: string | null
+        }
+        Insert: {
+          blog_id?: string | null
+          created_at?: string | null
+          dns_status?: Json | null
+          domain: string
+          domain_type?: string
+          error_message?: string | null
+          id?: string
+          is_primary?: boolean | null
+          status?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          verification_token?: string | null
+          verified_at?: string | null
+        }
+        Update: {
+          blog_id?: string | null
+          created_at?: string | null
+          dns_status?: Json | null
+          domain?: string
+          domain_type?: string
+          error_message?: string | null
+          id?: string
+          is_primary?: boolean | null
+          status?: string | null
+          tenant_id?: string | null
+          updated_at?: string | null
+          verification_token?: string | null
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_domains_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tenant_domains_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tenant_members: {
         Row: {
           id: string
@@ -5779,6 +5842,16 @@ export type Database = {
       }
       recalculate_queue_dates: { Args: { p_blog_id: string }; Returns: number }
       reset_brand_agent_daily_tokens: { Args: never; Returns: undefined }
+      resolve_domain: {
+        Args: { p_hostname: string }
+        Returns: {
+          blog_id: string
+          domain: string
+          domain_type: string
+          status: string
+          tenant_id: string
+        }[]
+      }
       unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
