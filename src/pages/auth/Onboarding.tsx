@@ -94,6 +94,7 @@ function OnboardingContent() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [isCheckingExisting, setIsCheckingExisting] = useState(true);
+  const [canProceed, setCanProceed] = useState(false);
 
   // Dados do formulário - Step 1
   const [fullName, setFullName] = useState('');
@@ -101,6 +102,10 @@ function OnboardingContent() {
   const [companyName, setCompanyName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
+
+  // Validação de slug em tempo real
+  const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
+  const [checkingSlug, setCheckingSlug] = useState(false);
 
   // Dados criados - Step 3
   const [createdTenantId, setCreatedTenantId] = useState<string | null>(null);
@@ -120,13 +125,50 @@ function OnboardingContent() {
     }
   }, [user, authLoading, navigate]);
 
-  // Verificar se já tem tenant (idempotente)
+  // Função para verificar disponibilidade do slug
+  const checkSlugAvailability = useCallback(async (slugToCheck: string): Promise<boolean> => {
+    if (!slugToCheck || slugToCheck.length < 3) return false;
+    
+    const { data, error } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('slug', slugToCheck)
+      .maybeSingle();
+    
+    return !data && !error;
+  }, []);
+
+  // Verificar slug com debounce
+  useEffect(() => {
+    if (!slug || slug.length < 3) {
+      setSlugAvailable(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setCheckingSlug(true);
+      try {
+        const available = await checkSlugAvailability(slug);
+        setSlugAvailable(available);
+      } catch (err) {
+        console.error('[Onboarding] Error checking slug:', err);
+        setSlugAvailable(null);
+      } finally {
+        setCheckingSlug(false);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [slug, checkSlugAvailability]);
+
+  // Verificar se já tem tenant (idempotente) - BLOQUEIA UI até completar
   useEffect(() => {
     async function checkExisting() {
       if (!user) return;
 
       try {
         setIsCheckingExisting(true);
+        setCanProceed(false);
         console.log('[Onboarding] Checking existing tenant for user:', user.id);
 
         // Verificar se já é membro de algum tenant
@@ -138,13 +180,15 @@ function OnboardingContent() {
 
         if (error) {
           console.error('[Onboarding] Error checking memberships:', error);
+          // Mesmo com erro, permitir prosseguir (fallback)
+          setCanProceed(true);
           return;
         }
 
         if (memberships && memberships.length > 0) {
           console.log('[Onboarding] User already has tenant, redirecting to /app');
           navigate('/app', { replace: true });
-          return;
+          return; // Não define canProceed pois vai redirecionar
         }
 
         // Preencher nome do user se disponível
@@ -153,8 +197,12 @@ function OnboardingContent() {
           setFullName(userMeta.full_name);
         }
 
+        // Verificação completa - liberar UI
+        setCanProceed(true);
+
       } catch (err) {
         console.error('[Onboarding] Error in checkExisting:', err);
+        setCanProceed(true); // Fallback: permitir prosseguir
       } finally {
         setIsCheckingExisting(false);
       }
@@ -172,8 +220,12 @@ function OnboardingContent() {
     }
   }, [companyName, slugTouched]);
 
-  // Validar Step 1
-  const isStep1Valid = fullName.trim().length >= 2 && companyName.trim().length >= 2 && slug.trim().length >= 3;
+  // Validar Step 1 - agora inclui verificação de slug disponível
+  const isStep1Valid = fullName.trim().length >= 2 && 
+                       companyName.trim().length >= 2 && 
+                       slug.trim().length >= 3 &&
+                       slugAvailable === true &&
+                       !checkingSlug;
 
   // Handler para criar tenant
   const handleCreateTenant = useCallback(async () => {
@@ -183,6 +235,20 @@ function OnboardingContent() {
     console.log('[Onboarding] Creating tenant...');
 
     try {
+      // Verificação final de disponibilidade antes de criar
+      const isStillAvailable = await checkSlugAvailability(slug);
+      if (!isStillAvailable) {
+        toast({
+          title: 'Endereço indisponível',
+          description: 'Este endereço foi registrado enquanto você preenchia o formulário. Por favor, escolha outro.',
+          variant: 'destructive',
+        });
+        setSlugAvailable(false);
+        setCurrentStep(1);
+        setIsLoading(false);
+        return;
+      }
+
       const subdomain = `${slug}${SUBDOMAIN_SUFFIX}`;
 
       // 1. Atualizar profile (não crítico)
@@ -215,10 +281,28 @@ function OnboardingContent() {
 
       if (tenantError || !tenantData) {
         console.error('[Onboarding] Tenant error:', tenantError);
-        if (tenantError?.message.includes('duplicate') || tenantError?.message.includes('unique')) {
-          throw new Error('Este slug já está em uso. Escolha outro nome para sua empresa.');
+        
+        // Tratamento específico de erros
+        if (tenantError?.code === '23505' || 
+            tenantError?.message?.includes('duplicate') || 
+            tenantError?.message?.includes('unique')) {
+          toast({
+            title: 'Endereço já em uso',
+            description: 'Este endereço já está registrado. Por favor, escolha outro nome para sua empresa.',
+            variant: 'destructive',
+          });
+          setSlugAvailable(false);
+          setCurrentStep(1);
+          setIsLoading(false);
+          return;
         }
-        throw new Error('Erro ao criar empresa');
+        
+        if (tenantError?.message?.includes('row-level security') ||
+            tenantError?.message?.includes('policy')) {
+          throw new Error('Sua sessão expirou. Por favor, faça login novamente.');
+        }
+        
+        throw new Error('Erro ao criar empresa. Tente novamente.');
       }
 
       const tenantId = tenantData.id;
@@ -295,7 +379,7 @@ function OnboardingContent() {
     } finally {
       setIsLoading(false);
     }
-  }, [user, fullName, phone, companyName, slug]);
+  }, [user, fullName, phone, companyName, slug, checkSlugAvailability]);
 
   // Handlers de navegação
   const handleNext = () => {
@@ -316,12 +400,14 @@ function OnboardingContent() {
     navigate('/app', { replace: true });
   };
 
-  // Loading states
-  if (authLoading || isCheckingExisting) {
+  // Loading states - BLOQUEIA UI até verificação completa
+  if (authLoading || isCheckingExisting || !canProceed) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <p className="text-sm text-muted-foreground">Carregando...</p>
+        <p className="text-sm text-muted-foreground">
+          {isCheckingExisting ? 'Verificando sua conta...' : 'Carregando...'}
+        </p>
       </div>
     );
   }
@@ -426,10 +512,27 @@ function OnboardingContent() {
                         }}
                         className="pl-10"
                       />
+                      {/* Indicador de verificação de slug */}
+                      {slug.length >= 3 && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          {checkingSlug ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          ) : slugAvailable === true ? (
+                            <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          ) : slugAvailable === false ? (
+                            <AlertTriangle className="h-4 w-4 text-destructive" />
+                          ) : null}
+                        </div>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Seu blog ficará em: <span className="font-medium">{slug || 'minha-empresa'}{SUBDOMAIN_SUFFIX}</span>
                     </p>
+                    {slugAvailable === false && (
+                      <p className="text-xs text-destructive">
+                        Este endereço já está em uso. Escolha outro.
+                      </p>
+                    )}
                   </div>
                 </div>
 
