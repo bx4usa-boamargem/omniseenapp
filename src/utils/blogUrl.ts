@@ -83,9 +83,27 @@ export function getCanonicalBlogUrl(blog: BlogWithDomain): string {
     return `https://${cleanDomain}`;
   }
   
-  // Priority 2: ALWAYS use canonical subdomain format {slug}.app.omniseen.app
-  const slug = normalizeSubdomain(blog.platform_subdomain) || blog.slug;
-  return `https://${slug}${SUBDOMAIN_SUFFIX}`;
+  // Priority 2: Platform subdomain (already in full format or needs suffix)
+  if (blog.platform_subdomain) {
+    const subdomain = blog.platform_subdomain
+      .replace('https://', '')
+      .replace('http://', '')
+      .replace(/\/$/, '');
+    
+    // If already in correct format, use directly
+    if (subdomain.endsWith('.app.omniseen.app')) {
+      return `https://${subdomain}`;
+    }
+    
+    // If in old format, add correct suffix
+    const cleanSlug = subdomain
+      .replace('.app.omniseen.app', '')
+      .replace('.omniseen.app', '');
+    return `https://${cleanSlug}${SUBDOMAIN_SUFFIX}`;
+  }
+  
+  // Priority 3: Fallback to slug with canonical suffix
+  return `https://${blog.slug}${SUBDOMAIN_SUFFIX}`;
 }
 
 /**
