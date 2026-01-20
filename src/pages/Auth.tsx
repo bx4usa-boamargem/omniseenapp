@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { ErrorBoundary } from "react-error-boundary";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,8 +13,46 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { OmniseenLogo } from "@/components/ui/OmniseenLogo";
 import { LanguageSwitcher } from "@/components/ui/LanguageSwitcher";
-import { Mail, Lock, User, ArrowRight, Loader2, CheckCircle2 } from "lucide-react";
+import { Mail, Lock, User, ArrowRight, Loader2, CheckCircle2, AlertTriangle } from "lucide-react";
 import { z } from "zod";
+
+// Error Boundary Fallback Component
+function AuthErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="max-w-md w-full bg-card border rounded-2xl p-8 text-center space-y-6">
+        <div className="mx-auto w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center">
+          <AlertTriangle className="h-8 w-8 text-destructive" />
+        </div>
+        <h2 className="text-xl font-bold text-foreground">Erro ao carregar login</h2>
+        <p className="text-sm text-muted-foreground">{error.message}</p>
+        <div className="flex flex-col gap-3">
+          <Button onClick={() => window.location.reload()} className="w-full">
+            Recarregar página
+          </Button>
+          <Button variant="outline" onClick={() => window.location.href = "/"} className="w-full">
+            Voltar ao início
+          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Host: {window.location.hostname}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Main Auth component wrapped with ErrorBoundary
+export default function Auth() {
+  return (
+    <ErrorBoundary 
+      FallbackComponent={AuthErrorFallback}
+      onReset={() => window.location.reload()}
+    >
+      <AuthContent />
+    </ErrorBoundary>
+  );
+}
 
 const PLAN_NAMES: Record<string, string> = {
   lite: 'Lite',
@@ -21,7 +60,7 @@ const PLAN_NAMES: Record<string, string> = {
   business: 'Business',
 };
 
-export default function Auth() {
+function AuthContent() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -43,13 +82,23 @@ export default function Auth() {
     fullName: z.string().min(2, t('auth.errors.nameMin')).max(100).optional(),
   });
 
-  // Timeout fallback to prevent infinite loading
+  // Debug logs for troubleshooting subdomain auth issues
+  useEffect(() => {
+    console.log('[Auth] Component mounted');
+    console.log('[Auth] hostname:', window.location.hostname);
+    console.log('[Auth] pathname:', window.location.pathname);
+    console.log('[Auth] authLoading:', authLoading);
+    console.log('[Auth] user:', user?.email || 'null');
+  }, [authLoading, user]);
+
+  // Timeout fallback to prevent infinite loading - reduced to 10 seconds
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     if (authLoading || isStartingTrial) {
       timer = setTimeout(() => {
+        console.warn('[Auth] Loading timeout exceeded 10 seconds');
         setLoadingTimeout(true);
-      }, 15000); // 15 seconds
+      }, 10000); // 10 seconds
     } else {
       setLoadingTimeout(false);
     }
