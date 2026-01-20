@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -6,8 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PhoneInput } from "@/components/ui/phone-input";
-import { Users } from "lucide-react";
+import { Users, Phone } from "lucide-react";
 
 interface ProfileStepProps {
   phone: string;
@@ -32,6 +33,21 @@ export function ProfileStep({
   onPhoneChange,
   onReferralSourceChange,
 }: ProfileStepProps) {
+  // Debug: Log component mount and props
+  useEffect(() => {
+    console.log('[ProfileStep] Component mounted');
+    console.log('[ProfileStep] Props received:', { phone, referralSource });
+    
+    return () => {
+      console.log('[ProfileStep] Component unmounted');
+    };
+  }, []);
+
+  // Debug: Log prop changes
+  useEffect(() => {
+    console.log('[ProfileStep] Props changed:', { phone, referralSource });
+  }, [phone, referralSource]);
+
   return (
     <div className="space-y-8">
       <div>
@@ -43,16 +59,26 @@ export function ProfileStep({
         </p>
       </div>
 
-      {/* Telefone */}
+      {/* Telefone - SIMPLIFICADO TEMPORARIAMENTE */}
       <div className="space-y-3">
-        <Label htmlFor="phone" className="text-base font-medium">
-          WhatsApp (opcional)
-        </Label>
+        <div className="flex items-center gap-2">
+          <Phone className="h-4 w-4 text-muted-foreground" />
+          <Label htmlFor="phone" className="text-base font-medium">
+            WhatsApp (opcional)
+          </Label>
+        </div>
         <div className="max-w-sm">
-          <PhoneInput
+          {/* Input simples em vez de PhoneInput complexo */}
+          <Input
             id="phone"
-            value={phone}
-            onChange={onPhoneChange}
+            type="tel"
+            placeholder="(11) 99999-9999"
+            value={phone || ""}
+            onChange={(e) => {
+              console.log('[ProfileStep] Phone input changed:', e.target.value);
+              onPhoneChange(e.target.value);
+            }}
+            className="font-mono"
           />
         </div>
         <p className="text-sm text-muted-foreground">
@@ -68,7 +94,13 @@ export function ProfileStep({
             Como conheceu o OMNISEEN?
           </Label>
         </div>
-        <Select value={referralSource} onValueChange={onReferralSourceChange}>
+        <Select 
+          value={referralSource || ""} 
+          onValueChange={(value) => {
+            console.log('[ProfileStep] Referral source changed:', value);
+            onReferralSourceChange(value);
+          }}
+        >
           <SelectTrigger className="max-w-sm">
             <SelectValue placeholder="Selecione uma opção" />
           </SelectTrigger>

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { ErrorBoundary } from "react-error-boundary";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,9 @@ import {
   Target,
   User,
   Rocket,
-  Loader2
+  Loader2,
+  AlertTriangle,
+  RefreshCw
 } from "lucide-react";
 import { SectionHelper } from "@/components/blog-editor/SectionHelper";
 
@@ -39,6 +42,58 @@ interface OnboardingData {
   blogSlug: string;
 }
 
+// Error Boundary Fallback Component - Captura erros de runtime e exibe mensagem amigável
+function OnboardingErrorFallback({ 
+  error, 
+  resetErrorBoundary 
+}: { 
+  error: Error; 
+  resetErrorBoundary: () => void;
+}) {
+  console.error('[Onboarding] Error caught by boundary:', error);
+  
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="max-w-md w-full bg-card border rounded-2xl p-8 text-center space-y-6">
+        <div className="mx-auto w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
+          <AlertTriangle className="h-8 w-8 text-destructive" />
+        </div>
+        
+        <div className="space-y-2">
+          <h2 className="text-xl font-bold text-foreground">Algo deu errado</h2>
+          <p className="text-muted-foreground text-sm">
+            Ocorreu um erro inesperado durante o onboarding.
+          </p>
+        </div>
+        
+        {/* Mostrar detalhes do erro em desenvolvimento */}
+        <div className="p-3 rounded-lg bg-muted/50 text-left">
+          <p className="text-xs font-mono text-muted-foreground break-all">
+            {error.message || 'Erro desconhecido'}
+          </p>
+        </div>
+        
+        <div className="flex flex-col gap-3">
+          <Button 
+            onClick={resetErrorBoundary} 
+            className="w-full gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Tentar novamente
+          </Button>
+          <Button 
+            variant="ghost" 
+            onClick={() => window.location.href = '/auth'}
+            className="w-full"
+          >
+            Voltar ao login
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Onboarding() {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
@@ -54,6 +109,12 @@ export default function Onboarding() {
     blogName: "",
     blogSlug: "",
   });
+
+  // Debug: Log state changes
+  useEffect(() => {
+    console.log('[Onboarding] Current step:', currentStep);
+    console.log('[Onboarding] Data state:', data);
+  }, [currentStep, data]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -74,7 +135,7 @@ export default function Onboarding() {
       if (blogData) {
         setExistingBlog(blogData.id);
         if (blogData.onboarding_completed) {
-          navigate("/app/dashboard");
+          navigate("/client/dashboard");
         }
       }
     }
@@ -104,12 +165,14 @@ export default function Onboarding() {
   const progress = (currentStep / STEPS.length) * 100;
 
   const nextStep = () => {
+    console.log('[Onboarding] nextStep called. Current:', currentStep, '-> Next:', currentStep + 1);
     if (currentStep < STEPS.length) {
       setCurrentStep(currentStep + 1);
     }
   };
 
   const prevStep = () => {
+    console.log('[Onboarding] prevStep called. Current:', currentStep, '-> Prev:', currentStep - 1);
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
@@ -166,7 +229,8 @@ export default function Onboarding() {
         description: "Seu blog foi criado. Agora você pode começar a criar artigos.",
       });
       
-      navigate("/app/dashboard");
+      // Use window.location para garantir redirect correto no subdomínio
+      window.location.href = `${window.location.origin}/client/dashboard`;
     } catch (error: unknown) {
       console.error("Error saving onboarding:", error);
       const message = error instanceof Error ? error.message : "Erro ao salvar dados";
@@ -191,6 +255,19 @@ export default function Onboarding() {
       default:
         return true;
     }
+  };
+
+  // Handle error boundary reset - volta para step 1
+  const handleErrorReset = () => {
+    setCurrentStep(1);
+    setData({
+      blogObjective: "",
+      userType: "",
+      phone: "",
+      referralSource: "",
+      blogName: "",
+      blogSlug: "",
+    });
   };
 
   if (loading) {
@@ -251,124 +328,129 @@ export default function Onboarding() {
           </p>
         </div>
 
-        {/* Step Content */}
-        <div className="bg-card rounded-2xl border shadow-sm p-6 md:p-8 animate-fade-in">
-          {currentStep === 1 && (
-            <ContextStep
-              blogObjective={data.blogObjective}
-              userType={data.userType}
-              onBlogObjectiveChange={(value) => setData({ ...data, blogObjective: value })}
-              onUserTypeChange={(value) => setData({ ...data, userType: value })}
-            />
-          )}
+        {/* Step Content - Wrapped in Error Boundary */}
+        <ErrorBoundary 
+          FallbackComponent={OnboardingErrorFallback}
+          onReset={handleErrorReset}
+        >
+          <div className="bg-card rounded-2xl border shadow-sm p-6 md:p-8 animate-fade-in" key={currentStep}>
+            {currentStep === 1 && (
+              <ContextStep
+                blogObjective={data.blogObjective}
+                userType={data.userType}
+                onBlogObjectiveChange={(value) => setData({ ...data, blogObjective: value })}
+                onUserTypeChange={(value) => setData({ ...data, userType: value })}
+              />
+            )}
 
-          {currentStep === 2 && (
-            <ProfileStep
-              phone={data.phone}
-              referralSource={data.referralSource}
-              onPhoneChange={(value) => setData({ ...data, phone: value })}
-              onReferralSourceChange={(value) => setData({ ...data, referralSource: value })}
-            />
-          )}
+            {currentStep === 2 && (
+              <ProfileStep
+                phone={data.phone || ""}
+                referralSource={data.referralSource || ""}
+                onPhoneChange={(value) => setData({ ...data, phone: value })}
+                onReferralSourceChange={(value) => setData({ ...data, referralSource: value })}
+              />
+            )}
 
-          {currentStep === 3 && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-2xl font-display font-bold mb-2">
-                  Criação do Blog
-                </h2>
-                <SectionHelper
-                  title=""
-                  description="Nome inicial. Personalize cores e domínio depois."
-                />
-              </div>
-
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-base font-medium">
-                    Nome do blog *
-                  </Label>
-                  <Input
-                    id="name"
-                    placeholder="Ex: Marketing Digital Pro"
-                    value={data.blogName}
-                    onChange={(e) => handleNameChange(e.target.value)}
-                    className="text-lg"
+            {currentStep === 3 && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-2xl font-display font-bold mb-2">
+                    Criação do Blog
+                  </h2>
+                  <SectionHelper
+                    title=""
+                    description="Nome inicial. Personalize cores e domínio depois."
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="slug" className="text-base font-medium">
-                    Endereço do seu blog
-                  </Label>
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border">
-                    <span className="text-muted-foreground text-sm">
-                      {data.blogSlug || "seu-blog"}.omniseen.app
-                    </span>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name" className="text-base font-medium">
+                      Nome do blog *
+                    </Label>
+                    <Input
+                      id="name"
+                      placeholder="Ex: Marketing Digital Pro"
+                      value={data.blogName}
+                      onChange={(e) => handleNameChange(e.target.value)}
+                      className="text-lg"
+                    />
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Você poderá conectar um domínio próprio depois
+
+                  <div className="space-y-2">
+                    <Label htmlFor="slug" className="text-base font-medium">
+                      Endereço do seu blog
+                    </Label>
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 border">
+                      <span className="text-muted-foreground text-sm">
+                        {data.blogSlug || "seu-blog"}.omniseen.app
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Você poderá conectar um domínio próprio depois
+                    </p>
+                  </div>
+                </div>
+
+                {/* Preview card */}
+                <div className="p-4 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 border border-primary/20">
+                  <p className="text-sm font-medium text-foreground mb-2">
+                    ✨ O que você terá:
                   </p>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• Blog com design profissional</li>
+                    <li>• Criação de artigos via chat com IA</li>
+                    <li>• SEO otimizado automaticamente</li>
+                    <li>• Analytics integrado</li>
+                  </ul>
                 </div>
               </div>
-
-              {/* Preview card */}
-              <div className="p-4 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10 border border-primary/20">
-                <p className="text-sm font-medium text-foreground mb-2">
-                  ✨ O que você terá:
-                </p>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Blog com design profissional</li>
-                  <li>• Criação de artigos via chat com IA</li>
-                  <li>• SEO otimizado automaticamente</li>
-                  <li>• Analytics integrado</li>
-                </ul>
-              </div>
-            </div>
-          )}
-
-          {/* Navigation */}
-          <div className="flex justify-between mt-8 pt-6 border-t">
-            <Button
-              variant="ghost"
-              onClick={prevStep}
-              disabled={currentStep === 1}
-              className="gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Voltar
-            </Button>
-
-            {currentStep < STEPS.length ? (
-              <Button
-                onClick={nextStep}
-                disabled={!canProceed()}
-                className="gap-2 gradient-primary text-primary-foreground"
-              >
-                Próximo
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button
-                onClick={handleSubmit}
-                disabled={!canProceed() || isLoading}
-                className="gap-2 gradient-primary text-primary-foreground"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Criando...
-                  </>
-                ) : (
-                  <>
-                    <Rocket className="h-4 w-4" />
-                    Criar meu blog
-                  </>
-                )}
-              </Button>
             )}
+
+            {/* Navigation */}
+            <div className="flex justify-between mt-8 pt-6 border-t">
+              <Button
+                variant="ghost"
+                onClick={prevStep}
+                disabled={currentStep === 1}
+                className="gap-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Voltar
+              </Button>
+
+              {currentStep < STEPS.length ? (
+                <Button
+                  onClick={nextStep}
+                  disabled={!canProceed()}
+                  className="gap-2 gradient-primary text-primary-foreground"
+                >
+                  Próximo
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleSubmit}
+                  disabled={!canProceed() || isLoading}
+                  className="gap-2 gradient-primary text-primary-foreground"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Criando...
+                    </>
+                  ) : (
+                    <>
+                      <Rocket className="h-4 w-4" />
+                      Criar meu blog
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+        </ErrorBoundary>
 
         {/* Skip hint */}
         <p className="text-center text-sm text-muted-foreground mt-4">
