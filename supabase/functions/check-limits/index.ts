@@ -202,9 +202,10 @@ serve(async (req) => {
       .single();
 
     if (!usage) {
-      const { data: newUsage, error: insertError } = await supabase
+      // Use upsert to handle race conditions when multiple requests try to create the same row
+      const { data: newUsage, error: upsertError } = await supabase
         .from('usage_tracking')
-        .insert({
+        .upsert({
           user_id: userId,
           month: currentMonth,
           articles_generated: 0,
@@ -220,15 +221,31 @@ serve(async (req) => {
           team_members_limit: limits.team_members,
           territories_count: 0,
           radar_searches_used: 0,
+        }, { 
+          onConflict: 'user_id,month',
+          ignoreDuplicates: true 
         })
         .select()
         .single();
 
-      if (insertError) {
-        console.error('Error creating usage tracking:', insertError);
-        throw insertError;
+      if (upsertError) {
+        // If upsert fails, try to fetch the existing row (another request may have created it)
+        const { data: existingUsage } = await supabase
+          .from('usage_tracking')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('month', currentMonth)
+          .single();
+        
+        if (existingUsage) {
+          usage = existingUsage;
+        } else {
+          console.error('Error creating/fetching usage tracking:', upsertError);
+          throw upsertError;
+        }
+      } else {
+        usage = newUsage;
       }
-      usage = newUsage;
     }
 
     // Map resource to usage fields
