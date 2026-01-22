@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, DollarSign, Users, Cpu, ImageIcon, FileText, Loader2, Shield, BarChart3, Settings2, Save, Plus, Trash2, Sparkles, Database, Bell, TrendingUp, Download, Gift, LayoutDashboard, UserPlus, Users2, Stethoscope, Building2, Target, LineChart, Globe, Bot } from "lucide-react";
+import { ArrowLeft, DollarSign, Users, Cpu, ImageIcon, FileText, Loader2, Shield, BarChart3, Settings2, Save, Plus, Trash2, Sparkles, Database, Bell, TrendingUp, Download, Gift, LayoutDashboard, UserPlus, Users2, Stethoscope, Building2, Target, LineChart, Globe, Bot, Activity } from "lucide-react";
 import { SectionHelper } from "@/components/blog-editor/SectionHelper";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -31,6 +31,7 @@ import { SessionDiagnosticsTab } from "@/components/admin/SessionDiagnosticsTab"
 import { GoalsManagementTab } from "@/components/admin/GoalsManagementTab";
 
 import { MarketIntelCostsTab } from "@/components/admin/MarketIntelCostsTab";
+import { ModuleHealthTab } from "@/components/admin/ModuleHealthTab";
 import { CostProjectionCard } from "@/components/admin/CostProjectionCard";
 import { BrandAgentsTab } from "@/components/admin/BrandAgentsTab";
 import { SubaccountCostsTable } from "@/components/admin/SubaccountCostsTable";
@@ -618,6 +619,10 @@ export default function Admin() {
               <HeartPulse className="h-4 w-4" />
               Saúde
             </TabsTrigger>
+            <TabsTrigger value="module-health" className="gap-2">
+              <Activity className="h-4 w-4" />
+              Saúde Módulos
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -1079,6 +1084,10 @@ export default function Admin() {
 
           <TabsContent value="health">
             <HealthAlertManager />
+          </TabsContent>
+
+          <TabsContent value="module-health">
+            <ModuleHealthTab />
           </TabsContent>
         </Tabs>
       </main>
