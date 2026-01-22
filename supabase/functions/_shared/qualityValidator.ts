@@ -1,9 +1,10 @@
 // ============================================================================
-// QUALITY VALIDATOR V2.0 - CONTRATO EDITORIAL ABSOLUTO + GEO AUTHORITY
+// QUALITY VALIDATOR V2.1 - CONTRATO EDITORIAL ABSOLUTO + GEO AUTHORITY + TITLE
 // ============================================================================
 // Nenhum artigo pode ser salvo sem passar por TODAS as validações
 // Violação de regras críticas = REJEIÇÃO AUTOMÁTICA
 // V2.0: Adiciona validações GEO para OmniCore GEO Writer
+// V2.1: Adiciona validação de prefixos proibidos em títulos
 // ============================================================================
 
 import type { FunnelMode } from './promptTypeCore.ts';
@@ -15,6 +16,7 @@ import {
   hasAnswerFirstPattern,
   hasTerritorialMentions
 } from './geoWriterCore.ts';
+import { hasForbiddenPrefix } from './titleValidator.ts';
 
 export interface ValidationResult {
   passed: boolean;
@@ -65,6 +67,23 @@ const FUNNEL_CTA_PATTERNS: Record<FunnelMode, RegExp> = {
 const DEFAULT_ALLOWED_BLOCKS = ['💡', '⚠️', '📌'];
 
 const QUALITY_CHECKS: QualityCheck[] = [
+  // =========================================================================
+  // REGRA 0: Título sem prefixos proibidos (REGRA ABSOLUTA)
+  // =========================================================================
+  {
+    name: 'no_forbidden_title_prefix',
+    check: (content: string) => {
+      // Extrair H1 do conteúdo
+      const h1Match = content.match(/^# (.+)$/m);
+      if (!h1Match) return true; // Se não tem H1, deixa outras regras pegarem
+      
+      const title = h1Match[1].trim();
+      return !hasForbiddenPrefix(title).has;
+    },
+    message: 'TÍTULO INVÁLIDO: Prefixos como "Artigo:", "Post:", "Guia:" são PROIBIDOS. O título deve ser direto, pronto para Google e WordPress.',
+    severity: 'error'
+  },
+
   // =========================================================================
   // REGRA 3: Estrutura H1 obrigatória (H1 → linha em branco → parágrafo)
   // =========================================================================

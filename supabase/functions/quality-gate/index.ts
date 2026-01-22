@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { detectSensitiveNiche, validateCompliance, hasRequiredDisclaimer, injectDisclaimer } from "../_shared/complianceValidator.ts";
 import { checkSimilarity, checkTitleSimilarity } from "../_shared/similarityChecker.ts";
 import { validateStructure, generateStructureFixInstructions, isValidStructureType, type StructureType } from "../_shared/structureValidator.ts";
+import { validateTitleForPublication, sanitizeTitleInContent } from "../_shared/titleValidator.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -91,10 +92,42 @@ serve(async (req) => {
       .in("status", ["published", "draft", "ready_for_publish"])
       .limit(50);
 
-    const content = article.content || "";
-    const title = article.title || "";
+    let content = article.content || "";
+    let title = article.title || "";
     const reasons: string[] = [];
     const fix_suggestions: string[] = [];
+
+    // ===== 0. TITLE VALIDATION (REGRA ABSOLUTA) =====
+    const titleValidation = validateTitleForPublication(title);
+    
+    if (titleValidation.wasAutoCorrected) {
+      console.log(`[QUALITY-GATE] Title auto-corrected: "${title}" → "${titleValidation.title}"`);
+      title = titleValidation.title;
+      
+      // Also sanitize H1 in content
+      const contentSanitization = sanitizeTitleInContent(content);
+      if (contentSanitization.wasModified) {
+        content = contentSanitization.content;
+        console.log(`[QUALITY-GATE] H1 in content also corrected`);
+      }
+      
+      // Update article in database with corrected title
+      await supabase
+        .from("articles")
+        .update({ 
+          title: titleValidation.title,
+          content: content,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", articleId);
+      
+      fix_suggestions.push(`Título corrigido automaticamente (removido prefixo proibido)`);
+    }
+    
+    if (!titleValidation.canPublish) {
+      reasons.push(`Título inválido: ${titleValidation.error}`);
+      fix_suggestions.push("Criar título sem prefixos como 'Artigo:', 'Post:', 'Guia:'");
+    }
 
     // ===== 1. CONTENT QUALITY =====
     const wordCount = content.split(/\s+/).filter((w: string) => w.length > 0).length;

@@ -4,8 +4,9 @@ import { buildUniversalPrompt, type ClientStrategy, type FunnelMode, type Articl
 import { resolveStrategy } from '../_shared/strategyResolver.ts';
 import { validateArticleQuality, validateGeoArticleQuality, generateCorrectionInstructions } from '../_shared/qualityValidator.ts';
 import { generateAutoKeywords, mergeKeywords } from '../_shared/keywordGenerator.ts';
+import { sanitizeTitle, sanitizeTitleInContent, validateTitleForPublication, TITLE_RULES_PROMPT } from '../_shared/titleValidator.ts';
 import { 
-  GEO_WRITER_IDENTITY, 
+  GEO_WRITER_IDENTITY,
   GEO_WRITER_RULES,
   GEO_LINKING_RULES,
   fetchGeoResearchData, 
@@ -429,7 +430,9 @@ const HIERARCHY_RULES = `
 2. Introdução → 3-4 linhas, SEM headings
 3. H2 → 2-3 parágrafos + blocos visuais opcionais
 4. H3 (opcional) → detalhamento, máx. 2 por H2
-5. Último H2 → CTA natural (NUNCA "Conclusão")`;
+5. Último H2 → CTA natural (NUNCA "Conclusão")
+
+${TITLE_RULES_PROMPT}`;
 
 // ============================================================================
 // REGRAS DE GERAÇÃO POR MODO (FAST vs DEEP)
@@ -2050,9 +2053,32 @@ Retorne o artigo completo e expandido no formato JSON da tool create_article.`;
       }));
     }
 
+    // ========================================================================
+    // SANITIZAÇÃO OBRIGATÓRIA DE TÍTULO - REGRA ABSOLUTA
+    // ========================================================================
+    // Remove prefixos proibidos (Artigo:, Post:, Guia:, etc.) antes de salvar
+    // ========================================================================
+    const rawTitle = (articleData.title as string).trim();
+    const titleValidation = sanitizeTitle(rawTitle);
+    
+    if (titleValidation.hadForbiddenPrefix) {
+      console.log(`[TITLE SANITIZER] ✂️ Removed forbidden prefix from title`);
+      console.log(`[TITLE SANITIZER] Original: "${titleValidation.originalTitle}"`);
+      console.log(`[TITLE SANITIZER] Sanitized: "${titleValidation.sanitizedTitle}"`);
+      
+      // Also sanitize H1 in content
+      const contentSanitization = sanitizeTitleInContent(articleData.content as string);
+      if (contentSanitization.wasModified) {
+        articleData.content = contentSanitization.content;
+        console.log(`[TITLE SANITIZER] 📝 Also fixed H1 in content`);
+      }
+    }
+    
+    const sanitizedTitle = titleValidation.sanitizedTitle;
+    
     // Ensure all fields have defaults
     const article = {
-      title: (articleData.title as string).trim(),
+      title: sanitizedTitle,
       meta_description: ((articleData.meta_description || '') as string).trim().substring(0, 160),
       excerpt: ((articleData.excerpt || articleData.meta_description || '') as string).trim(),
       content: (articleData.content as string).trim(),

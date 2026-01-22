@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { validateTitleForPublication } from "../_shared/titleValidator.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -138,10 +139,33 @@ serve(async (req) => {
           console.log(`[AUTO-PUBLISH] OmniCore review approved for article ${article.id}`);
         }
 
+        // ============================================
+        // TITLE VALIDATION (REGRA ABSOLUTA)
+        // ============================================
+        const titleCheck = validateTitleForPublication(article.title);
+        
+        if (!titleCheck.canPublish) {
+          console.log(`[AUTO-PUBLISH] ❌ Blocked: Invalid title "${article.title}" - ${titleCheck.error}`);
+          results.push({ 
+            article_id: article.id, 
+            success: false, 
+            error: `Invalid title: ${titleCheck.error}` 
+          });
+          continue;
+        }
+        
+        // Update title if it was auto-corrected
+        const finalTitle = titleCheck.wasAutoCorrected ? titleCheck.title : article.title;
+        
+        if (titleCheck.wasAutoCorrected) {
+          console.log(`[AUTO-PUBLISH] 🔧 Title auto-corrected: "${article.title}" → "${finalTitle}"`);
+        }
+
         // Publish the article
         const { error: updateError } = await supabase
           .from("articles")
           .update({
+            title: finalTitle, // Use sanitized title
             status: "published",
             published_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
