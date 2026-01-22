@@ -15,6 +15,8 @@ import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { GenerationProgress } from '@/components/seo/GenerationProgress';
 import { ImproveArticleDialog } from '@/components/editor/ImproveArticleDialog';
 import { CTAPreview } from '@/components/editor/CTAPreview';
+import { ContentScorePanel } from '@/components/editor/ContentScorePanel';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { extractImageUrl, uploadImageToStorage, updateArticleImage } from '@/utils/imageUtils';
 import { ensureSingleArticle, normalizeForFingerprint } from '@/lib/articleFlowGuard';
 import { getCanonicalArticleUrl } from '@/utils/blogUrl';
@@ -32,7 +34,8 @@ import {
   Image as ImageIcon,
   RefreshCw,
   ExternalLink,
-  BookOpen
+  BookOpen,
+  BarChart3
 } from 'lucide-react';
 import { ArticlePdfDownload } from '@/components/articles/ArticlePdfDownload';
 
@@ -119,6 +122,12 @@ export default function ClientArticleEditor() {
     improvedContent: string;
     originalContent: string;
   } | null>(null);
+  
+  // SERP Score Panel state (mobile sheet)
+  const [showScorePanel, setShowScorePanel] = useState(false);
+  
+  // Derive keyword from title for SERP analysis
+  const derivedKeyword = title ? title.split(' ').slice(0, 4).join(' ') : '';
   
   // ====================================================================
   // CONVERT OPPORTUNITY: Handle fromOpportunity param via edge function
@@ -1269,6 +1278,31 @@ export default function ClientArticleEditor() {
                 variant="compact"
               />
             )}
+            
+            {/* SERP Score Panel Toggle (Mobile) */}
+            <Sheet open={showScorePanel} onOpenChange={setShowScorePanel}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 md:hidden border-indigo-500/30 text-indigo-600 dark:text-indigo-400"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  Score
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[320px] p-0">
+                <ContentScorePanel
+                  articleId={existingArticleId || undefined}
+                  content={content}
+                  title={title}
+                  keyword={derivedKeyword}
+                  blogId={blog?.id || ''}
+                  onContentUpdate={(newContent) => setContent(newContent)}
+                />
+              </SheetContent>
+            </Sheet>
+            
             <Button
               variant="outline"
               size="sm"
@@ -1362,11 +1396,22 @@ export default function ClientArticleEditor() {
               {viewMode === 'preview' && renderPreview()}
               
               {viewMode === 'split' && (
-                <div className="grid grid-cols-2 gap-6 h-full">
+                <div className="grid grid-cols-[1fr_1fr_320px] gap-4 h-full">
                   <div className="overflow-auto">
                     {renderEditor()}
                   </div>
                   {renderPreview()}
+                  {/* SERP Score Panel - Right sidebar */}
+                  <div className="h-full overflow-hidden">
+                    <ContentScorePanel
+                      articleId={existingArticleId || undefined}
+                      content={content}
+                      title={title}
+                      keyword={derivedKeyword}
+                      blogId={blog?.id || ''}
+                      onContentUpdate={(newContent) => setContent(newContent)}
+                    />
+                  </div>
                 </div>
               )}
             </div>

@@ -348,6 +348,43 @@ Deno.serve(async (req) => {
         );
       }
 
+      // ===== SERP SCORE VALIDATION (BLOQUEIO SERVER-SIDE) =====
+      const { data: scoreData } = await supabaseClient
+        .from('article_content_scores')
+        .select('total_score, serp_analysis_id')
+        .eq('article_id', articleId)
+        .maybeSingle();
+
+      const { data: blogConfig } = await supabaseClient
+        .from('blog_config')
+        .select('minimum_score_to_publish')
+        .eq('blog_id', integration.blog_id)
+        .maybeSingle();
+
+      const minScore = blogConfig?.minimum_score_to_publish || 70;
+
+      if (!scoreData?.serp_analysis_id) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            code: 'SERP_NOT_ANALYZED',
+            message: 'Artigo não passou por análise SERP. Execute "Analisar Concorrência" primeiro.'
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (scoreData.total_score < minScore) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            code: 'SCORE_TOO_LOW',
+            message: `Content Score ${scoreData.total_score}/100 abaixo do mínimo exigido (${minScore}). Use "Aumentar Score" para otimizar.`
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       const articleData: ArticleData = {
         title: article.title,
         content: article.content || "",
