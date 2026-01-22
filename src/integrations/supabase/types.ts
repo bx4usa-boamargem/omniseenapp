@@ -1373,6 +1373,53 @@ export type Database = {
           },
         ]
       }
+      blog_config: {
+        Row: {
+          auto_boost_on_publish: boolean | null
+          blog_id: string | null
+          created_at: string | null
+          id: string
+          max_word_count: number | null
+          min_word_count: number | null
+          minimum_score_to_publish: number | null
+          require_featured_image: boolean | null
+          serp_cache_ttl_hours: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          auto_boost_on_publish?: boolean | null
+          blog_id?: string | null
+          created_at?: string | null
+          id?: string
+          max_word_count?: number | null
+          min_word_count?: number | null
+          minimum_score_to_publish?: number | null
+          require_featured_image?: boolean | null
+          serp_cache_ttl_hours?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          auto_boost_on_publish?: boolean | null
+          blog_id?: string | null
+          created_at?: string | null
+          id?: string
+          max_word_count?: number | null
+          min_word_count?: number | null
+          minimum_score_to_publish?: number | null
+          require_featured_image?: boolean | null
+          serp_cache_ttl_hours?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_config_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: true
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blog_contact_buttons: {
         Row: {
           blog_id: string
