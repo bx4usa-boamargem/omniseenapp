@@ -481,6 +481,78 @@ export type Database = {
           },
         ]
       }
+      article_content_scores: {
+        Row: {
+          article_id: string | null
+          breakdown: Json
+          calculated_at: string | null
+          comparison: Json
+          created_at: string | null
+          h2_count: number | null
+          id: string
+          image_count: number | null
+          meets_market_standards: boolean | null
+          paragraph_count: number | null
+          recommendations: Json | null
+          semantic_coverage: number | null
+          serp_analysis_id: string | null
+          total_score: number
+          updated_at: string | null
+          word_count: number | null
+        }
+        Insert: {
+          article_id?: string | null
+          breakdown?: Json
+          calculated_at?: string | null
+          comparison?: Json
+          created_at?: string | null
+          h2_count?: number | null
+          id?: string
+          image_count?: number | null
+          meets_market_standards?: boolean | null
+          paragraph_count?: number | null
+          recommendations?: Json | null
+          semantic_coverage?: number | null
+          serp_analysis_id?: string | null
+          total_score: number
+          updated_at?: string | null
+          word_count?: number | null
+        }
+        Update: {
+          article_id?: string | null
+          breakdown?: Json
+          calculated_at?: string | null
+          comparison?: Json
+          created_at?: string | null
+          h2_count?: number | null
+          id?: string
+          image_count?: number | null
+          meets_market_standards?: boolean | null
+          paragraph_count?: number | null
+          recommendations?: Json | null
+          semantic_coverage?: number | null
+          serp_analysis_id?: string | null
+          total_score?: number
+          updated_at?: string | null
+          word_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_content_scores_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: true
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_content_scores_serp_analysis_id_fkey"
+            columns: ["serp_analysis_id"]
+            isOneToOne: false
+            referencedRelation: "serp_analysis_cache"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       article_conversion_metrics: {
         Row: {
           article_id: string
@@ -5039,6 +5111,62 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "seo_weekly_reports_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      serp_analysis_cache: {
+        Row: {
+          analyzed_at: string | null
+          avg_h2: number | null
+          avg_images: number | null
+          avg_words: number | null
+          blog_id: string | null
+          common_terms: string[] | null
+          competitors_count: number | null
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          keyword: string
+          matrix: Json
+          territory: string | null
+        }
+        Insert: {
+          analyzed_at?: string | null
+          avg_h2?: number | null
+          avg_images?: number | null
+          avg_words?: number | null
+          blog_id?: string | null
+          common_terms?: string[] | null
+          competitors_count?: number | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          keyword: string
+          matrix: Json
+          territory?: string | null
+        }
+        Update: {
+          analyzed_at?: string | null
+          avg_h2?: number | null
+          avg_images?: number | null
+          avg_words?: number | null
+          blog_id?: string | null
+          common_terms?: string[] | null
+          competitors_count?: number | null
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          keyword?: string
+          matrix?: Json
+          territory?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "serp_analysis_cache_blog_id_fkey"
             columns: ["blog_id"]
             isOneToOne: false
             referencedRelation: "blogs"
