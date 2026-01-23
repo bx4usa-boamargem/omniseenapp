@@ -5,21 +5,43 @@ import { Badge } from '@/components/ui/badge';
 import { Info, BookOpen, FileText, Tag } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { MetaTagsTab } from './MetaTagsTab';
+
+interface KeywordFrequency {
+  occurrences: number;
+  avgFrequency: number;
+  positions: string[];
+}
+
+interface MetaPatterns {
+  avgLength: number;
+  commonPhrases: string[];
+  descriptions: string[];
+}
+
+interface KeywordPresence {
+  inTitle: number;
+  inH1: number;
+  inH2: number;
+  inMeta: number;
+  inFirstParagraph: number;
+}
 
 interface TermsTabsPanelProps {
-  // Primary source: serpMatrix data
   commonTerms: string[];
   topTitles: string[];
-  
-  // Secondary source: score breakdown (for coloring)
   coveredTerms: string[];
   missingTerms: string[];
   coveragePercentage: number;
-  
-  // State
   loading?: boolean;
   hasAnalysis: boolean;
   className?: string;
+  // V2.0: Deterministic fields
+  keywordFrequencyMap?: Record<string, KeywordFrequency>;
+  metaPatterns?: MetaPatterns;
+  keywordPresence?: KeywordPresence;
+  articleMeta?: string;
+  keyword?: string;
 }
 
 interface TermBadgeProps {
@@ -62,22 +84,30 @@ export function TermsTabsPanel({
   coveragePercentage,
   loading,
   hasAnalysis,
-  className
+  className,
+  keywordFrequencyMap,
+  metaPatterns,
+  keywordPresence,
+  articleMeta,
+  keyword
 }: TermsTabsPanelProps) {
   const [activeTab, setActiveTab] = useState('keywords');
   
-  // Use serpMatrix as PRIMARY source for counts (fixes the "0" bug)
   const keywordsCount = commonTerms.length;
   const titlesCount = topTitles.length;
-  const metaTagsCount = 0; // Placeholder for future
+  const metaTagsCount = metaPatterns?.descriptions?.length || 0;
   
-  // Determine term status based on coverage
+  // Determine term status with frequency info
   const getTermStatus = (term: string): 'present' | 'partial' | 'missing' => {
     const termLower = term.toLowerCase();
     if (coveredTerms.some(t => t.toLowerCase() === termLower)) return 'present';
     if (missingTerms.some(t => t.toLowerCase() === termLower)) return 'missing';
-    // If not in either list yet, check if partially matches
     return 'partial';
+  };
+
+  const getTermFrequency = (term: string) => {
+    if (!keywordFrequencyMap) return undefined;
+    return keywordFrequencyMap[term] || keywordFrequencyMap[term.toLowerCase()];
   };
 
   // If no analysis, show placeholder
@@ -206,13 +236,14 @@ export function TermsTabsPanel({
           </div>
         </TabsContent>
 
-        {/* Meta Tags Tab (Placeholder) */}
+        {/* Meta Tags Tab - V2.0: Real competitor metas */}
         <TabsContent value="meta" className="mt-3">
-          <div className="text-center text-xs text-muted-foreground py-6 bg-muted/30 rounded-md">
-            <Tag className="h-6 w-6 mx-auto mb-2 opacity-50" />
-            <p>Análise de meta tags</p>
-            <p className="text-[10px] mt-1">Em breve</p>
-          </div>
+          <MetaTagsTab
+            articleMeta={articleMeta}
+            keyword={keyword || ''}
+            metaPatterns={metaPatterns}
+            keywordPresence={keywordPresence}
+          />
         </TabsContent>
       </Tabs>
     </div>

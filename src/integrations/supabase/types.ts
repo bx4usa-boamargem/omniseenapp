@@ -1043,6 +1043,7 @@ export type Database = {
           blog_id: string
           category: string | null
           content: string | null
+          content_hash: string | null
           content_images: Json | null
           content_version: number | null
           conversion_intent_count: number | null
@@ -1060,6 +1061,7 @@ export type Database = {
           highlights: Json | null
           id: string
           keywords: string[] | null
+          last_content_change_at: string | null
           last_score_change_reason: string | null
           last_user_action: string | null
           last_user_action_at: string | null
@@ -1077,6 +1079,7 @@ export type Database = {
           ready_for_publish_at: string | null
           scheduled_at: string | null
           score_locked: boolean | null
+          serp_hash_at_calculation: string | null
           share_count: number | null
           slug: string
           social_share_count: Json | null
@@ -1099,6 +1102,7 @@ export type Database = {
           blog_id: string
           category?: string | null
           content?: string | null
+          content_hash?: string | null
           content_images?: Json | null
           content_version?: number | null
           conversion_intent_count?: number | null
@@ -1116,6 +1120,7 @@ export type Database = {
           highlights?: Json | null
           id?: string
           keywords?: string[] | null
+          last_content_change_at?: string | null
           last_score_change_reason?: string | null
           last_user_action?: string | null
           last_user_action_at?: string | null
@@ -1133,6 +1138,7 @@ export type Database = {
           ready_for_publish_at?: string | null
           scheduled_at?: string | null
           score_locked?: boolean | null
+          serp_hash_at_calculation?: string | null
           share_count?: number | null
           slug: string
           social_share_count?: Json | null
@@ -1155,6 +1161,7 @@ export type Database = {
           blog_id?: string
           category?: string | null
           content?: string | null
+          content_hash?: string | null
           content_images?: Json | null
           content_version?: number | null
           conversion_intent_count?: number | null
@@ -1172,6 +1179,7 @@ export type Database = {
           highlights?: Json | null
           id?: string
           keywords?: string[] | null
+          last_content_change_at?: string | null
           last_score_change_reason?: string | null
           last_user_action?: string | null
           last_user_action_at?: string | null
@@ -1189,6 +1197,7 @@ export type Database = {
           ready_for_publish_at?: string | null
           scheduled_at?: string | null
           score_locked?: boolean | null
+          serp_hash_at_calculation?: string | null
           share_count?: number | null
           slug?: string
           social_share_count?: Json | null
@@ -5462,8 +5471,19 @@ export type Database = {
           expires_at: string | null
           id: string
           keyword: string
+          keyword_frequency_map: Json | null
+          keyword_presence: Json | null
           matrix: Json
+          max_h2: number | null
+          max_images: number | null
+          max_words: number | null
+          meta_patterns: Json | null
+          min_h2: number | null
+          min_images: number | null
+          min_words: number | null
           niche_profile_id: string | null
+          scrape_method: string | null
+          serp_hash: string | null
           territory: string | null
         }
         Insert: {
@@ -5478,8 +5498,19 @@ export type Database = {
           expires_at?: string | null
           id?: string
           keyword: string
+          keyword_frequency_map?: Json | null
+          keyword_presence?: Json | null
           matrix: Json
+          max_h2?: number | null
+          max_images?: number | null
+          max_words?: number | null
+          meta_patterns?: Json | null
+          min_h2?: number | null
+          min_images?: number | null
+          min_words?: number | null
           niche_profile_id?: string | null
+          scrape_method?: string | null
+          serp_hash?: string | null
           territory?: string | null
         }
         Update: {
@@ -5494,8 +5525,19 @@ export type Database = {
           expires_at?: string | null
           id?: string
           keyword?: string
+          keyword_frequency_map?: Json | null
+          keyword_presence?: Json | null
           matrix?: Json
+          max_h2?: number | null
+          max_images?: number | null
+          max_words?: number | null
+          meta_patterns?: Json | null
+          min_h2?: number | null
+          min_images?: number | null
+          min_words?: number | null
           niche_profile_id?: string | null
+          scrape_method?: string | null
+          serp_hash?: string | null
           territory?: string | null
         }
         Relationships: [

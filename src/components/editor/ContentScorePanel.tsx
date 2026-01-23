@@ -293,7 +293,7 @@ export function ContentScorePanel({
 
               <Separator />
 
-              {/* Terms Tabs Panel */}
+              {/* Terms Tabs Panel - V2.0: With real frequency data */}
               <TermsTabsPanel
                 commonTerms={serpMatrix?.commonTerms || []}
                 topTitles={serpMatrix?.topTitles || []}
@@ -302,6 +302,10 @@ export function ContentScorePanel({
                 coveragePercentage={score?.breakdown.semanticCoverage.percentage || 0}
                 loading={loading && !score}
                 hasAnalysis={!!serpMatrix}
+                keywordFrequencyMap={(serpMatrix as any)?.keywordFrequencyMap}
+                metaPatterns={(serpMatrix as any)?.metaPatterns}
+                keywordPresence={(serpMatrix as any)?.keywordPresence}
+                keyword={keyword}
               />
 
               <Separator />
