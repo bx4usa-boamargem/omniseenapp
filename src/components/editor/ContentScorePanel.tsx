@@ -1,34 +1,30 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useContentScore } from '@/hooks/useContentScore';
+import { useContentOptimizer } from '@/hooks/useContentOptimizer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   BarChart3,
-  Target,
-  TrendingUp,
-  TrendingDown,
-  Sparkles,
   RefreshCw,
   Search,
-  Zap,
-  FileText,
-  Hash,
-  Image,
-  List,
-  ChevronDown,
-  ChevronUp,
   CheckCircle2,
   XCircle,
-  AlertCircle,
   Loader2,
-  Info
+  Info,
+  Eye,
+  EyeOff
 } from 'lucide-react';
+
+// Import modular components
+import { ContentScoreGauge } from './ContentScoreGauge';
+import { StructureMetricsGrid, type StructureMetrics } from './StructureMetricsGrid';
+import { TermsTabsPanel } from './TermsTabsPanel';
+import { RecommendationsPanel } from './RecommendationsPanel';
+import { AIActionsPanel } from './AIActionsPanel';
+import { OptimizeTo100Dialog } from './OptimizeTo100Dialog';
 
 interface ContentScorePanelProps {
   articleId?: string;
@@ -40,138 +36,7 @@ interface ContentScorePanelProps {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// SCORE GAUGE COMPONENT - Semicircular gauge like reference image
-// ═══════════════════════════════════════════════════════════════════
-function ScoreGauge({ score, loading }: { score: number | null; loading: boolean }) {
-  const displayScore = score ?? 0;
-  const radius = 80;
-  const strokeWidth = 12;
-  const circumference = Math.PI * radius;
-  const progress = (displayScore / 100) * circumference;
-  
-  // Color based on score
-  const getScoreColor = (s: number) => {
-    if (s >= 80) return '#22c55e'; // green
-    if (s >= 60) return '#eab308'; // yellow
-    if (s >= 40) return '#f97316'; // orange
-    return '#ef4444'; // red
-  };
-  
-  const color = getScoreColor(displayScore);
-  
-  return (
-    <div className="relative flex flex-col items-center justify-center py-4">
-      <svg width="180" height="100" viewBox="0 0 180 100" className="overflow-visible">
-        {/* Background arc */}
-        <path
-          d="M 10 90 A 80 80 0 0 1 170 90"
-          fill="none"
-          stroke="hsl(var(--muted))"
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-        />
-        {/* Progress arc */}
-        <path
-          d="M 10 90 A 80 80 0 0 1 170 90"
-          fill="none"
-          stroke={color}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeDasharray={`${progress} ${circumference}`}
-          className="transition-all duration-500"
-        />
-        {/* Goal marker at 50 (halfway) */}
-        <circle cx="90" cy="10" r="4" fill="hsl(var(--muted-foreground))" />
-        <text x="90" y="3" textAnchor="middle" className="text-[10px] fill-muted-foreground">50</text>
-      </svg>
-      
-      {/* Score display */}
-      <div className="absolute top-8 flex flex-col items-center">
-        {loading ? (
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        ) : (
-          <>
-            <span className="text-4xl font-bold" style={{ color }}>{displayScore}</span>
-            <span className="text-xs text-muted-foreground">/ 100</span>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// METRIC ROW COMPONENT - Shows value with market range
-// ═══════════════════════════════════════════════════════════════════
-interface MetricRowProps {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-  marketValue: number;
-  marketMin?: number;
-  marketMax?: number;
-  status: 'below' | 'within' | 'above';
-}
-
-function MetricRow({ icon, label, value, marketValue, marketMin, marketMax, status }: MetricRowProps) {
-  const getArrowColor = () => {
-    if (status === 'above') return 'text-green-500';
-    if (status === 'below') return 'text-red-500';
-    return 'text-yellow-500';
-  };
-  
-  const Arrow = status === 'below' ? TrendingDown : TrendingUp;
-  
-  // Calculate range (±15% of market average)
-  const min = marketMin ?? Math.round(marketValue * 0.85);
-  const max = marketMax ?? Math.round(marketValue * 1.15);
-  
-  return (
-    <div className="flex items-center justify-between py-1.5">
-      <div className="flex items-center gap-2">
-        {icon}
-        <span className="text-sm">{label}</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-sm font-medium">{value}</span>
-        <Arrow className={`h-3.5 w-3.5 ${getArrowColor()}`} />
-        <span className="text-xs text-muted-foreground font-mono">
-          ({min} - {max})
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// TERM BADGE COMPONENT - Colored badge for semantic terms
-// ═══════════════════════════════════════════════════════════════════
-interface TermBadgeProps {
-  term: string;
-  status: 'present' | 'partial' | 'missing';
-  count?: number;
-  target?: number;
-}
-
-function TermBadge({ term, status, count, target }: TermBadgeProps) {
-  const getBgColor = () => {
-    if (status === 'present') return 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800';
-    if (status === 'partial') return 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800';
-    return 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800';
-  };
-  
-  return (
-    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs border ${getBgColor()}`}>
-      <span className="truncate max-w-[120px]">{term}</span>
-      {count !== undefined && target !== undefined && (
-        <span className="font-mono opacity-70">{count}/{target}</span>
-      )}
-    </div>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
+// MAIN COMPONENT - Refactored with modular sub-components
 // ═══════════════════════════════════════════════════════════════════
 export function ContentScorePanel({
   articleId,
@@ -181,6 +46,20 @@ export function ContentScorePanel({
   blogId,
   onContentUpdate
 }: ContentScorePanelProps) {
+  // Panel visibility toggle with localStorage persistence
+  const [isPanelVisible, setIsPanelVisible] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('contentScorePanelVisible') !== 'false';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('contentScorePanelVisible', String(isPanelVisible));
+  }, [isPanelVisible]);
+
+  // Optimize to 100 dialog
+  const [showOptimizeDialog, setShowOptimizeDialog] = useState(false);
+
+  // Content score hook
   const {
     score,
     serpMatrix,
@@ -193,9 +72,18 @@ export function ContentScorePanel({
     boostScore
   } = useContentScore(articleId, content, title, keyword, blogId);
 
-  const [termsOpen, setTermsOpen] = useState(true);
-  const [recommendationsOpen, setRecommendationsOpen] = useState(true);
-  const [termsTab, setTermsTab] = useState('keywords');
+  // Content optimizer hook
+  const optimizer = useContentOptimizer({
+    articleId,
+    blogId,
+    content,
+    title,
+    keyword,
+    onContentUpdate,
+    onScoreUpdate: (newScore) => {
+      // Score will be recalculated automatically
+    }
+  });
 
   // Auto-calculate score when content changes significantly
   useEffect(() => {
@@ -207,6 +95,7 @@ export function ContentScorePanel({
     }
   }, [content, keyword, blogId, calculateScore]);
 
+  // Handle optimize actions
   const handleOptimize = async () => {
     const optimizedContent = await optimizeForSERP();
     if (optimizedContent && onContentUpdate) {
@@ -221,10 +110,89 @@ export function ContentScorePanel({
     }
   };
 
-  // Derive terms status
-  const coveredTerms = score?.breakdown.semanticCoverage.covered || [];
-  const missingTerms = score?.breakdown.semanticCoverage.missing || [];
+  const handleRunTo100 = () => {
+    setShowOptimizeDialog(true);
+    optimizer.runTo100();
+  };
 
+  // Handle individual area fixes
+  const handleFixArea = async (area: 'words' | 'h2' | 'paragraphs' | 'images') => {
+    let result: string | null = null;
+    switch (area) {
+      case 'words':
+        result = await optimizer.fixWords();
+        break;
+      case 'h2':
+        result = await optimizer.fixH2();
+        break;
+      case 'paragraphs':
+        result = await optimizer.fixParagraphs();
+        break;
+      case 'images':
+        result = await optimizer.fixImages();
+        break;
+    }
+    if (result && onContentUpdate) {
+      onContentUpdate(result);
+      // Recalculate score after fix
+      setTimeout(() => calculateScore(), 500);
+    }
+  };
+
+  // Handle recommendation fix
+  const handleFixRecommendation = async (rec: string | { text: string }, index: number) => {
+    // For now, use full optimization to address recommendations
+    const boostedContent = await boostScore(80);
+    if (boostedContent && onContentUpdate) {
+      onContentUpdate(boostedContent);
+    }
+  };
+
+  // Derive structure metrics from score
+  const structureMetrics: StructureMetrics | null = useMemo(() => {
+    if (!score || !serpMatrix) return null;
+
+    const marketAvg = serpMatrix.averages;
+    const threshold = 0.15;
+
+    const getStatus = (value: number, avg: number): 'below' | 'within' | 'above' => {
+      const min = avg * (1 - threshold);
+      const max = avg * (1 + threshold);
+      if (value < min) return 'below';
+      if (value > max) return 'above';
+      return 'within';
+    };
+
+    const getRange = (avg: number) => ({
+      min: Math.round(avg * 0.85),
+      max: Math.round(avg * 1.15)
+    });
+
+    return {
+      words: {
+        value: score.comparison.words.article,
+        ...getRange(marketAvg.avgWords),
+        status: score.breakdown.wordProximity.status
+      },
+      h2: {
+        value: score.comparison.h2.article,
+        ...getRange(marketAvg.avgH2),
+        status: score.breakdown.h2Coverage.status
+      },
+      paragraphs: {
+        value: score.comparison.paragraphs.article,
+        ...getRange(marketAvg.avgParagraphs),
+        status: getStatus(score.comparison.paragraphs.article, marketAvg.avgParagraphs)
+      },
+      images: {
+        value: score.comparison.images.article,
+        ...getRange(marketAvg.avgImages),
+        status: getStatus(score.comparison.images.article, marketAvg.avgImages)
+      }
+    };
+  }, [score, serpMatrix]);
+
+  // No keyword state
   if (!keyword) {
     return (
       <Card className="h-full">
@@ -233,6 +201,25 @@ export function ContentScorePanel({
             <Search className="h-8 w-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">Adicione uma palavra-chave para analisar</p>
           </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Collapsed state - just show toggle button
+  if (!isPanelVisible) {
+    return (
+      <Card className="h-full">
+        <CardContent className="flex items-center justify-center h-full p-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsPanelVisible(true)}
+            className="gap-2"
+          >
+            <BarChart3 className="h-4 w-4" />
+            <Eye className="h-4 w-4" />
+          </Button>
         </CardContent>
       </Card>
     );
@@ -256,22 +243,36 @@ export function ContentScorePanel({
                 </TooltipContent>
               </Tooltip>
             </CardTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={() => calculateScore()}
-              disabled={loading}
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => calculateScore()}
+                disabled={loading}
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={() => setIsPanelVisible(false)}
+              >
+                <EyeOff className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
         </CardHeader>
 
         <ScrollArea className="flex-1">
           <CardContent className="space-y-4 px-4 pb-4">
-            {/* Score Gauge */}
-            <ScoreGauge score={score?.total ?? null} loading={loading} />
+            {/* Score Gauge - New 3-zone design */}
+            <ContentScoreGauge 
+              score={score?.total ?? null} 
+              loading={loading}
+              goalMarker={50}
+            />
             
             {/* SERP Status */}
             {!serpMatrix ? (
@@ -302,177 +303,52 @@ export function ContentScorePanel({
 
             <Separator />
 
-            {/* Structure Metrics */}
-            {score && (
-              <div className="space-y-1">
-                <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-2">
-                  Estrutura
-                </h4>
-                
-                <MetricRow
-                  icon={<FileText className="h-4 w-4 text-muted-foreground" />}
-                  label="Palavras"
-                  value={score.comparison.words.article}
-                  marketValue={score.comparison.words.market}
-                  status={score.breakdown.wordProximity.status}
-                />
-                
-                <MetricRow
-                  icon={<Hash className="h-4 w-4 text-muted-foreground" />}
-                  label="H2"
-                  value={score.comparison.h2.article}
-                  marketValue={score.comparison.h2.market}
-                  status={score.breakdown.h2Coverage.status}
-                />
-                
-                <MetricRow
-                  icon={<List className="h-4 w-4 text-muted-foreground" />}
-                  label="Parágrafos"
-                  value={score.comparison.paragraphs.article}
-                  marketValue={score.comparison.paragraphs.market}
-                  status={score.comparison.paragraphs.diff >= 0 ? 'above' : 'below'}
-                />
-                
-                <MetricRow
-                  icon={<Image className="h-4 w-4 text-muted-foreground" />}
-                  label="Imagens"
-                  value={score.comparison.images.article}
-                  marketValue={score.comparison.images.market}
-                  status={score.comparison.images.diff >= 0 ? 'above' : 'below'}
-                />
-              </div>
-            )}
+            {/* Structure Metrics Grid - New 2x2 layout with fix buttons */}
+            <StructureMetricsGrid
+              metrics={structureMetrics}
+              onFix={handleFixArea}
+              fixingArea={optimizer.fixingArea}
+              loading={loading && !score}
+            />
 
             <Separator />
 
-            {/* Terms Section with Tabs */}
-            {score && (
-              <Collapsible open={termsOpen} onOpenChange={setTermsOpen}>
-                <CollapsibleTrigger className="flex items-center justify-between w-full py-1 text-xs font-semibold uppercase text-muted-foreground hover:text-foreground">
-                  <span>Termos ({coveredTerms.length + missingTerms.length})</span>
-                  {termsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2">
-                  <Tabs value={termsTab} onValueChange={setTermsTab}>
-                    <TabsList className="grid w-full grid-cols-2 h-8">
-                      <TabsTrigger value="keywords" className="text-xs">
-                        Palavras-chave ({coveredTerms.length + missingTerms.length})
-                      </TabsTrigger>
-                      <TabsTrigger value="coverage" className="text-xs">
-                        Cobertura ({score.breakdown.semanticCoverage.percentage}%)
-                      </TabsTrigger>
-                    </TabsList>
-                    
-                    <TabsContent value="keywords" className="mt-2">
-                      <div className="flex flex-wrap gap-1.5 max-h-[200px] overflow-y-auto">
-                        {coveredTerms.slice(0, 10).map((term) => (
-                          <TermBadge key={term} term={term} status="present" />
-                        ))}
-                        {missingTerms.slice(0, 10).map((term) => (
-                          <TermBadge key={term} term={term} status="missing" />
-                        ))}
-                      </div>
-                    </TabsContent>
-                    
-                    <TabsContent value="coverage" className="mt-2">
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-xs">
-                          <span className="text-muted-foreground">Termos cobertos</span>
-                          <span className="font-medium text-green-600">{coveredTerms.length}</span>
-                        </div>
-                        <div className="flex justify-between text-xs">
-                          <span className="text-muted-foreground">Termos faltantes</span>
-                          <span className="font-medium text-red-600">{missingTerms.length}</span>
-                        </div>
-                        <div className="w-full bg-muted rounded-full h-2 mt-2">
-                          <div 
-                            className="bg-green-500 h-2 rounded-full transition-all"
-                            style={{ width: `${score.breakdown.semanticCoverage.percentage}%` }}
-                          />
-                        </div>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-                </CollapsibleContent>
-              </Collapsible>
-            )}
+            {/* Terms Tabs Panel - Fixed "Termos (0)" bug */}
+            <TermsTabsPanel
+              commonTerms={serpMatrix?.commonTerms || []}
+              topTitles={serpMatrix?.topTitles || []}
+              coveredTerms={score?.breakdown.semanticCoverage.covered || []}
+              missingTerms={score?.breakdown.semanticCoverage.missing || []}
+              coveragePercentage={score?.breakdown.semanticCoverage.percentage || 0}
+              loading={loading && !score}
+              hasAnalysis={!!serpMatrix}
+            />
 
             <Separator />
 
-            {/* Recommendations */}
+            {/* Recommendations Panel with auto-fix */}
             {score && score.recommendations.length > 0 && (
-              <Collapsible open={recommendationsOpen} onOpenChange={setRecommendationsOpen}>
-                <CollapsibleTrigger className="flex items-center justify-between w-full py-1 text-xs font-semibold uppercase text-muted-foreground hover:text-foreground">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="h-3.5 w-3.5" />
-                    Recomendações ({score.recommendations.length})
-                  </div>
-                  {recommendationsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-2 space-y-2">
-                  {score.recommendations.slice(0, 4).map((rec, i) => (
-                    <div key={i} className="text-xs p-2.5 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 rounded-md border border-amber-200 dark:border-amber-800">
-                      {rec}
-                    </div>
-                  ))}
-                </CollapsibleContent>
-              </Collapsible>
+              <>
+                <RecommendationsPanel
+                  recommendations={score.recommendations}
+                  onFix={handleFixRecommendation}
+                />
+                <Separator />
+              </>
             )}
 
-            <Separator />
-
-            {/* AI Actions */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold uppercase text-muted-foreground flex items-center gap-2">
-                <Sparkles className="h-3.5 w-3.5" />
-                Ações IA
-              </h4>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-start gap-2"
-                onClick={analyzeSERP}
-                disabled={analyzing}
-              >
-                {analyzing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Search className="h-4 w-4" />
-                )}
-                Analisar Concorrência
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                className="w-full justify-start gap-2"
-                onClick={handleOptimize}
-                disabled={optimizing || !serpMatrix}
-              >
-                {optimizing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Target className="h-4 w-4" />
-                )}
-                Otimizar para SERP
-              </Button>
-
-              <Button
-                variant="default"
-                size="sm"
-                className="w-full justify-start gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
-                onClick={handleBoost}
-                disabled={optimizing || !serpMatrix}
-              >
-                {optimizing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Zap className="h-4 w-4" />
-                )}
-                Aumentar Score
-              </Button>
-            </div>
+            {/* AI Actions Panel */}
+            <AIActionsPanel
+              onAnalyze={analyzeSERP}
+              onOptimize={handleOptimize}
+              onBoost={handleBoost}
+              onRunTo100={handleRunTo100}
+              analyzing={analyzing}
+              optimizing={optimizing}
+              boosting={optimizing}
+              runningTo100={optimizer.isRunning}
+              hasAnalysis={!!serpMatrix}
+            />
 
             {/* Quality Gate Status */}
             {score && (
@@ -497,6 +373,19 @@ export function ContentScorePanel({
           </CardContent>
         </ScrollArea>
       </Card>
+
+      {/* Optimize to 100 Dialog */}
+      <OptimizeTo100Dialog
+        open={showOptimizeDialog}
+        onOpenChange={setShowOptimizeDialog}
+        steps={optimizer.steps}
+        currentScore={score?.total || 0}
+        targetScore={100}
+        progress={optimizer.progress}
+        isRunning={optimizer.isRunning}
+        onCancel={optimizer.cancelOptimization}
+        scoreHistory={optimizer.scoreHistory}
+      />
     </TooltipProvider>
   );
 }
