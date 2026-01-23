@@ -1,5 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { 
+  isVersionedContentEnabled, 
+  logContentVersion, 
+  logScoreChange,
+  createSuggestionResponse,
+  type ChangeSource 
+} from "../_shared/contentGuard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +18,10 @@ const corsHeaders = {
  * 
  * Uses LLM to automatically fix quality issues detected by the Quality Gate.
  * Preserves author voice and style while addressing structural/compliance issues.
+ * 
+ * ARQUITETURA DETERMINÍSTICA:
+ * - Se FEATURE_VERSIONED_CONTENT ativo: retorna sugestão para aprovação
+ * - Se inativo: comportamento legado (UPDATE direto)
  */
 
 interface AutoFixRequest {
@@ -19,6 +30,8 @@ interface AutoFixRequest {
   fix_suggestions: string[];
   current_content: string;
   attempt_number: number;
+  // Novo: indica se o usuário clicou em "Corrigir"
+  user_initiated?: boolean;
 }
 
 const FIX_PROMPT = `Você é um editor profissional de conteúdo. Sua tarefa é corrigir problemas específicos em um artigo SEM alterar o tom, a voz ou o estilo do autor.
@@ -52,7 +65,11 @@ serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const { articleId, blogId, fix_suggestions, current_content, attempt_number }: AutoFixRequest = await req.json();
+    const { articleId, blogId, fix_suggestions, current_content, attempt_number, user_initiated }: AutoFixRequest = await req.json();
+    
+    // Verificar se o novo sistema de versionamento está ativo
+    const versionedContentEnabled = await isVersionedContentEnabled(supabase, blogId);
+    console.log(`[AUTO-FIX] Versioned content enabled: ${versionedContentEnabled}, user_initiated: ${user_initiated}`);
 
     if (!articleId || !fix_suggestions || fix_suggestions.length === 0) {
       return new Response(
@@ -160,6 +177,42 @@ serve(async (req) => {
       );
     }
 
+    // =========================================================================
+    // ARQUITETURA DETERMINÍSTICA: Decisão baseada em feature flag
+    // =========================================================================
+    
+    if (versionedContentEnabled && !user_initiated) {
+      // NOVO COMPORTAMENTO: Retornar sugestão para aprovação do usuário
+      console.log(`[AUTO-FIX] Returning suggestion for user approval (versioned content enabled)`);
+      
+      return new Response(
+        JSON.stringify(createSuggestionResponse(
+          fixedContent,
+          'quality_gate_auto_fix',
+          current_content,
+          {
+            suggestions_applied: fix_suggestions.length,
+            attempt_number
+          }
+        )),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // COMPORTAMENTO: UPDATE direto (legado OU user_initiated)
+    const changeSource: ChangeSource = user_initiated ? 'user_fix' : 'auto_fix';
+    
+    // Se versionamento ativo e user_initiated, registrar versão
+    if (versionedContentEnabled && user_initiated) {
+      await logContentVersion(
+        supabase,
+        articleId,
+        fixedContent,
+        changeSource,
+        `Auto-fix aplicado pelo usuário: ${fix_suggestions.length} correções`
+      );
+    }
+
     // Update article with fixed content
     await supabase
       .from("articles")
@@ -184,7 +237,7 @@ serve(async (req) => {
       .order("validated_at", { ascending: false })
       .limit(1);
 
-    console.log(`[AUTO-FIX] Successfully fixed article ${articleId}`);
+    console.log(`[AUTO-FIX] Successfully fixed article ${articleId} (${changeSource})`);
 
     return new Response(
       JSON.stringify({ 

@@ -1,11 +1,15 @@
 // ═══════════════════════════════════════════════════════════════════
 // ANALYZE-SERP: Análise de Concorrência em Tempo Real (SERP)
 // Motor: Perplexity Sonar Pro
+// 
+// ARQUITETURA DETERMINÍSTICA:
+// - Filtro de nicho para evitar contaminação de termos
 // ═══════════════════════════════════════════════════════════════════
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SERPMatrix, SERPCompetitor } from "../_shared/serpTypes.ts";
+import { detectNicheCategory, filterTermsByNiche } from "../_shared/nicheFilter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -204,28 +208,48 @@ Retorne APENAS um JSON válido no formato:
       serpData = JSON.parse(content);
     }
 
+    // =========================================================================
+    // FILTRO DE NICHO: Buscar perfil e filtrar termos
+    // =========================================================================
+    const { data: businessProfile } = await supabase
+      .from("business_profile")
+      .select("niche, services")
+      .eq("blog_id", blogId)
+      .single();
+
+    const nicheCategory = detectNicheCategory(
+      businessProfile?.niche, 
+      businessProfile?.services
+    );
+
+    // Filtrar termos comuns pelo nicho
+    const originalTermsCount = serpData.commonTerms?.length || 0;
+    const filteredTerms = filterTermsByNiche(serpData.commonTerms || [], nicheCategory);
+    
+    console.log(`[ANALYZE-SERP] Niche: ${nicheCategory}, terms filtered: ${originalTermsCount} → ${filteredTerms.length}`);
+
     // Calculate averages
     const competitors = serpData.competitors || [];
     const avgWords = competitors.length > 0 
-      ? Math.round(competitors.reduce((sum, c) => sum + (c.metrics?.wordCount || 0), 0) / competitors.length)
+      ? Math.round(competitors.reduce((sum: number, c: SERPCompetitor) => sum + (c.metrics?.wordCount || 0), 0) / competitors.length)
       : 1500;
     const avgH2 = competitors.length > 0
-      ? Math.round(competitors.reduce((sum, c) => sum + (c.metrics?.h2Count || 0), 0) / competitors.length)
+      ? Math.round(competitors.reduce((sum: number, c: SERPCompetitor) => sum + (c.metrics?.h2Count || 0), 0) / competitors.length)
       : 8;
     const avgH3 = competitors.length > 0
-      ? Math.round(competitors.reduce((sum, c) => sum + (c.metrics?.h3Count || 0), 0) / competitors.length)
+      ? Math.round(competitors.reduce((sum: number, c: SERPCompetitor) => sum + (c.metrics?.h3Count || 0), 0) / competitors.length)
       : 4;
     const avgParagraphs = competitors.length > 0
-      ? Math.round(competitors.reduce((sum, c) => sum + (c.metrics?.paragraphCount || 0), 0) / competitors.length)
+      ? Math.round(competitors.reduce((sum: number, c: SERPCompetitor) => sum + (c.metrics?.paragraphCount || 0), 0) / competitors.length)
       : 40;
     const avgImages = competitors.length > 0
-      ? Math.round(competitors.reduce((sum, c) => sum + (c.metrics?.imageCount || 0), 0) / competitors.length)
+      ? Math.round(competitors.reduce((sum: number, c: SERPCompetitor) => sum + (c.metrics?.imageCount || 0), 0) / competitors.length)
       : 5;
     const avgLists = competitors.length > 0
-      ? Math.round(competitors.reduce((sum, c) => sum + (c.metrics?.listCount || 0), 0) / competitors.length)
+      ? Math.round(competitors.reduce((sum: number, c: SERPCompetitor) => sum + (c.metrics?.listCount || 0), 0) / competitors.length)
       : 3;
 
-    // Build SERPMatrix
+    // Build SERPMatrix com termos filtrados
     const matrix: SERPMatrix = {
       keyword,
       territory: territory || null,
@@ -239,7 +263,7 @@ Retorne APENAS um JSON válido no formato:
         avgImages,
         avgLists
       },
-      commonTerms: serpData.commonTerms || [],
+      commonTerms: filteredTerms,  // Termos JÁ FILTRADOS pelo nicho
       topTitles: serpData.topTitles || [],
       contentGaps: serpData.contentGaps || []
     };

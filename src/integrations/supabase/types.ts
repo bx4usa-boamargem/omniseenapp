@@ -487,6 +487,7 @@ export type Database = {
           breakdown: Json
           calculated_at: string | null
           comparison: Json
+          content_version: number | null
           created_at: string | null
           h2_count: number | null
           id: string
@@ -505,6 +506,7 @@ export type Database = {
           breakdown?: Json
           calculated_at?: string | null
           comparison?: Json
+          content_version?: number | null
           created_at?: string | null
           h2_count?: number | null
           id?: string
@@ -523,6 +525,7 @@ export type Database = {
           breakdown?: Json
           calculated_at?: string | null
           comparison?: Json
+          content_version?: number | null
           created_at?: string | null
           h2_count?: number | null
           id?: string
@@ -961,7 +964,10 @@ export type Database = {
         Row: {
           article_id: string
           change_description: string | null
+          change_reason: string | null
+          change_source: string | null
           change_type: string
+          changed_by: string | null
           content: string | null
           created_at: string | null
           created_by: string | null
@@ -969,14 +975,20 @@ export type Database = {
           faq: Json | null
           id: string
           keywords: string[] | null
+          layer_type: string | null
           meta_description: string | null
+          score_at_save: number | null
           title: string
           version_number: number
+          word_count: number | null
         }
         Insert: {
           article_id: string
           change_description?: string | null
+          change_reason?: string | null
+          change_source?: string | null
           change_type: string
+          changed_by?: string | null
           content?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -984,14 +996,20 @@ export type Database = {
           faq?: Json | null
           id?: string
           keywords?: string[] | null
+          layer_type?: string | null
           meta_description?: string | null
+          score_at_save?: number | null
           title: string
           version_number?: number
+          word_count?: number | null
         }
         Update: {
           article_id?: string
           change_description?: string | null
+          change_reason?: string | null
+          change_source?: string | null
           change_type?: string
+          changed_by?: string | null
           content?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -999,9 +1017,12 @@ export type Database = {
           faq?: Json | null
           id?: string
           keywords?: string[] | null
+          layer_type?: string | null
           meta_description?: string | null
+          score_at_save?: number | null
           title?: string
           version_number?: number
+          word_count?: number | null
         }
         Relationships: [
           {
@@ -1023,6 +1044,7 @@ export type Database = {
           category: string | null
           content: string | null
           content_images: Json | null
+          content_version: number | null
           conversion_intent_count: number | null
           conversion_visibility_count: number | null
           created_at: string
@@ -1038,6 +1060,8 @@ export type Database = {
           highlights: Json | null
           id: string
           keywords: string[] | null
+          last_user_action: string | null
+          last_user_action_at: string | null
           meta_description: string | null
           mini_case: Json | null
           opportunity_id: string | null
@@ -1072,6 +1096,7 @@ export type Database = {
           category?: string | null
           content?: string | null
           content_images?: Json | null
+          content_version?: number | null
           conversion_intent_count?: number | null
           conversion_visibility_count?: number | null
           created_at?: string
@@ -1087,6 +1112,8 @@ export type Database = {
           highlights?: Json | null
           id?: string
           keywords?: string[] | null
+          last_user_action?: string | null
+          last_user_action_at?: string | null
           meta_description?: string | null
           mini_case?: Json | null
           opportunity_id?: string | null
@@ -1121,6 +1148,7 @@ export type Database = {
           category?: string | null
           content?: string | null
           content_images?: Json | null
+          content_version?: number | null
           conversion_intent_count?: number | null
           conversion_visibility_count?: number | null
           created_at?: string
@@ -1136,6 +1164,8 @@ export type Database = {
           highlights?: Json | null
           id?: string
           keywords?: string[] | null
+          last_user_action?: string | null
+          last_user_action_at?: string | null
           meta_description?: string | null
           mini_case?: Json | null
           opportunity_id?: string | null
@@ -1457,6 +1487,41 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "blog_contact_buttons_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blog_feature_flags: {
+        Row: {
+          blog_id: string
+          created_at: string | null
+          flag_name: string
+          id: string
+          is_enabled: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          blog_id: string
+          created_at?: string | null
+          flag_name: string
+          id?: string
+          is_enabled?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          blog_id?: string
+          created_at?: string | null
+          flag_name?: string
+          id?: string
+          is_enabled?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blog_feature_flags_blog_id_fkey"
             columns: ["blog_id"]
             isOneToOne: false
             referencedRelation: "blogs"
@@ -4952,6 +5017,50 @@ export type Database = {
           referrer_user_id?: string
         }
         Relationships: []
+      }
+      score_change_log: {
+        Row: {
+          article_id: string
+          change_reason: string
+          content_version: number | null
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          new_score: number | null
+          old_score: number | null
+          triggered_by: string
+        }
+        Insert: {
+          article_id: string
+          change_reason: string
+          content_version?: number | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          new_score?: number | null
+          old_score?: number | null
+          triggered_by: string
+        }
+        Update: {
+          article_id?: string
+          change_reason?: string
+          content_version?: number | null
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          new_score?: number | null
+          old_score?: number | null
+          triggered_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "score_change_log_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "articles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       section_analytics: {
         Row: {

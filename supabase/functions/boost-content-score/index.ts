@@ -1,12 +1,27 @@
 // ═══════════════════════════════════════════════════════════════════
 // BOOST-CONTENT-SCORE: Otimização Automática de Conteúdo
 // Combina: optimize-for-serp + adjust-structure + semantic-enrichment
+// 
+// ARQUITETURA DETERMINÍSTICA:
+// - Feature flag para controle de versionamento
+// - Filtro de nicho para evitar contaminação
+// - Log de alterações de score
 // ═══════════════════════════════════════════════════════════════════
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { calculateContentScore, extractArticleMetrics } from "../_shared/contentScoring.ts";
 import { SERPMatrix, ContentScore } from "../_shared/serpTypes.ts";
+import { 
+  isVersionedContentEnabled, 
+  logScoreChange, 
+  getCurrentVersion 
+} from "../_shared/contentGuard.ts";
+import { 
+  detectNicheCategory, 
+  filterTermsByNiche, 
+  findNicheViolations 
+} from "../_shared/nicheFilter.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,7 +35,9 @@ interface BoostRequest {
   keyword: string;
   blogId: string;
   targetScore?: number;
-  optimizationType?: 'full' | 'terms' | 'structure' | 'expansion';
+  optimizationType?: 'full' | 'terms' | 'structure' | 'expansion' | 'words' | 'h2' | 'rewrite';
+  // Novo: indica que o usuário iniciou a ação
+  userInitiated?: boolean;
 }
 
 serve(async (req) => {
@@ -39,7 +56,8 @@ serve(async (req) => {
       keyword, 
       blogId,
       targetScore = 80,
-      optimizationType = 'full'
+      optimizationType = 'full',
+      userInitiated = true  // Default: assumir que veio do usuário
     } = request;
 
     if (!content || !keyword || !blogId) {
@@ -49,13 +67,30 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[BOOST-SCORE] Starting optimization for "${keyword}" | Target: ${targetScore} | Type: ${optimizationType}`);
+    console.log(`[BOOST-SCORE] Starting optimization for "${keyword}" | Target: ${targetScore} | Type: ${optimizationType} | User: ${userInitiated}`);
 
     // Initialize Supabase
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+
+    // Verificar feature flag
+    const versionedContentEnabled = await isVersionedContentEnabled(supabase, blogId);
+    console.log(`[BOOST-SCORE] Versioned content enabled: ${versionedContentEnabled}`);
+
+    // Buscar perfil do negócio para filtro de nicho
+    const { data: businessProfile } = await supabase
+      .from("business_profile")
+      .select("niche, services")
+      .eq("blog_id", blogId)
+      .single();
+
+    const nicheCategory = detectNicheCategory(
+      businessProfile?.niche, 
+      businessProfile?.services
+    );
+    console.log(`[BOOST-SCORE] Detected niche category: ${nicheCategory}`);
 
     // Fetch SERP matrix
     let serpData = await supabase
@@ -127,11 +162,28 @@ serve(async (req) => {
 
     const serpMatrix = serpData.matrix as SERPMatrix;
     
+    // =========================================================================
+    // FILTRO DE NICHO: Remover termos genéricos que não pertencem ao nicho
+    // =========================================================================
+    const originalTermsCount = serpMatrix.commonTerms?.length || 0;
+    serpMatrix.commonTerms = filterTermsByNiche(
+      serpMatrix.commonTerms || [], 
+      nicheCategory
+    );
+    console.log(`[BOOST-SCORE] Terms filtered: ${originalTermsCount} → ${serpMatrix.commonTerms.length} (niche: ${nicheCategory})`);
+    
     // Calculate current score
     const currentMetrics = extractArticleMetrics(content);
     const currentScore = calculateContentScore({ title, content, ...currentMetrics }, serpMatrix);
     
     console.log(`[BOOST-SCORE] Current score: ${currentScore.total}/100`);
+
+    // Buscar versão atual do artigo se versionamento ativo
+    let currentVersion: number | undefined;
+    if (versionedContentEnabled && articleId) {
+      currentVersion = await getCurrentVersion(supabase, articleId);
+      console.log(`[BOOST-SCORE] Current article version: ${currentVersion}`);
+    }
 
     // Determine what optimizations are needed
     const optimizations: string[] = [];
@@ -146,8 +198,14 @@ serve(async (req) => {
       optimizations.push(`STRUCTURE: Add ${h2Needed} H2 sections`);
     }
     
-    if (currentScore.breakdown.semanticCoverage.missing.length > 0) {
-      const missingTerms = currentScore.breakdown.semanticCoverage.missing.slice(0, 10);
+    // Filtrar termos faltantes pelo nicho também
+    const filteredMissingTerms = filterTermsByNiche(
+      currentScore.breakdown.semanticCoverage.missing || [],
+      nicheCategory
+    );
+    
+    if (filteredMissingTerms.length > 0) {
+      const missingTerms = filteredMissingTerms.slice(0, 10);
       optimizations.push(`TERMS: Include these missing terms: ${missingTerms.join(', ')}`);
     }
     
@@ -169,13 +227,21 @@ serve(async (req) => {
           content,
           currentScore: currentScore.total,
           targetScore,
-          message: "Article already meets target score"
+          message: "Article already meets target score",
+          content_version: currentVersion
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Build optimization prompt
+    // Build optimization prompt com proteção de nicho
+    const nicheWarning = nicheCategory !== 'default' && nicheCategory !== 'marketing' && nicheCategory !== 'tecnologia'
+      ? `\n## IMPORTANTE - PROTEÇÃO DE NICHO
+Este é um artigo do nicho "${nicheCategory}". 
+NUNCA insira termos genéricos de marketing digital como: SEO, Google, marketing digital, agência, tráfego, leads, conversão, rankeamento, funil de vendas.
+O SEO deve ser INVISÍVEL ao leitor. O conteúdo deve parecer 100% orgânico e natural para o nicho.`
+      : '';
+
     const optimizePrompt = `Você é um editor SEO especialista. Otimize este artigo para melhorar seu Content Score.
 
 ## ARTIGO ATUAL
@@ -183,6 +249,7 @@ Título: ${title}
 Palavras: ${currentMetrics.wordCount}
 H2s: ${currentMetrics.h2Count}
 Score atual: ${currentScore.total}/100
+${nicheWarning}
 
 ## CONTEÚDO
 ${content}
@@ -190,14 +257,14 @@ ${content}
 ## MÉTRICAS DO MERCADO (SERP)
 - Média de palavras: ${serpMatrix.averages.avgWords}
 - Média de H2s: ${serpMatrix.averages.avgH2}
-- Termos dominantes: ${serpMatrix.commonTerms.slice(0, 15).join(', ')}
+- Termos dominantes (JÁ FILTRADOS PARA O NICHO): ${serpMatrix.commonTerms.slice(0, 15).join(', ')}
 - Gaps de conteúdo: ${serpMatrix.contentGaps.slice(0, 5).join(', ')}
 
 ## OTIMIZAÇÕES NECESSÁRIAS
 ${optimizations.map((o, i) => `${i + 1}. ${o}`).join('\n')}
 
 ## TERMOS FALTANTES (INCLUIR OBRIGATORIAMENTE)
-${currentScore.breakdown.semanticCoverage.missing.slice(0, 10).join(', ')}
+${filteredMissingTerms.slice(0, 10).join(', ')}
 
 ## INSTRUÇÕES
 1. Mantenha a estrutura geral do artigo
@@ -207,6 +274,7 @@ ${currentScore.breakdown.semanticCoverage.missing.slice(0, 10).join(', ')}
 5. Garanta um CTA claro no final
 6. Use o padrão Answer-First na introdução se não tiver
 7. Mantenha o tom e estilo originais
+8. NÃO insira termos de marketing genérico se o nicho não for marketing
 
 Retorne APENAS o artigo otimizado em HTML/Markdown, sem explicações.`;
 
@@ -283,8 +351,30 @@ Retorne APENAS o artigo otimizado em HTML/Markdown, sem explicações.`;
 
     console.log(`[BOOST-SCORE] New score: ${newScore.total}/100 (was ${currentScore.total})`);
 
+    // =========================================================================
+    // VALIDAÇÃO DE NICHO: Verificar se o conteúdo otimizado não foi contaminado
+    // =========================================================================
+    const violations = findNicheViolations(optimizedContent, nicheCategory);
+    if (violations.length > 0) {
+      console.warn(`[BOOST-SCORE] Niche violations detected: ${violations.join(', ')}`);
+      // Log mas não bloqueia - apenas avisa
+    }
+
     // Save updated score if articleId provided
     if (articleId) {
+      // Se versionamento ativo, registrar log de score
+      if (versionedContentEnabled) {
+        await logScoreChange(
+          supabase,
+          articleId,
+          currentScore.total,
+          newScore.total,
+          `boost_${optimizationType}`,
+          userInitiated ? 'user' : 'system',
+          currentVersion
+        );
+      }
+
       await supabase
         .from("article_content_scores")
         .upsert({
@@ -300,7 +390,8 @@ Retorne APENAS o artigo otimizado em HTML/Markdown, sem explicações.`;
           image_count: newMetrics.imageCount,
           semantic_coverage: newScore.breakdown.semanticCoverage.percentage,
           meets_market_standards: newScore.meetsMarketStandards,
-          calculated_at: new Date().toISOString()
+          calculated_at: new Date().toISOString(),
+          content_version: currentVersion  // Vincular score à versão
         }, {
           onConflict: 'article_id'
         });
@@ -310,20 +401,24 @@ Retorne APENAS o artigo otimizado em HTML/Markdown, sem explicações.`;
     const durationMs = Date.now() - startTime;
     await supabase.from("ai_usage_logs").insert({
       blog_id: blogId,
-      provider: "openai",
+      provider: "lovable",
       endpoint: "boost-content-score",
-      cost_usd: 0.05,
+      cost_usd: 0.03,
       tokens_used: 8000,
       success: true,
       metadata: {
         phase: "optimization",
-        model: "openai/gpt-5",
+        model: "google/gemini-2.5-flash",
         source: "PromptPy",
         optimization_type: optimizationType,
         score_before: currentScore.total,
         score_after: newScore.total,
         score_increase: newScore.total - currentScore.total,
-        duration_ms: durationMs
+        duration_ms: durationMs,
+        niche_category: nicheCategory,
+        niche_violations: violations.length > 0 ? violations : null,
+        user_initiated: userInitiated,
+        content_version: currentVersion
       }
     });
 
@@ -340,7 +435,10 @@ Retorne APENAS o artigo otimizado em HTML/Markdown, sem explicações.`;
           before: currentMetrics,
           after: newMetrics
         },
-        durationMs
+        durationMs,
+        content_version: currentVersion,
+        niche_category: nicheCategory,
+        niche_violations: violations.length > 0 ? violations : undefined
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
