@@ -3,25 +3,29 @@
 // Combina: optimize-for-serp + adjust-structure + semantic-enrichment
 // 
 // ARQUITETURA DETERMINÍSTICA:
+// - Perfil de Nicho dinâmico via banco de dados
+// - Piso de score por nicho
 // - Feature flag para controle de versionamento
-// - Filtro de nicho para evitar contaminação
 // - Log de alterações de score
 // ═══════════════════════════════════════════════════════════════════
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { calculateContentScore, extractArticleMetrics } from "../_shared/contentScoring.ts";
-import { SERPMatrix, ContentScore } from "../_shared/serpTypes.ts";
+import { SERPMatrix } from "../_shared/serpTypes.ts";
 import { 
   isVersionedContentEnabled, 
   logScoreChange, 
   getCurrentVersion 
 } from "../_shared/contentGuard.ts";
 import { 
-  detectNicheCategory, 
-  filterTermsByNiche, 
-  findNicheViolations 
-} from "../_shared/nicheFilter.ts";
+  getNicheProfile, 
+  filterTermsByProfile, 
+  validateContentForNiche,
+  applyScoreFloor,
+  getNichePromptInstructions,
+  NicheProfile
+} from "../_shared/nicheProfile.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -79,18 +83,14 @@ serve(async (req) => {
     const versionedContentEnabled = await isVersionedContentEnabled(supabase, blogId);
     console.log(`[BOOST-SCORE] Versioned content enabled: ${versionedContentEnabled}`);
 
-    // Buscar perfil do negócio para filtro de nicho
-    const { data: businessProfile } = await supabase
-      .from("business_profile")
-      .select("niche, services")
-      .eq("blog_id", blogId)
-      .single();
+    // =========================================================================
+    // PERFIL DE NICHO: Buscar perfil do banco
+    // =========================================================================
+    const nicheProfile: NicheProfile = await getNicheProfile(supabase, blogId);
+    console.log(`[BOOST-SCORE] Using niche profile: ${nicheProfile.displayName} (min_score: ${nicheProfile.minScore}, target: ${nicheProfile.targetScore})`);
 
-    const nicheCategory = detectNicheCategory(
-      businessProfile?.niche, 
-      businessProfile?.services
-    );
-    console.log(`[BOOST-SCORE] Detected niche category: ${nicheCategory}`);
+    // Usar target do nicho se não especificado
+    const effectiveTarget = targetScore || nicheProfile.targetScore;
 
     // Fetch SERP matrix
     let serpData = await supabase
@@ -166,17 +166,19 @@ serve(async (req) => {
     // FILTRO DE NICHO: Remover termos genéricos que não pertencem ao nicho
     // =========================================================================
     const originalTermsCount = serpMatrix.commonTerms?.length || 0;
-    serpMatrix.commonTerms = filterTermsByNiche(
+    serpMatrix.commonTerms = filterTermsByProfile(
       serpMatrix.commonTerms || [], 
-      nicheCategory
+      nicheProfile
     );
-    console.log(`[BOOST-SCORE] Terms filtered: ${originalTermsCount} → ${serpMatrix.commonTerms.length} (niche: ${nicheCategory})`);
+    console.log(`[BOOST-SCORE] Terms filtered: ${originalTermsCount} → ${serpMatrix.commonTerms.length} (niche: ${nicheProfile.name})`);
     
-    // Calculate current score
+    // Calculate current score with niche floor
     const currentMetrics = extractArticleMetrics(content);
-    const currentScore = calculateContentScore({ title, content, ...currentMetrics }, serpMatrix);
+    const rawScore = calculateContentScore({ title, content, ...currentMetrics }, serpMatrix);
+    const { score: currentScoreValue, floorApplied: currentFloorApplied } = applyScoreFloor(rawScore.total, nicheProfile);
+    const currentScore = { ...rawScore, total: currentScoreValue };
     
-    console.log(`[BOOST-SCORE] Current score: ${currentScore.total}/100`);
+    console.log(`[BOOST-SCORE] Current score: ${currentScore.total}/100 (raw: ${rawScore.total}, floor applied: ${currentFloorApplied})`);
 
     // Buscar versão atual do artigo se versionamento ativo
     let currentVersion: number | undefined;
@@ -199,9 +201,9 @@ serve(async (req) => {
     }
     
     // Filtrar termos faltantes pelo nicho também
-    const filteredMissingTerms = filterTermsByNiche(
+    const filteredMissingTerms = filterTermsByProfile(
       currentScore.breakdown.semanticCoverage.missing || [],
-      nicheCategory
+      nicheProfile
     );
     
     if (filteredMissingTerms.length > 0) {
@@ -218,29 +220,29 @@ serve(async (req) => {
     }
 
     // If already at target, return early
-    if (currentScore.total >= targetScore && optimizations.length === 0) {
-      console.log(`[BOOST-SCORE] Already at target score, no optimization needed`);
+    if (currentScore.total >= effectiveTarget && optimizations.length === 0) {
+      console.log(`[BOOST-SCORE] Already at target score (${effectiveTarget}), no optimization needed`);
       return new Response(
         JSON.stringify({
           success: true,
           optimized: false,
           content,
           currentScore: currentScore.total,
-          targetScore,
+          targetScore: effectiveTarget,
           message: "Article already meets target score",
-          content_version: currentVersion
+          content_version: currentVersion,
+          nicheProfile: {
+            name: nicheProfile.displayName,
+            minScore: nicheProfile.minScore,
+            floorApplied: currentFloorApplied
+          }
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Build optimization prompt com proteção de nicho
-    const nicheWarning = nicheCategory !== 'default' && nicheCategory !== 'marketing' && nicheCategory !== 'tecnologia'
-      ? `\n## IMPORTANTE - PROTEÇÃO DE NICHO
-Este é um artigo do nicho "${nicheCategory}". 
-NUNCA insira termos genéricos de marketing digital como: SEO, Google, marketing digital, agência, tráfego, leads, conversão, rankeamento, funil de vendas.
-O SEO deve ser INVISÍVEL ao leitor. O conteúdo deve parecer 100% orgânico e natural para o nicho.`
-      : '';
+    // Build optimization prompt with niche instructions
+    const nicheInstructions = getNichePromptInstructions(nicheProfile);
 
     const optimizePrompt = `Você é um editor SEO especialista. Otimize este artigo para melhorar seu Content Score.
 
@@ -249,7 +251,8 @@ Título: ${title}
 Palavras: ${currentMetrics.wordCount}
 H2s: ${currentMetrics.h2Count}
 Score atual: ${currentScore.total}/100
-${nicheWarning}
+
+## ${nicheInstructions}
 
 ## CONTEÚDO
 ${content}
@@ -345,18 +348,20 @@ Retorne APENAS o artigo otimizado em HTML/Markdown, sem explicações.`;
     const aiData = await aiResponse.json();
     const optimizedContent = aiData.choices?.[0]?.message?.content || content;
 
-    // Calculate new score
+    // Calculate new score with niche floor
     const newMetrics = extractArticleMetrics(optimizedContent);
-    const newScore = calculateContentScore({ title, content: optimizedContent, ...newMetrics }, serpMatrix);
+    const rawNewScore = calculateContentScore({ title, content: optimizedContent, ...newMetrics }, serpMatrix);
+    const { score: newScoreValue, floorApplied: newFloorApplied, reason: floorReason } = applyScoreFloor(rawNewScore.total, nicheProfile);
+    const newScore = { ...rawNewScore, total: newScoreValue };
 
-    console.log(`[BOOST-SCORE] New score: ${newScore.total}/100 (was ${currentScore.total})`);
+    console.log(`[BOOST-SCORE] New score: ${newScore.total}/100 (raw: ${rawNewScore.total}, floor: ${newFloorApplied}, was ${currentScore.total})`);
 
     // =========================================================================
     // VALIDAÇÃO DE NICHO: Verificar se o conteúdo otimizado não foi contaminado
     // =========================================================================
-    const violations = findNicheViolations(optimizedContent, nicheCategory);
-    if (violations.length > 0) {
-      console.warn(`[BOOST-SCORE] Niche violations detected: ${violations.join(', ')}`);
+    const validationResult = validateContentForNiche(optimizedContent, nicheProfile);
+    if (!validationResult.valid) {
+      console.warn(`[BOOST-SCORE] Niche violations detected: ${validationResult.violations.join(', ')}`);
       // Log mas não bloqueia - apenas avisa
     }
 
@@ -364,12 +369,13 @@ Retorne APENAS o artigo otimizado em HTML/Markdown, sem explicações.`;
     if (articleId) {
       // Se versionamento ativo, registrar log de score
       if (versionedContentEnabled) {
+        const changeReason = newFloorApplied ? floorReason : `boost_${optimizationType}`;
         await logScoreChange(
           supabase,
           articleId,
           currentScore.total,
           newScore.total,
-          `boost_${optimizationType}`,
+          changeReason || `boost_${optimizationType}`,
           userInitiated ? 'user' : 'system',
           currentVersion
         );
@@ -414,9 +420,13 @@ Retorne APENAS o artigo otimizado em HTML/Markdown, sem explicações.`;
         score_before: currentScore.total,
         score_after: newScore.total,
         score_increase: newScore.total - currentScore.total,
+        raw_score_before: rawScore.total,
+        raw_score_after: rawNewScore.total,
+        floor_applied: newFloorApplied,
         duration_ms: durationMs,
-        niche_category: nicheCategory,
-        niche_violations: violations.length > 0 ? violations : null,
+        niche_profile: nicheProfile.name,
+        niche_min_score: nicheProfile.minScore,
+        niche_violations: validationResult.violations.length > 0 ? validationResult.violations : null,
         user_initiated: userInitiated,
         content_version: currentVersion
       }
@@ -437,8 +447,12 @@ Retorne APENAS o artigo otimizado em HTML/Markdown, sem explicações.`;
         },
         durationMs,
         content_version: currentVersion,
-        niche_category: nicheCategory,
-        niche_violations: violations.length > 0 ? violations : undefined
+        nicheProfile: {
+          name: nicheProfile.displayName,
+          minScore: nicheProfile.minScore,
+          floorApplied: newFloorApplied
+        },
+        niche_violations: validationResult.violations.length > 0 ? validationResult.violations : undefined
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

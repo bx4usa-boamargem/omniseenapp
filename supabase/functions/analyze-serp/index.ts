@@ -3,13 +3,14 @@
 // Motor: Perplexity Sonar Pro
 // 
 // ARQUITETURA DETERMINÍSTICA:
-// - Filtro de nicho para evitar contaminação de termos
+// - Perfil de Nicho dinâmico via banco de dados
+// - Filtro de termos por nicho para evitar contaminação
 // ═══════════════════════════════════════════════════════════════════
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SERPMatrix, SERPCompetitor } from "../_shared/serpTypes.ts";
-import { detectNicheCategory, filterTermsByNiche } from "../_shared/nicheFilter.ts";
+import { getNicheProfile, filterTermsByProfile, NicheProfile } from "../_shared/nicheProfile.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -209,24 +210,16 @@ Retorne APENAS um JSON válido no formato:
     }
 
     // =========================================================================
-    // FILTRO DE NICHO: Buscar perfil e filtrar termos
+    // PERFIL DE NICHO: Buscar perfil do banco e filtrar termos
     // =========================================================================
-    const { data: businessProfile } = await supabase
-      .from("business_profile")
-      .select("niche, services")
-      .eq("blog_id", blogId)
-      .single();
+    const nicheProfile: NicheProfile = await getNicheProfile(supabase, blogId);
+    console.log(`[ANALYZE-SERP] Using niche profile: ${nicheProfile.displayName} (min_score: ${nicheProfile.minScore})`);
 
-    const nicheCategory = detectNicheCategory(
-      businessProfile?.niche, 
-      businessProfile?.services
-    );
-
-    // Filtrar termos comuns pelo nicho
+    // Filtrar termos comuns pelo perfil de nicho
     const originalTermsCount = serpData.commonTerms?.length || 0;
-    const filteredTerms = filterTermsByNiche(serpData.commonTerms || [], nicheCategory);
+    const filteredTerms = filterTermsByProfile(serpData.commonTerms || [], nicheProfile);
     
-    console.log(`[ANALYZE-SERP] Niche: ${nicheCategory}, terms filtered: ${originalTermsCount} → ${filteredTerms.length}`);
+    console.log(`[ANALYZE-SERP] Niche: ${nicheProfile.name}, terms filtered: ${originalTermsCount} → ${filteredTerms.length}`);
 
     // Calculate averages
     const competitors = serpData.competitors || [];
@@ -270,7 +263,7 @@ Retorne APENAS um JSON válido no formato:
 
     console.log(`[ANALYZE-SERP] Matrix built: ${competitors.length} competitors, avg ${avgWords} words, ${avgH2} H2s`);
 
-    // Save to cache
+    // Save to cache with niche profile reference
     const { error: cacheError } = await supabase
       .from("serp_analysis_cache")
       .upsert({
@@ -282,9 +275,10 @@ Retorne APENAS um JSON válido no formato:
         avg_words: avgWords,
         avg_h2: avgH2,
         avg_images: avgImages,
-        common_terms: serpData.commonTerms?.slice(0, 20) || [],
+        common_terms: filteredTerms.slice(0, 20),  // Save filtered terms
         analyzed_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24h TTL
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24h TTL
+        niche_profile_id: nicheProfile.id !== 'default' ? nicheProfile.id : null
       }, {
         onConflict: 'blog_id,keyword,territory'
       });

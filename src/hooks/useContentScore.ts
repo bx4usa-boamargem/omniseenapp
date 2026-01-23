@@ -77,9 +77,17 @@ export interface SERPMatrix {
   contentGaps: string[];
 }
 
+interface NicheInfo {
+  id: string;
+  name: string;
+  minScore: number;
+  floorApplied: boolean;
+}
+
 interface UseContentScoreReturn {
   score: ContentScore | null;
   serpMatrix: SERPMatrix | null;
+  nicheInfo: NicheInfo | null;
   loading: boolean;
   analyzing: boolean;
   optimizing: boolean;
@@ -103,6 +111,7 @@ export function useContentScore(
   const [score, setScore] = useState<ContentScore | null>(null);
   const [serpMatrix, setSerpMatrix] = useState<SERPMatrix | null>(null);
   const [serpAnalysisId, setSerpAnalysisId] = useState<string | null>(null);
+  const [nicheInfo, setNicheInfo] = useState<NicheInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
@@ -242,6 +251,14 @@ export function useContentScore(
         if (data.serpAnalysisId) {
           setSerpAnalysisId(data.serpAnalysisId);
         }
+        if (data.nicheProfile) {
+          setNicheInfo({
+            id: data.nicheProfile.id,
+            name: data.nicheProfile.name,
+            minScore: data.nicheProfile.minScore,
+            floorApplied: data.nicheProfile.floorApplied || false
+          });
+        }
       }
     } catch (error) {
       console.error('Score calculation error:', error);
@@ -360,6 +377,7 @@ export function useContentScore(
   return {
     score,
     serpMatrix,
+    nicheInfo,
     loading,
     analyzing,
     optimizing,

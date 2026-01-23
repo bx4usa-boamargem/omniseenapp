@@ -1629,6 +1629,7 @@ export type Database = {
           logo_negative_url: string | null
           logo_url: string | null
           name: string
+          niche_profile_id: string | null
           onboarding_completed: boolean | null
           platform_subdomain: string | null
           primary_color: string | null
@@ -1689,6 +1690,7 @@ export type Database = {
           logo_negative_url?: string | null
           logo_url?: string | null
           name: string
+          niche_profile_id?: string | null
           onboarding_completed?: boolean | null
           platform_subdomain?: string | null
           primary_color?: string | null
@@ -1749,6 +1751,7 @@ export type Database = {
           logo_negative_url?: string | null
           logo_url?: string | null
           name?: string
+          niche_profile_id?: string | null
           onboarding_completed?: boolean | null
           platform_subdomain?: string | null
           primary_color?: string | null
@@ -1770,6 +1773,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "blogs_niche_profile_id_fkey"
+            columns: ["niche_profile_id"]
+            isOneToOne: false
+            referencedRelation: "niche_profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "blogs_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -2058,6 +2068,7 @@ export type Database = {
           language: string | null
           long_description: string | null
           niche: string | null
+          niche_profile_id: string | null
           pain_points: string[] | null
           project_name: string | null
           services: string | null
@@ -2089,6 +2100,7 @@ export type Database = {
           language?: string | null
           long_description?: string | null
           niche?: string | null
+          niche_profile_id?: string | null
           pain_points?: string[] | null
           project_name?: string | null
           services?: string | null
@@ -2120,6 +2132,7 @@ export type Database = {
           language?: string | null
           long_description?: string | null
           niche?: string | null
+          niche_profile_id?: string | null
           pain_points?: string[] | null
           project_name?: string | null
           services?: string | null
@@ -2143,6 +2156,13 @@ export type Database = {
             columns: ["default_template_id"]
             isOneToOne: false
             referencedRelation: "editorial_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_profile_niche_profile_id_fkey"
+            columns: ["niche_profile_id"]
+            isOneToOne: false
+            referencedRelation: "niche_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -4047,6 +4067,72 @@ export type Database = {
         }
         Relationships: []
       }
+      niche_profiles: {
+        Row: {
+          allowed_entities: string[]
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          display_name: string
+          forbidden_entities: string[]
+          id: string
+          intent: string
+          max_h2: number
+          max_words: number
+          min_h2: number
+          min_images: number
+          min_paragraphs: number
+          min_score: number
+          min_words: number
+          name: string
+          seed_keywords: string[]
+          target_score: number
+          updated_at: string | null
+        }
+        Insert: {
+          allowed_entities?: string[]
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          display_name: string
+          forbidden_entities?: string[]
+          id?: string
+          intent?: string
+          max_h2?: number
+          max_words?: number
+          min_h2?: number
+          min_images?: number
+          min_paragraphs?: number
+          min_score?: number
+          min_words?: number
+          name: string
+          seed_keywords?: string[]
+          target_score?: number
+          updated_at?: string | null
+        }
+        Update: {
+          allowed_entities?: string[]
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          display_name?: string
+          forbidden_entities?: string[]
+          id?: string
+          intent?: string
+          max_h2?: number
+          max_words?: number
+          min_h2?: number
+          min_images?: number
+          min_paragraphs?: number
+          min_score?: number
+          min_words?: number
+          name?: string
+          seed_keywords?: string[]
+          target_score?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       omnicore_articles: {
         Row: {
           article_id: string
@@ -5288,6 +5374,7 @@ export type Database = {
           id: string
           keyword: string
           matrix: Json
+          niche_profile_id: string | null
           territory: string | null
         }
         Insert: {
@@ -5303,6 +5390,7 @@ export type Database = {
           id?: string
           keyword: string
           matrix: Json
+          niche_profile_id?: string | null
           territory?: string | null
         }
         Update: {
@@ -5318,6 +5406,7 @@ export type Database = {
           id?: string
           keyword?: string
           matrix?: Json
+          niche_profile_id?: string | null
           territory?: string | null
         }
         Relationships: [
@@ -5326,6 +5415,13 @@ export type Database = {
             columns: ["blog_id"]
             isOneToOne: false
             referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "serp_analysis_cache_niche_profile_id_fkey"
+            columns: ["niche_profile_id"]
+            isOneToOne: false
+            referencedRelation: "niche_profiles"
             referencedColumns: ["id"]
           },
         ]

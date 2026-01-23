@@ -1,11 +1,13 @@
 // ═══════════════════════════════════════════════════════════════════
 // CALCULATE-CONTENT-SCORE: Pontuação de Conteúdo vs Mercado
+// Motor de Pontuação por Perfil de Nicho
 // ═══════════════════════════════════════════════════════════════════
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { calculateContentScore, validateForPublication, extractArticleMetrics } from "../_shared/contentScoring.ts";
 import { SERPMatrix, ContentScore, QualityGateResult } from "../_shared/serpTypes.ts";
+import { getNicheProfile, applyScoreFloor, NicheProfile } from "../_shared/nicheProfile.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -94,6 +96,10 @@ serve(async (req) => {
     // Extract article metrics
     const metrics = extractArticleMetrics(content);
 
+    // Get niche profile for this blog
+    const nicheProfile: NicheProfile = await getNicheProfile(supabase, blogId);
+    console.log(`[CONTENT-SCORE] Niche: ${nicheProfile.displayName} (min_score: ${nicheProfile.minScore})`);
+
     // Calculate content score
     const articleData = {
       id: articleId,
@@ -102,9 +108,13 @@ serve(async (req) => {
       ...metrics
     };
 
-    const contentScore: ContentScore = calculateContentScore(articleData, serpMatrix);
+    const rawScore: ContentScore = calculateContentScore(articleData, serpMatrix);
     
-    console.log(`[CONTENT-SCORE] Score: ${contentScore.total}/100, SERP analyzed: ${!!serpMatrix}`);
+    // Apply niche floor - score never drops below niche's min_score
+    const { score: finalScore, floorApplied, reason: floorReason } = applyScoreFloor(rawScore.total, nicheProfile);
+    const contentScore: ContentScore = { ...rawScore, total: finalScore };
+    
+    console.log(`[CONTENT-SCORE] Score: ${contentScore.total}/100 (raw: ${rawScore.total}, floor: ${floorApplied}), SERP: ${!!serpMatrix}`);
 
     // Validate for publication if requested
     let qualityGateResult: QualityGateResult | null = null;
@@ -144,10 +154,18 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         score: contentScore,
+        rawScore: rawScore.total,
         metrics,
         serpAnalyzed: !!serpMatrix,
         serpAnalysisId: serpId,
-        qualityGate: qualityGateResult
+        qualityGate: qualityGateResult,
+        nicheProfile: {
+          id: nicheProfile.id,
+          name: nicheProfile.displayName,
+          minScore: nicheProfile.minScore,
+          floorApplied,
+          floorReason
+        }
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
