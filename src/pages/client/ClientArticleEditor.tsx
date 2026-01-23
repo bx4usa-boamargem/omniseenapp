@@ -1267,14 +1267,33 @@ export default function ClientArticleEditor() {
               </Button>
             )}
             
-            {/* View on Site Button - Show when article is saved and has a slug */}
+            {/* View on Site Button - Hybrid: canonical first, internal fallback */}
             {existingArticleId && existingArticleSlug && blog && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  const url = getCanonicalArticleUrl(blog, existingArticleSlug);
-                  window.open(url, '_blank');
+                onClick={async () => {
+                  const canonicalUrl = getCanonicalArticleUrl(blog, existingArticleSlug);
+                  const internalUrl = getInternalArticleUrl(blog.slug, existingArticleSlug);
+                  
+                  try {
+                    // Quick check if canonical URL is likely accessible
+                    const hasValidSubdomain = blog.platform_subdomain && 
+                      blog.platform_subdomain.endsWith('.app.omniseen.app') &&
+                      blog.platform_subdomain !== 'blog.app.omniseen.app';
+                    
+                    if (hasValidSubdomain || (blog.custom_domain && blog.domain_verified)) {
+                      window.open(canonicalUrl, '_blank');
+                    } else {
+                      // Fallback to internal with toast
+                      toast.info('Abrindo preview interno. Configure o domínio para URL pública.');
+                      window.open(internalUrl, '_blank');
+                    }
+                  } catch {
+                    // Any error: fallback to internal
+                    toast.info('Abrindo preview interno.');
+                    window.open(internalUrl, '_blank');
+                  }
                 }}
                 className="gap-2 border-blue-500/30 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10"
               >
