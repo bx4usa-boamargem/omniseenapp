@@ -58,7 +58,7 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
 
     // Fetch SERP matrix
-    const { data: serpData } = await supabase
+    let serpData = await supabase
       .from("serp_analysis_cache")
       .select("matrix, id")
       .eq("blog_id", blogId)
@@ -66,16 +66,63 @@ serve(async (req) => {
       .gt("expires_at", new Date().toISOString())
       .order("analyzed_at", { ascending: false })
       .limit(1)
-      .single();
+      .single()
+      .then(res => res.data);
 
+    // Auto-trigger SERP analysis if not found or expired
     if (!serpData) {
-      return new Response(
-        JSON.stringify({ 
-          error: "No SERP analysis found. Run analyze-serp first.",
-          code: "SERP_NOT_FOUND"
-        }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      console.log(`[BOOST-SCORE] No valid SERP cache found, auto-triggering analyze-serp for "${keyword}"...`);
+      
+      try {
+        const serpResponse = await supabase.functions.invoke('analyze-serp', {
+          body: { keyword, blogId, forceRefresh: false, articleId }
+        });
+        
+        if (serpResponse.error) {
+          console.error('[BOOST-SCORE] analyze-serp failed:', serpResponse.error);
+          return new Response(
+            JSON.stringify({ 
+              error: "Failed to analyze SERP automatically. Please try again.",
+              code: "SERP_ANALYSIS_FAILED",
+              details: serpResponse.error
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        // Refetch the newly created SERP data
+        const refetch = await supabase
+          .from("serp_analysis_cache")
+          .select("matrix, id")
+          .eq("blog_id", blogId)
+          .eq("keyword", keyword)
+          .order("analyzed_at", { ascending: false })
+          .limit(1)
+          .single();
+          
+        serpData = refetch.data;
+        
+        if (!serpData) {
+          return new Response(
+            JSON.stringify({ 
+              error: "SERP analysis completed but no data found. Please try again.",
+              code: "SERP_DATA_MISSING"
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        console.log(`[BOOST-SCORE] Auto-SERP analysis complete, proceeding with optimization`);
+      } catch (serpError) {
+        console.error('[BOOST-SCORE] Auto-SERP error:', serpError);
+        return new Response(
+          JSON.stringify({ 
+            error: "No SERP analysis found and auto-analysis failed.",
+            code: "SERP_NOT_FOUND"
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     const serpMatrix = serpData.matrix as SERPMatrix;
