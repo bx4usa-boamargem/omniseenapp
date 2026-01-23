@@ -1536,42 +1536,91 @@ Cada prompt deve mostrar cenários REAIS de trabalho, não escritórios corporat
       }
     };
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: textModel,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
-        ],
-        tools: [toolSchema],
-        tool_choice: { type: 'function', function: { name: 'create_article' } }
-      }),
-    });
+    // Retry logic for transient failures (5xx errors)
+    const MAX_RETRIES = 3;
+    const RETRY_DELAYS = [2000, 5000, 10000]; // Exponential backoff: 2s, 5s, 10s
+    
+    let response: Response | null = null;
+    let lastError: Error | null = null;
+    
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        console.log(`[AI CALL] Attempt ${attempt + 1}/${MAX_RETRIES} for article generation`);
+        
+        response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: textModel,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: userPrompt }
+            ],
+            tools: [toolSchema],
+            tool_choice: { type: 'function', function: { name: 'create_article' } }
+          }),
+        });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('AI Gateway error:', response.status, errorText);
+        if (response.ok) {
+          console.log(`[AI CALL] Success on attempt ${attempt + 1}`);
+          break;
+        }
 
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: 'AI_RATE_LIMIT', message: 'Rate limit exceeded. Please try again later.' }),
-          { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+        const errorText = await response.text();
+        console.error(`[AI CALL] Attempt ${attempt + 1} failed:`, response.status, errorText);
+
+        // Non-retryable errors - return immediately
+        if (response.status === 429) {
+          return new Response(
+            JSON.stringify({ error: 'AI_RATE_LIMIT', message: 'Rate limit exceeded. Please try again later.' }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        if (response.status === 402) {
+          return new Response(
+            JSON.stringify({ error: 'AI_CREDITS', message: 'Insufficient credits. Please add credits to continue.' }),
+            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        if (response.status === 400 || response.status === 401 || response.status === 403) {
+          // Client errors - don't retry
+          throw new Error(`AI request failed: ${response.status} - ${errorText}`);
+        }
+
+        // 5xx errors - retry with backoff
+        if (response.status >= 500 && attempt < MAX_RETRIES - 1) {
+          const delay = RETRY_DELAYS[attempt];
+          console.log(`[AI CALL] Server error ${response.status}, retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          lastError = new Error(`AI Gateway returned ${response.status}: ${errorText}`);
+          continue;
+        }
+
+        throw new Error(`AI request failed after ${attempt + 1} attempts: ${response.status}`);
+        
+      } catch (fetchError) {
+        // Network errors - retry
+        console.error(`[AI CALL] Network error on attempt ${attempt + 1}:`, fetchError);
+        lastError = fetchError instanceof Error ? fetchError : new Error(String(fetchError));
+        
+        if (attempt < MAX_RETRIES - 1) {
+          const delay = RETRY_DELAYS[attempt];
+          console.log(`[AI CALL] Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        throw new Error(`AI request failed after ${MAX_RETRIES} attempts: ${lastError.message}`);
       }
+    }
 
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: 'AI_CREDITS', message: 'Insufficient credits. Please add credits to continue.' }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      throw new Error(`AI request failed: ${response.status}`);
+    if (!response || !response.ok) {
+      throw lastError || new Error('AI request failed after all retries');
     }
 
     // Resilient JSON parsing - read text first to handle empty or truncated responses
