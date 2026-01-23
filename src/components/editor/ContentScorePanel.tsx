@@ -13,9 +13,7 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
-  Info,
-  Eye,
-  EyeOff
+  Info
 } from 'lucide-react';
 
 // Import modular components
@@ -46,16 +44,6 @@ export function ContentScorePanel({
   blogId,
   onContentUpdate
 }: ContentScorePanelProps) {
-  // Panel visibility toggle with localStorage persistence
-  const [isPanelVisible, setIsPanelVisible] = useState(() => {
-    if (typeof window === 'undefined') return true;
-    return localStorage.getItem('contentScorePanelVisible') !== 'false';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('contentScorePanelVisible', String(isPanelVisible));
-  }, [isPanelVisible]);
-
   // Optimize to 100 dialog
   const [showOptimizeDialog, setShowOptimizeDialog] = useState(false);
 
@@ -206,50 +194,38 @@ export function ContentScorePanel({
     );
   }
 
-  // CSS-only toggle - NEVER unmount the main component to avoid hook order issues
+  // Component is now mounted/unmounted by parent - no internal visibility toggle
   return (
     <TooltipProvider>
-      {/* Main panel - visibility controlled via CSS */}
-      <div className={isPanelVisible ? "block h-full" : "hidden"}>
-        <Card className="h-full flex flex-col border-l-0 rounded-l-none">
-          {/* Header */}
-          <CardHeader className="pb-2 pt-4 px-4">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <BarChart3 className="h-4 w-4" />
-                Pontuação de conteúdo
-                <Tooltip>
-                  <TooltipTrigger>
-                    <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    <p>Score baseado na análise dos 10 primeiros resultados do Google para sua palavra-chave.</p>
-                  </TooltipContent>
-                </Tooltip>
-              </CardTitle>
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => calculateScore()}
-                  disabled={loading}
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  onClick={() => setIsPanelVisible(false)}
-                >
-                  <EyeOff className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
+      <Card className="h-full flex flex-col border-l-0 rounded-l-none">
+        {/* Header */}
+        <CardHeader className="pb-2 pt-4 px-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Pontuação de conteúdo
+              <Tooltip>
+                <TooltipTrigger>
+                  <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  <p>Score baseado na análise dos 10 primeiros resultados do Google para sua palavra-chave.</p>
+                </TooltipContent>
+              </Tooltip>
+            </CardTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => calculateScore()}
+              disabled={loading}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+        </CardHeader>
 
-          <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1">
             <CardContent className="space-y-4 px-4 pb-4">
               {/* Score Gauge - Real score from database */}
               <ContentScoreGauge 
@@ -357,24 +333,6 @@ export function ContentScorePanel({
             </CardContent>
           </ScrollArea>
         </Card>
-      </div>
-
-      {/* Collapsed toggle button - shown when panel is hidden */}
-      {!isPanelVisible && (
-        <Card className="h-full">
-          <CardContent className="flex items-center justify-center h-full p-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsPanelVisible(true)}
-              className="gap-2"
-            >
-              <BarChart3 className="h-4 w-4" />
-              <Eye className="h-4 w-4" />
-            </Button>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Optimize to 100 Dialog */}
       <OptimizeTo100Dialog

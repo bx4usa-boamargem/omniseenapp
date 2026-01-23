@@ -29,6 +29,7 @@ import {
   Plus,
   Edit3,
   Eye,
+  EyeOff,
   Columns,
   Sparkles,
   Image as ImageIcon,
@@ -37,6 +38,7 @@ import {
   BookOpen,
   BarChart3
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { ArticlePdfDownload } from '@/components/articles/ArticlePdfDownload';
 
 type EditorPhase = 'form' | 'generating' | 'editing';
@@ -125,6 +127,17 @@ export default function ClientArticleEditor() {
   
   // SERP Score Panel state (mobile sheet)
   const [showScorePanel, setShowScorePanel] = useState(false);
+  
+  // SERP Score Panel visibility (desktop) - persisted in localStorage
+  const [showScorePanelDesktop, setShowScorePanelDesktop] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    return localStorage.getItem('contentScorePanelVisible') !== 'false';
+  });
+  
+  // Persist desktop panel visibility
+  useEffect(() => {
+    localStorage.setItem('contentScorePanelVisible', String(showScorePanelDesktop));
+  }, [showScorePanelDesktop]);
   
   // Derive keyword from title for SERP analysis
   const derivedKeyword = title ? title.split(' ').slice(0, 4).join(' ') : '';
@@ -1279,6 +1292,28 @@ export default function ClientArticleEditor() {
               />
             )}
             
+            {/* SERP Score Panel Toggle (Desktop) - Always visible in editing phase */}
+            {phase === 'editing' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowScorePanelDesktop(prev => !prev)}
+                className="hidden md:flex gap-2 border-indigo-500/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
+              >
+                {showScorePanelDesktop ? (
+                  <>
+                    <EyeOff className="h-4 w-4" />
+                    <span className="text-xs">Ocultar Score</span>
+                  </>
+                ) : (
+                  <>
+                    <BarChart3 className="h-4 w-4" />
+                    <span className="text-xs">Mostrar Score</span>
+                  </>
+                )}
+              </Button>
+            )}
+            
             {/* SERP Score Panel Toggle (Mobile) */}
             <Sheet open={showScorePanel} onOpenChange={setShowScorePanel}>
               <SheetTrigger asChild>
@@ -1388,30 +1423,79 @@ export default function ClientArticleEditor() {
             {/* Desktop: Based on view mode */}
             <div className="hidden md:block h-full">
               {viewMode === 'editor' && (
-                <div className="h-full overflow-auto">
-                  {renderEditor()}
+                <div className={cn(
+                  "grid gap-4 h-full transition-all duration-300",
+                  showScorePanelDesktop 
+                    ? "grid-cols-[1fr_320px]" 
+                    : "grid-cols-1"
+                )}>
+                  <div className="overflow-auto">
+                    {renderEditor()}
+                  </div>
+                  
+                  {showScorePanelDesktop && (
+                    <div className="h-full overflow-hidden">
+                      <ContentScorePanel
+                        articleId={existingArticleId || undefined}
+                        content={content}
+                        title={title}
+                        keyword={derivedKeyword}
+                        blogId={blog?.id || ''}
+                        onContentUpdate={(newContent) => setContent(newContent)}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
               
-              {viewMode === 'preview' && renderPreview()}
+              {viewMode === 'preview' && (
+                <div className={cn(
+                  "grid gap-4 h-full transition-all duration-300",
+                  showScorePanelDesktop 
+                    ? "grid-cols-[1fr_320px]" 
+                    : "grid-cols-1"
+                )}>
+                  {renderPreview()}
+                  
+                  {showScorePanelDesktop && (
+                    <div className="h-full overflow-hidden">
+                      <ContentScorePanel
+                        articleId={existingArticleId || undefined}
+                        content={content}
+                        title={title}
+                        keyword={derivedKeyword}
+                        blogId={blog?.id || ''}
+                        onContentUpdate={(newContent) => setContent(newContent)}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
               
               {viewMode === 'split' && (
-                <div className="grid grid-cols-[1fr_1fr_320px] gap-4 h-full">
+                <div className={cn(
+                  "grid gap-4 h-full transition-all duration-300",
+                  showScorePanelDesktop 
+                    ? "grid-cols-[1fr_1fr_320px]" 
+                    : "grid-cols-[1fr_1fr]"
+                )}>
                   <div className="overflow-auto">
                     {renderEditor()}
                   </div>
                   {renderPreview()}
-                  {/* SERP Score Panel - Right sidebar */}
-                  <div className="h-full overflow-hidden">
-                    <ContentScorePanel
-                      articleId={existingArticleId || undefined}
-                      content={content}
-                      title={title}
-                      keyword={derivedKeyword}
-                      blogId={blog?.id || ''}
-                      onContentUpdate={(newContent) => setContent(newContent)}
-                    />
-                  </div>
+                  
+                  {showScorePanelDesktop && (
+                    <div className="h-full overflow-hidden">
+                      <ContentScorePanel
+                        articleId={existingArticleId || undefined}
+                        content={content}
+                        title={title}
+                        keyword={derivedKeyword}
+                        blogId={blog?.id || ''}
+                        onContentUpdate={(newContent) => setContent(newContent)}
+                      />
+                    </div>
+                  )}
                 </div>
               )}
             </div>
