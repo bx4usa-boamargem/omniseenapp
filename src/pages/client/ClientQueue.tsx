@@ -48,6 +48,8 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { usePublishValidation, PublishValidationResult } from '@/hooks/usePublishValidation';
+import { PublishWithBoostDialog } from '@/components/editor/PublishWithBoostDialog';
 
 interface QueueItem {
   id: string;
@@ -122,6 +124,11 @@ export default function ClientQueue() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<QueueItem | null>(null);
+
+  // Publish validation
+  const [boostDialogOpen, setBoostDialogOpen] = useState(false);
+  const [validationResult, setValidationResult] = useState<PublishValidationResult | null>(null);
+  const [selectedItemForPublish, setSelectedItemForPublish] = useState<QueueItem | null>(null);
 
   const fetchQueue = useCallback(async () => {
     if (!blog?.id) return;
@@ -264,8 +271,53 @@ export default function ClientQueue() {
   };
 
   const handlePublishNow = async (item: QueueItem) => {
-    if (!item.article_id) return;
+    if (!item.article_id || !blog?.id) return;
+    
+    // STEP 1: Validate SERP Score
     setActionLoading(item.id);
+    
+    // Fetch article data for validation
+    const { data: articleData } = await supabase
+      .from('articles')
+      .select('content, title, keywords')
+      .eq('id', item.article_id)
+      .single();
+
+    // Create temporary validation hook call
+    const { data: scoreData } = await supabase
+      .from('article_content_scores')
+      .select('total_score, serp_analysis_id')
+      .eq('article_id', item.article_id)
+      .maybeSingle();
+
+    const { data: blogConfig } = await supabase
+      .from('blog_config')
+      .select('minimum_score_to_publish')
+      .eq('blog_id', blog.id)
+      .maybeSingle();
+
+    const minScore = blogConfig?.minimum_score_to_publish ?? 70;
+
+    // Check validation
+    if (!scoreData || !scoreData.serp_analysis_id || scoreData.total_score < minScore) {
+      setSelectedItemForPublish(item);
+      setValidationResult({
+        canPublish: false,
+        reason: !scoreData ? 'Análise SERP não realizada' 
+          : !scoreData.serp_analysis_id ? 'Análise de concorrência não realizada'
+          : `Score ${scoreData.total_score} abaixo do mínimo (${minScore})`,
+        showBoost: !!scoreData?.serp_analysis_id && scoreData.total_score < minScore,
+        showAnalyze: !scoreData?.serp_analysis_id,
+        currentScore: scoreData?.total_score ?? null,
+        minScore,
+        serpAnalyzed: !!scoreData?.serp_analysis_id,
+      });
+      setBoostDialogOpen(true);
+      setActionLoading(null);
+      return; // Block publication
+    }
+
+    // STEP 2: Proceed with publication
     try {
       // Update article status
       const { error: articleError } = await supabase
@@ -279,6 +331,70 @@ export default function ClientQueue() {
       if (articleError) throw articleError;
 
       // Update queue item
+      const { error: queueError } = await supabase
+        .from('article_queue')
+        .update({ status: 'published' })
+        .eq('id', item.id);
+
+      if (queueError) throw queueError;
+
+      toast.success('🚀 Artigo publicado!');
+      fetchQueue();
+    } catch (error) {
+      console.error('Error publishing:', error);
+      toast.error('Erro ao publicar');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleBoostComplete = async (newScore: number, newContent: string) => {
+    if (!selectedItemForPublish?.article_id) return;
+    
+    // Update article with optimized content
+    await supabase
+      .from('articles')
+      .update({ content: newContent })
+      .eq('id', selectedItemForPublish.article_id);
+
+    // Re-check validation
+    const { data: blogConfig } = await supabase
+      .from('blog_config')
+      .select('minimum_score_to_publish')
+      .eq('blog_id', blog?.id)
+      .maybeSingle();
+
+    const minScore = blogConfig?.minimum_score_to_publish ?? 70;
+
+    setValidationResult(prev => prev ? {
+      ...prev,
+      currentScore: newScore,
+      canPublish: newScore >= minScore,
+    } : null);
+  };
+
+  const handlePublishAfterBoost = () => {
+    setBoostDialogOpen(false);
+    if (selectedItemForPublish) {
+      // Direct publish without validation (already validated)
+      handleDirectPublish(selectedItemForPublish);
+    }
+  };
+
+  const handleDirectPublish = async (item: QueueItem) => {
+    if (!item.article_id) return;
+    setActionLoading(item.id);
+    try {
+      const { error: articleError } = await supabase
+        .from('articles')
+        .update({ 
+          status: 'published',
+          published_at: new Date().toISOString()
+        })
+        .eq('id', item.article_id);
+
+      if (articleError) throw articleError;
+
       const { error: queueError } = await supabase
         .from('article_queue')
         .update({ status: 'published' })
@@ -616,6 +732,32 @@ export default function ClientQueue() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Publish Validation Dialog */}
+      {selectedItemForPublish && validationResult && (
+        <PublishWithBoostDialog
+          open={boostDialogOpen}
+          onOpenChange={(open) => {
+            setBoostDialogOpen(open);
+            if (!open) setSelectedItemForPublish(null);
+          }}
+          articleId={selectedItemForPublish.article_id || ''}
+          blogId={blog?.id || ''}
+          currentScore={validationResult.currentScore}
+          minimumScore={validationResult.minScore}
+          serpAnalyzed={validationResult.serpAnalyzed}
+          content={''}
+          title={selectedItemForPublish.suggested_theme}
+          keyword={selectedItemForPublish.suggested_theme}
+          onBoostComplete={handleBoostComplete}
+          onAnalyzeComplete={() => {
+            setBoostDialogOpen(false);
+            setSelectedItemForPublish(null);
+            toast.info('Análise concluída. Tente publicar novamente.');
+          }}
+          onPublishAfterBoost={handlePublishAfterBoost}
+        />
+      )}
     </div>
   );
 }

@@ -30,6 +30,8 @@ import {
   Loader2,
   ExternalLink
 } from "lucide-react";
+import { usePublishValidation, PublishValidationResult } from "@/hooks/usePublishValidation";
+import { PublishWithBoostDialog } from "@/components/editor/PublishWithBoostDialog";
 
 interface ArticleActionsDropdownProps {
   articleId: string;
@@ -37,6 +39,9 @@ interface ArticleActionsDropdownProps {
   status: string;
   slug: string;
   blogSlug?: string;
+  blogId?: string;
+  articleContent?: string;
+  articleKeywords?: string[];
   onActionComplete?: () => void;
 }
 
@@ -46,6 +51,9 @@ export function ArticleActionsDropdown({
   status,
   slug,
   blogSlug,
+  blogId,
+  articleContent,
+  articleKeywords,
   onActionComplete
 }: ArticleActionsDropdownProps) {
   const navigate = useNavigate();
@@ -54,7 +62,26 @@ export function ArticleActionsDropdown({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [renewDialogOpen, setRenewDialogOpen] = useState(false);
 
+  // Publish validation
+  const [boostDialogOpen, setBoostDialogOpen] = useState(false);
+  const [validationResult, setValidationResult] = useState<PublishValidationResult | null>(null);
+  const { validateForPublish, validating } = usePublishValidation(articleId, blogId);
+
   const handlePublish = async () => {
+    // STEP 1: Validate SERP Score if blogId is provided
+    if (blogId) {
+      setLoading('publish');
+      const validation = await validateForPublish();
+      
+      if (!validation.canPublish) {
+        setValidationResult(validation);
+        setBoostDialogOpen(true);
+        setLoading(null);
+        return; // Block publication
+      }
+    }
+
+    // STEP 2: Proceed with publication
     setLoading('publish');
     try {
       const { error } = await supabase
@@ -83,6 +110,23 @@ export function ArticleActionsDropdown({
     } finally {
       setLoading(null);
     }
+  };
+
+  const handleBoostComplete = async (newScore: number, newContent: string) => {
+    // Update article with optimized content
+    await supabase
+      .from('articles')
+      .update({ content: newContent })
+      .eq('id', articleId);
+
+    // Re-validate
+    const validation = await validateForPublish();
+    setValidationResult(validation);
+  };
+
+  const handlePublishAfterBoost = () => {
+    setBoostDialogOpen(false);
+    handlePublish();
   };
 
   const handleUnpublish = async () => {
@@ -295,6 +339,27 @@ export function ArticleActionsDropdown({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Publish Validation Dialog */}
+      {blogId && validationResult && (
+        <PublishWithBoostDialog
+          open={boostDialogOpen}
+          onOpenChange={setBoostDialogOpen}
+          articleId={articleId}
+          blogId={blogId}
+          currentScore={validationResult.currentScore}
+          minimumScore={validationResult.minScore}
+          serpAnalyzed={validationResult.serpAnalyzed}
+          content={articleContent || ''}
+          title={articleTitle}
+          keyword={articleKeywords?.[0] || articleTitle}
+          onBoostComplete={handleBoostComplete}
+          onAnalyzeComplete={() => {
+            setBoostDialogOpen(false);
+          }}
+          onPublishAfterBoost={handlePublishAfterBoost}
+        />
+      )}
     </>
   );
 }

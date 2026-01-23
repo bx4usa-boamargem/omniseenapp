@@ -36,6 +36,8 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { usePublishValidation, PublishValidationResult } from '@/hooks/usePublishValidation';
+import { PublishWithBoostDialog } from '@/components/editor/PublishWithBoostDialog';
 
 interface ArticleData {
   id: string;
@@ -114,6 +116,11 @@ export default function ClientReviewCenter() {
   const [metaDescription, setMetaDescription] = useState('');
   const [keywords, setKeywords] = useState('');
 
+  // Publish validation
+  const [boostDialogOpen, setBoostDialogOpen] = useState(false);
+  const [validationResult, setValidationResult] = useState<PublishValidationResult | null>(null);
+  const { validateForPublish, validating } = usePublishValidation(id, blog?.id);
+
   useEffect(() => {
     if (!id) return;
 
@@ -182,7 +189,18 @@ export default function ClientReviewCenter() {
   };
 
   const handlePublish = async () => {
-    if (!article) return;
+    if (!article || !blog?.id) return;
+
+    // STEP 1: Validate SERP Score before publishing
+    const validation = await validateForPublish();
+    
+    if (!validation.canPublish) {
+      setValidationResult(validation);
+      setBoostDialogOpen(true);
+      return; // Block publication
+    }
+
+    // STEP 2: Proceed with publication
     setSaving(true);
 
     try {
@@ -219,6 +237,29 @@ export default function ClientReviewCenter() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleBoostComplete = async (newScore: number, newContent: string) => {
+    if (!article) return;
+    
+    // Update article with optimized content
+    const { error } = await supabase
+      .from('articles')
+      .update({ content: newContent })
+      .eq('id', article.id);
+
+    if (!error) {
+      setArticle({ ...article, content: newContent });
+    }
+
+    // Re-validate
+    const validation = await validateForPublish();
+    setValidationResult(validation);
+  };
+
+  const handlePublishAfterBoost = () => {
+    setBoostDialogOpen(false);
+    handlePublish();
   };
 
   const handleDiscard = async () => {
@@ -416,11 +457,11 @@ export default function ClientReviewCenter() {
             <CardContent className="space-y-3">
               <Button
                 onClick={handlePublish}
-                disabled={saving}
+                disabled={saving || validating}
                 className="w-full client-btn-primary gap-2"
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Publicar Agora
+                {(saving || validating) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {validating ? 'Validando...' : 'Publicar Agora'}
               </Button>
 
               <Button
@@ -525,6 +566,28 @@ export default function ClientReviewCenter() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Publish Validation Dialog */}
+      {article && validationResult && (
+        <PublishWithBoostDialog
+          open={boostDialogOpen}
+          onOpenChange={setBoostDialogOpen}
+          articleId={article.id}
+          blogId={blog?.id || ''}
+          currentScore={validationResult.currentScore}
+          minimumScore={validationResult.minScore}
+          serpAnalyzed={validationResult.serpAnalyzed}
+          content={article.content || ''}
+          title={title}
+          keyword={keywords.split(',')[0]?.trim() || title}
+          onBoostComplete={handleBoostComplete}
+          onAnalyzeComplete={() => {
+            setBoostDialogOpen(false);
+            toast.info('Tente publicar novamente para calcular o score.');
+          }}
+          onPublishAfterBoost={handlePublishAfterBoost}
+        />
+      )}
     </div>
   );
 }
