@@ -17,7 +17,8 @@ import {
   MapPin,
   HelpCircle,
   Users,
-  BookOpen
+  BookOpen,
+  Layout
 } from 'lucide-react';
 import { FloatingSupportChat } from '@/components/support/FloatingSupportChat';
 import { Button } from '@/components/ui/button';
@@ -66,6 +67,7 @@ const navSections: NavSection[] = [
     items: [
       { icon: FileText, label: 'Artigos', path: '/client/articles' },
       { icon: Globe, label: 'Portal Público', path: '/client/portal' },
+      { icon: Layout, label: 'Landing Pages', path: '/client/landing-pages' },
       // eBooks item will be added dynamically for admins only
     ]
   },

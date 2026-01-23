@@ -93,6 +93,9 @@ import ClientLeads from "./pages/client/ClientLeads";
 import ClientEbooks from "./pages/client/ClientEbooks";
 import ClientEbookEditor from "./pages/client/ClientEbookEditor";
 import ClientDomains from "./pages/client/ClientDomains";
+import ClientLandingPages from "./pages/client/ClientLandingPages";
+import ClientLandingPageNew from "./pages/client/ClientLandingPageNew";
+import ClientLandingPageEdit from "./pages/client/ClientLandingPageEdit";
 
 const queryClient = new QueryClient();
 
@@ -178,6 +181,9 @@ const ClientRoutes = () => (
         <Route path="review/:id" element={<ClientReviewCenter />} />
         <Route path="ebooks" element={<ClientEbooks />} />
         <Route path="ebooks/:id" element={<ClientEbookEditor />} />
+        <Route path="landing-pages" element={<ClientLandingPages />} />
+        <Route path="landing-pages/new" element={<ClientLandingPageNew />} />
+        <Route path="landing-pages/:id" element={<ClientLandingPageEdit />} />
         
         {/* Operação */}
         <Route path="automation" element={<ClientAutomation />} />
