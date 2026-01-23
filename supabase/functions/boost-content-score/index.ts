@@ -210,31 +210,68 @@ ${currentScore.breakdown.semanticCoverage.missing.slice(0, 10).join(', ')}
 
 Retorne APENAS o artigo otimizado em HTML/Markdown, sem explicações.`;
 
-    // Call AI for optimization
-    console.log(`[BOOST-SCORE] Calling OpenAI for optimization...`);
+    // Call AI for optimization with retry logic
+    console.log(`[BOOST-SCORE] Calling AI for optimization...`);
     
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "openai/gpt-5",
-        messages: [
-          {
-            role: "system",
-            content: "Você é um editor SEO especialista. Retorne APENAS o conteúdo otimizado, sem explicações ou comentários."
-          },
-          { role: "user", content: optimizePrompt }
-        ],
-        max_tokens: 8000,
-        temperature: 0.3
-      }),
-    });
+    const MAX_RETRIES = 3;
+    const RETRY_DELAYS = [2000, 5000, 10000];
+    let aiResponse: Response | null = null;
+    let lastError: string = '';
 
-    if (!aiResponse.ok) {
-      throw new Error(`AI optimization failed: ${aiResponse.status}`);
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              {
+                role: "system",
+                content: "Você é um editor SEO especialista. Retorne APENAS o conteúdo otimizado em formato HTML/Markdown, sem explicações ou comentários."
+              },
+              { role: "user", content: optimizePrompt }
+            ],
+            max_tokens: 8000,
+            temperature: 0.3
+          }),
+        });
+
+        if (aiResponse.ok) {
+          console.log(`[BOOST-SCORE] AI call successful on attempt ${attempt + 1}`);
+          break;
+        }
+
+        // Log error details
+        const errorBody = await aiResponse.text();
+        lastError = `Status ${aiResponse.status}: ${errorBody}`;
+        console.error(`[BOOST-SCORE] AI attempt ${attempt + 1} failed: ${lastError}`);
+
+        // Don't retry for client errors (4xx except 429)
+        if (aiResponse.status >= 400 && aiResponse.status < 500 && aiResponse.status !== 429) {
+          throw new Error(`AI optimization failed: ${lastError}`);
+        }
+
+        // Retry for 5xx or 429
+        if (attempt < MAX_RETRIES) {
+          console.log(`[BOOST-SCORE] Retrying in ${RETRY_DELAYS[attempt]}ms...`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
+        }
+      } catch (fetchError) {
+        lastError = fetchError instanceof Error ? fetchError.message : 'Unknown fetch error';
+        console.error(`[BOOST-SCORE] Fetch error on attempt ${attempt + 1}: ${lastError}`);
+        
+        if (attempt < MAX_RETRIES) {
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
+        }
+      }
+    }
+
+    if (!aiResponse || !aiResponse.ok) {
+      throw new Error(`AI optimization failed after ${MAX_RETRIES + 1} attempts: ${lastError}`);
     }
 
     const aiData = await aiResponse.json();
