@@ -1018,15 +1018,35 @@ serve(async (req) => {
       // STEP A: Fetch real-time research data via Perplexity (pre-generation)
       if (PERPLEXITY_API_KEY) {
         console.log('[GEO MODE] Fetching research data via Perplexity...');
-        geoResearchData = await fetchGeoResearchData(theme, geoTerritoryData, PERPLEXITY_API_KEY);
+        geoResearchData = await fetchGeoResearchData(
+          theme, 
+          geoTerritoryData, 
+          PERPLEXITY_API_KEY,
+          LOVABLE_API_KEY,  // Fallback para Gemini
+          supabase,         // Para logging de consumo
+          blog_id,          // Para correlação
+          undefined         // Article ID (não disponível ainda na geração)
+        );
         
         if (geoResearchData) {
           console.log(`[GEO MODE] Research fetched: ${geoResearchData.facts.length} facts, ${geoResearchData.trends.length} trends`);
         } else {
           console.warn('[GEO MODE] Perplexity research failed - continuing without real-time data');
         }
+      } else if (LOVABLE_API_KEY) {
+        // Fallback direto para Gemini se não houver Perplexity
+        console.log('[GEO MODE] PERPLEXITY_API_KEY not configured - using Gemini fallback...');
+        geoResearchData = await fetchGeoResearchData(
+          theme, 
+          geoTerritoryData, 
+          '', // Sem Perplexity
+          LOVABLE_API_KEY,
+          supabase,
+          blog_id,
+          undefined
+        );
       } else {
-        console.warn('[GEO MODE] PERPLEXITY_API_KEY not configured - skipping pre-generation research');
+        console.warn('[GEO MODE] No AI API configured - skipping pre-generation research');
       }
     }
 

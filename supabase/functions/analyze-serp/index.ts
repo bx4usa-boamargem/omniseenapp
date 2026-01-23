@@ -17,6 +17,7 @@ interface AnalyzeSERPRequest {
   territory?: string;
   blogId: string;
   forceRefresh?: boolean;
+  articleId?: string;  // Para correlação direta com artigo
 }
 
 serve(async (req) => {
@@ -28,7 +29,7 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    const { keyword, territory, blogId, forceRefresh = false } = await req.json() as AnalyzeSERPRequest;
+    const { keyword, territory, blogId, forceRefresh = false, articleId } = await req.json() as AnalyzeSERPRequest;
 
     if (!keyword || !blogId) {
       return new Response(
@@ -268,7 +269,7 @@ Retorne APENAS um JSON válido no formato:
       console.error("[ANALYZE-SERP] Cache save error:", cacheError);
     }
 
-    // Log AI usage
+    // Log AI usage com correlação de artigo
     const durationMs = Date.now() - startTime;
     await supabase.from("ai_usage_logs").insert({
       blog_id: blogId,
@@ -284,7 +285,8 @@ Retorne APENAS um JSON válido no formato:
         keyword,
         territory,
         competitors_found: competitors.length,
-        duration_ms: durationMs
+        duration_ms: durationMs,
+        article_id: articleId || null  // Correlação direta com artigo
       }
     });
 

@@ -267,11 +267,15 @@ export interface GeoValidationResult {
 }
 
 // Função para buscar dados de pesquisa via Perplexity com fallback para Lovable AI (Gemini)
+// Agora aceita supabase client e blogId para logging de consumo
 export async function fetchGeoResearchData(
   theme: string,
   territory: TerritoryData | null,
   PERPLEXITY_API_KEY: string,
-  LOVABLE_API_KEY?: string  // NOVO: Parâmetro opcional para fallback
+  LOVABLE_API_KEY?: string,
+  supabaseClient?: any,  // Cliente Supabase para logging
+  blogId?: string,       // Blog ID para correlação
+  articleId?: string     // Article ID para correlação direta
 ): Promise<GeoResearchData | null> {
   const territorialContext = territory?.official_name 
     ? ` na região de ${territory.official_name}` 
@@ -327,6 +331,34 @@ Regras:
           const parsed = JSON.parse(jsonMatch[0]);
           
           console.log('[GEO RESEARCH] Perplexity research data parsed successfully');
+          
+          // Log consumo da Perplexity para rastreabilidade completa
+          if (supabaseClient && blogId) {
+            try {
+              await supabaseClient.from('ai_usage_logs').insert({
+                blog_id: blogId,
+                provider: 'perplexity',
+                endpoint: 'geo-research',
+                cost_usd: 0.015,
+                tokens_used: 1000,
+                success: true,
+                metadata: {
+                  phase: 'geo_research',
+                  model: 'perplexity/sonar-pro',
+                  source: 'PromptPy',
+                  theme,
+                  territory: territory?.official_name || null,
+                  article_id: articleId || null,
+                  facts_count: (parsed.facts || []).length,
+                  trends_count: (parsed.trends || []).length
+                }
+              });
+              console.log('[GEO RESEARCH] Usage logged to ai_usage_logs');
+            } catch (logError) {
+              console.error('[GEO RESEARCH] Failed to log usage:', logError);
+            }
+          }
+          
           return {
             facts: parsed.facts || [],
             trends: parsed.trends || [],
@@ -378,6 +410,33 @@ Regras:
           const parsed = JSON.parse(jsonMatch[0]);
           
           console.log('[GEO RESEARCH] Lovable AI (Gemini) fallback data parsed successfully');
+          
+          // Log consumo do fallback Gemini
+          if (supabaseClient && blogId) {
+            try {
+              await supabaseClient.from('ai_usage_logs').insert({
+                blog_id: blogId,
+                provider: 'lovable',
+                endpoint: 'geo-research',
+                cost_usd: 0.002,
+                tokens_used: 1000,
+                success: true,
+                metadata: {
+                  phase: 'geo_research_fallback',
+                  model: 'google/gemini-2.5-flash',
+                  source: 'PromptPy',
+                  theme,
+                  territory: territory?.official_name || null,
+                  article_id: articleId || null,
+                  fallback_reason: 'perplexity_unavailable'
+                }
+              });
+              console.log('[GEO RESEARCH] Fallback usage logged to ai_usage_logs');
+            } catch (logError) {
+              console.error('[GEO RESEARCH] Failed to log fallback usage:', logError);
+            }
+          }
+          
           return {
             facts: parsed.facts || [],
             trends: parsed.trends || [],
