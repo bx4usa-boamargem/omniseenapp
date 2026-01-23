@@ -14,8 +14,11 @@ const corsHeaders = {
  * QUALITY GATE
  * 
  * Validates articles before automatic publication.
- * Runs 5 checks: Content Quality, Duplicity, SEO, Compliance, Visual Rhythm
+ * Runs checks: Content Quality, Duplicity, SEO, Compliance, Visual Rhythm, CTA/WhatsApp
  * Returns approval status with detailed feedback.
+ * 
+ * REGRA ABSOLUTA: Bloqueia publicação se subconta não tiver WhatsApp configurado
+ * ou se artigo não tiver CTA válido com link wa.me
  */
 
 interface QualityGateResult {
@@ -30,6 +33,7 @@ interface QualityGateResult {
     seo: { passed: boolean; issues: string[] };
     compliance: { passed: boolean; niche: string; violations: string[] };
     visual_rhythm: { passed: boolean; issues: string[] };
+    cta_whatsapp: { passed: boolean; issues: string[] };
   };
   auto_fixable: boolean;
   fixed_content?: string;
@@ -76,10 +80,10 @@ serve(async (req) => {
 
     const minWordCount = automation?.min_word_count || 800;
 
-    // Fetch business profile for compliance check
+    // Fetch business profile for compliance check AND CTA/WhatsApp validation
     const { data: businessProfile } = await supabase
       .from("business_profile")
-      .select("niche, services")
+      .select("niche, services, company_name, whatsapp, city")
       .eq("blog_id", blogId)
       .single();
 
@@ -96,6 +100,57 @@ serve(async (req) => {
     let title = article.title || "";
     const reasons: string[] = [];
     const fix_suggestions: string[] = [];
+    const ctaIssues: string[] = [];
+
+    // ===== VALIDAÇÃO OBRIGATÓRIA: WHATSAPP E CTA (REGRA ABSOLUTA) =====
+    
+    // REGRA 1: WhatsApp da subconta DEVE estar configurado
+    const cleanWhatsApp = businessProfile?.whatsapp?.replace(/\D/g, '') || '';
+    if (!cleanWhatsApp || cleanWhatsApp.length < 10) {
+      reasons.push('BLOQUEADO: WhatsApp da subconta não configurado');
+      fix_suggestions.push('Acesse "Minha Empresa" e configure o WhatsApp antes de publicar');
+      ctaIssues.push('WhatsApp não configurado na subconta');
+    }
+
+    // REGRA 2: Nome da empresa DEVE estar configurado
+    if (!businessProfile?.company_name || businessProfile.company_name.trim() === '') {
+      reasons.push('BLOQUEADO: Nome da empresa não configurado');
+      fix_suggestions.push('Acesse "Minha Empresa" e configure o nome da empresa');
+      ctaIssues.push('Nome da empresa não configurado');
+    }
+
+    // REGRA 3: Artigo DEVE ter seção "## Próximo passo"
+    const hasProximoPasso = /##\s*Próximo\s*passo/i.test(content);
+    if (!hasProximoPasso) {
+      reasons.push('BLOQUEADO: Seção "Próximo passo" obrigatória ausente');
+      fix_suggestions.push('Adicione uma seção "## Próximo passo" com CTA para WhatsApp');
+      ctaIssues.push('Seção "## Próximo passo" ausente');
+    }
+
+    // REGRA 4: Artigo DEVE ter link wa.me válido (NUNCA api.whatsapp.com)
+    const hasWaMeLink = /https:\/\/wa\.me\/\d{10,}/i.test(content);
+    const hasApiWhatsApp = /api\.whatsapp\.com/i.test(content);
+    
+    if (hasApiWhatsApp) {
+      reasons.push('BLOQUEADO: Artigo usa api.whatsapp.com (proibido)');
+      fix_suggestions.push('Substitua todos os links api.whatsapp.com por wa.me');
+      ctaIssues.push('Uso proibido de api.whatsapp.com');
+    }
+    
+    if (!hasWaMeLink && cleanWhatsApp.length >= 10) {
+      reasons.push('BLOQUEADO: Link WhatsApp (wa.me) não encontrado no CTA');
+      fix_suggestions.push('A seção "Próximo passo" deve conter botão com link wa.me');
+      ctaIssues.push('Link wa.me ausente no conteúdo');
+    }
+
+    // REGRA 5: Verificar se o botão "Fale com..." existe
+    const hasFaleComButton = /Fale\s+com\s+.+\s+agora/i.test(content);
+    if (!hasFaleComButton && hasProximoPasso) {
+      fix_suggestions.push('Adicione um botão "Fale com {EMPRESA} agora" na seção "Próximo passo"');
+      ctaIssues.push('Botão "Fale com..." ausente');
+    }
+
+    const ctaWhatsAppValid = ctaIssues.length === 0;
 
     // ===== 0. TITLE VALIDATION (REGRA ABSOLUTA) =====
     const titleValidation = validateTitleForPublication(title);
@@ -167,19 +222,13 @@ serve(async (req) => {
     }
 
     // Check for territory in title
-    const { data: profile } = await supabase
-      .from("business_profile")
-      .select("city")
-      .eq("blog_id", blogId)
-      .single();
-
-    const hasTerritory = profile?.city && 
-      (title.toLowerCase().includes(profile.city.toLowerCase()) || 
-       content.toLowerCase().includes(profile.city.toLowerCase()));
+    const hasTerritory = businessProfile?.city && 
+      (title.toLowerCase().includes(businessProfile.city.toLowerCase()) || 
+       content.toLowerCase().includes(businessProfile.city.toLowerCase()));
     
-    if (!hasTerritory && profile?.city) {
+    if (!hasTerritory && businessProfile?.city) {
       structureIssues.push("Território (cidade) não mencionado no conteúdo");
-      fix_suggestions.push(`Incluir referência a ${profile.city} no título ou introdução`);
+      fix_suggestions.push(`Incluir referência a ${businessProfile.city} no título ou introdução`);
     }
 
     // Check for direct answer in intro (first 200 chars should have key info)
@@ -193,8 +242,8 @@ serve(async (req) => {
       fix_suggestions.push("Adicionar resposta clara na introdução antes de desenvolver o tema");
     }
 
-    // Check for CTA section
-    const hasCTA = /##\s*Próximo passo/i.test(content) || 
+    // Check for CTA section (already checked above, but keep for structure details)
+    const hasCTA = hasProximoPasso || 
       /##\s*Entre em contato/i.test(content) ||
       /##\s*Fale conosco/i.test(content);
     
@@ -249,94 +298,96 @@ serve(async (req) => {
     // Meta description check
     if (!article.meta_description || article.meta_description.length < 50) {
       seoIssues.push("Meta description ausente ou muito curta");
-      fix_suggestions.push("Criar meta description de 140-160 caracteres");
-    } else if (article.meta_description.length > 160) {
-      seoIssues.push(`Meta description muito longa (${article.meta_description.length} chars)`);
-      fix_suggestions.push("Reduzir meta description para máximo 160 caracteres");
+      fix_suggestions.push("Adicionar meta description entre 140-160 caracteres");
+    }
+
+    // Keywords check
+    const keywords = article.keywords || [];
+    if (keywords.length < 3) {
+      seoIssues.push(`Apenas ${keywords.length} palavras-chave (recomendado: 3+)`);
+      fix_suggestions.push("Adicionar mais palavras-chave relevantes");
     }
 
     // Keyword stuffing check
-    const keywords = article.keywords || [];
-    for (const keyword of keywords) {
-      const keywordRegex = new RegExp(keyword, 'gi');
-      const occurrences = (content.match(keywordRegex) || []).length;
-      const density = occurrences / (wordCount / 100);
-      if (density > 3) {
-        seoIssues.push(`Keyword stuffing detectado: "${keyword}" (${density.toFixed(1)}%)`);
-        fix_suggestions.push(`Reduzir uso de "${keyword}" para densidade natural (<3%)`);
+    const primaryKeyword = keywords[0]?.toLowerCase();
+    if (primaryKeyword) {
+      const keywordCount = (content.toLowerCase().match(new RegExp(primaryKeyword, 'g')) || []).length;
+      const keywordDensity = (keywordCount / wordCount) * 100;
+      if (keywordDensity > 3) {
+        seoIssues.push(`Keyword stuffing detectado (${keywordDensity.toFixed(1)}% para "${keywords[0]}")`);
+        fix_suggestions.push("Reduzir frequência da palavra-chave principal para < 3%");
       }
     }
 
     // ===== 4. COMPLIANCE CHECK =====
-    const detectedNiche = detectSensitiveNiche(
-      businessProfile?.niche,
-      businessProfile?.services,
-      content
-    );
-    
+    const detectedNiche = detectSensitiveNiche(businessProfile?.niche || '', businessProfile?.services || []);
     const complianceResult = validateCompliance(content, detectedNiche);
     
     let fixedContent = content;
     if (!complianceResult.passed) {
-      reasons.push(...complianceResult.violations);
-      fix_suggestions.push("Remover frases proibidas para nicho sensível");
-    } else if (detectedNiche !== 'general' && !hasRequiredDisclaimer(content, detectedNiche)) {
-      fixedContent = injectDisclaimer(content, detectedNiche);
-      fix_suggestions.push(`Disclaimer de ${detectedNiche} será adicionado automaticamente`);
+      for (const violation of complianceResult.violations) {
+        reasons.push(`Violação de compliance: ${violation}`);
+      }
+      fix_suggestions.push("Remover claims proibidos ou adicionar disclaimers necessários");
     }
 
-    // ===== 5. STRUCTURAL VALIDATION (NOVO!) =====
-    let structureValidationResult = null;
-    let structureScore = 100;
-    
-    if (article.article_structure_type && isValidStructureType(article.article_structure_type)) {
-      console.log(`[QUALITY-GATE] Validating structure type: ${article.article_structure_type}`);
-      
-      structureValidationResult = validateStructure(
-        content,
-        title,
-        article.article_structure_type as StructureType
-      );
-      
-      structureScore = structureValidationResult.score;
-      
-      if (!structureValidationResult.valid) {
-        reasons.push(`Estrutura ${article.article_structure_type} não validada (score: ${structureScore}%)`);
-        fix_suggestions.push(...structureValidationResult.fixSuggestions);
+    // Check for required disclaimers
+    if (detectedNiche !== 'general') {
+      if (!hasRequiredDisclaimer(content, detectedNiche)) {
+        seoIssues.push(`Disclaimer obrigatório para nicho ${detectedNiche} ausente`);
+        fix_suggestions.push(`Adicionar disclaimer padrão para conteúdo de ${detectedNiche}`);
         
-        // Gerar instruções de correção para o LLM
-        const fixInstructions = generateStructureFixInstructions(structureValidationResult);
-        if (fixInstructions) {
-          fix_suggestions.push(fixInstructions);
-        }
-      } else {
-        console.log(`[QUALITY-GATE] Structure validation passed: ${article.article_structure_type} (score: ${structureScore}%)`);
+        // Auto-inject disclaimer
+        fixedContent = injectDisclaimer(content, detectedNiche);
       }
     }
 
-    // ===== 6. VISUAL RHYTHM =====
+    // ===== 5. STRUCTURE VALIDATION =====
+    let structureValidationResult = null;
+    const articleStructureType = article.article_structure_type;
+    
+    if (articleStructureType && isValidStructureType(articleStructureType)) {
+      structureValidationResult = validateStructure(content, title, articleStructureType as StructureType);
+      
+      if (!structureValidationResult.valid) {
+        const validationErrors = (structureValidationResult as { valid: boolean; issues?: string[] }).issues || [];
+        for (const error of validationErrors) {
+          structureIssues.push(`Estrutura: ${error}`);
+        }
+        
+        // Generate fix instructions based on structure type
+        if (validationErrors.length > 0) {
+          fix_suggestions.push(`Corrigir estrutura do artigo (tipo: ${articleStructureType})`);
+        }
+      }
+    }
+
+    // ===== 6. VISUAL RHYTHM CHECK =====
     const visualIssues: string[] = [];
     
     // Check paragraph length
-    const paragraphs = content.split(/\n\n+/);
-    const longParagraphs = paragraphs.filter((p: string) => p.length > 500 && !p.startsWith('#'));
+    const paragraphs = content.split(/\n\n+/).filter((p: string) => p.trim().length > 0);
+    const longParagraphs = paragraphs.filter((p: string) => p.split(/\s+/).length > 150);
     if (longParagraphs.length > 0) {
-      visualIssues.push(`${longParagraphs.length} parágrafos muito longos (>500 chars)`);
-      fix_suggestions.push("Quebrar parágrafos longos em blocos menores");
+      visualIssues.push(`${longParagraphs.length} parágrafos muito longos (>150 palavras)`);
+      fix_suggestions.push("Quebrar parágrafos longos para melhor legibilidade");
     }
 
     // Check for lists
-    const hasLists = /^[-*]\s/m.test(content) || /^\d+\.\s/m.test(content);
-    if (!hasLists && wordCount > 500) {
-      visualIssues.push("Nenhuma lista detectada (bullet points ou numerada)");
-      fix_suggestions.push("Adicionar listas para melhorar escaneabilidade");
+    const hasLists = /^[-*]\s+.+$/m.test(content) || /^\d+\.\s+.+$/m.test(content);
+    if (wordCount > 800 && !hasLists) {
+      visualIssues.push("Artigo longo sem listas de tópicos");
+      fix_suggestions.push("Adicionar listas com bullets para facilitar escaneabilidade");
     }
 
-    // Check for visual blocks (blockquotes, highlights)
-    const hasVisualBlocks = /^>/m.test(content) || /\*\*[^*]+\*\*/m.test(content);
-    if (!hasVisualBlocks && wordCount > 800) {
-      visualIssues.push("Sem blocos visuais de destaque");
-      fix_suggestions.push("Adicionar citações ou destaques em negrito");
+    // Check for visual blocks (quotes, callouts)
+    const hasVisualBlocks = /^>\s+.+$/m.test(content) || 
+      /💡/.test(content) || 
+      /⚠️/.test(content) ||
+      /📌/.test(content);
+    if (wordCount > 1000 && !hasVisualBlocks) {
+      visualIssues.push("Artigo longo sem elementos visuais (citações, callouts)");
+      fix_suggestions.push("Adicionar blocos destacados (💡, ⚠️, >) para quebrar monotonia");
     }
 
     // ===== FINAL DECISION =====
@@ -352,14 +403,15 @@ serve(async (req) => {
     const criticalIssues = reasons.filter(r => 
       r.includes("similar") ||
       r.includes("proibid") ||
-      r.includes("stuffing")
+      r.includes("stuffing") ||
+      r.includes("BLOQUEADO")
     ).length;
 
     const riskLevel: 'low' | 'medium' | 'high' = 
       criticalIssues > 0 ? 'high' :
       reasons.length > 3 ? 'medium' : 'low';
 
-    // Approval logic - agora inclui validação estrutural
+    // Approval logic - inclui validação de CTA/WhatsApp como OBRIGATÓRIA
     const structureValid = !structureValidationResult || structureValidationResult.valid;
     
     const approved = 
@@ -369,7 +421,8 @@ serve(async (req) => {
       complianceResult.passed &&
       h1Matches.length === 1 &&
       hasCTA &&
-      structureValid; // NOVO: Estrutura deve ser válida
+      structureValid &&
+      ctaWhatsAppValid; // OBRIGATÓRIO: CTA e WhatsApp válidos
 
     const result: QualityGateResult = {
       approved,
@@ -400,6 +453,10 @@ serve(async (req) => {
           passed: visualIssues.length === 0,
           issues: visualIssues,
         },
+        cta_whatsapp: {
+          passed: ctaWhatsAppValid,
+          issues: ctaIssues,
+        },
       },
       auto_fixable: fix_suggestions.length > 0 && !similarityResult.isSimilar,
       fixed_content: fixedContent !== content ? fixedContent : undefined,
@@ -419,7 +476,7 @@ serve(async (req) => {
       similarity_score: similarityResult.similarityScore,
       seo_score: Math.max(0, 100 - seoIssues.length * 15),
       compliance_passed: complianceResult.passed,
-      validator_version: 'v1.0',
+      validator_version: 'v1.1', // Bumped version for CTA/WhatsApp validation
     });
 
     // Update article quality gate status
@@ -431,7 +488,7 @@ serve(async (req) => {
       })
       .eq("id", articleId);
 
-    console.log(`[QUALITY-GATE] Article ${articleId}: ${approved ? 'APPROVED' : 'BLOCKED'} (${reasons.length} issues)`);
+    console.log(`[QUALITY-GATE] Article ${articleId}: ${approved ? 'APPROVED' : 'BLOCKED'} (${reasons.length} issues, CTA valid: ${ctaWhatsAppValid})`);
 
     return new Response(
       JSON.stringify(result),

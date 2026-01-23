@@ -1,3 +1,5 @@
+import { MessageCircle } from 'lucide-react';
+
 interface ContentImage {
   context: string;
   url: string;
@@ -32,18 +34,34 @@ const slugify = (text: string): string => {
     .replace(/(^-|-$)/g, "");
 };
 
-// Process markdown links [text](url)
+// Process markdown links [text](url) - with special handling for WhatsApp CTA buttons
 const processLinks = (text: string): string => {
   return text.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
     (_, linkText, url) => {
+      const isWhatsApp = url.includes('wa.me/');
       const isExternal = url.startsWith('http');
+      
+      if (isWhatsApp) {
+        // WhatsApp links get special CTA button styling (inline version)
+        return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="whatsapp-cta-inline">${linkText}</a>`;
+      }
+      
       if (isExternal) {
         return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="internal-link external-link">${linkText} <span class="external-icon">↗</span></a>`;
       }
       return `<a href="${url}" class="internal-link">${linkText}</a>`;
     }
   );
+};
+
+// Extract WhatsApp CTA from markdown line
+const extractWhatsAppCTA = (line: string): { text: string; url: string } | null => {
+  const match = line.match(/\[([^\]]+)\]\((https:\/\/wa\.me\/[^)]+)\)/);
+  if (match) {
+    return { text: match[1], url: match[2] };
+  }
+  return null;
 };
 
 export const ArticleContent = ({ content, contentImages = [] }: ArticleContentProps) => {
@@ -99,6 +117,57 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         return;
       }
 
+      // ===== WHATSAPP CTA BUTTON DETECTION =====
+      // Check if this line contains a WhatsApp CTA link (wa.me)
+      // Render as a prominent green button instead of inline link
+      if (trimmedLine.includes('wa.me/') && trimmedLine.includes('[')) {
+        flushList();
+        
+        const ctaData = extractWhatsAppCTA(trimmedLine);
+        if (ctaData) {
+          elements.push(
+            <div key={index} className="my-8 text-center">
+              <a
+                href={ctaData.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-3 px-8 py-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105 no-underline"
+              >
+                <MessageCircle className="w-6 h-6" />
+                {ctaData.text}
+              </a>
+            </div>
+          );
+          return;
+        }
+      }
+
+      // ===== SPECIAL CTA LINE WITH EMOJI =====
+      // Handle lines like: 👉 [Fale com...](https://wa.me/...)
+      if (trimmedLine.startsWith('👉 ') && trimmedLine.includes('wa.me/')) {
+        flushList();
+        
+        const lineWithoutEmoji = trimmedLine.replace('👉 ', '');
+        const ctaData = extractWhatsAppCTA(lineWithoutEmoji);
+        
+        if (ctaData) {
+          elements.push(
+            <div key={index} className="my-8 text-center">
+              <a
+                href={ctaData.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-3 px-8 py-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all transform hover:scale-105 no-underline"
+              >
+                <MessageCircle className="w-6 h-6" />
+                {ctaData.text}
+              </a>
+            </div>
+          );
+          return;
+        }
+      }
+
       // Special blocks - Insight (💡 Verdade Dura)
       if (trimmedLine.startsWith("💡 ")) {
         flushList();
@@ -135,7 +204,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         return;
       }
 
-      // NEW: Special blocks - Summary (✅ Resumo Rápido)
+      // Special blocks - Summary (✅ Resumo Rápido)
       if (trimmedLine.startsWith("✅ ")) {
         flushList();
         elements.push(
@@ -147,7 +216,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         return;
       }
 
-      // NEW: Special blocks - Pull Quote (❝ Citação Destacada)
+      // Special blocks - Pull Quote (❝ Citação Destacada)
       if (trimmedLine.startsWith("❝ ") || trimmedLine.startsWith("❞ ")) {
         flushList();
         const quoteContent = trimmedLine.replace(/^[❝❞]\s?/, '');
@@ -244,6 +313,24 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
 
   return (
     <article className="prose prose-lg max-w-none prose-headings:font-heading prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground prose-h2:text-2xl prose-h2:mt-8 prose-h2:mb-4 prose-h3:text-xl prose-h3:mt-6 prose-h3:mb-3 prose-p:leading-relaxed prose-ul:my-4 prose-ol:my-4 prose-li:my-1 prose-blockquote:not-italic">
+      <style>{`
+        .whatsapp-cta-inline {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.5rem 1rem;
+          background-color: #25D366;
+          color: white !important;
+          border-radius: 0.5rem;
+          font-weight: 600;
+          text-decoration: none !important;
+          transition: all 0.2s;
+        }
+        .whatsapp-cta-inline:hover {
+          background-color: #1da851;
+          transform: scale(1.02);
+        }
+      `}</style>
       {formatContent(content)}
     </article>
   );

@@ -1,12 +1,19 @@
 /**
  * Contact Links Helper - Professional Button System
  * 
- * This module centralizes all contact button link generation and sanitization.
- * It ensures:
- * - Raw values are never displayed in the UI
- * - Links use official formats (wa.me, tel:, mailto:, instagram.com)
- * - Values are sanitized before storage
+ * Sistema centralizado para validação e geração de links de contato.
+ * 
+ * REGRA ABSOLUTA: 
+ * - Todos os links de WhatsApp DEVEM usar os builders globais
+ * - NUNCA montar links wa.me ou api.whatsapp.com manualmente neste arquivo
+ * - Use buildSimpleWhatsAppLink ou buildWhatsAppLinkWithMessage de @/lib/whatsappBuilder
  */
+
+import { 
+  buildSimpleWhatsAppLink, 
+  buildWhatsAppLinkWithMessage,
+  tryNormalizeWhatsAppInput
+} from '@/lib/whatsappBuilder';
 
 export interface ContactButtonData {
   button_type: 'whatsapp' | 'phone' | 'email' | 'instagram' | 'website' | 'link';
@@ -93,7 +100,7 @@ export function getContactLinkPreview(btn: ContactButtonData): string {
   
   switch (btn.button_type) {
     case 'whatsapp':
-      // ⚠️ SEMPRE usar wa.me oficial - NUNCA api.whatsapp.com
+      // Preview usando formato oficial wa.me
       const previewText = btn.whatsapp_message ? `?text=...` : '';
       return `wa.me/${cleanValue}${previewText}`;
     case 'phone':
@@ -112,7 +119,7 @@ export function getContactLinkPreview(btn: ContactButtonData): string {
 
 /**
  * Sanitizes contact value based on type before saving to database.
- * - WhatsApp/Phone: removes all non-digits
+ * - WhatsApp/Phone: removes all non-digits (extracts from URLs)
  * - Instagram: removes @ prefix
  * - Email: trims and lowercases
  * - URLs: trims
@@ -125,46 +132,42 @@ export function sanitizeContactValue(type: string, value: string): string {
   switch (type) {
     case 'whatsapp':
     case 'phone':
-      // Extract number from wa.me or api.whatsapp.com URLs
-      // Handles: https://wa.me/5511999999999, https://api.whatsapp.com/send?phone=5511999999999
+      // Usa normalização do whatsappBuilder para WhatsApp
+      if (type === 'whatsapp') {
+        const normalized = tryNormalizeWhatsAppInput(trimmed);
+        if (normalized) return normalized;
+      }
+      // Fallback: extrai número de URLs ou mantém apenas dígitos
       const waUrlRegex = /(?:wa\.me\/|whatsapp\.com\/send\?phone=)(\d+)/i;
       const waMatch = trimmed.match(waUrlRegex);
       if (waMatch && waMatch[1]) {
         return waMatch[1];
       }
-      // Fallback: keep only digits
       return trimmed.replace(/\D/g, '');
 
     case 'instagram':
       // Extract username from Instagram URLs
-      // Handles: https://www.instagram.com/username, @username, username
       const instagramUrlRegex = /(?:https?:\/\/)?(?:www\.)?instagram\.com\/([a-zA-Z0-9._]+)\/?/i;
       const igMatch = trimmed.match(instagramUrlRegex);
       if (igMatch && igMatch[1]) {
         return igMatch[1];
       }
-      // Fallback: remove @ prefix
       return trimmed.replace(/^@/, '');
 
     case 'email':
       // Extract email from mailto: links
-      // Handles: mailto:email@example.com?subject=...
       const mailtoRegex = /^mailto:([^\s?]+)/i;
       const mailtoMatch = trimmed.match(mailtoRegex);
       if (mailtoMatch && mailtoMatch[1]) {
         return mailtoMatch[1].toLowerCase();
       }
-      // Fallback: trim and lowercase
       return trimmed.toLowerCase();
 
     case 'website':
     case 'link':
-      // Normalize URLs - remove duplicate protocols, spaces
-      // Handles: https://https://site.com, http://site.com, site.com
+      // Normalize URLs
       let url = trimmed;
-      // Remove duplicate protocols
       url = url.replace(/^(https?:\/\/)+/gi, '');
-      // Remove duplicate www.
       url = url.replace(/^(www\.)+/gi, 'www.');
       return url;
 
@@ -177,9 +180,7 @@ export function sanitizeContactValue(type: string, value: string): string {
  * Generates the official href link for each contact type.
  * NEVER returns raw values - always returns properly formatted links.
  * 
- * NOTE: For WhatsApp buttons, this returns a simple wa.me link.
- * For contextual WhatsApp links (with article title, service, etc.),
- * use buildWhatsAppLink from @/lib/whatsappBuilder instead.
+ * REGRA: Para WhatsApp, usa os builders globais de @/lib/whatsappBuilder
  */
 export function getContactHref(btn: ContactButtonData): string {
   const cleanValue = sanitizeContactValue(btn.button_type, btn.value);
@@ -188,12 +189,11 @@ export function getContactHref(btn: ContactButtonData): string {
   
   switch (btn.button_type) {
     case 'whatsapp':
-      // ⚠️ SEMPRE usar wa.me oficial - NUNCA api.whatsapp.com
-      // Formato: https://wa.me/<phone>?text=<message>
-      const waText = btn.whatsapp_message 
-        ? `?text=${encodeURIComponent(btn.whatsapp_message)}`
-        : '';
-      return `https://wa.me/${cleanValue}${waText}`;
+      // ✅ USA BUILDER GLOBAL - NUNCA montar link manualmente
+      if (btn.whatsapp_message) {
+        return buildWhatsAppLinkWithMessage(cleanValue, btn.whatsapp_message);
+      }
+      return buildSimpleWhatsAppLink(cleanValue);
     
     case 'phone':
       // Tel format with + prefix

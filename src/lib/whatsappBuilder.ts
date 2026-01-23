@@ -3,13 +3,18 @@
  * 
  * Este módulo gerencia a construção de links WhatsApp com herança
  * da configuração global da conta-mãe.
- * Suporta campos territoriais (neighborhood, territoryName, leadSource).
  * 
- * REGRA DE OURO: Nenhum link WhatsApp deve ser construído manualmente.
- * Use SEMPRE as funções exportadas deste módulo.
+ * REGRA ABSOLUTA: 
+ * - Todos os links DEVEM usar wa.me - NUNCA api.whatsapp.com
+ * - Nenhum link WhatsApp deve ser construído manualmente fora deste módulo
+ * - Use SEMPRE as funções exportadas: buildSimpleWhatsAppLink, buildWhatsAppLinkWithMessage
  */
 
 import { supabase } from "@/integrations/supabase/client";
+
+// ============================================================
+// INTERFACES
+// ============================================================
 
 export interface WhatsAppContext {
   phone: string;           // Obrigatório - número da subconta
@@ -17,7 +22,7 @@ export interface WhatsAppContext {
   service?: string;        // Serviço principal
   city?: string;           // Cidade
   articleTitle?: string;   // Título do artigo (quando aplicável)
-  // NOVOS CAMPOS TERRITORIAIS
+  // Campos territoriais
   neighborhood?: string;       // Bairro específico
   territoryName?: string;      // Nome oficial do território validado
   leadSource?: string;         // Origem: 'map' | 'article' | 'neighborhood' | 'search'
@@ -28,6 +33,91 @@ export interface GlobalCommConfig {
   message_template: string;
   placeholders: string[];
 }
+
+export interface BuildWhatsAppOptions {
+  messageOverride?: string; // Mensagem específica (override do template global)
+}
+
+// ============================================================
+// FUNÇÃO GLOBAL DE NORMALIZAÇÃO (ENTRADA À PROVA DE ERRO)
+// ============================================================
+
+/**
+ * Normaliza qualquer formato de entrada de WhatsApp para número limpo
+ * 
+ * Aceita:
+ * - +55 (11) 98888-7777
+ * - 11988887777
+ * - https://wa.me/5511988887777
+ * - https://api.whatsapp.com/send?phone=5511988887777
+ * 
+ * Retorna: 5511988887777 (apenas dígitos, com código do país)
+ * 
+ * @throws Error se o número for inválido
+ */
+export function normalizeWhatsAppInput(raw: string): string {
+  if (!raw || typeof raw !== 'string') {
+    throw new Error('Número de WhatsApp não informado');
+  }
+  
+  // Extrai número de URLs wa.me ou api.whatsapp.com
+  const urlMatch = raw.match(/(?:wa\.me\/|whatsapp\.com\/send\?phone=)(\d+)/i);
+  if (urlMatch && urlMatch[1]) {
+    return urlMatch[1];
+  }
+  
+  // Remove todos os caracteres não numéricos
+  const digits = raw.replace(/\D/g, '');
+  
+  // Valida e normaliza
+  if (digits.length === 11) {
+    // DDD + número celular sem código país -> adiciona 55 (Brasil)
+    return `55${digits}`;
+  }
+  if (digits.length === 10) {
+    // DDD + número fixo sem código país -> adiciona 55
+    return `55${digits}`;
+  }
+  if (digits.length >= 12 && digits.length <= 15) {
+    // Já tem código de país
+    return digits;
+  }
+  
+  throw new Error('Número inválido. Use DDD + número (ex: 11988887777)');
+}
+
+/**
+ * Tenta normalizar sem lançar erro (retorna string vazia se falhar)
+ */
+export function tryNormalizeWhatsAppInput(raw: string): string {
+  try {
+    return normalizeWhatsAppInput(raw);
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Gera link wa.me com mensagem personalizada
+ * ÚNICA função a ser usada para CTAs de artigo
+ * 
+ * @param phone - Número de WhatsApp em qualquer formato
+ * @param message - Mensagem a ser enviada
+ * @returns URL completa no formato https://wa.me/{numero}?text={mensagem}
+ */
+export function buildWhatsAppLinkWithMessage(phone: string, message: string): string {
+  try {
+    const cleanPhone = normalizeWhatsAppInput(phone);
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+  } catch {
+    console.warn('[WhatsApp] Invalid phone for message link:', phone);
+    return '#';
+  }
+}
+
+// ============================================================
+// CONFIGURAÇÃO GLOBAL (CACHE)
+// ============================================================
 
 // Cache global para evitar múltiplas requests
 let globalConfigCache: GlobalCommConfig | null = null;
@@ -94,8 +184,13 @@ export async function getGlobalWhatsAppConfig(): Promise<GlobalCommConfig> {
   return configFetchPromise;
 }
 
+// ============================================================
+// FUNÇÕES DE CONSTRUÇÃO DE LINKS
+// ============================================================
+
 /**
  * Limpa o número de telefone (apenas dígitos)
+ * @deprecated Use normalizeWhatsAppInput para validação completa
  */
 export function cleanPhoneNumber(phone: string): string {
   return phone.replace(/\D/g, '');
@@ -118,7 +213,7 @@ export function interpolateMessage(template: string, context: WhatsAppContext): 
     .replace(/{service}/g, context.service || 'nossos serviços')
     .replace(/{city}/g, context.city || 'sua região')
     .replace(/{article_title}/g, context.articleTitle || 'o conteúdo')
-    // NOVOS PLACEHOLDERS TERRITORIAIS
+    // Placeholders territoriais
     .replace(/{neighborhood}/g, locationFallback)
     .replace(/{territory_name}/g, territoryFallback)
     .replace(/{lead_source}/g, context.leadSource || 'site');
@@ -136,10 +231,6 @@ export async function buildWhatsAppLink(context: WhatsAppContext): Promise<strin
   
   const config = await getGlobalWhatsAppConfig();
   return buildWhatsAppLinkSync(context, config);
-}
-
-export interface BuildWhatsAppOptions {
-  messageOverride?: string; // Mensagem específica (override do template global)
 }
 
 /**
@@ -166,16 +257,6 @@ export function buildWhatsAppLinkSync(
     .replace('{phone}', cleanPhone)
     .replace('{message}', encodeURIComponent(message));
   
-  // Health check log
-  console.log('[WhatsApp] Link generated:', {
-    phoneClean: cleanPhone,
-    hasOverride: !!options?.messageOverride,
-    hasNeighborhood: !!context.neighborhood,
-    hasTerritory: !!context.territoryName,
-    leadSource: context.leadSource,
-    urlLength: url.length
-  });
-  
   return url;
 }
 
@@ -184,11 +265,17 @@ export function buildWhatsAppLinkSync(
  * Útil para links simples de contato
  */
 export function buildSimpleWhatsAppLink(phone: string): string {
-  const cleanPhone = cleanPhoneNumber(phone);
-  if (!cleanPhone || cleanPhone.length < 10) {
-    return '#';
+  try {
+    const cleanPhone = normalizeWhatsAppInput(phone);
+    return `https://wa.me/${cleanPhone}`;
+  } catch {
+    // Fallback para lógica antiga se normalização falhar
+    const digits = phone.replace(/\D/g, '');
+    if (!digits || digits.length < 10) {
+      return '#';
+    }
+    return `https://wa.me/${digits}`;
   }
-  return `https://wa.me/${cleanPhone}`;
 }
 
 /**
@@ -219,3 +306,9 @@ export function invalidateWhatsAppConfigCache(): void {
   configFetchPromise = null;
   cacheTimestamp = 0;
 }
+
+// ============================================================
+// EXPORTAÇÃO DO DEFAULT CONFIG (para uso em contactLinks)
+// ============================================================
+
+export { DEFAULT_CONFIG };
