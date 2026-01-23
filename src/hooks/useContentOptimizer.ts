@@ -36,6 +36,7 @@ interface UseContentOptimizerReturn {
 }
 
 const OPTIMIZATION_STEPS: Omit<OptimizationStep, 'status'>[] = [
+  { id: 'serp', label: 'Analisando concorrência (SERP)...' },
   { id: 'words', label: 'Expandindo conteúdo (palavras)...' },
   { id: 'h2', label: 'Criando/ajustando H2...' },
   { id: 'paragraphs', label: 'Melhorando estrutura de parágrafos...' },
@@ -62,6 +63,48 @@ export function useContentOptimizer({
   const [fixingArea, setFixingArea] = useState<string | null>(null);
   const [scoreHistory, setScoreHistory] = useState<number[]>([]);
   const [cancelled, setCancelled] = useState(false);
+
+  // Helper to ensure SERP analysis exists before optimization
+  const ensureSERPAnalysis = useCallback(async (): Promise<boolean> => {
+    try {
+      // Check if SERP analysis exists
+      const { data: existingSerp } = await supabase
+        .from('serp_analysis_cache')
+        .select('id')
+        .eq('blog_id', blogId)
+        .eq('keyword', keyword)
+        .gt('expires_at', new Date().toISOString())
+        .limit(1)
+        .single();
+
+      if (existingSerp) {
+        console.log('[OPTIMIZER] SERP analysis already exists');
+        return true;
+      }
+
+      // Run SERP analysis if not exists
+      console.log('[OPTIMIZER] Running SERP analysis...');
+      const { data, error } = await supabase.functions.invoke('analyze-serp', {
+        body: { keyword, blogId, forceRefresh: false }
+      });
+
+      if (error) {
+        console.error('[OPTIMIZER] SERP analysis error:', error);
+        toast({
+          title: 'Erro na análise SERP',
+          description: 'Não foi possível analisar a concorrência',
+          variant: 'destructive'
+        });
+        return false;
+      }
+
+      console.log('[OPTIMIZER] SERP analysis completed');
+      return true;
+    } catch (error) {
+      console.error('[OPTIMIZER] SERP check error:', error);
+      return false;
+    }
+  }, [blogId, keyword]);
 
   // Helper to call boost edge function with specific optimization type
   const callBoost = useCallback(async (
@@ -94,10 +137,21 @@ export function useContentOptimizer({
     }
   }, [articleId, title, keyword, blogId]);
 
-  // Individual fix functions
+  // Individual fix functions - all ensure SERP analysis first
   const fixWords = useCallback(async (): Promise<string | null> => {
     setFixingArea('words');
     try {
+      // Ensure SERP analysis exists before boost
+      const serpReady = await ensureSERPAnalysis();
+      if (!serpReady) {
+        toast({
+          title: 'Análise SERP necessária',
+          description: 'Execute a análise de concorrência primeiro',
+          variant: 'destructive'
+        });
+        return null;
+      }
+      
       const result = await callBoost('words', content);
       if (result.content && onContentUpdate) {
         onContentUpdate(result.content);
@@ -109,7 +163,7 @@ export function useContentOptimizer({
     } finally {
       setFixingArea(null);
     }
-  }, [content, callBoost, onContentUpdate, onScoreUpdate]);
+  }, [content, callBoost, onContentUpdate, onScoreUpdate, ensureSERPAnalysis]);
 
   const fixH2 = useCallback(async (): Promise<string | null> => {
     setFixingArea('h2');
@@ -218,7 +272,31 @@ export function useContentOptimizer({
     let iterationCount = 0;
     const maxIterations = 5;
     
-    // Get initial score
+    // STEP 1: Ensure SERP analysis exists (first step in the list)
+    setSteps(prev => prev.map((s, idx) => 
+      idx === 0 ? { ...s, status: 'running' } : s
+    ));
+    
+    const serpReady = await ensureSERPAnalysis();
+    if (!serpReady) {
+      setSteps(prev => prev.map((s, idx) => 
+        idx === 0 ? { ...s, status: 'error' } : s
+      ));
+      setIsRunning(false);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível analisar a concorrência',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    setSteps(prev => prev.map((s, idx) => 
+      idx === 0 ? { ...s, status: 'done' } : s
+    ));
+    setProgress((1 / OPTIMIZATION_STEPS.length) * 100);
+    
+    // Get initial score (now that SERP exists)
     const { data: initialData } = await supabase.functions.invoke('calculate-content-score', {
       body: { content, title, keyword, blogId, saveScore: false }
     });
@@ -227,6 +305,7 @@ export function useContentOptimizer({
     setScoreHistory([currentScore]);
 
     const stepFunctions: Record<string, () => Promise<string | null>> = {
+      serp: async () => null, // Already handled above
       words: async () => {
         const result = await callBoost('words', currentContent);
         return result.content;
@@ -251,7 +330,8 @@ export function useContentOptimizer({
       },
     };
 
-    for (let i = 0; i < steps.length && !cancelled && iterationCount < maxIterations; i++) {
+    // Start from step 1 (step 0 is SERP which we already did)
+    for (let i = 1; i < OPTIMIZATION_STEPS.length && !cancelled && iterationCount < maxIterations; i++) {
       const step = OPTIMIZATION_STEPS[i];
       
       // Update step status to running
@@ -342,7 +422,7 @@ export function useContentOptimizer({
         description: `Score final: ${currentScore}`
       });
     }
-  }, [content, title, keyword, blogId, articleId, callBoost, onContentUpdate, onScoreUpdate, cancelled, steps.length]);
+  }, [content, title, keyword, blogId, articleId, callBoost, onContentUpdate, onScoreUpdate, cancelled, ensureSERPAnalysis]);
 
   const cancelOptimization = useCallback(() => {
     setCancelled(true);
