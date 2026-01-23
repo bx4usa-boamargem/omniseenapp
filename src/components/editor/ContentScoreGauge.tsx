@@ -10,7 +10,7 @@ interface ContentScoreGaugeProps {
 }
 
 /**
- * Semicircular gauge with 3 color zones (red/yellow/green),
+ * Semicircular gauge with continuous gradient (red → yellow → green),
  * moving pointer, goal marker and score display as "X / 100"
  * 
  * CRITICAL: Score comes from database (article_content_scores.total_score)
@@ -52,26 +52,23 @@ export function ContentScoreGauge({
 
   // Gauge dimensions
   const width = 200;
-  const height = 110;
+  const height = 120;
   const strokeWidth = 14;
   const radius = 80;
   const centerX = 100;
   const centerY = 95;
   
-  // Arc calculation (semicircle from left to right)
-  const circumference = Math.PI * radius;
-  
   // Pointer position (angle in degrees, 0 = left, 180 = right)
   const pointerAngle = (displayScore / 100) * 180;
   const pointerRad = (180 - pointerAngle) * (Math.PI / 180);
-  const pointerX = centerX + (radius - strokeWidth / 2) * Math.cos(pointerRad);
-  const pointerY = centerY - (radius - strokeWidth / 2) * Math.sin(pointerRad);
+  const pointerX = centerX + radius * Math.cos(pointerRad);
+  const pointerY = centerY - radius * Math.sin(pointerRad);
   
-  // Goal marker position
+  // Goal marker position (on outer edge)
   const goalAngle = (goalMarker / 100) * 180;
   const goalRad = (180 - goalAngle) * (Math.PI / 180);
-  const goalX = centerX + (radius + 12) * Math.cos(goalRad);
-  const goalY = centerY - (radius + 12) * Math.sin(goalRad);
+  const goalX = centerX + (radius + 18) * Math.cos(goalRad);
+  const goalY = centerY - (radius + 18) * Math.sin(goalRad);
   
   // Get score color based on current value
   const getScoreColor = () => {
@@ -81,24 +78,7 @@ export function ContentScoreGauge({
     return 'hsl(0, 84%, 60%)'; // red
   };
   
-  // Zone arc paths
-  const createZonePath = (startPct: number, endPct: number) => {
-    const startAngle = (startPct / 100) * 180;
-    const endAngle = (endPct / 100) * 180;
-    const startRad = (180 - startAngle) * (Math.PI / 180);
-    const endRad = (180 - endAngle) * (Math.PI / 180);
-    
-    const startX = centerX + radius * Math.cos(startRad);
-    const startY = centerY - radius * Math.sin(startRad);
-    const endX = centerX + radius * Math.cos(endRad);
-    const endY = centerY - radius * Math.sin(endRad);
-    
-    const largeArc = endPct - startPct > 50 ? 1 : 0;
-    
-    return `M ${startX} ${startY} A ${radius} ${radius} 0 ${largeArc} 1 ${endX} ${endY}`;
-  };
-
-  // Arc path for semicircle background
+  // Arc path for semicircle (from left to right)
   const arcPath = `M ${centerX - radius} ${centerY} A ${radius} ${radius} 0 0 1 ${centerX + radius} ${centerY}`;
 
   return (
@@ -109,43 +89,25 @@ export function ContentScoreGauge({
         viewBox={`0 0 ${width} ${height}`}
         className="overflow-visible"
       >
-        {/* Background arc (gray) */}
+        {/* Gradient definition for continuous arc */}
+        <defs>
+          <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="hsl(0, 84%, 60%)" />
+            <stop offset="55%" stopColor="hsl(0, 84%, 60%)" />
+            <stop offset="60%" stopColor="hsl(38, 92%, 50%)" />
+            <stop offset="75%" stopColor="hsl(38, 92%, 50%)" />
+            <stop offset="80%" stopColor="hsl(142, 76%, 36%)" />
+            <stop offset="100%" stopColor="hsl(142, 76%, 36%)" />
+          </linearGradient>
+        </defs>
+        
+        {/* Single continuous arc with gradient - red → yellow → green */}
         <path
           d={arcPath}
           fill="none"
-          stroke="hsl(var(--muted))"
+          stroke="url(#gaugeGradient)"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
-        />
-        
-        {/* Zone 1: Red (0-59) */}
-        <path
-          d={createZonePath(0, 59)}
-          fill="none"
-          stroke="hsl(0, 84%, 60%)"
-          strokeWidth={strokeWidth}
-          strokeLinecap="butt"
-          opacity={0.9}
-        />
-        
-        {/* Zone 2: Yellow (59-79) */}
-        <path
-          d={createZonePath(59, 79)}
-          fill="none"
-          stroke="hsl(38, 92%, 50%)"
-          strokeWidth={strokeWidth}
-          strokeLinecap="butt"
-          opacity={0.9}
-        />
-        
-        {/* Zone 3: Green (79-100) */}
-        <path
-          d={createZonePath(79, 100)}
-          fill="none"
-          stroke="hsl(142, 76%, 36%)"
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          opacity={0.9}
         />
         
         {/* Goal marker 🔥 */}
@@ -163,7 +125,7 @@ export function ContentScoreGauge({
         </g>
         <text 
           x={goalX} 
-          y={goalY - 16} 
+          y={goalY - 14} 
           textAnchor="middle" 
           fontSize="9"
           className="fill-muted-foreground font-medium"
@@ -176,7 +138,7 @@ export function ContentScoreGauge({
           <circle
             cx={pointerX}
             cy={pointerY}
-            r={strokeWidth / 2 + 3}
+            r={strokeWidth / 2 + 2}
             fill={getScoreColor()}
             stroke="hsl(var(--background))"
             strokeWidth={3}
@@ -189,8 +151,8 @@ export function ContentScoreGauge({
         
         {/* Min/Max labels */}
         <text 
-          x={centerX - radius - 5} 
-          y={centerY + 15} 
+          x={centerX - radius - 8} 
+          y={centerY + 18} 
           textAnchor="middle" 
           fontSize="10"
           className="fill-muted-foreground"
@@ -198,8 +160,8 @@ export function ContentScoreGauge({
           0
         </text>
         <text 
-          x={centerX + radius + 5} 
-          y={centerY + 15} 
+          x={centerX + radius + 8} 
+          y={centerY + 18} 
           textAnchor="middle" 
           fontSize="10"
           className="fill-muted-foreground"

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useContentScore } from '@/hooks/useContentScore';
 import { useContentOptimizer } from '@/hooks/useContentOptimizer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,6 +46,9 @@ export function ContentScorePanel({
 }: ContentScorePanelProps) {
   // Optimize to 100 dialog
   const [showOptimizeDialog, setShowOptimizeDialog] = useState(false);
+  
+  // Flag to skip auto-calculate after intentional optimization
+  const skipNextAutoCalculate = useRef(false);
 
   // Content score hook
   const {
@@ -69,24 +72,32 @@ export function ContentScorePanel({
     keyword,
     onContentUpdate,
     onScoreUpdate: (newScore) => {
-      // Score will be recalculated automatically
+      // Skip next auto-calculate since we already have the new score
+      skipNextAutoCalculate.current = true;
     }
   });
 
   // Auto-calculate score when content changes significantly
+  // BUT skip if the change came from an intentional optimization
   useEffect(() => {
+    if (skipNextAutoCalculate.current) {
+      skipNextAutoCalculate.current = false;
+      return;
+    }
+    
     if (content && keyword && blogId && content.length > 500) {
       const timer = setTimeout(() => {
         calculateScore();
-      }, 2000);
+      }, 3000); // 3s debounce to let content stabilize
       return () => clearTimeout(timer);
     }
   }, [content, keyword, blogId, calculateScore]);
 
-  // Handle optimize actions
+  // Handle optimize actions - set flag to skip auto-calculate
   const handleOptimize = async () => {
     const optimizedContent = await optimizeForSERP();
     if (optimizedContent && onContentUpdate) {
+      skipNextAutoCalculate.current = true;
       onContentUpdate(optimizedContent);
     }
   };
@@ -94,6 +105,7 @@ export function ContentScorePanel({
   const handleBoost = async () => {
     const boostedContent = await boostScore(80);
     if (boostedContent && onContentUpdate) {
+      skipNextAutoCalculate.current = true;
       onContentUpdate(boostedContent);
     }
   };
