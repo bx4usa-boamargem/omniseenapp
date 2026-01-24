@@ -1,78 +1,85 @@
 
-# Plano: Estabilização Multi-Tenant para Subdomínios
+# Plano: Estabilização do Fluxo de Autenticação
 
 ## Objetivo
-Tornar a Omniseen funcional em subdomínios `cliente.app.omniseen.app`, eliminando tela branca, loops de login e redirects quebrados.
+Eliminar o erro `removeChild` e condições de corrida de renderização tornando o fluxo de autenticação **linear, determinístico e único**.
 
-## Escopo Estrito
-- ✅ Resolução de tenant por subdomínio
-- ✅ Fluxo de login centralizado
-- ✅ Redirects OAuth
-- ✅ Persistência de sessão
-- ❌ **NÃO** altera: SERP, Content Score, IA, editor, banco de dados
+## Diagnóstico
+
+### Pontos de Corrida Identificados
+
+| Arquivo | Linha | Problema |
+|---------|-------|----------|
+| `Login.tsx` | 107-114 | Auto-redirect durante mount via `useEffect` |
+| `Login.tsx` | 161 | Navigate após login por email/senha |
+| `OAuthCallback.tsx` | 29, 59, 62, 66 | Múltiplos caminhos de navigate |
+| `AutoProvisionTenant.tsx` | 30, 66 | Navigate durante provisioning |
+
+### Causa Raiz
+Quando o usuário faz login:
+1. `Login.tsx` executa `navigate('/app')` após sucesso
+2. Simultaneamente, `onAuthStateChange` atualiza o estado `user`
+3. O `useEffect` da linha 107 detecta `user` e tenta `navigate()` novamente
+4. React tenta desmontar nós DOM que já estão sendo substituídos
 
 ---
 
 ## Alterações Planejadas
 
-### 1. Adicionar Helper para Tenant via Meta Tag
-**Arquivo:** `src/utils/platformUrls.ts`
+### 1. Login.tsx - Remover Auto-Redirect no Mount
 
-Adicionar nova função para leitura de slug injetado pelo Cloudflare Worker:
+**Problema**: Linhas 107-114 redirecionam automaticamente durante o mount.
 
+**Solução**: Remover completamente esse useEffect. O redirect só deve acontecer:
+- Após clique em "Entrar" (handleSubmit)
+- Após OAuth callback
+
+**Implementação**:
 ```typescript
-/**
- * Lê o slug do tenant de uma meta tag injetada pelo reverse proxy
- * Permite que o Cloudflare Worker injete o tenant real via HTML
- * @example <meta name="x-tenant-slug" content="trulynolen" />
- */
-export function getTenantSlugFromMeta(): string | null {
-  if (typeof document === 'undefined') return null;
-  const meta = document.querySelector('meta[name="x-tenant-slug"]');
-  return meta?.getAttribute('content') || null;
-}
-
-/**
- * Resolve o slug do tenant com prioridade:
- * 1. Meta tag injetada pelo Worker (x-tenant-slug)
- * 2. Parsing do hostname atual
- */
-export function resolveCurrentTenantSlug(): string | null {
-  // Prioridade 1: Meta tag do Worker
-  const metaSlug = getTenantSlugFromMeta();
-  if (metaSlug) return metaSlug;
-  
-  // Prioridade 2: Parsing do hostname
-  return extractSubdomainSlug();
-}
+// REMOVER COMPLETAMENTE este useEffect (linhas 107-114):
+// useEffect(() => {
+//   if (user && !authLoading) {
+//     const from = ...
+//     navigate(from, { replace: true });
+//   }
+// }, [user, authLoading, navigate, location]);
 ```
 
----
+### 2. Login.tsx - Criar Guard de Redirect Único
 
-### 2. Atualizar Auth para Callback Centralizado
-**Arquivo:** `src/hooks/useAuth.tsx`
-
-Alterar o `signInWithGoogle` para usar callback centralizado em `app.omniseen.app`:
-
-**Antes (linha 76):**
+**Adicionar** no início de `LoginContent`:
 ```typescript
-redirectTo: `${window.location.origin}/client/dashboard`,
+// Guard contra múltiplos redirects
+const hasRedirectedRef = useRef(false);
+
+const safeRedirect = (path: string) => {
+  if (hasRedirectedRef.current) {
+    console.log('[Login] Redirect already in progress, skipping');
+    return;
+  }
+  hasRedirectedRef.current = true;
+  console.log('[Login] Safe redirect to:', path);
+  navigate(path, { replace: true });
+};
 ```
 
-**Depois:**
+### 3. Login.tsx - Usar safeRedirect no handleSubmit
+
+**Alterar** linha 161:
 ```typescript
-redirectTo: `https://app.omniseen.app/oauth/callback?return_to=${encodeURIComponent(window.location.origin + '/client/dashboard')}`,
+// Antes:
+navigate('/app', { replace: true });
+
+// Depois:
+safeRedirect('/app');
 ```
 
-Isso garante que o OAuth sempre retorne para a plataforma principal, que então redireciona para o subdomínio correto.
+### 4. OAuthCallback.tsx - Implementar Guard e Fluxo Linear
 
----
-
-### 3. Criar Página de Callback OAuth
-**Novo arquivo:** `src/pages/auth/OAuthCallback.tsx`
+**Reescrever** com guard de redirect e fluxo determinístico:
 
 ```typescript
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2 } from 'lucide-react';
@@ -80,46 +87,76 @@ import { Loader2 } from 'lucide-react';
 export default function OAuthCallback() {
   const navigate = useNavigate();
   const [status, setStatus] = useState('Finalizando login...');
+  const hasRedirectedRef = useRef(false);
+
+  const safeRedirect = (path: string, isExternal = false) => {
+    if (hasRedirectedRef.current) {
+      console.log('[OAuthCallback] Redirect already in progress, skipping');
+      return;
+    }
+    hasRedirectedRef.current = true;
+    console.log('[OAuthCallback] Safe redirect to:', path);
+    
+    if (isExternal) {
+      window.location.href = path;
+    } else {
+      navigate(path, { replace: true });
+    }
+  };
 
   useEffect(() => {
+    // Prevent multiple executions
+    if (hasRedirectedRef.current) return;
+    
     const handleCallback = async () => {
       try {
-        // Aguardar a sessão ser estabelecida pelo Supabase
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
           console.error('[OAuthCallback] Session error:', error);
           setStatus('Erro ao finalizar login');
-          setTimeout(() => navigate('/login'), 2000);
+          setTimeout(() => safeRedirect('/login'), 2000);
           return;
         }
 
-        // Ler o return_to do query string
         const params = new URLSearchParams(window.location.search);
         const returnTo = params.get('return_to');
 
         if (returnTo && session) {
-          // Redirecionar para o subdomínio original
-          setStatus('Redirecionando...');
-          window.location.href = returnTo;
-        } else if (session) {
-          // Fallback para dashboard local
-          navigate('/client/dashboard');
+          try {
+            const returnUrl = new URL(returnTo);
+            const isValidDomain = 
+              returnUrl.hostname.endsWith('.omniseen.app') ||
+              returnUrl.hostname === 'omniseen.app' ||
+              returnUrl.hostname === 'localhost' ||
+              returnUrl.hostname.includes('lovable.app');
+            
+            if (isValidDomain) {
+              setStatus('Redirecionando...');
+              safeRedirect(returnTo, true);
+              return;
+            }
+          } catch {
+            // URL inválida, ignora
+          }
+        }
+        
+        if (session) {
+          safeRedirect('/client/dashboard');
         } else {
-          // Sem sessão, volta pro login
-          navigate('/login');
+          safeRedirect('/login');
         }
       } catch (err) {
         console.error('[OAuthCallback] Unexpected error:', err);
-        navigate('/login');
+        safeRedirect('/login');
       }
     };
 
     handleCallback();
-  }, [navigate]);
+  }, []); // Dependências removidas para executar apenas uma vez
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
       <Loader2 className="h-8 w-8 animate-spin text-primary" />
       <p className="text-muted-foreground">{status}</p>
     </div>
@@ -127,82 +164,81 @@ export default function OAuthCallback() {
 }
 ```
 
----
+### 5. AutoProvisionTenant.tsx - Blindar Navigate
 
-### 4. Registrar Rota de Callback
-**Arquivo:** `src/App.tsx`
+**Adicionar** guard no componente:
 
-Adicionar import e rota:
-
-**Import (após linha 67):**
 ```typescript
-import OAuthCallback from "./pages/auth/OAuthCallback";
-```
+// Adicionar ref no início do componente:
+const hasRedirectedRef = useRef(false);
 
-**Rota (após linha 233):**
-```typescript
-<Route path="/oauth/callback" element={<OAuthCallback />} />
+// Criar helper:
+const safeRedirect = (path: string) => {
+  if (hasRedirectedRef.current) return;
+  hasRedirectedRef.current = true;
+  navigate(path, { replace: true });
+};
+
+// Substituir navigate() por safeRedirect() nas linhas 30, 66, 99
 ```
 
 ---
 
 ## Resumo das Alterações
 
-| Arquivo | Ação | Linhas Afetadas |
-|---------|------|-----------------|
-| `src/utils/platformUrls.ts` | Adicionar 2 funções | +20 linhas no final |
-| `src/hooks/useAuth.tsx` | Alterar `redirectTo` | Linha 76 |
-| `src/pages/auth/OAuthCallback.tsx` | Criar novo | Arquivo novo (~50 linhas) |
-| `src/App.tsx` | Adicionar import + rota | +2 linhas |
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `Login.tsx` | Editar | Remover useEffect auto-redirect (linhas 107-114), adicionar `safeRedirect` |
+| `OAuthCallback.tsx` | Editar | Reescrever com guard de redirect único |
+| `AutoProvisionTenant.tsx` | Editar | Adicionar `safeRedirect` guard |
 
 ---
 
-## Fluxo Resultante
+## Fluxo Final (Linear e Determinístico)
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│  LOGIN EM SUBDOMÍNIO                                            │
+│  FLUXO DE LOGIN (ÚNICO CAMINHO)                                 │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  1. Usuário acessa: trulynolen.app.omniseen.app/login           │
+│  CENÁRIO A: Email/Senha                                         │
+│  ─────────────────────────                                      │
+│  1. Usuário clica "Entrar"                                      │
+│  2. handleSubmit() executa login                                │
+│  3. Aguarda confirmação de sessão                               │
+│  4. Chama safeRedirect('/app') - ÚNICO PONTO                    │
+│  5. TenantGuard/AutoProvision assumem                           │
 │                                                                 │
-│  2. Clica em "Login com Google"                                 │
-│     → OAuth inicia com return_to codificado                     │
+│  CENÁRIO B: Google OAuth                                        │
+│  ─────────────────────────                                      │
+│  1. Usuário clica "Login com Google"                            │
+│  2. Redirect para Google → Callback → OAuthCallback.tsx         │
+│  3. OAuthCallback aguarda sessão                                │
+│  4. Chama safeRedirect() - ÚNICO PONTO                          │
+│  5. TenantGuard/AutoProvision assumem                           │
 │                                                                 │
-│  3. Google redireciona para:                                    │
-│     app.omniseen.app/oauth/callback?return_to=...               │
-│                                                                 │
-│  4. OAuthCallback.tsx:                                          │
-│     → Aguarda sessão ser estabelecida                           │
-│     → Lê return_to do query string                              │
-│     → Redireciona: window.location.href = return_to             │
-│                                                                 │
-│  5. Usuário volta para:                                         │
-│     trulynolen.app.omniseen.app/client/dashboard                │
-│     → Sessão ativa via cookie .omniseen.app (Worker)            │
+│  ⛔ NUNCA: useEffect no mount tentando redirect                 │
+│  ⛔ NUNCA: Múltiplos navigate() simultâneos                     │
+│  ⛔ NUNCA: Race condition entre auth state e navigation         │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Requisitos de Infraestrutura (fora do código)
+## Validação
 
-Para o fluxo funcionar completamente, o Cloudflare Worker deve:
-
-1. **Injetar cookie com `Domain=.omniseen.app`** para compartilhar sessão entre subdomínios
-2. **Reescrever `Location` headers** para manter o usuário no subdomínio correto
-3. **Opcionalmente injetar `<meta name="x-tenant-slug">`** para resolução futura
-
-O código preparado aqui suporta tanto o cenário atual (parsing de hostname) quanto o cenário futuro (meta tag do Worker).
+Após implementação:
+1. ✅ Login com email/senha → Redirect único para /app
+2. ✅ Login com Google → OAuthCallback → Redirect único
+3. ✅ Refresh na página de login → Não redireciona automaticamente
+4. ✅ Nenhum erro `removeChild` no console
+5. ✅ Nenhuma tela branca durante transições
 
 ---
 
-## Validação
+## Observações Técnicas
 
-Após implementação, testar:
-
-1. Login com email/senha em `trulynolen.app.omniseen.app`
-2. Login com Google em subdomínio → deve voltar para o subdomínio
-3. Navegação entre páginas após login → sessão deve persistir
-4. Refresh da página → não deve ocorrer tela branca
+- O `useRef` garante persistência do flag entre re-renders sem causar novos renders
+- Remover dependências do useEffect do OAuthCallback evita re-execução
+- O padrão `safeRedirect` é defensivo e logga tentativas duplicadas para debug
