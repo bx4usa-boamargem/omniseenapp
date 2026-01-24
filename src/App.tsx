@@ -66,6 +66,7 @@ import ServicesEN from "./pages/en/ServicesEN";
 import Integrations from "./pages/Integrations";
 import GoogleIntegration from "./pages/GoogleIntegration";
 import GoogleOAuthCallback from "./pages/GoogleOAuthCallback";
+import OAuthCallback from "./pages/auth/OAuthCallback";
 import ArticleQueuePage from "./pages/ArticleQueuePage";
 
 // Client (SubAccount) pages
@@ -231,6 +232,7 @@ const PlatformRoutes = () => (
     <Route path="/access-denied" element={<AccessDenied />} />
     <Route path="/invite/accept" element={<AcceptInvite />} />
     <Route path="/oauth/google/callback" element={<GoogleOAuthCallback />} />
+    <Route path="/oauth/callback" element={<OAuthCallback />} />
     
     {/* Legacy auth redirects */}
     <Route path="/auth" element={<Navigate to="/login" replace />} />

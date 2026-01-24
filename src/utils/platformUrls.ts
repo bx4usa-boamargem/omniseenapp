@@ -125,3 +125,33 @@ export const extractSubdomainSlug = (): string | null => {
   const host = window.location.hostname;
   return host.replace('.app.omniseen.app', '');
 };
+
+// ============ Helpers de Resolução de Tenant via Proxy ============
+
+/**
+ * Lê o slug do tenant de uma meta tag injetada pelo reverse proxy (Cloudflare Worker)
+ * Permite que o Worker injete o tenant real via HTML
+ * @example <meta name="x-tenant-slug" content="trulynolen" />
+ */
+export const getTenantSlugFromMeta = (): string | null => {
+  if (typeof document === 'undefined') return null;
+  const meta = document.querySelector('meta[name="x-tenant-slug"]');
+  return meta?.getAttribute('content') || null;
+};
+
+/**
+ * Resolve o slug do tenant com prioridade:
+ * 1. Meta tag injetada pelo Worker (x-tenant-slug)
+ * 2. Parsing do hostname atual
+ * 
+ * Isso permite suporte tanto ao cenário atual (hostname parsing)
+ * quanto ao cenário futuro (Cloudflare Worker com meta tag)
+ */
+export const resolveCurrentTenantSlug = (): string | null => {
+  // Prioridade 1: Meta tag do Worker
+  const metaSlug = getTenantSlugFromMeta();
+  if (metaSlug) return metaSlug;
+  
+  // Prioridade 2: Parsing do hostname
+  return extractSubdomainSlug();
+};
