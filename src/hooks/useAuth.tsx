@@ -70,10 +70,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
+    // Callback centralizado em app.omniseen.app para suporte a subdomínios
+    // O return_to codifica a origem para redirecionamento final
+    const returnTo = encodeURIComponent(window.location.origin + '/client/dashboard');
+    const redirectTo = `https://app.omniseen.app/oauth/callback?return_to=${returnTo}`;
+    
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/client/dashboard`,
+        redirectTo,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
