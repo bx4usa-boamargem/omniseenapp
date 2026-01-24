@@ -23,11 +23,23 @@ export function AutoProvisionTenant() {
   const [isRetrying, setIsRetrying] = useState(false);
   
   const hasStarted = useRef(false);
+  const hasRedirectedRef = useRef(false);
+
+  // Guard contra múltiplos redirects
+  const safeRedirect = (path: string) => {
+    if (hasRedirectedRef.current) {
+      console.log('[AutoProvision] Redirect already in progress, skipping');
+      return;
+    }
+    hasRedirectedRef.current = true;
+    console.log('[AutoProvision] Safe redirect to:', path);
+    navigate(path, { replace: true });
+  };
 
   const provisionTenant = async () => {
     if (!user) {
       console.log('[AutoProvision] No user, redirecting to login');
-      navigate('/login');
+      safeRedirect('/login');
       return;
     }
 
@@ -63,7 +75,7 @@ export function AutoProvisionTenant() {
         toast.success('Conta configurada com sucesso!');
         
         // Navigate to dashboard
-        navigate('/client/dashboard', { replace: true });
+        safeRedirect('/client/dashboard');
         return;
       }
 
@@ -96,7 +108,7 @@ export function AutoProvisionTenant() {
 
   const handleLogout = async () => {
     await signOut();
-    navigate('/login');
+    safeRedirect('/login');
   };
 
   // Error state
