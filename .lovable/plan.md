@@ -1,244 +1,339 @@
 
-# Plano: Estabilização do Fluxo de Autenticação
+
+# Plano: Remoção Completa de GSC e Landing Pages (Fases 1-7)
 
 ## Objetivo
-Eliminar o erro `removeChild` e condições de corrida de renderização tornando o fluxo de autenticação **linear, determinístico e único**.
-
-## Diagnóstico
-
-### Pontos de Corrida Identificados
-
-| Arquivo | Linha | Problema |
-|---------|-------|----------|
-| `Login.tsx` | 107-114 | Auto-redirect durante mount via `useEffect` |
-| `Login.tsx` | 161 | Navigate após login por email/senha |
-| `OAuthCallback.tsx` | 29, 59, 62, 66 | Múltiplos caminhos de navigate |
-| `AutoProvisionTenant.tsx` | 30, 66 | Navigate durante provisioning |
-
-### Causa Raiz
-Quando o usuário faz login:
-1. `Login.tsx` executa `navigate('/app')` após sucesso
-2. Simultaneamente, `onAuthStateChange` atualiza o estado `user`
-3. O `useEffect` da linha 107 detecta `user` e tenta `navigate()` novamente
-4. React tenta desmontar nós DOM que já estão sendo substituídos
+Remover **completamente** todas as funcionalidades de Google Search Console e Landing Pages, mantendo a estabilidade da plataforma e sem executar DROP TABLE.
 
 ---
 
-## Alterações Planejadas
+## Resumo de Alterações
 
-### 1. Login.tsx - Remover Auto-Redirect no Mount
+### Arquivos a DELETAR (39+ arquivos)
 
-**Problema**: Linhas 107-114 redirecionam automaticamente durante o mount.
+| Categoria | Arquivos |
+|-----------|----------|
+| **Páginas GSC/LP** | 7 páginas |
+| **Componentes GSC** | 14 componentes |
+| **Componentes Landing** | 14+ arquivos (diretório) |
+| **Hooks** | 2 hooks |
+| **Edge Functions** | 12 funções |
 
-**Solução**: Remover completamente esse useEffect. O redirect só deve acontecer:
-- Após clique em "Entrar" (handleSubmit)
-- Após OAuth callback
+### Arquivos a EDITAR (9 arquivos)
 
-**Implementação**:
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/App.tsx` | Remover imports e rotas |
+| `src/components/layout/SubAccountLayout.tsx` | Remover itens de menu |
+| `src/hooks/useValueProofMetrics.ts` | Remover queries GSC |
+| `src/components/dashboard/ValueProofDashboard.tsx` | Remover cards GSC |
+| `src/components/blog-editor/ScriptsIntegrationsTab.tsx` | Remover seção GSC |
+| `src/components/strategy/KeywordsTab.tsx` | Remover lógica GSC |
+| `supabase/functions/send-weekly-report/index.ts` | Remover bloco GSC |
+| `supabase/functions/support-chat/index.ts` | Remover referência GSC |
+| `src/i18n/locales/pt-BR.json` | Remover entrada "gsc" |
+| `supabase/config.toml` | Remover `generate-landing-page` |
+
+---
+
+## Fase 1: Editar App.tsx
+
+### Remover Imports (linhas 67-68, 80-81, 97-99)
+- `GoogleIntegration`
+- `GoogleOAuthCallback`
+- `ClientGSCIntegration`
+- `ClientPerformance`
+- `ClientLandingPages`
+- `ClientLandingPageNew`
+- `ClientLandingPageEdit`
+
+### Remover Rotas
+- Linha 185-187: Landing pages
+- Linha 197: GSC integration
+- Linha 234: OAuth Google callback
+
+---
+
+## Fase 2: Editar Menu (SubAccountLayout.tsx)
+
+### Remover da seção CONTEÚDO (linha 70)
 ```typescript
-// REMOVER COMPLETAMENTE este useEffect (linhas 107-114):
-// useEffect(() => {
-//   if (user && !authLoading) {
-//     const from = ...
-//     navigate(from, { replace: true });
-//   }
-// }, [user, authLoading, navigate, location]);
+// REMOVER
+{ icon: Layout, label: 'Landing Pages', path: '/client/landing-pages' },
 ```
 
-### 2. Login.tsx - Criar Guard de Redirect Único
-
-**Adicionar** no início de `LoginContent`:
+### Remover seção INTEGRAÇÕES completa (linhas 87-89 e 217-225)
 ```typescript
-// Guard contra múltiplos redirects
-const hasRedirectedRef = useRef(false);
-
-const safeRedirect = (path: string) => {
-  if (hasRedirectedRef.current) {
-    console.log('[Login] Redirect already in progress, skipping');
-    return;
-  }
-  hasRedirectedRef.current = true;
-  console.log('[Login] Safe redirect to:', path);
-  navigate(path, { replace: true });
-};
+// REMOVER TODO O BLOCO
+const integrationItems: NavItem[] = [
+  { icon: Search, label: 'Google Search Console', path: '/client/integrations/gsc' },
+];
 ```
 
-### 3. Login.tsx - Usar safeRedirect no handleSubmit
+### Remover import do ícone Layout (linha 21)
 
-**Alterar** linha 161:
+---
+
+## Fase 3: Refatorar Dependências
+
+### 3.1 useValueProofMetrics.ts
+Remover todas as queries a tabelas GSC:
+- Linhas 97-102: Query a `gsc_connections`
+- Linhas 104-117: Queries a `gsc_queries_history`
+- Linhas 119-132: Queries a `gsc_analytics_history`
+
+Definir valores padrão:
+- `gscConnected: false`
+- `rankedKeywords: 0`
+- `keywordsDelta: null`
+- `avgPosition: null`
+- `positionDelta: null`
+
+### 3.2 ValueProofDashboard.tsx
+Remover os cards que dependem de GSC:
+- Linhas 188-209: Card "Palavras Ranqueadas"
+- Linhas 224-246: Card "Posição Média"
+
+Ajustar grid de 5 para 3 colunas.
+
+### 3.3 ScriptsIntegrationsTab.tsx
+- Remover import `useGSCConnection` (linha 19)
+- Remover estado de conexão (linha 52-53)
+- Remover Card "Google Search Console" (linhas 118-157)
+
+### 3.4 KeywordsTab.tsx
+Remover toda lógica GSC:
+- Linhas 54-70: Interfaces GSC
+- Linhas 93-103: Estados GSC
+- Linhas 114-153: Fetch GSC config/connection
+- Linhas 155-283: Handlers GSC (connect, disconnect, fetch, import)
+- Linhas 458-530: Card "Google Search Console"
+
+### 3.5 send-weekly-report/index.ts
+Remover bloco de insights GSC (linhas 94-177):
+- Verificação de `gsc_connections`
+- Queries a `gsc_queries_history`
+- Queries a `gsc_analytics_history`
+- Bloco HTML de insights GSC
+
+### 3.6 support-chat/index.ts
+Remover referência a GSC (linha 88):
 ```typescript
-// Antes:
-navigate('/app', { replace: true });
-
-// Depois:
-safeRedirect('/app');
-```
-
-### 4. OAuthCallback.tsx - Implementar Guard e Fluxo Linear
-
-**Reescrever** com guard de redirect e fluxo determinístico:
-
-```typescript
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { Loader2 } from 'lucide-react';
-
-export default function OAuthCallback() {
-  const navigate = useNavigate();
-  const [status, setStatus] = useState('Finalizando login...');
-  const hasRedirectedRef = useRef(false);
-
-  const safeRedirect = (path: string, isExternal = false) => {
-    if (hasRedirectedRef.current) {
-      console.log('[OAuthCallback] Redirect already in progress, skipping');
-      return;
-    }
-    hasRedirectedRef.current = true;
-    console.log('[OAuthCallback] Safe redirect to:', path);
-    
-    if (isExternal) {
-      window.location.href = path;
-    } else {
-      navigate(path, { replace: true });
-    }
-  };
-
-  useEffect(() => {
-    // Prevent multiple executions
-    if (hasRedirectedRef.current) return;
-    
-    const handleCallback = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('[OAuthCallback] Session error:', error);
-          setStatus('Erro ao finalizar login');
-          setTimeout(() => safeRedirect('/login'), 2000);
-          return;
-        }
-
-        const params = new URLSearchParams(window.location.search);
-        const returnTo = params.get('return_to');
-
-        if (returnTo && session) {
-          try {
-            const returnUrl = new URL(returnTo);
-            const isValidDomain = 
-              returnUrl.hostname.endsWith('.omniseen.app') ||
-              returnUrl.hostname === 'omniseen.app' ||
-              returnUrl.hostname === 'localhost' ||
-              returnUrl.hostname.includes('lovable.app');
-            
-            if (isValidDomain) {
-              setStatus('Redirecionando...');
-              safeRedirect(returnTo, true);
-              return;
-            }
-          } catch {
-            // URL inválida, ignora
-          }
-        }
-        
-        if (session) {
-          safeRedirect('/client/dashboard');
-        } else {
-          safeRedirect('/login');
-        }
-      } catch (err) {
-        console.error('[OAuthCallback] Unexpected error:', err);
-        safeRedirect('/login');
-      }
-    };
-
-    handleCallback();
-  }, []); // Dependências removidas para executar apenas uma vez
-
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-background">
-      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      <p className="text-muted-foreground">{status}</p>
-    </div>
-  );
-}
-```
-
-### 5. AutoProvisionTenant.tsx - Blindar Navigate
-
-**Adicionar** guard no componente:
-
-```typescript
-// Adicionar ref no início do componente:
-const hasRedirectedRef = useRef(false);
-
-// Criar helper:
-const safeRedirect = (path: string) => {
-  if (hasRedirectedRef.current) return;
-  hasRedirectedRef.current = true;
-  navigate(path, { replace: true });
-};
-
-// Substituir navigate() por safeRedirect() nas linhas 30, 66, 99
+// REMOVER
+🔗 INTEGRAÇÕES (/client/integrations/gsc)
+- Google Search Console: conectar, sincronizar dados
 ```
 
 ---
 
-## Resumo das Alterações
+## Fase 4: Deletar Páginas
 
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `Login.tsx` | Editar | Remover useEffect auto-redirect (linhas 107-114), adicionar `safeRedirect` |
-| `OAuthCallback.tsx` | Editar | Reescrever com guard de redirect único |
-| `AutoProvisionTenant.tsx` | Editar | Adicionar `safeRedirect` guard |
+### Páginas a deletar:
+1. `src/pages/GoogleIntegration.tsx`
+2. `src/pages/GoogleOAuthCallback.tsx`
+3. `src/pages/client/ClientGSCIntegration.tsx`
+4. `src/pages/client/ClientPerformance.tsx`
+5. `src/pages/client/ClientLandingPages.tsx`
+6. `src/pages/client/ClientLandingPageNew.tsx`
+7. `src/pages/client/ClientLandingPageEdit.tsx`
 
 ---
 
-## Fluxo Final (Linear e Determinístico)
+## Fase 5: Deletar Componentes
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│  FLUXO DE LOGIN (ÚNICO CAMINHO)                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  CENÁRIO A: Email/Senha                                         │
-│  ─────────────────────────                                      │
-│  1. Usuário clica "Entrar"                                      │
-│  2. handleSubmit() executa login                                │
-│  3. Aguarda confirmação de sessão                               │
-│  4. Chama safeRedirect('/app') - ÚNICO PONTO                    │
-│  5. TenantGuard/AutoProvision assumem                           │
-│                                                                 │
-│  CENÁRIO B: Google OAuth                                        │
-│  ─────────────────────────                                      │
-│  1. Usuário clica "Login com Google"                            │
-│  2. Redirect para Google → Callback → OAuthCallback.tsx         │
-│  3. OAuthCallback aguarda sessão                                │
-│  4. Chama safeRedirect() - ÚNICO PONTO                          │
-│  5. TenantGuard/AutoProvision assumem                           │
-│                                                                 │
-│  ⛔ NUNCA: useEffect no mount tentando redirect                 │
-│  ⛔ NUNCA: Múltiplos navigate() simultâneos                     │
-│  ⛔ NUNCA: Race condition entre auth state e navigation         │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+### Componentes GSC (diretório completo):
+```
+src/components/gsc/ (3 arquivos)
+├── GSCConfigChecker.tsx
+├── GSCSetupGuide.tsx
+└── GSCTestConnection.tsx
+```
+
+### Componentes SEO relacionados a GSC (11 arquivos):
+```
+src/components/seo/
+├── GSCAlertManager.tsx
+├── GSCConnectionCard.tsx
+├── GSCDateRangeSelector.tsx
+├── GSCGoogleSearchTab.tsx
+├── GSCOmniseenTab.tsx
+├── GSCOverviewCards.tsx
+├── GSCPeriodComparison.tsx
+├── GSCRankingEvolution.tsx
+├── GSCTopPages.tsx
+├── GSCTopQueries.tsx
+└── GSCTrendChart.tsx
+```
+
+### Componentes Landing Pages (diretório completo):
+```
+src/components/client/landingpage/ (14+ arquivos)
+├── LandingPageEditor.tsx
+├── LandingPagePreview.tsx
+├── blocks/
+│   ├── index.ts
+│   ├── AreasServedBlock.tsx
+│   ├── CTABannerBlock.tsx
+│   ├── ContactFormBlock.tsx
+│   ├── EmergencyBannerBlock.tsx
+│   ├── FAQBlock.tsx
+│   ├── HeroBlock.tsx
+│   ├── ProcessStepsBlock.tsx
+│   ├── ServiceCardsBlock.tsx
+│   ├── ServiceDetailBlock.tsx
+│   ├── TestimonialsBlock.tsx
+│   └── WhyChooseUsBlock.tsx
+├── hooks/
+│   └── useLandingPages.ts
+└── types/
+    └── landingPageTypes.ts
+```
+
+### Componentes Consultant (dependentes de GSC):
+```
+src/components/consultant/
+├── SearchConsoleMetricsBar.tsx
+├── SearchConsoleTable.tsx
+└── tabs/SearchPerformanceTab.tsx
+```
+
+### Componentes Client:
+```
+src/components/client/
+└── KeywordsTable.tsx
 ```
 
 ---
 
-## Validação
+## Fase 6: Deletar Hooks
 
-Após implementação:
-1. ✅ Login com email/senha → Redirect único para /app
-2. ✅ Login com Google → OAuthCallback → Redirect único
-3. ✅ Refresh na página de login → Não redireciona automaticamente
-4. ✅ Nenhum erro `removeChild` no console
-5. ✅ Nenhuma tela branca durante transições
+```
+src/hooks/
+├── useGSCConnection.ts
+└── useGSCAnalytics.ts
+```
 
 ---
 
-## Observações Técnicas
+## Fase 7: Deletar Edge Functions e Atualizar Config
 
-- O `useRef` garante persistência do flag entre re-renders sem causar novos renders
-- Remover dependências do useEffect do OAuthCallback evita re-execução
-- O padrão `safeRedirect` é defensivo e logga tentativas duplicadas para debug
+### Edge Functions GSC a deletar (10):
+```
+supabase/functions/
+├── check-gsc-alerts/
+├── disconnect-gsc/
+├── fetch-gsc-analytics/
+├── fetch-gsc-keywords/
+├── get-gsc-config/
+├── gsc-callback/
+├── gsc-fetch-performance/
+├── gsc-list-properties/
+├── gsc-select-site/
+└── import-gsc-keywords/
+```
+
+### Edge Functions Landing Pages a deletar (2):
+```
+supabase/functions/
+├── generate-landing-page/
+└── landing-chat/
+```
+
+### Atualizar supabase/config.toml
+Remover:
+```toml
+[functions.generate-landing-page]
+verify_jwt = false
+```
+
+### Atualizar traduções pt-BR.json
+Remover linhas 58-61 (bloco "gsc")
+
+---
+
+## Fase 8: Migration SQL (Arquivamento - SEM DROP)
+
+Será criada uma migration que **renomeia** as tabelas para `__archive`:
+
+```sql
+-- Arquivar tabelas GSC e Landing Pages (reversível)
+-- NÃO usa CASCADE, apenas renomeia
+
+-- GSC Tables
+ALTER TABLE IF EXISTS public.gsc_connections 
+  RENAME TO gsc_connections__archive;
+
+ALTER TABLE IF EXISTS public.gsc_queries_history 
+  RENAME TO gsc_queries_history__archive;
+
+ALTER TABLE IF EXISTS public.gsc_pages_history 
+  RENAME TO gsc_pages_history__archive;
+
+ALTER TABLE IF EXISTS public.gsc_analytics_history 
+  RENAME TO gsc_analytics_history__archive;
+
+-- Landing Pages
+ALTER TABLE IF EXISTS public.landing_pages 
+  RENAME TO landing_pages__archive;
+
+-- Comentário para restauração futura:
+-- Para reverter: ALTER TABLE public.xxx__archive RENAME TO xxx;
+```
+
+---
+
+## Ordem de Execução
+
+1. **Editar dependências** (useValueProofMetrics, ValueProofDashboard, ScriptsIntegrationsTab, KeywordsTab, send-weekly-report, support-chat)
+2. **Editar rotas** (App.tsx)
+3. **Editar menu** (SubAccountLayout.tsx)
+4. **Deletar páginas** (7 arquivos)
+5. **Deletar componentes** (30+ arquivos/diretórios)
+6. **Deletar hooks** (2 arquivos)
+7. **Deletar edge functions** (12 diretórios)
+8. **Atualizar traduções** (pt-BR.json)
+9. **Atualizar config.toml**
+10. **Propor migration SQL** (arquivamento)
+
+---
+
+## Menu Final Resultante
+
+```
+RESULTADOS
+├── Resultados & ROI
+└── Leads Capturados
+
+INTELIGÊNCIA
+├── Radar de Oportunidades
+└── Análise de SEO
+
+CONTEÚDO
+├── Artigos
+└── Portal Público
+
+OPERAÇÃO
+├── Automação
+├── Territórios
+├── Minha Empresa
+├── Minha Conta
+├── Domínios
+└── Ajuda
+
+ADMINISTRAÇÃO (admin only)
+└── Painel Admin
+```
+
+---
+
+## Validação Final
+
+Após implementação completa:
+- [ ] Build sem erros
+- [ ] Nenhuma rota quebrada (404)
+- [ ] Nenhum import morto
+- [ ] Menu sem referências a GSC ou Landing Pages
+- [ ] Dashboard funcional sem cards GSC
+- [ ] KeywordsTab funcional sem seção GSC
+- [ ] Varredura por "gsc_" e "landing" limpa
+
