@@ -8,7 +8,6 @@ import {
   User, 
   Menu, 
   LogOut, 
-  Search, 
   Compass, 
   TrendingUp,
   FileText,
@@ -17,8 +16,7 @@ import {
   MapPin,
   HelpCircle,
   Users,
-  BookOpen,
-  Layout
+  BookOpen
 } from 'lucide-react';
 import { FloatingSupportChat } from '@/components/support/FloatingSupportChat';
 import { Button } from '@/components/ui/button';
@@ -67,7 +65,6 @@ const navSections: NavSection[] = [
     items: [
       { icon: FileText, label: 'Artigos', path: '/client/articles' },
       { icon: Globe, label: 'Portal Público', path: '/client/portal' },
-      { icon: Layout, label: 'Landing Pages', path: '/client/landing-pages' },
       // eBooks item will be added dynamically for admins only
     ]
   },
@@ -82,10 +79,6 @@ const navSections: NavSection[] = [
       { icon: HelpCircle, label: 'Ajuda', path: '/client/help' },
     ]
   },
-];
-
-const integrationItems: NavItem[] = [
-  { icon: Search, label: 'Google Search Console', path: '/client/integrations/gsc' },
 ];
 
 export function SubAccountLayout({ children }: SubAccountLayoutProps) {
@@ -213,16 +206,6 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
             </div>
           );
         })}
-
-        {/* Integrações */}
-        <div>
-          <SectionLabel label="INTEGRAÇÕES" />
-          <div className="px-4 space-y-1">
-            {integrationItems.map((item) => (
-              <NavButton key={item.path} item={item} />
-            ))}
-          </div>
-        </div>
 
         {/* Admin Panel - only visible for platform admins */}
         {isPlatformAdmin && (

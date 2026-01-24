@@ -55,10 +55,6 @@
         "name": "Webhook",
         "description": "Integre via API personalizada"
       },
-      "gsc": {
-        "name": "Google Search Console",
-        "description": "Importe palavras-chave e monitore rankings"
-      },
       "ga": {
         "name": "Google Analytics",
         "description": "Acompanhe métricas de tráfego"
@@ -162,10 +158,8 @@
       "howToSchedule": "Como agendar publicação?",
       "howToSearchKeywords": "Como pesquisar palavras-chave?",
       "whatAreClusters": "O que são clusters?",
-      "howToImportKeywords": "Como importar do GSC?",
       "howToReadMetrics": "Como ler as métricas?",
       "howToExportData": "Como exportar dados?",
-      "whatIsGSC": "O que é o Search Console?",
       "howToConnectDomain": "Como conectar meu domínio?",
       "howToManageTeam": "Como gerenciar equipe?",
       "howToChangeTemplate": "Como mudar o template?",

@@ -1,22 +1,13 @@
-import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   Code, 
-  ExternalLink, 
-  CheckCircle2, 
-  XCircle,
   BarChart3,
   Target,
-  Facebook,
-  Chrome
+  Facebook
 } from "lucide-react";
-import { useGSCConnection } from "@/hooks/useGSCConnection";
 import { SectionHelper } from "./SectionHelper";
 
 interface TrackingConfig {
@@ -49,9 +40,6 @@ export function ScriptsIntegrationsTab({
   onScriptFooterChange,
   onTrackingConfigChange,
 }: ScriptsIntegrationsTabProps) {
-  const { connection, isLoading, connect, disconnect } = useGSCConnection(blogId);
-  const isConnected = !!connection;
-  
   const updateTrackingField = (field: keyof TrackingConfig, value: string) => {
     onTrackingConfigChange({
       ...trackingConfig,
@@ -115,46 +103,6 @@ export function ScriptsIntegrationsTab({
         />
 
         <div className="grid gap-4">
-          {/* Google Search Console */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                    <Chrome className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-base">Google Search Console</CardTitle>
-                    <CardDescription>Monitore o desempenho nas buscas</CardDescription>
-                  </div>
-                </div>
-                {isConnected ? (
-                  <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Conectado
-                  </Badge>
-                ) : (
-                  <Badge variant="secondary" className="bg-muted">
-                    <XCircle className="h-3 w-3 mr-1" />
-                    Desconectado
-                  </Badge>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent>
-              {isConnected ? (
-                <Button variant="outline" size="sm" onClick={disconnect} disabled={isLoading}>
-                  Desconectar
-                </Button>
-              ) : (
-                <Button variant="outline" size="sm" onClick={connect} disabled={isLoading}>
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Conectar
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-
           {/* Google Analytics */}
           <Card>
             <CardHeader className="pb-3">

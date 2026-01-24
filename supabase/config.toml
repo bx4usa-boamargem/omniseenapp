@@ -8,6 +8,3 @@ verify_jwt = false
 
 [functions.request-password-reset]
 verify_jwt = false
-
-[functions.generate-landing-page]
-verify_jwt = false

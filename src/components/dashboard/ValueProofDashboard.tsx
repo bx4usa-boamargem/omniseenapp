@@ -3,9 +3,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { 
   Eye, 
-  KeyRound, 
   MousePointerClick, 
-  Trophy,
   MessageCircle,
   TrendingUp,
   TrendingDown,
@@ -134,8 +132,8 @@ export function ValueProofDashboard({ blogId }: ValueProofDashboardProps) {
 
   if (loading) {
     return (
-      <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-5">
-        {[...Array(5)].map((_, i) => (
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3">
+        {[...Array(3)].map((_, i) => (
           <Skeleton key={i} className="h-28 sm:h-32 rounded-xl" />
         ))}
       </div>
@@ -173,8 +171,8 @@ export function ValueProofDashboard({ blogId }: ValueProofDashboardProps) {
           </Button>
         </div>
 
-        {/* Metric Cards Grid */}
-        <div className="grid gap-3 sm:gap-4 grid-cols-2 lg:grid-cols-5">
+        {/* Metric Cards Grid - 3 columns */}
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3">
           {/* Visits */}
           <MetricCard
             icon={<Eye className="h-4 w-4 sm:h-5 sm:w-5 text-blue-500" />}
@@ -182,29 +180,6 @@ export function ValueProofDashboard({ blogId }: ValueProofDashboardProps) {
             value={metrics.visits.toLocaleString()}
             delta={metrics.visitsDelta}
             tooltip="Total de visualizações em seus artigos"
-            onClick={() => navigate('/client/results')}
-          />
-
-          {/* Ranked Keywords */}
-          <MetricCard
-            icon={<KeyRound className="h-4 w-4 sm:h-5 sm:w-5 text-purple-500" />}
-            label="Palavras Ranqueadas"
-            value={metrics.rankedKeywords}
-            delta={metrics.keywordsDelta}
-            emptyState={
-              !metrics.gscConnected 
-                ? {
-                    message: "Conecte o Google Search Console",
-                    action: {
-                      label: "Conectar",
-                      onClick: () => navigate('/client/settings'),
-                    }
-                  }
-                : {
-                    message: "Aguardando dados do Google",
-                  }
-            }
-            tooltip="Palavras-chave que aparecem no Google"
             onClick={() => navigate('/client/results')}
           />
 
@@ -218,30 +193,6 @@ export function ValueProofDashboard({ blogId }: ValueProofDashboardProps) {
               message: "Aguardando primeiro clique",
             }}
             tooltip="Cliques em botões de conversão"
-            onClick={() => navigate('/client/results')}
-          />
-
-          {/* Average Position */}
-          <MetricCard
-            icon={<Trophy className="h-4 w-4 sm:h-5 sm:w-5 text-yellow-500" />}
-            label="Posição Média"
-            value={metrics.avgPosition !== null ? metrics.avgPosition : '--'}
-            delta={metrics.positionDelta}
-            deltaInverted // Lower is better for position
-            emptyState={
-              !metrics.gscConnected 
-                ? {
-                    message: "Conecte o GSC",
-                    action: {
-                      label: "Conectar",
-                      onClick: () => navigate('/client/settings'),
-                    }
-                  }
-                : {
-                    message: "Aguardando dados",
-                  }
-            }
-            tooltip="Posição média no Google (menor é melhor)"
             onClick={() => navigate('/client/results')}
           />
 

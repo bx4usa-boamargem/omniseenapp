@@ -64,8 +64,6 @@ import TermsOfUseEN from "./pages/en/TermsOfUseEN";
 import PrivacyPolicyEN from "./pages/en/PrivacyPolicyEN";
 import ServicesEN from "./pages/en/ServicesEN";
 import Integrations from "./pages/Integrations";
-import GoogleIntegration from "./pages/GoogleIntegration";
-import GoogleOAuthCallback from "./pages/GoogleOAuthCallback";
 import OAuthCallback from "./pages/auth/OAuthCallback";
 import ArticleQueuePage from "./pages/ArticleQueuePage";
 
@@ -77,8 +75,6 @@ import ClientAutomation from "./pages/client/ClientAutomation";
 import ClientCompany from "./pages/client/ClientCompany";
 import ClientAccount from "./pages/client/ClientAccount";
 import ClientSEO from "./pages/client/ClientSEO";
-import ClientPerformance from "./pages/client/ClientPerformance";
-import ClientGSCIntegration from "./pages/client/ClientGSCIntegration";
 import ClientArticles from "./pages/client/ClientArticles";
 import ClientReviewCenter from "./pages/client/ClientReviewCenter";
 import ClientStrategy from "./pages/client/ClientStrategy";
@@ -94,9 +90,6 @@ import ClientLeads from "./pages/client/ClientLeads";
 import ClientEbooks from "./pages/client/ClientEbooks";
 import ClientEbookEditor from "./pages/client/ClientEbookEditor";
 import ClientDomains from "./pages/client/ClientDomains";
-import ClientLandingPages from "./pages/client/ClientLandingPages";
-import ClientLandingPageNew from "./pages/client/ClientLandingPageNew";
-import ClientLandingPageEdit from "./pages/client/ClientLandingPageEdit";
 
 const queryClient = new QueryClient();
 
@@ -182,9 +175,6 @@ const ClientRoutes = () => (
         <Route path="review/:id" element={<ClientReviewCenter />} />
         <Route path="ebooks" element={<ClientEbooks />} />
         <Route path="ebooks/:id" element={<ClientEbookEditor />} />
-        <Route path="landing-pages" element={<ClientLandingPages />} />
-        <Route path="landing-pages/new" element={<ClientLandingPageNew />} />
-        <Route path="landing-pages/:id" element={<ClientLandingPageEdit />} />
         
         {/* Operação */}
         <Route path="automation" element={<ClientAutomation />} />
@@ -192,9 +182,6 @@ const ClientRoutes = () => (
         <Route path="account" element={<ClientAccount />} />
         <Route path="territories" element={<ClientTerritoryAnalytics />} />
         <Route path="domains" element={<ClientDomains />} />
-        
-        {/* Integrações */}
-        <Route path="integrations/gsc" element={<ClientGSCIntegration />} />
         
         {/* Ajuda */}
         <Route path="help" element={<ClientHelp />} />
@@ -210,6 +197,9 @@ const ClientRoutes = () => (
         <Route path="performance" element={<Navigate to="/client/results?tab=performance" replace />} />
         <Route path="notifications" element={<Navigate to="/client/account" replace />} />
         <Route path="queue" element={<Navigate to="/client/automation?tab=queue" replace />} />
+        <Route path="landing-pages" element={<Navigate to="/client/articles" replace />} />
+        <Route path="landing-pages/*" element={<Navigate to="/client/articles" replace />} />
+        <Route path="integrations/gsc" element={<Navigate to="/client/account" replace />} />
         
         <Route path="*" element={<Navigate to="/client/dashboard" replace />} />
       </Routes>
@@ -231,12 +221,12 @@ const PlatformRoutes = () => (
     <Route path="/blocked" element={<Blocked />} />
     <Route path="/access-denied" element={<AccessDenied />} />
     <Route path="/invite/accept" element={<AcceptInvite />} />
-    <Route path="/oauth/google/callback" element={<GoogleOAuthCallback />} />
     <Route path="/oauth/callback" element={<OAuthCallback />} />
     
     {/* Legacy auth redirects */}
     <Route path="/auth" element={<Navigate to="/login" replace />} />
     <Route path="/forgot-password" element={<Navigate to="/reset-password" replace />} />
+    <Route path="/oauth/google/callback" element={<Navigate to="/oauth/callback" replace />} />
     
     {/* Public content */}
     <Route path="/help" element={<Help />} />
