@@ -85,9 +85,6 @@ const systemPrompt = `Você é a OMNISEEN AI, a assistente virtual inteligente e
 - Tema claro/escuro
 - Domínio customizado
 
-🔗 INTEGRAÇÕES (/client/integrations/gsc)
-- Google Search Console: conectar, sincronizar dados
-
 ❓ AJUDA (/client/help)
 - Central de artigos de ajuda por categoria
 - Tutoriais com imagens ilustrativas

@@ -91,91 +91,6 @@ serve(async (req) => {
         .order("relevance_score", { ascending: false })
         .limit(3);
 
-      // Fetch GSC data for insights
-      let gscInsights: { 
-        topGrowingQueries: { query: string; change: number }[];
-        topFallingQueries: { query: string; change: number }[];
-        avgPosition: number;
-        positionChange: number;
-      } | null = null;
-
-      const { data: gscConnection } = await supabase
-        .from("gsc_connections")
-        .select("is_active")
-        .eq("blog_id", blogId)
-        .eq("is_active", true)
-        .single();
-
-      if (gscConnection && setting.include_gsc_insights !== false) {
-        // Get current week queries
-        const { data: currentQueries } = await supabase
-          .from("gsc_queries_history")
-          .select("query, clicks, position")
-          .eq("blog_id", blogId)
-          .gte("date", weekAgo.toISOString().split("T")[0])
-          .order("clicks", { ascending: false })
-          .limit(50);
-
-        // Get previous week queries
-        const { data: previousQueries } = await supabase
-          .from("gsc_queries_history")
-          .select("query, clicks, position")
-          .eq("blog_id", blogId)
-          .gte("date", twoWeeksAgo.toISOString().split("T")[0])
-          .lt("date", weekAgo.toISOString().split("T")[0])
-          .order("clicks", { ascending: false })
-          .limit(50);
-
-        if (currentQueries && previousQueries) {
-          // Calculate query changes
-          const queryChanges: { query: string; change: number }[] = [];
-          for (const current of currentQueries) {
-            const prev = previousQueries.find(p => p.query === current.query);
-            if (prev) {
-              const change = prev.clicks > 0 
-                ? Math.round(((current.clicks - prev.clicks) / prev.clicks) * 100)
-                : current.clicks > 0 ? 100 : 0;
-              queryChanges.push({ query: current.query, change });
-            }
-          }
-
-          // Sort to get top growing and falling
-          const sorted = [...queryChanges].sort((a, b) => b.change - a.change);
-          const topGrowingQueries = sorted.filter(q => q.change > 0).slice(0, 5);
-          const topFallingQueries = sorted.filter(q => q.change < 0).slice(-5).reverse();
-
-          // Get position data
-          const { data: positionData } = await supabase
-            .from("gsc_analytics_history")
-            .select("position, date")
-            .eq("blog_id", blogId)
-            .gte("date", twoWeeksAgo.toISOString().split("T")[0])
-            .order("date", { ascending: true });
-
-          let avgPosition = 0;
-          let positionChange = 0;
-          if (positionData && positionData.length > 0) {
-            const currentWeekData = positionData.filter(d => d.date >= weekAgo.toISOString().split("T")[0]);
-            const previousWeekData = positionData.filter(d => d.date < weekAgo.toISOString().split("T")[0]);
-            
-            if (currentWeekData.length > 0) {
-              avgPosition = currentWeekData.reduce((sum, d) => sum + Number(d.position || 0), 0) / currentWeekData.length;
-            }
-            if (previousWeekData.length > 0 && currentWeekData.length > 0) {
-              const prevAvg = previousWeekData.reduce((sum, d) => sum + Number(d.position || 0), 0) / previousWeekData.length;
-              positionChange = prevAvg - avgPosition; // Positive = improvement
-            }
-          }
-
-          gscInsights = {
-            topGrowingQueries,
-            topFallingQueries,
-            avgPosition: Math.round(avgPosition * 10) / 10,
-            positionChange: Math.round(positionChange * 10) / 10,
-          };
-        }
-      }
-
       // Calculate metrics
       const thisWeekViews = thisWeekAnalytics?.length || 0;
       const lastWeekViews = lastWeekAnalytics?.length || 0;
@@ -202,36 +117,6 @@ serve(async (req) => {
           </h1>
           <p style="color: #666;">Período: ${weekAgo.toLocaleDateString('pt-BR')} a ${now.toLocaleDateString('pt-BR')}</p>
       `;
-
-      // Add GSC insights section if available
-      if (gscInsights) {
-        const positionIcon = gscInsights.positionChange > 0 ? "↑" : gscInsights.positionChange < 0 ? "↓" : "→";
-        const positionColor = gscInsights.positionChange > 0 ? "#22c55e" : gscInsights.positionChange < 0 ? "#ef4444" : "#666";
-
-        reportHtml += `
-          <div style="background: #e0f2fe; border-radius: 8px; padding: 20px; margin: 20px 0;">
-            <h2 style="color: #0369a1; margin-top: 0;">🔍 Insights do Google Search Console</h2>
-            <p><strong>Posição Média:</strong> ${gscInsights.avgPosition} <span style="color: ${positionColor};">(${positionIcon}${Math.abs(gscInsights.positionChange)} posições)</span></p>
-        `;
-
-        if (gscInsights.topGrowingQueries.length > 0) {
-          reportHtml += `<h3 style="color: #166534; margin-bottom: 5px;">📈 Queries em Alta</h3><ul style="padding-left: 20px;">`;
-          for (const q of gscInsights.topGrowingQueries.slice(0, 3)) {
-            reportHtml += `<li>"${q.query}" <span style="color: #22c55e;">↑${q.change}%</span></li>`;
-          }
-          reportHtml += `</ul>`;
-        }
-
-        if (gscInsights.topFallingQueries.length > 0) {
-          reportHtml += `<h3 style="color: #991b1b; margin-bottom: 5px;">⚠️ Queries em Queda</h3><ul style="padding-left: 20px;">`;
-          for (const q of gscInsights.topFallingQueries.slice(0, 3)) {
-            reportHtml += `<li>"${q.query}" <span style="color: #ef4444;">${q.change}%</span></li>`;
-          }
-          reportHtml += `</ul>`;
-        }
-
-        reportHtml += `</div>`;
-      }
 
       if (setting.include_performance) {
         const changeIcon = viewsChange >= 0 ? "↑" : "↓";
