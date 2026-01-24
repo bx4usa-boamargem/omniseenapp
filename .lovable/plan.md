@@ -1,53 +1,65 @@
 
-# Fase 1: Refatorar KeywordsTab.tsx - Remover GSC
+# Fase 1: Refatorar KeywordsTab.tsx - Remover GSC ✅ CONCLUÍDA
 
-## Ação Imediata
+## Ação Realizada
 
-Substituir o arquivo `src/components/strategy/KeywordsTab.tsx` removendo **completamente**:
+Substituído o arquivo `src/components/strategy/KeywordsTab.tsx` removendo **completamente**:
 
-### Remover (200+ linhas de código morto)
+### Removido (~500 linhas de código morto)
 
-1. **Interfaces GSC** (linhas 54-70):
+1. **Interfaces GSC**:
    - `GSCKeyword`
    - `GSCConnection`
 
-2. **Estados GSC** (linhas 93-103):
+2. **Estados GSC**:
    - `googleClientId`
    - `gscConnection`
    - `isLoadingGSC`
+   - `isConnecting`
    - `isFetchingKeywords`
-   - `showGSCImportModal`
-   - `showGSCSiteSelector`
-   - `gscSites`
+   - `isImporting`
+   - `showSiteSelector`
+   - `availableSites`
+   - `showImportDialog`
+   - `gscKeywords`
 
-3. **Funções GSC** (linhas 114-283):
+3. **Funções GSC**:
    - `fetchGSCConfig()`
    - `fetchGSCConnection()`
    - `handleConnectGSC()`
    - `handleOAuthCallback()`
+   - `handleSelectSite()`
    - `handleDisconnectGSC()`
    - `handleFetchGSCKeywords()`
    - `handleImportKeywords()`
+   - `toggleKeywordSelection()`
+   - `selectAllKeywords()`
 
-4. **UI GSC** (linhas 458-530):
+4. **UI GSC**:
    - Card "Google Search Console"
-   - Dialogs de seleção de site
-   - Modal de importação
+   - Dialog de seleção de site
+   - Dialog de importação de keywords
+   - Badge "GSC" no histórico
 
-### Manter
+5. **Imports não utilizados**:
+   - `Dialog`, `DialogContent`, `DialogDescription`, `DialogHeader`, `DialogTitle`
+   - `Checkbox`
+   - `Link`, `CheckCircle`, `ExternalLink`, `Download`, `Unlink`
 
-- Lógica de keywords internas
-- Análise por IA (`AISuggestKeywordsModal`)
-- Adição manual de keywords
-- Layout base da aba
+### Mantido
+
+- ✅ Lógica de keywords internas
+- ✅ Análise por IA (`AISuggestKeywordsModal`)
+- ✅ Adição manual de keywords
+- ✅ Layout base da aba
+- ✅ Tutorial de onboarding
 
 ## Validação
 
-Após salvar:
 - ✅ Nenhuma referência a "gsc" no arquivo
 - ✅ Nenhum import quebrado
-- ✅ Build passa sem erros
+- ✅ Arquivo reduzido de 946 para ~420 linhas
 
 ## Próximo Passo
 
-Aguardar OK do usuário antes da Fase 2.
+Aguardando OK do usuário antes da Fase 2.
