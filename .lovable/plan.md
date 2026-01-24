@@ -1,65 +1,81 @@
 
-# Fase 1: Refatorar KeywordsTab.tsx - Remover GSC ✅ CONCLUÍDA
+# Fase 2: Execução - Remover GSC das Edge Functions
 
-## Ação Realizada
+## Arquivo 1: `supabase/functions/send-weekly-report/index.ts`
 
-Substituído o arquivo `src/components/strategy/KeywordsTab.tsx` removendo **completamente**:
+### Linhas a Remover (total: ~90 linhas de código GSC)
 
-### Removido (~500 linhas de código morto)
+| Bloco | Linhas | Descrição |
+|-------|--------|-----------|
+| Variável gscInsights | 94-100 | Declaração da variável e tipagem |
+| Query gsc_connections | 102-107 | Busca de conexão GSC ativa |
+| Bloco condicional GSC | 109-177 | Toda lógica de fetch e cálculo GSC |
+| Seção HTML GSC | 206-234 | Bloco "Insights do Google Search Console" no email |
 
-1. **Interfaces GSC**:
-   - `GSCKeyword`
-   - `GSCConnection`
+### Código Mantido
 
-2. **Estados GSC**:
-   - `googleClientId`
-   - `gscConnection`
-   - `isLoadingGSC`
-   - `isConnecting`
-   - `isFetchingKeywords`
-   - `isImporting`
-   - `showSiteSelector`
-   - `availableSites`
-   - `showImportDialog`
-   - `gscKeywords`
+- Métricas de performance (linhas 179-196, 236-272)
+- Oportunidades sugeridas (linhas 274-285)
+- Recomendações automáticas (linhas 287-312)
+- Envio de email (linhas 327-353)
+- Toda infraestrutura base
 
-3. **Funções GSC**:
-   - `fetchGSCConfig()`
-   - `fetchGSCConnection()`
-   - `handleConnectGSC()`
-   - `handleOAuthCallback()`
-   - `handleSelectSite()`
-   - `handleDisconnectGSC()`
-   - `handleFetchGSCKeywords()`
-   - `handleImportKeywords()`
-   - `toggleKeywordSelection()`
-   - `selectAllKeywords()`
+---
 
-4. **UI GSC**:
-   - Card "Google Search Console"
-   - Dialog de seleção de site
-   - Dialog de importação de keywords
-   - Badge "GSC" no histórico
+## Arquivo 2: `supabase/functions/support-chat/index.ts`
 
-5. **Imports não utilizados**:
-   - `Dialog`, `DialogContent`, `DialogDescription`, `DialogHeader`, `DialogTitle`
-   - `Checkbox`
-   - `Link`, `CheckCircle`, `ExternalLink`, `Download`, `Unlink`
+### Linhas a Remover (2 linhas)
 
-### Mantido
+| Linhas | Conteúdo Exato |
+|--------|----------------|
+| 88-89 | `🔗 INTEGRAÇÕES (/client/integrations/gsc)` e `- Google Search Console: conectar, sincronizar dados` |
 
-- ✅ Lógica de keywords internas
-- ✅ Análise por IA (`AISuggestKeywordsModal`)
-- ✅ Adição manual de keywords
-- ✅ Layout base da aba
-- ✅ Tutorial de onboarding
+### Código Mantido
 
-## Validação
+- Todo o resto do systemPrompt (140+ linhas)
+- Lógica de contexto por página (linhas 160-183)
+- Handler de chat com IA (linhas 189-226)
 
-- ✅ Nenhuma referência a "gsc" no arquivo
-- ✅ Nenhum import quebrado
-- ✅ Arquivo reduzido de 946 para ~420 linhas
+---
+
+## Sequência de Execução
+
+```text
+┌─────────────────────────────────────────────────────┐
+│ 1. Editar send-weekly-report/index.ts               │
+│    └─> Remover 4 blocos GSC (~90 linhas)            │
+├─────────────────────────────────────────────────────┤
+│ 2. Executar Build                                   │
+│    └─> Confirmar: "Build passou sem erros"          │
+├─────────────────────────────────────────────────────┤
+│ 3. Editar support-chat/index.ts                     │
+│    └─> Remover 2 linhas do prompt (88-89)           │
+├─────────────────────────────────────────────────────┤
+│ 4. Executar Build                                   │
+│    └─> Confirmar: "Build passou sem erros"          │
+├─────────────────────────────────────────────────────┤
+│ 5. Validação Final                                  │
+│    └─> grep "gsc" = 0 ocorrências                   │
+└─────────────────────────────────────────────────────┘
+```
+
+---
+
+## Validação Pós-Execução
+
+Após cada arquivo:
+- Nenhuma referência a "gsc", "GSC", "Search Console"
+- Nenhum import quebrado
+- Build compila sem erros
+- Edge functions deployam corretamente
+
+## Resultado Esperado
+
+| Arquivo | Antes | Depois | Redução |
+|---------|-------|--------|---------|
+| send-weekly-report/index.ts | 379 linhas | ~289 linhas | ~90 linhas |
+| support-chat/index.ts | 235 linhas | 233 linhas | 2 linhas |
 
 ## Próximo Passo
 
-Aguardando OK do usuário antes da Fase 2.
+Aguardar confirmação explícita de build limpo após cada arquivo antes de prosseguir.
