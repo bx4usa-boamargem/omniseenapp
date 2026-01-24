@@ -7,8 +7,8 @@
  * - Redirect sempre para /app após login
  * - Aguarda confirmação de sessão para evitar race condition
  */
-import { useState, useEffect } from 'react';
-import { useNavigate, useLocation, Link, useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useAuth } from '@/hooks/useAuth';
@@ -60,9 +60,21 @@ export default function Login() {
 function LoginContent() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user, signIn, signInWithGoogle, loading: authLoading } = useAuth();
+
+  // Guard contra múltiplos redirects - previne race conditions
+  const hasRedirectedRef = useRef(false);
+
+  const safeRedirect = (path: string) => {
+    if (hasRedirectedRef.current) {
+      console.log('[Login] Redirect already in progress, skipping');
+      return;
+    }
+    hasRedirectedRef.current = true;
+    console.log('[Login] Safe redirect to:', path);
+    navigate(path, { replace: true });
+  };
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -104,14 +116,8 @@ function LoginContent() {
     return () => clearTimeout(timer);
   }, [authLoading]);
 
-  // Redirect se já logado
-  useEffect(() => {
-    if (user && !authLoading) {
-      console.log('[Login] User already logged in, redirecting to /app');
-      const from = (location.state as { from?: Location })?.from?.pathname || '/app';
-      navigate(from, { replace: true });
-    }
-  }, [user, authLoading, navigate, location]);
+  // REMOVIDO: Auto-redirect durante mount causa race condition
+  // O redirect agora só acontece após ação explícita do usuário (handleSubmit ou OAuth callback)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,7 +164,7 @@ function LoginContent() {
       }
       
       // Navigate - TenantGuard + AutoProvisionTenant handle the rest
-      navigate('/app', { replace: true });
+      safeRedirect('/app');
 
     } catch (err) {
       console.error('[Login] Unexpected error:', err);
