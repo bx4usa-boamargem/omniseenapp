@@ -1343,18 +1343,8 @@ export default function ClientArticleEditor() {
                         return;
                       }
 
-                      // Friendly handling for known publish gate codes
-                      if (result.code === 'SERP_NOT_ANALYZED') {
-                        toast.info(result.message || 'Execute “Analisar Concorrência” antes de publicar.');
-                        return;
-                      }
-
-                      if (result.code === 'SCORE_TOO_LOW') {
-                        toast.info(result.message || 'Use “Aumentar Score” para otimizar antes de publicar.');
-                        return;
-                      }
-
-                      toast.error(result.message || 'Erro ao publicar no CMS');
+                      // Display real error from WordPress API (no SERP/Score blocks)
+                      toast.error(`Erro ao publicar: ${result.message || 'Erro desconhecido'}`);
                     } catch (e) {
                       // Absolute guard: never let an exception blank the editor
                       const msg = e instanceof Error ? e.message : 'Erro inesperado ao publicar no CMS';

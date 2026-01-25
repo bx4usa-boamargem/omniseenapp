@@ -327,7 +327,7 @@ export default function ClientQueue() {
     setValidationResult(prev => prev ? {
       ...prev,
       currentScore: newScore,
-      canPublish: newScore >= minScore,
+      canPublish: true, // Publication always allowed - SERP/Score are optional
     } : null);
   };
 

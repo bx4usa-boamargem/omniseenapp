@@ -225,24 +225,35 @@ async function createWordPressPost(creds: WordPressCredentials, article: Article
       body: JSON.stringify(postData),
     });
     
-    if (response.ok) {
-      const post = await response.json();
-      // CRITICAL: Validate that we got real post data
-      if (post && post.id && post.link) {
-        console.log(`[WordPress.org] Post created successfully: ID=${post.id}, URL=${post.link}`);
-        return { success: true, postId: String(post.id), postUrl: post.link };
-      }
-      console.error("[WordPress.org] Response OK but invalid post data:", post);
-      return { success: false, message: "WordPress não retornou dados válidos do post" };
-    } else {
-      const errorData = await response.json().catch(() => ({}));
-      console.error("[WordPress.org] Create post failed:", response.status, errorData);
-      return { success: false, message: errorData.message || `Erro ao criar post: HTTP ${response.status}` };
+    // Detailed logging: HTTP status + raw body
+    const responseText = await response.text();
+    console.log(`[WordPress.org] HTTP ${response.status}`);
+    console.log(`[WordPress.org] Response body: ${responseText.slice(0, 1000)}`);
+    
+    // Parse after logging
+    let post;
+    try {
+      post = JSON.parse(responseText);
+    } catch {
+      return { success: false, message: `Resposta inválida do WordPress: ${responseText.slice(0, 500)}` };
     }
+    
+    // CRITICAL: Validate that we got real post data (id + link required)
+    if (response.ok && post && post.id && post.link) {
+      console.log(`[WordPress.org] Post created successfully: ID=${post.id}, URL=${post.link}`);
+      return { success: true, postId: String(post.id), postUrl: post.link };
+    }
+    
+    // Treat as error if HTTP 200/201 but no id/link
+    console.error("[WordPress.org] Failed - missing id or link:", { status: response.status, hasId: !!post?.id, hasLink: !!post?.link });
+    return { 
+      success: false, 
+      message: post?.message || `Erro HTTP ${response.status}: ${responseText.slice(0, 200)}` 
+    };
   } catch (error) {
-    console.error("WordPress create post error:", error);
+    console.error("[WordPress.org] Network/connection error:", error);
     const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-    return { success: false, message: `Erro: ${errorMessage}` };
+    return { success: false, message: `Erro de conexão: ${errorMessage}` };
   }
 }
 
@@ -270,24 +281,35 @@ async function createWordPressComPost(creds: WordPressComCredentials, article: A
       }
     );
     
-    if (response.ok) {
-      const post = await response.json();
-      // WordPress.com uses uppercase field names
-      if (post && post.ID && post.URL) {
-        console.log(`[WordPress.com] Post created successfully: ID=${post.ID}, URL=${post.URL}`);
-        return { success: true, postId: String(post.ID), postUrl: post.URL };
-      }
-      console.error("[WordPress.com] Response OK but invalid post data:", JSON.stringify(post).slice(0, 500));
-      return { success: false, message: "WordPress.com não retornou dados válidos do post" };
-    } else {
-      const errorData = await response.json().catch(() => ({}));
-      console.error("[WordPress.com] Create post failed:", response.status, errorData);
-      return { success: false, message: errorData.message || `Erro ao criar post: HTTP ${response.status}` };
+    // Detailed logging: HTTP status + raw body
+    const responseText = await response.text();
+    console.log(`[WordPress.com] HTTP ${response.status}`);
+    console.log(`[WordPress.com] Response body: ${responseText.slice(0, 1000)}`);
+    
+    // Parse after logging
+    let post;
+    try {
+      post = JSON.parse(responseText);
+    } catch {
+      return { success: false, message: `Resposta inválida do WordPress.com: ${responseText.slice(0, 500)}` };
     }
+    
+    // WordPress.com uses uppercase field names (ID + URL required)
+    if (response.ok && post && post.ID && post.URL) {
+      console.log(`[WordPress.com] Post created successfully: ID=${post.ID}, URL=${post.URL}`);
+      return { success: true, postId: String(post.ID), postUrl: post.URL };
+    }
+    
+    // Treat as error if HTTP 200 but no ID/URL
+    console.error("[WordPress.com] Failed - missing ID or URL:", { status: response.status, hasID: !!post?.ID, hasURL: !!post?.URL });
+    return { 
+      success: false, 
+      message: post?.error || post?.message || `Erro HTTP ${response.status}: ${responseText.slice(0, 200)}` 
+    };
   } catch (error) {
-    console.error("WordPress.com create post error:", error);
+    console.error("[WordPress.com] Network/connection error:", error);
     const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-    return { success: false, message: `Erro: ${errorMessage}` };
+    return { success: false, message: `Erro de conexão: ${errorMessage}` };
   }
 }
 
