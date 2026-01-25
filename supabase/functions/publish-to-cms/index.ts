@@ -446,7 +446,9 @@ Deno.serve(async (req) => {
             code: 'SERP_NOT_ANALYZED',
             message: 'Artigo não passou por análise SERP. Execute "Analisar Concorrência" primeiro.'
           }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          // IMPORTANT: Return 200 for expected quality-gate blocks so the web client
+          // can handle the message without the SDK throwing a FunctionsHttpError.
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
@@ -457,7 +459,9 @@ Deno.serve(async (req) => {
             code: 'SCORE_TOO_LOW',
             message: `Content Score ${scoreData.total_score}/100 abaixo do mínimo exigido (${minScore}). Use "Aumentar Score" para otimizar.`
           }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          // IMPORTANT: Return 200 for expected quality-gate blocks so the web client
+          // can handle the message without the SDK throwing a FunctionsHttpError.
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
