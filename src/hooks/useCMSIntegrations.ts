@@ -167,7 +167,7 @@ export function useCMSIntegrations(blogId: string) {
     isUpdate = false
   ): Promise<{ success: boolean; externalUrl?: string; message?: string; code?: string }> => {
     try {
-      const { data, error } = await supabase.functions.invoke("publish-to-cms", {
+      const response = await supabase.functions.invoke("publish-to-cms", {
         body: {
           action: isUpdate ? "update" : "create",
           integrationId,
@@ -175,39 +175,37 @@ export function useCMSIntegrations(blogId: string) {
         },
       });
 
-      if (error) {
-        console.error("Error publishing article:", error);
-        // Extract error message from context if available (FunctionsHttpError)
-        const errorContext = (error as any)?.context;
-        if (errorContext) {
-          try {
-            const errorBody = typeof errorContext === 'string' ? JSON.parse(errorContext) : errorContext;
-            return { 
-              success: false, 
-              message: errorBody.message || error.message,
-              code: errorBody.code 
-            };
-          } catch {
-            // Fall through to default handling
-          }
-        }
-        return { success: false, message: error.message };
-      }
+      // Supabase returns data even for 4xx errors - check data first
+      const data = response.data;
+      const error = response.error;
 
-      // Handle case where data contains error response (non-throwing error)
-      if (data && !data.success) {
+      // If we got data with explicit success/error info, use it
+      if (data) {
+        if (data.success === false) {
+          return {
+            success: false,
+            message: data.message || "Erro ao publicar",
+            code: data.code,
+          };
+        }
+        
         return {
-          success: false,
+          success: data.success ?? true,
+          externalUrl: data.postUrl,
           message: data.message,
-          code: data.code,
         };
       }
 
-      return {
-        success: data?.success ?? false,
-        externalUrl: data?.postUrl,
-        message: data?.message,
-      };
+      // Handle pure error case (no data)
+      if (error) {
+        console.error("Error publishing article:", error);
+        return { 
+          success: false, 
+          message: error.message || "Erro ao publicar artigo" 
+        };
+      }
+
+      return { success: false, message: "Resposta inesperada do servidor" };
     } catch (err) {
       console.error("Error:", err);
       return { success: false, message: "Erro ao publicar artigo" };
