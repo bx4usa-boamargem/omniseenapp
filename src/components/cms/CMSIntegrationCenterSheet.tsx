@@ -16,6 +16,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCMSIntegrations, type CMSPlatform, type CMSIntegration } from "@/hooks/useCMSIntegrations";
+import { useTenantDomains, TenantDomain } from "@/hooks/useTenantDomains";
+import { DomainPublishingSelector } from "./DomainPublishingSelector";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -43,12 +46,15 @@ interface CMSIntegrationCenterSheetProps {
   onPublishSuccess?: (url: string) => void;
 }
 
+// Extended platform type to include domain publishing
+type ExtendedPlatform = CMSPlatform | "domain";
+
 interface PlatformConfig {
-  id: CMSPlatform;
+  id: ExtendedPlatform;
   name: string;
   description: string;
   icon: string;
-  authType: "application-password" | "oauth" | "api-key";
+  authType: "application-password" | "oauth" | "api-key" | "domain";
   fields: Array<{
     key: string;
     label: string;
@@ -59,6 +65,7 @@ interface PlatformConfig {
   }>;
   helpLink?: string;
   oauthButton?: boolean;
+  domainSelector?: boolean; // For domain publishing
 }
 
 const PLATFORMS: PlatformConfig[] = [
@@ -97,6 +104,15 @@ const PLATFORMS: PlatformConfig[] = [
     ],
     helpLink: "https://dev.wix.com/docs/rest/getting-started/api-keys",
   },
+  {
+    id: "domain",
+    name: "Domínio Próprio",
+    description: "Publique diretamente no seu subdomínio OmniSeen ou domínio customizado",
+    icon: "🌍",
+    authType: "domain",
+    fields: [],
+    domainSelector: true,
+  },
 ];
 
 export function CMSIntegrationCenterSheet({
@@ -119,6 +135,15 @@ export function CMSIntegrationCenterSheet({
     refetch, // CRITICAL: Force state sync after operations
   } = useCMSIntegrations(blogId);
 
+  // Domain publishing hook
+  const { 
+    domains, 
+    loading: domainsLoading, 
+    getActiveDomains, 
+    getPrimaryDomain,
+    getCanonicalUrl 
+  } = useTenantDomains({ blogId, onlyActive: true });
+
   // Dialog states
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -127,8 +152,13 @@ export function CMSIntegrationCenterSheet({
   const [lastErrorDetails, setLastErrorDetails] = useState<{ message: string; chain?: string[] } | null>(null);
   
   // Form states
-  const [selectedPlatform, setSelectedPlatform] = useState<CMSPlatform | null>(null);
+  const [selectedPlatform, setSelectedPlatform] = useState<ExtendedPlatform | null>(null);
   const [formData, setFormData] = useState<Record<string, string>>({});
+  
+  // Domain publishing states
+  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
+  const [selectedDomainInfo, setSelectedDomainInfo] = useState<TenantDomain | null>(null);
+  const [publishingToDomain, setPublishingToDomain] = useState(false);
   
   // Action states
   const [saving, setSaving] = useState(false);
@@ -142,6 +172,8 @@ export function CMSIntegrationCenterSheet({
     if (addDialogOpen) {
       setSelectedPlatform(null);
       setFormData({});
+      setSelectedDomain(null);
+      setSelectedDomainInfo(null);
     }
   }, [addDialogOpen]);
 
@@ -211,9 +243,9 @@ export function CMSIntegrationCenterSheet({
     }
   };
 
-  // Handle add integration
+  // Handle add integration (for CMS platforms, not domain)
   const handleAddIntegration = async () => {
-    if (!selectedPlatform) return;
+    if (!selectedPlatform || selectedPlatform === "domain") return;
 
     const platform = PLATFORMS.find((p) => p.id === selectedPlatform);
     if (!platform) return;
@@ -226,7 +258,8 @@ export function CMSIntegrationCenterSheet({
     }
 
     setSaving(true);
-    const result = await addIntegration(selectedPlatform, formData.siteUrl || "", {
+    // Cast to CMSPlatform since we already excluded "domain"
+    const result = await addIntegration(selectedPlatform as CMSPlatform, formData.siteUrl || "", {
       username: formData.username,
       apiKey: formData.apiKey,
       apiSecret: formData.apiSecret,
@@ -250,6 +283,68 @@ export function CMSIntegrationCenterSheet({
       toast.error(result.message || "Erro ao adicionar integração");
     }
     setSaving(false);
+  };
+
+  // Handle domain selection for native publishing
+  const handleDomainSelect = (domain: string, domainInfo: TenantDomain) => {
+    setSelectedDomain(domain);
+    setSelectedDomainInfo(domainInfo);
+  };
+
+  // Handle publish to native domain (Automaticles model)
+  const handlePublishToDomain = async () => {
+    if (!selectedDomain || !articleId) return;
+
+    setPublishingToDomain(true);
+    try {
+      // Get article slug for URL construction
+      const { data: article, error: articleError } = await supabase
+        .from("articles")
+        .select("slug, title")
+        .eq("id", articleId)
+        .single();
+
+      if (articleError || !article) {
+        toast.error("Artigo não encontrado");
+        return;
+      }
+
+      const canonicalUrl = `https://${selectedDomain}/${article.slug}`;
+
+      // Update article to published status with domain target
+      const { error: updateError } = await supabase
+        .from("articles")
+        .update({
+          status: "published",
+          published_at: new Date().toISOString(),
+          publication_target: "domain",
+          publication_url: canonicalUrl,
+        })
+        .eq("id", articleId);
+
+      if (updateError) {
+        console.error("Publish to domain error:", updateError);
+        toast.error("Erro ao publicar no domínio");
+        return;
+      }
+
+      toast.success("Publicado no domínio!", {
+        description: `Disponível em ${selectedDomain}`,
+        action: {
+          label: "Abrir",
+          onClick: () => window.open(canonicalUrl, "_blank"),
+        },
+      });
+
+      onPublishSuccess?.(canonicalUrl);
+      setAddDialogOpen(false);
+      onOpenChange(false);
+    } catch (err) {
+      console.error("Publish to domain error:", err);
+      toast.error("Erro ao publicar no domínio");
+    } finally {
+      setPublishingToDomain(false);
+    }
   };
 
   // Handle edit/reconnect
@@ -583,13 +678,13 @@ export function CMSIntegrationCenterSheet({
 
                 <Tabs
                   value={selectedPlatform || undefined}
-                  onValueChange={(v) => setSelectedPlatform(v as CMSPlatform)}
+                  onValueChange={(v) => setSelectedPlatform(v as ExtendedPlatform)}
                 >
-                  <TabsList className="grid grid-cols-3 w-full">
+                  <TabsList className="grid grid-cols-4 w-full">
                     {PLATFORMS.map((platform) => (
-                      <TabsTrigger key={platform.id} value={platform.id} className="gap-1 text-xs sm:text-sm">
+                      <TabsTrigger key={platform.id} value={platform.id} className="gap-1 text-xs">
                         <span>{platform.icon}</span>
-                        {platform.name}
+                        <span className="hidden sm:inline">{platform.name}</span>
                       </TabsTrigger>
                     ))}
                   </TabsList>
@@ -598,8 +693,52 @@ export function CMSIntegrationCenterSheet({
                     <TabsContent key={platform.id} value={platform.id} className="space-y-4 mt-4">
                       <p className="text-sm text-muted-foreground">{platform.description}</p>
 
-                      {/* CORRECTION #3: WordPress.com OAuth with explanation BEFORE action */}
-                      {platform.oauthButton ? (
+                      {/* Domain Publishing Option - Automaticles Model */}
+                      {platform.domainSelector ? (
+                        <div className="space-y-4">
+                          <Alert className="bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800">
+                            <Globe className="h-4 w-4 text-green-600 dark:text-green-400" />
+                            <AlertDescription className="text-sm space-y-2">
+                              <p className="font-medium text-green-900 dark:text-green-100">
+                                Publicação Direta (Sem API)
+                              </p>
+                              <ul className="text-xs text-green-800 dark:text-green-200 space-y-1 ml-4 list-disc">
+                                <li>Sem credenciais, sem OAuth, sem erros de API</li>
+                                <li>Artigo disponível instantaneamente no seu domínio</li>
+                                <li>Controle total sobre o conteúdo</li>
+                              </ul>
+                            </AlertDescription>
+                          </Alert>
+
+                          <DomainPublishingSelector
+                            blogId={blogId}
+                            selectedDomain={selectedDomain}
+                            onSelect={handleDomainSelect}
+                          />
+
+                          {selectedDomain && (
+                            <Button
+                              onClick={handlePublishToDomain}
+                              disabled={publishingToDomain}
+                              className="w-full gap-2 bg-green-600 hover:bg-green-700"
+                              size="lg"
+                            >
+                              {publishingToDomain ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Publicando...
+                                </>
+                              ) : (
+                                <>
+                                  <Send className="h-4 w-4" />
+                                  Publicar no Domínio
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      ) : platform.oauthButton ? (
+                        /* WordPress.com OAuth with explanation BEFORE action */
                         <div className="space-y-4">
                           {/* Explanation of OAuth flow - user must consciously click */}
                           <Alert className="bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800">
@@ -637,7 +776,7 @@ export function CMSIntegrationCenterSheet({
                           </Button>
                         </div>
                       ) : (
-                        /* CORRECTION #2: Credential platforms - Fields FIRST, help link AFTER */
+                        /* Credential platforms - Fields FIRST, help link AFTER */
                         <div className="space-y-4">
                           {/* Fields in highlighted box - PRIMARY ACTION */}
                           <div className="border rounded-lg p-4 bg-muted/30 space-y-4">

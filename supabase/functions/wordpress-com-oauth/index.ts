@@ -34,7 +34,29 @@ function getAuthorizationUrl(blogId: string): string {
   const redirectUri = Deno.env.get("WORDPRESS_COM_REDIRECT_URI");
   
   if (!clientId || !redirectUri) {
-    throw new Error("WordPress.com OAuth not configured. Missing WORDPRESS_COM_CLIENT_ID or WORDPRESS_COM_REDIRECT_URI");
+    throw new Error("WordPress.com OAuth não configurado. Configure WORDPRESS_COM_CLIENT_ID e WORDPRESS_COM_REDIRECT_URI no painel de secrets.");
+  }
+  
+  // VALIDATION: Detect placeholder credentials and block before redirect
+  const placeholderPatterns = [
+    "vai te dar",
+    "your_client_id",
+    "placeholder",
+    "example",
+    "xxx",
+    "000000",
+  ];
+  
+  const isPlaceholder = placeholderPatterns.some(
+    (pattern) => clientId.toLowerCase().includes(pattern)
+  ) || clientId.length < 8;
+  
+  if (isPlaceholder) {
+    console.error(`[OAuth BLOCKED] Invalid Client ID detected: "${clientId.substring(0, 20)}..."`);
+    throw new Error(
+      "WORDPRESS_COM_CLIENT_ID contém valor de exemplo. " +
+      "Registre um app real em https://developer.wordpress.com/apps/ e atualize os secrets."
+    );
   }
   
   // Generate unique state: blogId_timestamp_randomString

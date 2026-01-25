@@ -1072,6 +1072,8 @@ export type Database = {
           opportunity_id: string | null
           pdf_generated_at: string | null
           pdf_url: string | null
+          publication_target: string | null
+          publication_url: string | null
           published_at: string | null
           quality_gate_attempts: number | null
           quality_gate_status: string | null
@@ -1131,6 +1133,8 @@ export type Database = {
           opportunity_id?: string | null
           pdf_generated_at?: string | null
           pdf_url?: string | null
+          publication_target?: string | null
+          publication_url?: string | null
           published_at?: string | null
           quality_gate_attempts?: number | null
           quality_gate_status?: string | null
@@ -1190,6 +1194,8 @@ export type Database = {
           opportunity_id?: string | null
           pdf_generated_at?: string | null
           pdf_url?: string | null
+          publication_target?: string | null
+          publication_url?: string | null
           published_at?: string | null
           quality_gate_attempts?: number | null
           quality_gate_status?: string | null
