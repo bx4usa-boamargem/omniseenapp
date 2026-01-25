@@ -165,7 +165,7 @@ export function useCMSIntegrations(blogId: string) {
     integrationId: string,
     articleId: string,
     isUpdate = false
-  ): Promise<{ success: boolean; externalUrl?: string; message?: string }> => {
+  ): Promise<{ success: boolean; externalUrl?: string; message?: string; code?: string }> => {
     try {
       const { data, error } = await supabase.functions.invoke("publish-to-cms", {
         body: {
@@ -177,13 +177,36 @@ export function useCMSIntegrations(blogId: string) {
 
       if (error) {
         console.error("Error publishing article:", error);
+        // Extract error message from context if available (FunctionsHttpError)
+        const errorContext = (error as any)?.context;
+        if (errorContext) {
+          try {
+            const errorBody = typeof errorContext === 'string' ? JSON.parse(errorContext) : errorContext;
+            return { 
+              success: false, 
+              message: errorBody.message || error.message,
+              code: errorBody.code 
+            };
+          } catch {
+            // Fall through to default handling
+          }
+        }
         return { success: false, message: error.message };
       }
 
+      // Handle case where data contains error response (non-throwing error)
+      if (data && !data.success) {
+        return {
+          success: false,
+          message: data.message,
+          code: data.code,
+        };
+      }
+
       return {
-        success: data.success,
-        externalUrl: data.postUrl,
-        message: data.message,
+        success: data?.success ?? false,
+        externalUrl: data?.postUrl,
+        message: data?.message,
       };
     } catch (err) {
       console.error("Error:", err);
