@@ -9,14 +9,22 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCMSIntegrations, type CMSPlatform } from "@/hooks/useCMSIntegrations";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Plus, Loader2, CheckCircle, XCircle, ExternalLink, Trash2, 
-  RefreshCw, Globe, Key, User, AlertCircle, Unplug
+  RefreshCw, Globe, Key, User, AlertCircle, Unplug, FileText
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { SectionHelper } from "./SectionHelper";
+
+interface BlogDetectionStatus {
+  hasBlog: boolean;
+  postsEndpoint: boolean;
+  categories: boolean;
+  message: string;
+}
 
 interface CMSIntegrationsTabProps {
   blogId: string;
@@ -80,6 +88,8 @@ export function CMSIntegrationsTab({ blogId }: CMSIntegrationsTabProps) {
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [blogStatus, setBlogStatus] = useState<Record<string, BlogDetectionStatus>>({});
+  const [detectingBlog, setDetectingBlog] = useState<string | null>(null);
 
   const handleAddIntegration = async () => {
     if (!selectedPlatform) return;
@@ -131,6 +141,36 @@ export function CMSIntegrationsTab({ blogId }: CMSIntegrationsTabProps) {
     const result = await testConnection(integrationId);
     if (result.success) {
       toast.success(result.message);
+      
+      // Auto-detect blog after successful connection test
+      setDetectingBlog(integrationId);
+      try {
+        const { data: detectResult, error } = await supabase.functions.invoke("publish-to-cms", {
+          body: { action: "detect-blog", integrationId },
+        });
+        
+        if (!error && detectResult) {
+          setBlogStatus(prev => ({ 
+            ...prev, 
+            [integrationId]: {
+              hasBlog: detectResult.hasBlog,
+              postsEndpoint: detectResult.postsEndpoint,
+              categories: detectResult.categories,
+              message: detectResult.message,
+            }
+          }));
+          
+          if (detectResult.hasBlog) {
+            toast.success("Blog detectado e pronto para publicação!");
+          } else {
+            toast.warning("Blog não detectado. Verifique se o site possui funcionalidade de blog.");
+          }
+        }
+      } catch (err) {
+        console.error("Error detecting blog:", err);
+      } finally {
+        setDetectingBlog(null);
+      }
     } else {
       toast.error(result.message);
     }
@@ -298,9 +338,26 @@ export function CMSIntegrationsTab({ blogId }: CMSIntegrationsTabProps) {
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">{platform?.icon || "🔗"}</span>
                       <div>
-                        <CardTitle className="text-base flex items-center gap-2">
+                        <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                           {platform?.name || integration.platform}
                           {getStatusBadge(integration.last_sync_status)}
+                          {blogStatus[integration.id] && (
+                            <Badge 
+                              variant={blogStatus[integration.id].hasBlog ? "default" : "secondary"}
+                              className={blogStatus[integration.id].hasBlog 
+                                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" 
+                                : ""}
+                            >
+                              <FileText className="h-3 w-3 mr-1" />
+                              {blogStatus[integration.id].hasBlog ? "Blog Pronto" : "Sem Blog"}
+                            </Badge>
+                          )}
+                          {detectingBlog === integration.id && (
+                            <Badge variant="outline" className="animate-pulse">
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              Detectando...
+                            </Badge>
+                          )}
                         </CardTitle>
                         <CardDescription className="flex items-center gap-1">
                           <Globe className="h-3 w-3" />

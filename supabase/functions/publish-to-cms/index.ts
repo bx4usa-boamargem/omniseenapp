@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 interface CMSPayload {
-  action: "test" | "create" | "update" | "delete";
+  action: "test" | "create" | "update" | "delete" | "detect-blog";
   integrationId: string;
   articleId?: string;
 }
@@ -54,6 +54,53 @@ async function testWordPressConnection(creds: WordPressCredentials): Promise<{ s
     console.error("WordPress connection test error:", error);
     const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     return { success: false, message: `Erro de conexão: ${errorMessage}` };
+  }
+}
+
+// Detect WordPress Blog Capability
+async function detectWordPressBlog(creds: WordPressCredentials): Promise<{
+  success: boolean;
+  hasBlog: boolean;
+  postsEndpoint: boolean;
+  categories: boolean;
+  message: string;
+}> {
+  try {
+    const authHeader = btoa(`${creds.username}:${creds.apiKey}`);
+    
+    // Check posts endpoint
+    const postsRes = await fetch(`${creds.siteUrl}/wp-json/wp/v2/posts?per_page=1`, {
+      headers: { Authorization: `Basic ${authHeader}` },
+    });
+    
+    // Check categories endpoint
+    const catsRes = await fetch(`${creds.siteUrl}/wp-json/wp/v2/categories?per_page=1`, {
+      headers: { Authorization: `Basic ${authHeader}` },
+    });
+    
+    const postsOk = postsRes.ok;
+    const catsOk = catsRes.ok;
+    
+    console.log(`[detect-blog] WordPress: posts=${postsOk}, categories=${catsOk}`);
+    
+    return {
+      success: true,
+      hasBlog: postsOk,
+      postsEndpoint: postsOk,
+      categories: catsOk,
+      message: postsOk 
+        ? "Blog WordPress detectado e pronto para publicação" 
+        : "Endpoint de posts não disponível - verifique se o site possui blog",
+    };
+  } catch (error) {
+    console.error("WordPress detect blog error:", error);
+    return { 
+      success: false, 
+      hasBlog: false, 
+      postsEndpoint: false, 
+      categories: false, 
+      message: "Erro ao detectar blog WordPress" 
+    };
   }
 }
 
@@ -317,6 +364,35 @@ Deno.serve(async (req) => {
           last_sync_status: result.success ? "connected" : "error",
         })
         .eq("id", integrationId);
+
+      return new Response(
+        JSON.stringify(result),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Detect blog capability
+    if (action === "detect-blog") {
+      let result;
+      
+      if (platform === "wordpress") {
+        result = await detectWordPressBlog({
+          siteUrl: integration.site_url,
+          username: integration.username,
+          apiKey: integration.api_key,
+        });
+      } else if (platform === "wix") {
+        // For Wix, we assume blog is available if connection works
+        result = { 
+          success: true, 
+          hasBlog: true, 
+          postsEndpoint: true, 
+          categories: true, 
+          message: "Wix Blog API disponível" 
+        };
+      } else {
+        result = { success: false, hasBlog: false, postsEndpoint: false, categories: false, message: `Plataforma ${platform} não suportada` };
+      }
 
       return new Response(
         JSON.stringify(result),
