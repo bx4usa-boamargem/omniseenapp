@@ -1,144 +1,222 @@
 
-# Plano: Correção Definitiva do Sistema WordPress
+# Central de Integrações CMS - Fluxo Completo de Publicação
 
-## Problema Identificado
+## Contexto do Problema
 
-O WordPress está retornando `HTTP 200` com body `[]` (array vazio) e o sistema atual faz `JSON.parse("[]")` sem erro, resultando em `post = []` que passa pela validação `response.ok` mas falha em `post.id` e `post.link`.
-
-A mensagem atual "Erro HTTP 200: []" não é clara o suficiente.
+O fluxo atual de publicação está fragmentado:
+- O botão "Publicar no WordPress" tenta publicar diretamente sem validações
+- Não há visibilidade sobre quais integrações estão configuradas
+- O usuário não consegue gerenciar (testar, desconectar, editar) as integrações de forma centralizada
+- Não existe validação de que a integração foi testada com sucesso antes de publicar
 
 ---
 
-## Mudanças Propostas
+## Solução Proposta
 
-### 1. Edge Function: Validar Body Vazio/Inválido ANTES do parse
+Criar uma **Central de Integrações CMS** que:
+1. Seja aberta automaticamente ao clicar em "Publicar no WordPress/CMS"
+2. Mostre todas as integrações com status claro
+3. Permita gerenciar completamente cada integração
+4. Só permita publicar quando houver uma integração ativa E testada
 
-**Arquivo:** `supabase/functions/publish-to-cms/index.ts`
+---
 
-Modificar `createWordPressPost()` e `createWordPressComPost()` para detectar respostas inválidas antes do `JSON.parse`:
+## Fluxo de Usuário Final
+
+```text
+Usuário clica "Publicar"
+        |
+        v
++---------------------------+
+| Existe integração ativa   |
+| E testada com sucesso?    |
++---------------------------+
+        |
+    +---+---+
+    |       |
+   SIM     NÃO
+    |       |
+    v       v
+Publica   Abre Central
+direto    de Integrações CMS
+```
+
+---
+
+## Componentes a Implementar
+
+### 1. Novo Componente: CMSIntegrationCenterSheet
+
+Um Sheet (painel lateral) completo que substitui o atual mini-form de configuração.
+
+**Estrutura visual:**
+
+```text
++---------------------------------------+
+|        Central de Publicação          |
++---------------------------------------+
+|                                       |
+|  WordPress.com          [CONECTADO]   |
+|  meusite.wordpress.com                |
+|  [Testar] [Desconectar] [Editar]      |
+|                                       |
++---------------------------------------+
+|                                       |
+|  WordPress.org          [ERRO]        |
+|  meusiteorg.com.br                    |
+|  [Testar] [Desconectar] [Editar]      |
+|                                       |
++---------------------------------------+
+|                                       |
+|  Wix                    [INATIVO]     |
+|  meusite.wixsite.com                  |
+|  [Reconectar]                         |
+|                                       |
++---------------------------------------+
+|                                       |
+|  + Adicionar Nova Integração          |
+|                                       |
++---------------------------------------+
+```
+
+### 2. Modificação: ClientArticleEditor.tsx
+
+Alterar o comportamento do botão de publicação:
+
+**Antes:**
+- Se existe `activeIntegration` → publica direto
+- Se não existe → abre Sheet de configuração
+
+**Depois:**
+- Se existe integração ativa E `last_sync_status === "connected"` → publica direto
+- Caso contrário → abre Central de Integrações CMS
+
+### 3. Novo Campo: `last_test_at` na tabela `cms_integrations`
+
+Para saber quando a integração foi testada pela última vez (opcional, pode usar `last_sync_at` existente).
+
+---
+
+## Detalhes Técnicos
+
+### Arquivo: `src/components/cms/CMSIntegrationCenterSheet.tsx` (NOVO)
+
+Este componente será uma versão melhorada do `CMSIntegrationsTab.tsx` otimizada para o contexto de publicação:
 
 ```typescript
-// Após: const responseText = await response.text();
-// Adicionar ANTES do try/catch JSON.parse:
-
-// Validate non-empty response
-if (!responseText || responseText.trim() === "" || responseText.trim() === "[]") {
-  console.error(`[WordPress.org] Empty or invalid response body`);
-  return { 
-    success: false, 
-    message: `WordPress respondeu vazio — post não criado. HTTP ${response.status}. Verifique endpoint, autenticação ou bloqueio do host.`
-  };
-}
-
-// Detect HTML error pages
-if (responseText.trim().startsWith("<!DOCTYPE") || responseText.trim().startsWith("<html")) {
-  console.error(`[WordPress.org] Received HTML instead of JSON`);
-  return { 
-    success: false, 
-    message: `WordPress retornou HTML em vez de JSON. HTTP ${response.status}. Endpoint incorreto ou REST API desabilitada.`
-  };
+interface CMSIntegrationCenterSheetProps {
+  blogId: string;
+  articleId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onPublishSuccess?: (url: string) => void;
 }
 ```
 
-A mesma lógica será aplicada para `createWordPressComPost()`.
+**Funcionalidades:**
+- Lista todas as integrações (ativas e inativas)
+- Para cada integração mostra:
+  - Plataforma (WordPress.org, WordPress.com, Wix)
+  - URL conectada
+  - Status com badge colorido (Conectado/Erro/Desconectado/Não testado)
+  - Última verificação
+- Botões de ação:
+  - **Testar**: Executa teste de conexão
+  - **Desconectar**: Define `is_active = false`
+  - **Reconectar/Editar**: Abre formulário para atualizar credenciais
+  - **Excluir**: Remove permanentemente (com confirmação)
+- Botão "Adicionar Integração" que abre o formulário existente
+- Se houver exatamente UMA integração ativa e testada, mostra botão "Publicar Agora"
 
----
+### Arquivo: `src/pages/client/ClientArticleEditor.tsx` (MODIFICAR)
 
-### 2. Edge Function: Melhorar Mensagem de Erro
-
-Quando `response.ok` mas sem `id`/`link`, tornar mensagem mais clara:
+Linhas ~1315-1395:
 
 ```typescript
-// Linha 247-251 atual:
-console.error("[WordPress.org] Failed - missing id or link:", {...});
-return { 
-  success: false, 
-  message: `Publicação falhou. HTTP ${response.status}. Body: ${responseText.slice(0, 300)}. Verifique se o usuário tem permissão para criar posts.`
+// Nova lógica de validação
+const canPublishDirectly = activeIntegration && 
+  activeIntegration.is_active && 
+  activeIntegration.last_sync_status === "connected";
+
+// Botão de publicação
+{existingArticleId && (
+  canPublishDirectly ? (
+    // Botão verde "Publicar no WordPress"
+    <Button onClick={handlePublishCMS}>
+      Publicar no {platformName}
+    </Button>
+  ) : (
+    // Abre Central de Integrações
+    <CMSIntegrationCenterSheet
+      blogId={blog?.id}
+      articleId={existingArticleId}
+      open={showCMSCenter}
+      onOpenChange={setShowCMSCenter}
+      onPublishSuccess={(url) => window.open(url, '_blank')}
+    />
+  )
+)}
+```
+
+### Arquivo: `src/hooks/useCMSIntegrations.ts` (MODIFICAR)
+
+Adicionar função `reconnectIntegration`:
+
+```typescript
+const reconnectIntegration = async (
+  integrationId: string,
+  updates: { site_url?: string; username?: string; api_key?: string }
+): Promise<boolean> => {
+  // Atualiza credenciais E reativa a integração
+  const success = await updateIntegration(integrationId, {
+    ...updates,
+    is_active: true,
+  });
+  
+  if (success) {
+    // Auto-testa a nova configuração
+    const testResult = await testConnection(integrationId);
+    return testResult.success;
+  }
+  return false;
 };
 ```
 
 ---
 
-### 3. UI: Adicionar Botão "Desconectar" Explícito
+## Estados de Status com Cores
 
-**Arquivo:** `src/components/blog-editor/CMSIntegrationsTab.tsx`
-
-Adicionar um botão "Desconectar" visível ao lado do switch, que:
-1. Define `is_active = false`
-2. Limpa estado local (remove do array `integrations`)
-3. Mostra toast: "Integração desconectada. Você pode reconectar a qualquer momento."
-
-O ícone de lixeira existente permanece para exclusão definitiva.
-
-```typescript
-<Button
-  variant="outline"
-  size="sm"
-  onClick={async () => {
-    await updateIntegration(integration.id, { is_active: false });
-    toast.success("Integração desconectada");
-  }}
-  className="gap-1 text-orange-600"
->
-  <Unplug className="h-4 w-4" />
-  Desconectar
-</Button>
-```
+| Status | Badge | Cor | Significado |
+|--------|-------|-----|-------------|
+| `connected` | Conectado | Verde | Testado e funcionando |
+| `error` | Erro | Vermelho | Último teste falhou |
+| `null` | Não testado | Cinza | Nunca foi testado |
+| `is_active = false` | Desconectado | Laranja | Desativado pelo usuário |
 
 ---
 
-### 4. UI: Permitir Reconectar (Editar Credenciais)
+## Validação de Publicação
 
-Quando existir uma integração `is_active = false`, mostrar botão "Reconectar" que abre dialog para atualizar URL/credenciais do registro existente, em vez de criar um novo.
+O botão "Publicar" só aparece quando:
+1. Existe exatamente 1 integração ativa
+2. Essa integração tem `last_sync_status === "connected"`
+3. O artigo já foi salvo (`existingArticleId` existe)
 
----
-
-### 5. Deploy e Teste
-
-1. Atualizar `publish-to-cms/index.ts`
-2. Deploy Edge Function
-3. Verificar logs com `HTTP status` + `body` completo
-4. Testar cenário: publicar em WordPress.org real
-
----
-
-## Fluxo Final Garantido
-
-```
-Usuário clica "Publicar no WordPress"
-       ↓
-Edge Function POST /wp-json/wp/v2/posts
-       ↓
-Recebe resposta HTTP
-       ↓
-┌─────────────────────────────────┐
-│ Body vazio ("" ou "[]")?        │
-│ → Erro: "WordPress respondeu    │
-│   vazio — post não criado"      │
-├─────────────────────────────────┤
-│ Body é HTML?                    │
-│ → Erro: "REST API desabilitada" │
-├─────────────────────────────────┤
-│ JSON válido mas sem id/link?    │
-│ → Erro: "Publicação falhou.     │
-│   Body: {trecho}. Verifique     │
-│   permissões do usuário."       │
-├─────────────────────────────────┤
-│ JSON com id + link?             │
-│ → Sucesso: retorna URL do post  │
-└─────────────────────────────────┘
-       ↓
-Frontend exibe toast + abre URL
-```
+Caso contrário, mostra mensagem explicativa:
+- "Nenhuma integração configurada" → botão "Conectar CMS"
+- "Integração não testada" → botão "Testar Conexão"
+- "Múltiplas integrações ativas" → lista para escolher
 
 ---
 
-## Arquivos a Modificar
+## Arquivos a Modificar/Criar
 
-| Arquivo | Mudança |
-|---------|---------|
-| `supabase/functions/publish-to-cms/index.ts` | Validar body vazio/HTML antes de JSON.parse |
-| `src/components/blog-editor/CMSIntegrationsTab.tsx` | Adicionar botão "Desconectar" explícito |
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `src/components/cms/CMSIntegrationCenterSheet.tsx` | Criar | Nova Central de Integrações |
+| `src/pages/client/ClientArticleEditor.tsx` | Modificar | Integrar nova Central |
+| `src/hooks/useCMSIntegrations.ts` | Modificar | Adicionar `reconnectIntegration` |
+| `src/components/blog-editor/CMSIntegrationsTab.tsx` | Reutilizar | Extrair lógica compartilhada |
 
 ---
 
@@ -146,12 +224,12 @@ Frontend exibe toast + abre URL
 
 Após esta implementação:
 
-| Cenário | Resultado Garantido |
-|---------|---------------------|
-| WordPress.org com credenciais válidas | Post criado + URL retornada |
-| WordPress.com com OAuth válido | Post criado + URL retornada |
-| Body vazio `[]` ou `""` | Erro claro: "respondeu vazio" |
-| Body HTML | Erro claro: "REST API desabilitada" |
-| HTTP 200 sem id/link | Erro claro com body parcial |
-| Usuário desconecta | `is_active = false`, pode reconectar |
-| Usuário reconecta | Atualiza credenciais do registro existente |
+| Funcionalidade | Garantia |
+|----------------|----------|
+| Visão das integrações | Lista completa com status |
+| Controle sobre CMS ativo | Switch ativo/inativo |
+| Desconectar | `is_active = false` + toast |
+| Reconectar outro WordPress | Formulário de edição + auto-teste |
+| Teste manual | Botão "Testar Conexão" |
+| Edição de credenciais | Dialog de edição para cada integração |
+| Publicação segura | Só publica se testado com sucesso |
