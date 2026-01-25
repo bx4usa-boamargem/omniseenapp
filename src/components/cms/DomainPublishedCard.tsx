@@ -12,20 +12,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Globe, ExternalLink, Pencil, Unplug, Loader2, CheckCircle } from "lucide-react";
+import { Globe, ExternalLink, Unplug, Loader2, CheckCircle } from "lucide-react";
 
 interface DomainPublishedCardProps {
   publicationUrl: string;
-  onEdit: () => void;
   onDisconnect: () => Promise<void>;
-  isEditing?: boolean;
 }
 
 export function DomainPublishedCard({
   publicationUrl,
-  onEdit,
   onDisconnect,
-  isEditing = false,
 }: DomainPublishedCardProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -92,33 +88,21 @@ export function DomainPublishedCard({
             {publicationUrl}
           </p>
 
-          {/* Action buttons */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onEdit}
-              disabled={isEditing}
-              className="flex-1 gap-2"
-            >
-              <Pencil className="h-3 w-3" />
-              Trocar Domínio
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowConfirmDialog(true)}
-              disabled={disconnecting}
-              className="flex-1 gap-2 text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200 dark:border-orange-800 dark:hover:bg-orange-950/50"
-            >
-              {disconnecting ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Unplug className="h-3 w-3" />
-              )}
-              Desconectar
-            </Button>
-          </div>
+          {/* Action button - only disconnect (domain change is done via selector) */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowConfirmDialog(true)}
+            disabled={disconnecting}
+            className="w-full gap-2 text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200 dark:border-orange-800 dark:hover:bg-orange-950/50"
+          >
+            {disconnecting ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Unplug className="h-3 w-3" />
+            )}
+            Desconectar do Domínio
+          </Button>
         </CardContent>
       </Card>
 
