@@ -1,235 +1,269 @@
 
-# Central de Integrações CMS - Fluxo Completo de Publicação
+# Implementação Final: Sistema de Integrações CMS Confiável
 
-## Contexto do Problema
+## Resumo da Análise
 
-O fluxo atual de publicação está fragmentado:
-- O botão "Publicar no WordPress" tenta publicar diretamente sem validações
-- Não há visibilidade sobre quais integrações estão configuradas
-- O usuário não consegue gerenciar (testar, desconectar, editar) as integrações de forma centralizada
-- Não existe validação de que a integração foi testada com sucesso antes de publicar
+Após revisar todos os arquivos, identifiquei as lacunas específicas que precisam ser corrigidas para garantir que o ciclo de vida (Conectar → Publicar → Desconectar → Reconectar) funcione sem estados fantasmas.
 
 ---
 
-## Solução Proposta
+## Correções a Implementar
 
-Criar uma **Central de Integrações CMS** que:
-1. Seja aberta automaticamente ao clicar em "Publicar no WordPress/CMS"
-2. Mostre todas as integrações com status claro
-3. Permita gerenciar completamente cada integração
-4. Só permita publicar quando houver uma integração ativa E testada
+### 1. Backend: Filtrar por `is_active = true` (CRÍTICO)
 
----
+**Arquivo:** `supabase/functions/publish-to-cms/index.ts`
 
-## Fluxo de Usuário Final
-
-```text
-Usuário clica "Publicar"
-        |
-        v
-+---------------------------+
-| Existe integração ativa   |
-| E testada com sucesso?    |
-+---------------------------+
-        |
-    +---+---+
-    |       |
-   SIM     NÃO
-    |       |
-    v       v
-Publica   Abre Central
-direto    de Integrações CMS
-```
-
----
-
-## Componentes a Implementar
-
-### 1. Novo Componente: CMSIntegrationCenterSheet
-
-Um Sheet (painel lateral) completo que substitui o atual mini-form de configuração.
-
-**Estrutura visual:**
-
-```text
-+---------------------------------------+
-|        Central de Publicação          |
-+---------------------------------------+
-|                                       |
-|  WordPress.com          [CONECTADO]   |
-|  meusite.wordpress.com                |
-|  [Testar] [Desconectar] [Editar]      |
-|                                       |
-+---------------------------------------+
-|                                       |
-|  WordPress.org          [ERRO]        |
-|  meusiteorg.com.br                    |
-|  [Testar] [Desconectar] [Editar]      |
-|                                       |
-+---------------------------------------+
-|                                       |
-|  Wix                    [INATIVO]     |
-|  meusite.wixsite.com                  |
-|  [Reconectar]                         |
-|                                       |
-+---------------------------------------+
-|                                       |
-|  + Adicionar Nova Integração          |
-|                                       |
-+---------------------------------------+
-```
-
-### 2. Modificação: ClientArticleEditor.tsx
-
-Alterar o comportamento do botão de publicação:
-
-**Antes:**
-- Se existe `activeIntegration` → publica direto
-- Se não existe → abre Sheet de configuração
-
-**Depois:**
-- Se existe integração ativa E `last_sync_status === "connected"` → publica direto
-- Caso contrário → abre Central de Integrações CMS
-
-### 3. Novo Campo: `last_test_at` na tabela `cms_integrations`
-
-Para saber quando a integração foi testada pela última vez (opcional, pode usar `last_sync_at` existente).
-
----
-
-## Detalhes Técnicos
-
-### Arquivo: `src/components/cms/CMSIntegrationCenterSheet.tsx` (NOVO)
-
-Este componente será uma versão melhorada do `CMSIntegrationsTab.tsx` otimizada para o contexto de publicação:
+**Problema:** A query atual (linhas 676-680) busca a integração apenas por ID, sem verificar `is_active`:
 
 ```typescript
-interface CMSIntegrationCenterSheetProps {
-  blogId: string;
-  articleId: string;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onPublishSuccess?: (url: string) => void;
+const { data: integration, error: integrationError } = await supabaseClient
+  .from("cms_integrations_decrypted")
+  .select("*")
+  .eq("id", integrationId)
+  .single();
+```
+
+**Correção:** Adicionar `.eq("is_active", true)` e retornar erro claro se a integração estiver inativa:
+
+```typescript
+const { data: integration, error: integrationError } = await supabaseClient
+  .from("cms_integrations_decrypted")
+  .select("*")
+  .eq("id", integrationId)
+  .eq("is_active", true)  // NOVO: só processa se ativo
+  .single();
+
+if (integrationError || !integration) {
+  return new Response(
+    JSON.stringify({ 
+      success: false, 
+      code: "INTEGRATION_INACTIVE",
+      message: "Integração não encontrada ou desativada. Abra a Central de Integrações." 
+    }),
+    { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+  );
 }
 ```
 
-**Funcionalidades:**
-- Lista todas as integrações (ativas e inativas)
-- Para cada integração mostra:
-  - Plataforma (WordPress.org, WordPress.com, Wix)
-  - URL conectada
-  - Status com badge colorido (Conectado/Erro/Desconectado/Não testado)
-  - Última verificação
-- Botões de ação:
-  - **Testar**: Executa teste de conexão
-  - **Desconectar**: Define `is_active = false`
-  - **Reconectar/Editar**: Abre formulário para atualizar credenciais
-  - **Excluir**: Remove permanentemente (com confirmação)
-- Botão "Adicionar Integração" que abre o formulário existente
-- Se houver exatamente UMA integração ativa e testada, mostra botão "Publicar Agora"
+---
 
-### Arquivo: `src/pages/client/ClientArticleEditor.tsx` (MODIFICAR)
+### 2. WordPress.com OAuth: Tratar Erros Específicos
 
-Linhas ~1315-1395:
+**Arquivo:** `supabase/functions/wordpress-com-oauth/index.ts`
+
+**Problema:** O tratamento de erro atual (linhas 74-78) é genérico:
 
 ```typescript
-// Nova lógica de validação
-const canPublishDirectly = activeIntegration && 
-  activeIntegration.is_active && 
-  activeIntegration.last_sync_status === "connected";
-
-// Botão de publicação
-{existingArticleId && (
-  canPublishDirectly ? (
-    // Botão verde "Publicar no WordPress"
-    <Button onClick={handlePublishCMS}>
-      Publicar no {platformName}
-    </Button>
-  ) : (
-    // Abre Central de Integrações
-    <CMSIntegrationCenterSheet
-      blogId={blog?.id}
-      articleId={existingArticleId}
-      open={showCMSCenter}
-      onOpenChange={setShowCMSCenter}
-      onPublishSuccess={(url) => window.open(url, '_blank')}
-    />
-  )
-)}
+if (!response.ok) {
+  const errorText = await response.text();
+  throw new Error(`Failed to exchange code for tokens: ${response.status}`);
+}
 ```
 
-### Arquivo: `src/hooks/useCMSIntegrations.ts` (MODIFICAR)
-
-Adicionar função `reconnectIntegration`:
+**Correção:** Parsear a resposta de erro e retornar mensagens acionáveis:
 
 ```typescript
-const reconnectIntegration = async (
-  integrationId: string,
-  updates: { site_url?: string; username?: string; api_key?: string }
-): Promise<boolean> => {
-  // Atualiza credenciais E reativa a integração
-  const success = await updateIntegration(integrationId, {
-    ...updates,
-    is_active: true,
-  });
+if (!response.ok) {
+  const errorText = await response.text();
+  console.error("Token exchange error:", errorText);
   
-  if (success) {
-    // Auto-testa a nova configuração
-    const testResult = await testConnection(integrationId);
-    return testResult.success;
+  // Parse error for specific message
+  try {
+    const errorData = JSON.parse(errorText);
+    if (errorData.error === "invalid_client") {
+      throw new Error("OAuth inválido: Client ID não reconhecido pelo WordPress.com. Verifique as credenciais do app.");
+    }
+    if (errorData.error === "invalid_grant") {
+      throw new Error("Código de autorização expirado ou já utilizado. Tente conectar novamente.");
+    }
+    throw new Error(errorData.error_description || `Erro OAuth: HTTP ${response.status}`);
+  } catch (parseError) {
+    if (parseError instanceof Error && parseError.message.includes("OAuth")) {
+      throw parseError;
+    }
+    throw new Error(`Falha na autenticação OAuth. HTTP ${response.status}`);
   }
-  return false;
+}
+```
+
+---
+
+### 3. Frontend: Forçar Refetch Após Operações
+
+**Arquivo:** `src/components/cms/CMSIntegrationCenterSheet.tsx`
+
+**Problema:** O componente não está chamando `refetch()` após operações de desconectar/editar, o que pode deixar o estado desatualizado.
+
+**Correção:** Importar e usar `refetch` explicitamente:
+
+```typescript
+// Na desestruturação do hook (linha 109-119):
+const {
+  integrations,
+  loading,
+  testing,
+  addIntegration,
+  updateIntegration,
+  deleteIntegration,
+  testConnection,
+  publishArticle,
+  initiateWordPressComOAuth,
+  refetch, // ADICIONAR
+} = useCMSIntegrations(blogId);
+```
+
+**No handleDisconnect (linhas 297-304):**
+```typescript
+const handleDisconnect = async (integrationId: string) => {
+  setDisconnecting(integrationId);
+  const success = await updateIntegration(integrationId, { is_active: false });
+  if (success) {
+    await refetch(); // ADICIONAR: Forçar atualização imediata
+    toast.success("Integração desconectada", {
+      description: "Não será mais usada para publicação. Reconecte quando desejar."
+    });
+  }
+  setDisconnecting(null);
+};
+```
+
+**No handleEditIntegration (linhas 247-273):**
+```typescript
+if (success) {
+  await refetch(); // ADICIONAR: Forçar atualização após edição
+  toast.success("Credenciais atualizadas! Testando conexão...");
+  // ...resto do código
+}
+```
+
+**No handleDelete (linhas 307-312):**
+```typescript
+const handleDelete = async (integrationId: string) => {
+  if (!confirm("Tem certeza que deseja excluir esta integração permanentemente?")) return;
+  setDeleting(integrationId);
+  const deleted = await deleteIntegration(integrationId);
+  if (deleted) {
+    await refetch(); // ADICIONAR: Forçar atualização após exclusão
+  }
+  setDeleting(null);
 };
 ```
 
 ---
 
-## Estados de Status com Cores
+### 4. ClientArticleEditor: Resincronizar Após Fechar Central
 
-| Status | Badge | Cor | Significado |
-|--------|-------|-----|-------------|
-| `connected` | Conectado | Verde | Testado e funcionando |
-| `error` | Erro | Vermelho | Último teste falhou |
-| `null` | Não testado | Cinza | Nunca foi testado |
-| `is_active = false` | Desconectado | Laranja | Desativado pelo usuário |
+**Arquivo:** `src/pages/client/ClientArticleEditor.tsx`
 
----
+**Problema:** Quando o usuário fecha a Central de Integrações, o estado local (`integrations`, `activeIntegration`) pode não refletir as mudanças feitas.
 
-## Validação de Publicação
+**Correção:** Adicionar `refetch` ao hook e chamar quando a Central fechar:
 
-O botão "Publicar" só aparece quando:
-1. Existe exatamente 1 integração ativa
-2. Essa integração tem `last_sync_status === "connected"`
-3. O artigo já foi salvo (`existingArticleId` existe)
+```typescript
+// Linha 140: Adicionar refetch
+const { integrations, publishArticle, getActiveIntegration, refetch: refetchIntegrations } = useCMSIntegrations(blog?.id || '');
+```
 
-Caso contrário, mostra mensagem explicativa:
-- "Nenhuma integração configurada" → botão "Conectar CMS"
-- "Integração não testada" → botão "Testar Conexão"
-- "Múltiplas integrações ativas" → lista para escolher
-
----
-
-## Arquivos a Modificar/Criar
-
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `src/components/cms/CMSIntegrationCenterSheet.tsx` | Criar | Nova Central de Integrações |
-| `src/pages/client/ClientArticleEditor.tsx` | Modificar | Integrar nova Central |
-| `src/hooks/useCMSIntegrations.ts` | Modificar | Adicionar `reconnectIntegration` |
-| `src/components/blog-editor/CMSIntegrationsTab.tsx` | Reutilizar | Extrair lógica compartilhada |
+**Na prop onOpenChange do CMSIntegrationCenterSheet:**
+```typescript
+<CMSIntegrationCenterSheet
+  blogId={blog?.id || ''}
+  articleId={existingArticleId}
+  open={showCMSCenter}
+  onOpenChange={async (open) => {
+    setShowCMSCenter(open);
+    // Quando fechar a Central, forçar refetch
+    if (!open) {
+      await refetchIntegrations();
+    }
+  }}
+  onPublishSuccess={(url) => window.open(url, '_blank')}
+/>
+```
 
 ---
 
-## Garantias Finais
+## Arquivos a Modificar
 
-Após esta implementação:
+| Arquivo | Mudança Principal |
+|---------|-------------------|
+| `supabase/functions/publish-to-cms/index.ts` | Adicionar `.eq("is_active", true)` na query de integração |
+| `supabase/functions/wordpress-com-oauth/index.ts` | Tratar `invalid_client` e `invalid_grant` com mensagens claras |
+| `src/components/cms/CMSIntegrationCenterSheet.tsx` | Chamar `refetch()` após disconnect/edit/delete |
+| `src/pages/client/ClientArticleEditor.tsx` | Chamar `refetchIntegrations()` ao fechar a Central |
 
-| Funcionalidade | Garantia |
-|----------------|----------|
-| Visão das integrações | Lista completa com status |
-| Controle sobre CMS ativo | Switch ativo/inativo |
-| Desconectar | `is_active = false` + toast |
-| Reconectar outro WordPress | Formulário de edição + auto-teste |
-| Teste manual | Botão "Testar Conexão" |
-| Edição de credenciais | Dialog de edição para cada integração |
-| Publicação segura | Só publica se testado com sucesso |
+---
+
+## Fluxo Garantido Após Implementação
+
+```text
+                       CICLO DE VIDA COMPLETO
+┌──────────────────────────────────────────────────────────────────┐
+│                                                                  │
+│  CONECTAR                                                        │
+│    └→ Adicionar integração → Salvar → Auto-testar                │
+│       → Status: "Conectado" (verde)                              │
+│                                                                  │
+│  PUBLICAR                                                        │
+│    └→ Frontend verifica: is_active=true E status="connected"    │
+│       └→ SIM: Publica direto                                     │
+│       └→ NÃO: Abre Central de Integrações                        │
+│    └→ Backend verifica: is_active=true (NOVA VALIDAÇÃO)          │
+│       └→ Se inativo: retorna INTEGRATION_INACTIVE                │
+│                                                                  │
+│  DESCONECTAR                                                     │
+│    └→ is_active = false                                          │
+│    └→ refetch() atualiza lista imediatamente                     │
+│    └→ UI muda para "Desconectado" (laranja)                      │
+│    └→ Backend RECUSA qualquer tentativa de publicação            │
+│                                                                  │
+│  RECONECTAR                                                      │
+│    └→ Edita credenciais → is_active = true → Auto-testa          │
+│    └→ refetch() atualiza lista                                   │
+│    └→ Status: "Conectado" ou "Erro"                              │
+│                                                                  │
+│  EXCLUIR                                                         │
+│    └→ Remove registro permanentemente                            │
+│    └→ refetch() remove da lista                                  │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Mensagens de Erro Acionáveis
+
+| Cenário | Mensagem Retornada |
+|---------|-------------------|
+| Integração desativada | "Integração não encontrada ou desativada. Abra a Central de Integrações." |
+| OAuth Client ID inválido | "OAuth inválido: Client ID não reconhecido pelo WordPress.com." |
+| Código OAuth expirado | "Código de autorização expirado. Tente conectar novamente." |
+| Loop de redirect | "Loop de redirect detectado (http/https). Corrija: URL A ↔ URL B" |
+| Body vazio | "WordPress respondeu vazio — post não criado." |
+
+---
+
+## Validação em Duas Camadas (Garantia de Segurança)
+
+| Camada | Validação | Status |
+|--------|-----------|--------|
+| Frontend | `canPublishDirectly = is_active && status === "connected"` | ✅ Já existe |
+| Frontend | Abre Central se não houver integração válida | ✅ Já existe |
+| Frontend | Refetch após operações | ❌ **Será adicionado** |
+| Backend | Query filtra por `is_active = true` | ❌ **Será adicionado** |
+| Backend | OAuth: tratar erros específicos | ❌ **Será adicionado** |
+
+---
+
+## Critério de Aceitação Final
+
+Após esta implementação, o seguinte ciclo funcionará perfeitamente:
+
+1. ✅ Conectar WordPress.org/WordPress.com/Wix
+2. ✅ Publicar artigo
+3. ✅ Desconectar → UI atualiza imediatamente
+4. ✅ Tentar publicar → Backend recusa (INTEGRATION_INACTIVE)
+5. ✅ Reconectar → Editar credenciais + ativar + testar
+6. ✅ Publicar novamente
+7. ✅ Nenhuma "integração fantasma" em nenhum momento
+8. ✅ Frontend e backend sempre concordam sobre o estado
