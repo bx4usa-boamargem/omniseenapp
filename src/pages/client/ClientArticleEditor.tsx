@@ -20,6 +20,7 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { extractImageUrl, uploadImageToStorage, updateArticleImage } from '@/utils/imageUtils';
 import { ensureSingleArticle, normalizeForFingerprint } from '@/lib/articleFlowGuard';
 import { getCanonicalArticleUrl, getInternalArticleUrl } from '@/utils/blogUrl';
+import { useCMSIntegrations } from '@/hooks/useCMSIntegrations';
 import { 
   ArrowLeft, 
   Save, 
@@ -36,7 +37,8 @@ import {
   RefreshCw,
   ExternalLink,
   BookOpen,
-  BarChart3
+  BarChart3,
+  Upload
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ArticlePdfDownload } from '@/components/articles/ArticlePdfDownload';
@@ -127,6 +129,11 @@ export default function ClientArticleEditor() {
   
   // SERP Score Panel state (mobile sheet)
   const [showScorePanel, setShowScorePanel] = useState(false);
+  
+  // CMS Publishing state
+  const [isPublishingCMS, setIsPublishingCMS] = useState(false);
+  const { integrations, publishArticle, getActiveIntegration } = useCMSIntegrations(blog?.id || '');
+  const activeIntegration = getActiveIntegration();
   
   // SERP Score Panel visibility (desktop) - persisted in localStorage
   const [showScorePanelDesktop, setShowScorePanelDesktop] = useState(() => {
@@ -1299,6 +1306,50 @@ export default function ClientArticleEditor() {
               >
                 <ExternalLink className="h-4 w-4" />
                 Ver no site
+              </Button>
+            )}
+            
+            {/* Publish to CMS Button (WordPress/Wix) */}
+            {existingArticleId && activeIntegration && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  if (!existingArticleId || !activeIntegration) return;
+                  
+                  setIsPublishingCMS(true);
+                  const result = await publishArticle(activeIntegration.id, existingArticleId);
+                  
+                  if (result.success) {
+                    toast.success(`Publicado com sucesso!`, {
+                      description: result.externalUrl ? `Artigo disponível em ${activeIntegration.platform === 'wordpress' ? 'WordPress' : 'Wix'}` : undefined,
+                      action: result.externalUrl ? {
+                        label: 'Abrir',
+                        onClick: () => window.open(result.externalUrl, '_blank')
+                      } : undefined
+                    });
+                    if (result.externalUrl) {
+                      window.open(result.externalUrl, '_blank');
+                    }
+                  } else {
+                    toast.error(result.message || 'Erro ao publicar no CMS');
+                  }
+                  setIsPublishingCMS(false);
+                }}
+                disabled={isPublishingCMS}
+                className="gap-2 border-green-500/30 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-500/10"
+              >
+                {isPublishingCMS ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Publicando...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    Publicar no {activeIntegration.platform === 'wordpress' ? 'WordPress' : 'Wix'}
+                  </>
+                )}
               </Button>
             )}
             
