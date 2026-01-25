@@ -184,7 +184,7 @@ serve(async (req) => {
       fix_suggestions.push("Criar título sem prefixos como 'Artigo:', 'Post:', 'Guia:'");
     }
 
-    // ===== CONTENT SCORE VALIDATION (REGRA SERP OBRIGATÓRIA) =====
+    // ===== CONTENT SCORE INFO (OPCIONAL - NÃO BLOQUEIA) =====
     const { data: scoreData } = await supabase
       .from('article_content_scores')
       .select('total_score, serp_analysis_id, meets_market_standards')
@@ -200,16 +200,14 @@ serve(async (req) => {
 
     const minimumScore = blogConfig?.minimum_score_to_publish || 70;
 
-    // REGRA 1: Deve ter análise SERP
+    // INFO (não bloqueia): Sugestão de análise SERP
     if (!scoreData?.serp_analysis_id) {
-      reasons.push('BLOQUEADO: Artigo não passou por análise SERP de concorrência');
-      fix_suggestions.push('Execute "Analisar Concorrência" no editor antes de publicar');
+      fix_suggestions.push('Sugestão: Execute "Analisar Concorrência" para otimizar SEO');
     }
 
-    // REGRA 2: Score mínimo
+    // INFO (não bloqueia): Sugestão de score
     if (scoreData && scoreData.total_score < minimumScore) {
-      reasons.push(`BLOQUEADO: Content Score ${scoreData.total_score}/100 abaixo do mínimo (${minimumScore})`);
-      fix_suggestions.push(`Use "Aumentar Score" para otimizar o conteúdo automaticamente`);
+      fix_suggestions.push(`Sugestão: Content Score ${scoreData.total_score}/100 - use "Aumentar Score" para melhorar`);
     }
 
     // ===== 1. CONTENT QUALITY =====

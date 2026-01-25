@@ -68,20 +68,7 @@ export function ArticleActionsDropdown({
   const { validateForPublish, validating } = usePublishValidation(articleId, blogId);
 
   const handlePublish = async () => {
-    // STEP 1: Validate SERP Score if blogId is provided
-    if (blogId) {
-      setLoading('publish');
-      const validation = await validateForPublish();
-      
-      if (!validation.canPublish) {
-        setValidationResult(validation);
-        setBoostDialogOpen(true);
-        setLoading(null);
-        return; // Block publication
-      }
-    }
-
-    // STEP 2: Proceed with publication
+    // Publish directly without SERP/score validation (SERP is optional)
     setLoading('publish');
     try {
       const { error } = await supabase

@@ -273,51 +273,9 @@ export default function ClientQueue() {
   const handlePublishNow = async (item: QueueItem) => {
     if (!item.article_id || !blog?.id) return;
     
-    // STEP 1: Validate SERP Score
+    // Publish directly without SERP/score validation (SERP is optional)
     setActionLoading(item.id);
     
-    // Fetch article data for validation
-    const { data: articleData } = await supabase
-      .from('articles')
-      .select('content, title, keywords')
-      .eq('id', item.article_id)
-      .single();
-
-    // Create temporary validation hook call
-    const { data: scoreData } = await supabase
-      .from('article_content_scores')
-      .select('total_score, serp_analysis_id')
-      .eq('article_id', item.article_id)
-      .maybeSingle();
-
-    const { data: blogConfig } = await supabase
-      .from('blog_config')
-      .select('minimum_score_to_publish')
-      .eq('blog_id', blog.id)
-      .maybeSingle();
-
-    const minScore = blogConfig?.minimum_score_to_publish ?? 70;
-
-    // Check validation
-    if (!scoreData || !scoreData.serp_analysis_id || scoreData.total_score < minScore) {
-      setSelectedItemForPublish(item);
-      setValidationResult({
-        canPublish: false,
-        reason: !scoreData ? 'Análise SERP não realizada' 
-          : !scoreData.serp_analysis_id ? 'Análise de concorrência não realizada'
-          : `Score ${scoreData.total_score} abaixo do mínimo (${minScore})`,
-        showBoost: !!scoreData?.serp_analysis_id && scoreData.total_score < minScore,
-        showAnalyze: !scoreData?.serp_analysis_id,
-        currentScore: scoreData?.total_score ?? null,
-        minScore,
-        serpAnalyzed: !!scoreData?.serp_analysis_id,
-      });
-      setBoostDialogOpen(true);
-      setActionLoading(null);
-      return; // Block publication
-    }
-
-    // STEP 2: Proceed with publication
     try {
       // Update article status
       const { error: articleError } = await supabase

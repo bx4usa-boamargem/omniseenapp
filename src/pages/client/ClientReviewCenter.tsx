@@ -191,16 +191,7 @@ export default function ClientReviewCenter() {
   const handlePublish = async () => {
     if (!article || !blog?.id) return;
 
-    // STEP 1: Validate SERP Score before publishing
-    const validation = await validateForPublish();
-    
-    if (!validation.canPublish) {
-      setValidationResult(validation);
-      setBoostDialogOpen(true);
-      return; // Block publication
-    }
-
-    // STEP 2: Proceed with publication
+    // Publish directly without SERP/score validation (SERP is optional)
     setSaving(true);
 
     try {

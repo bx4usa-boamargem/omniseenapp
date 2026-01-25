@@ -11,18 +11,22 @@ export interface PublishValidationResult {
   serpAnalyzed: boolean;
 }
 
+/**
+ * SERP validation is now OPTIONAL - publication is always allowed.
+ * This hook only fetches data for informational display purposes.
+ */
 export function usePublishValidation(articleId: string | undefined, blogId: string | undefined) {
   const [validating, setValidating] = useState(false);
 
   const validateForPublish = useCallback(async (): Promise<PublishValidationResult> => {
     if (!articleId || !blogId) {
+      // Still allow publication even without IDs
       return {
-        canPublish: false,
-        reason: 'Artigo ou blog não identificado',
+        canPublish: true,
         showBoost: false,
         showAnalyze: false,
         currentScore: null,
-        minScore: 70,
+        minScore: 0,
         serpAnalyzed: false,
       };
     }
@@ -30,14 +34,13 @@ export function usePublishValidation(articleId: string | undefined, blogId: stri
     setValidating(true);
 
     try {
-      // 1. Fetch article content score
+      // Fetch data for informational purposes only (not blocking)
       const { data: scoreData } = await supabase
         .from('article_content_scores')
         .select('total_score, serp_analysis_id')
         .eq('article_id', articleId)
         .maybeSingle();
 
-      // 2. Fetch blog config for minimum score
       const { data: blogConfig } = await supabase
         .from('blog_config')
         .select('minimum_score_to_publish')
@@ -46,63 +49,24 @@ export function usePublishValidation(articleId: string | undefined, blogId: stri
 
       const minScore = blogConfig?.minimum_score_to_publish ?? 70;
 
-      // 3. If no score data at all, SERP wasn't analyzed
-      if (!scoreData) {
-        return {
-          canPublish: false,
-          reason: 'Análise SERP não realizada para este artigo',
-          showBoost: false,
-          showAnalyze: true,
-          currentScore: null,
-          minScore,
-          serpAnalyzed: false,
-        };
-      }
-
-      // 4. Check if SERP was analyzed
-      if (!scoreData.serp_analysis_id) {
-        return {
-          canPublish: false,
-          reason: 'Análise de concorrência (SERP) não realizada',
-          showBoost: false,
-          showAnalyze: true,
-          currentScore: scoreData.total_score,
-          minScore,
-          serpAnalyzed: false,
-        };
-      }
-
-      // 5. Check minimum score
-      if (scoreData.total_score < minScore) {
-        return {
-          canPublish: false,
-          reason: `Score ${scoreData.total_score}/100 está abaixo do mínimo (${minScore})`,
-          showBoost: true,
-          showAnalyze: false,
-          currentScore: scoreData.total_score,
-          minScore,
-          serpAnalyzed: true,
-        };
-      }
-
-      // 6. All checks passed
+      // ALWAYS allow publication - SERP is optional
       return {
         canPublish: true,
-        currentScore: scoreData.total_score,
+        currentScore: scoreData?.total_score ?? null,
         minScore,
-        serpAnalyzed: true,
+        serpAnalyzed: !!scoreData?.serp_analysis_id,
         showBoost: false,
         showAnalyze: false,
       };
     } catch (error) {
-      console.error('Error validating for publish:', error);
+      console.error('Error fetching validation data:', error);
+      // Even on error, allow publication
       return {
-        canPublish: false,
-        reason: 'Erro ao validar artigo',
+        canPublish: true,
         showBoost: false,
         showAnalyze: false,
         currentScore: null,
-        minScore: 70,
+        minScore: 0,
         serpAnalyzed: false,
       };
     } finally {
