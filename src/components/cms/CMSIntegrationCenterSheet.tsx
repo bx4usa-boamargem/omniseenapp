@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Sheet,
   SheetContent,
@@ -18,6 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCMSIntegrations, type CMSPlatform, type CMSIntegration } from "@/hooks/useCMSIntegrations";
 import { useTenantDomains, TenantDomain } from "@/hooks/useTenantDomains";
 import { DomainPublishingSelector } from "./DomainPublishingSelector";
+import { DomainPublishedCard } from "./DomainPublishedCard";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -115,6 +116,14 @@ const PLATFORMS: PlatformConfig[] = [
   },
 ];
 
+// Article publication info type
+interface ArticlePublicationInfo {
+  publication_target: string | null;
+  publication_url: string | null;
+  status: string | null;
+  slug: string;
+}
+
 export function CMSIntegrationCenterSheet({
   blogId,
   articleId,
@@ -160,12 +169,54 @@ export function CMSIntegrationCenterSheet({
   const [selectedDomainInfo, setSelectedDomainInfo] = useState<TenantDomain | null>(null);
   const [publishingToDomain, setPublishingToDomain] = useState(false);
   
+  // Article publication state
+  const [articlePublicationInfo, setArticlePublicationInfo] = useState<ArticlePublicationInfo | null>(null);
+  const [loadingArticleInfo, setLoadingArticleInfo] = useState(false);
+  const [isEditingDomain, setIsEditingDomain] = useState(false);
+  
   // Action states
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [oauthLoading, setOauthLoading] = useState(false);
+
+  // Fetch article publication info
+  const fetchArticlePublicationInfo = useCallback(async () => {
+    if (!articleId) return;
+    
+    setLoadingArticleInfo(true);
+    try {
+      const { data, error } = await supabase
+        .from("articles")
+        .select("publication_target, publication_url, status, slug")
+        .eq("id", articleId)
+        .single();
+
+      if (error) {
+        console.error("[CMSIntegrationCenterSheet] Error fetching article info:", error);
+        return;
+      }
+
+      setArticlePublicationInfo(data);
+    } catch (err) {
+      console.error("[CMSIntegrationCenterSheet] Error:", err);
+    } finally {
+      setLoadingArticleInfo(false);
+    }
+  }, [articleId]);
+
+  // Fetch article info when sheet opens
+  useEffect(() => {
+    if (open && articleId) {
+      fetchArticlePublicationInfo();
+      setIsEditingDomain(false);
+    }
+  }, [open, articleId, fetchArticlePublicationInfo]);
+
+  // Check if article is published to a domain
+  const isPublishedToDomain = articlePublicationInfo?.publication_target === "domain" && 
+                               articlePublicationInfo?.publication_url;
 
   // CORRECTION #1: Reset form state when add dialog opens to prevent dirty state
   useEffect(() => {
@@ -297,19 +348,22 @@ export function CMSIntegrationCenterSheet({
 
     setPublishingToDomain(true);
     try {
-      // Get article slug for URL construction
-      const { data: article, error: articleError } = await supabase
-        .from("articles")
-        .select("slug, title")
-        .eq("id", articleId)
-        .single();
+      // Use existing slug from article info or fetch it
+      const articleSlug = articlePublicationInfo?.slug;
+      if (!articleSlug) {
+        const { data: article, error: articleError } = await supabase
+          .from("articles")
+          .select("slug, title")
+          .eq("id", articleId)
+          .single();
 
-      if (articleError || !article) {
-        toast.error("Artigo não encontrado");
-        return;
+        if (articleError || !article) {
+          toast.error("Artigo não encontrado");
+          return;
+        }
       }
 
-      const canonicalUrl = `https://${selectedDomain}/${article.slug}`;
+      const canonicalUrl = `https://${selectedDomain}/${articleSlug || articlePublicationInfo?.slug}`;
 
       // Update article to published status with domain target
       const { error: updateError } = await supabase
@@ -337,6 +391,8 @@ export function CMSIntegrationCenterSheet({
       });
 
       onPublishSuccess?.(canonicalUrl);
+      await fetchArticlePublicationInfo(); // Refresh article info
+      setIsEditingDomain(false);
       setAddDialogOpen(false);
       onOpenChange(false);
     } catch (err) {
@@ -344,6 +400,80 @@ export function CMSIntegrationCenterSheet({
       toast.error("Erro ao publicar no domínio");
     } finally {
       setPublishingToDomain(false);
+    }
+  };
+
+  // Handle change domain (for already published articles)
+  const handleChangeDomain = async () => {
+    if (!selectedDomain || !articleId || !articlePublicationInfo?.slug) return;
+
+    setPublishingToDomain(true);
+    try {
+      const newCanonicalUrl = `https://${selectedDomain}/${articlePublicationInfo.slug}`;
+
+      const { error: updateError } = await supabase
+        .from("articles")
+        .update({
+          publication_url: newCanonicalUrl,
+        })
+        .eq("id", articleId);
+
+      if (updateError) {
+        console.error("Change domain error:", updateError);
+        toast.error("Erro ao trocar domínio");
+        return;
+      }
+
+      toast.success("Domínio atualizado!", {
+        description: `Agora disponível em ${selectedDomain}`,
+        action: {
+          label: "Abrir",
+          onClick: () => window.open(newCanonicalUrl, "_blank"),
+        },
+      });
+
+      await fetchArticlePublicationInfo(); // Refresh article info
+      setIsEditingDomain(false);
+      setSelectedDomain(null);
+      setSelectedDomainInfo(null);
+    } catch (err) {
+      console.error("Change domain error:", err);
+      toast.error("Erro ao trocar domínio");
+    } finally {
+      setPublishingToDomain(false);
+    }
+  };
+
+  // Handle disconnect from domain
+  const handleDisconnectFromDomain = async () => {
+    if (!articleId) return;
+
+    try {
+      const { error: updateError } = await supabase
+        .from("articles")
+        .update({
+          publication_target: null,
+          publication_url: null,
+          status: "draft",
+          published_at: null,
+        })
+        .eq("id", articleId);
+
+      if (updateError) {
+        console.error("Disconnect from domain error:", updateError);
+        toast.error("Erro ao desconectar do domínio");
+        return;
+      }
+
+      toast.success("Artigo desconectado do domínio", {
+        description: "O artigo voltou para rascunho e pode ser republicado.",
+      });
+
+      await fetchArticlePublicationInfo(); // Refresh article info
+      setIsEditingDomain(false);
+    } catch (err) {
+      console.error("Disconnect from domain error:", err);
+      toast.error("Erro ao desconectar do domínio");
     }
   };
 
@@ -696,45 +826,76 @@ export function CMSIntegrationCenterSheet({
                       {/* Domain Publishing Option - Automaticles Model */}
                       {platform.domainSelector ? (
                         <div className="space-y-4">
-                          <Alert className="bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800">
-                            <Globe className="h-4 w-4 text-green-600 dark:text-green-400" />
-                            <AlertDescription className="text-sm space-y-2">
-                              <p className="font-medium text-green-900 dark:text-green-100">
-                                Publicação Direta (Sem API)
-                              </p>
-                              <ul className="text-xs text-green-800 dark:text-green-200 space-y-1 ml-4 list-disc">
-                                <li>Sem credenciais, sem OAuth, sem erros de API</li>
-                                <li>Artigo disponível instantaneamente no seu domínio</li>
-                                <li>Controle total sobre o conteúdo</li>
-                              </ul>
-                            </AlertDescription>
-                          </Alert>
-
-                          <DomainPublishingSelector
-                            blogId={blogId}
-                            selectedDomain={selectedDomain}
-                            onSelect={handleDomainSelect}
-                          />
-
-                          {selectedDomain && (
-                            <Button
-                              onClick={handlePublishToDomain}
-                              disabled={publishingToDomain}
-                              className="w-full gap-2 bg-green-600 hover:bg-green-700"
-                              size="lg"
-                            >
-                              {publishingToDomain ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  Publicando...
-                                </>
-                              ) : (
-                                <>
-                                  <Send className="h-4 w-4" />
-                                  Publicar no Domínio
-                                </>
+                          {/* Show published card if already published to domain */}
+                          {isPublishedToDomain && !isEditingDomain ? (
+                            <>
+                              <DomainPublishedCard
+                                publicationUrl={articlePublicationInfo.publication_url!}
+                                onEdit={() => setIsEditingDomain(true)}
+                                onDisconnect={handleDisconnectFromDomain}
+                              />
+                            </>
+                          ) : (
+                            <>
+                              {/* Show "back" button if editing existing publication */}
+                              {isEditingDomain && isPublishedToDomain && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setIsEditingDomain(false);
+                                    setSelectedDomain(null);
+                                    setSelectedDomainInfo(null);
+                                  }}
+                                  className="mb-2"
+                                >
+                                  ← Voltar
+                                </Button>
                               )}
-                            </Button>
+
+                              <Alert className="bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800">
+                                <Globe className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                <AlertDescription className="text-sm space-y-2">
+                                  <p className="font-medium text-green-900 dark:text-green-100">
+                                    {isEditingDomain ? "Selecione o Novo Domínio" : "Publicação Direta (Sem API)"}
+                                  </p>
+                                  {!isEditingDomain && (
+                                    <ul className="text-xs text-green-800 dark:text-green-200 space-y-1 ml-4 list-disc">
+                                      <li>Sem credenciais, sem OAuth, sem erros de API</li>
+                                      <li>Artigo disponível instantaneamente no seu domínio</li>
+                                      <li>Controle total sobre o conteúdo</li>
+                                    </ul>
+                                  )}
+                                </AlertDescription>
+                              </Alert>
+
+                              <DomainPublishingSelector
+                                blogId={blogId}
+                                selectedDomain={selectedDomain}
+                                onSelect={handleDomainSelect}
+                              />
+
+                              {selectedDomain && (
+                                <Button
+                                  onClick={isEditingDomain ? handleChangeDomain : handlePublishToDomain}
+                                  disabled={publishingToDomain}
+                                  className="w-full gap-2 bg-green-600 hover:bg-green-700"
+                                  size="lg"
+                                >
+                                  {publishingToDomain ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      {isEditingDomain ? "Atualizando..." : "Publicando..."}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Send className="h-4 w-4" />
+                                      {isEditingDomain ? "Confirmar Novo Domínio" : "Publicar no Domínio"}
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+                            </>
                           )}
                         </div>
                       ) : platform.oauthButton ? (
