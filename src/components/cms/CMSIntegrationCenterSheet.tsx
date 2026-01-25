@@ -172,7 +172,7 @@ export function CMSIntegrationCenterSheet({
   // Article publication state
   const [articlePublicationInfo, setArticlePublicationInfo] = useState<ArticlePublicationInfo | null>(null);
   const [loadingArticleInfo, setLoadingArticleInfo] = useState(false);
-  const [isEditingDomain, setIsEditingDomain] = useState(false);
+  // REMOVED: isEditingDomain state - selector is now always visible
   
   // Action states
   const [saving, setSaving] = useState(false);
@@ -206,13 +206,24 @@ export function CMSIntegrationCenterSheet({
     }
   }, [articleId]);
 
-  // Fetch article info when sheet opens
+  // Fetch article info when sheet opens + pre-select domain if already published
   useEffect(() => {
     if (open && articleId) {
       fetchArticlePublicationInfo();
-      setIsEditingDomain(false);
     }
   }, [open, articleId, fetchArticlePublicationInfo]);
+
+  // Pre-select current domain when article is already published
+  useEffect(() => {
+    if (articlePublicationInfo?.publication_url && articlePublicationInfo?.publication_target === "domain") {
+      try {
+        const currentDomain = new URL(articlePublicationInfo.publication_url).hostname;
+        setSelectedDomain(currentDomain);
+      } catch {
+        // Invalid URL, ignore
+      }
+    }
+  }, [articlePublicationInfo]);
 
   // Check if article is published to a domain
   const isPublishedToDomain = articlePublicationInfo?.publication_target === "domain" && 
@@ -392,7 +403,6 @@ export function CMSIntegrationCenterSheet({
 
       onPublishSuccess?.(canonicalUrl);
       await fetchArticlePublicationInfo(); // Refresh article info
-      setIsEditingDomain(false);
       setAddDialogOpen(false);
       onOpenChange(false);
     } catch (err) {
@@ -433,9 +443,7 @@ export function CMSIntegrationCenterSheet({
       });
 
       await fetchArticlePublicationInfo(); // Refresh article info
-      setIsEditingDomain(false);
-      setSelectedDomain(null);
-      setSelectedDomainInfo(null);
+      // Keep selected domain as new current
     } catch (err) {
       console.error("Change domain error:", err);
       toast.error("Erro ao trocar domínio");
@@ -470,7 +478,7 @@ export function CMSIntegrationCenterSheet({
       });
 
       await fetchArticlePublicationInfo(); // Refresh article info
-      setIsEditingDomain(false);
+      setSelectedDomain(null); // Clear selection since no longer published
     } catch (err) {
       console.error("Disconnect from domain error:", err);
       toast.error("Erro ao desconectar do domínio");
@@ -826,58 +834,58 @@ export function CMSIntegrationCenterSheet({
                       {/* Domain Publishing Option - Automaticles Model */}
                       {platform.domainSelector ? (
                         <div className="space-y-4">
-                          {/* Show published card if already published to domain */}
-                          {isPublishedToDomain && !isEditingDomain ? (
-                            <>
-                              <DomainPublishedCard
-                                publicationUrl={articlePublicationInfo.publication_url!}
-                                onEdit={() => setIsEditingDomain(true)}
-                                onDisconnect={handleDisconnectFromDomain}
-                              />
-                            </>
-                          ) : (
-                            <>
-                              {/* Show "back" button if editing existing publication */}
-                              {isEditingDomain && isPublishedToDomain && (
+                          {/* ALWAYS show status card if already published */}
+                          {isPublishedToDomain && (
+                            <DomainPublishedCard
+                              publicationUrl={articlePublicationInfo.publication_url!}
+                              onDisconnect={handleDisconnectFromDomain}
+                            />
+                          )}
+
+                          {/* Explanation Alert - only for new publications */}
+                          {!isPublishedToDomain && (
+                            <Alert className="bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800">
+                              <Globe className="h-4 w-4 text-green-600 dark:text-green-400" />
+                              <AlertDescription className="text-sm space-y-2">
+                                <p className="font-medium text-green-900 dark:text-green-100">
+                                  Publicação Direta (Sem API)
+                                </p>
+                                <ul className="text-xs text-green-800 dark:text-green-200 space-y-1 ml-4 list-disc">
+                                  <li>Sem credenciais, sem OAuth, sem erros de API</li>
+                                  <li>Artigo disponível instantaneamente no seu domínio</li>
+                                  <li>Controle total sobre o conteúdo</li>
+                                </ul>
+                              </AlertDescription>
+                            </Alert>
+                          )}
+
+                          {/* Section header for domain change when already published */}
+                          {isPublishedToDomain && (
+                            <div className="text-sm font-medium text-muted-foreground pt-2 border-t">
+                              Trocar domínio:
+                            </div>
+                          )}
+
+                          {/* ALWAYS show domain selector */}
+                          <DomainPublishingSelector
+                            blogId={blogId}
+                            selectedDomain={selectedDomain}
+                            onSelect={handleDomainSelect}
+                          />
+
+                          {/* Dynamic action button */}
+                          {(() => {
+                            // Check if selected domain is different from current
+                            const currentDomainHostname = articlePublicationInfo?.publication_url 
+                              ? (() => { try { return new URL(articlePublicationInfo.publication_url).hostname; } catch { return null; } })()
+                              : null;
+                            const isDifferentDomain = selectedDomain && selectedDomain !== currentDomainHostname;
+                            const isNewPublication = !isPublishedToDomain && selectedDomain;
+
+                            if (isNewPublication) {
+                              return (
                                 <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    setIsEditingDomain(false);
-                                    setSelectedDomain(null);
-                                    setSelectedDomainInfo(null);
-                                  }}
-                                  className="mb-2"
-                                >
-                                  ← Voltar
-                                </Button>
-                              )}
-
-                              <Alert className="bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800">
-                                <Globe className="h-4 w-4 text-green-600 dark:text-green-400" />
-                                <AlertDescription className="text-sm space-y-2">
-                                  <p className="font-medium text-green-900 dark:text-green-100">
-                                    {isEditingDomain ? "Selecione o Novo Domínio" : "Publicação Direta (Sem API)"}
-                                  </p>
-                                  {!isEditingDomain && (
-                                    <ul className="text-xs text-green-800 dark:text-green-200 space-y-1 ml-4 list-disc">
-                                      <li>Sem credenciais, sem OAuth, sem erros de API</li>
-                                      <li>Artigo disponível instantaneamente no seu domínio</li>
-                                      <li>Controle total sobre o conteúdo</li>
-                                    </ul>
-                                  )}
-                                </AlertDescription>
-                              </Alert>
-
-                              <DomainPublishingSelector
-                                blogId={blogId}
-                                selectedDomain={selectedDomain}
-                                onSelect={handleDomainSelect}
-                              />
-
-                              {selectedDomain && (
-                                <Button
-                                  onClick={isEditingDomain ? handleChangeDomain : handlePublishToDomain}
+                                  onClick={handlePublishToDomain}
                                   disabled={publishingToDomain}
                                   className="w-full gap-2 bg-green-600 hover:bg-green-700"
                                   size="lg"
@@ -885,18 +893,43 @@ export function CMSIntegrationCenterSheet({
                                   {publishingToDomain ? (
                                     <>
                                       <Loader2 className="h-4 w-4 animate-spin" />
-                                      {isEditingDomain ? "Atualizando..." : "Publicando..."}
+                                      Publicando...
                                     </>
                                   ) : (
                                     <>
                                       <Send className="h-4 w-4" />
-                                      {isEditingDomain ? "Confirmar Novo Domínio" : "Publicar no Domínio"}
+                                      Publicar no Domínio
                                     </>
                                   )}
                                 </Button>
-                              )}
-                            </>
-                          )}
+                              );
+                            }
+
+                            if (isDifferentDomain) {
+                              return (
+                                <Button
+                                  onClick={handleChangeDomain}
+                                  disabled={publishingToDomain}
+                                  className="w-full gap-2 bg-blue-600 hover:bg-blue-700"
+                                  size="lg"
+                                >
+                                  {publishingToDomain ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                      Atualizando...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <RefreshCw className="h-4 w-4" />
+                                      Atualizar Domínio
+                                    </>
+                                  )}
+                                </Button>
+                              );
+                            }
+
+                            return null;
+                          })()}
                         </div>
                       ) : platform.oauthButton ? (
                         /* WordPress.com OAuth with explanation BEFORE action */
