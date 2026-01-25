@@ -1,158 +1,135 @@
 
-# Plano: Sistema de Publicação WordPress Definitivo e Confiável
+# Plano: Correção Definitiva do Sistema WordPress
 
-## Diagnóstico
+## Problema Identificado
 
-Após análise completa do código, identifiquei os seguintes pontos:
+O WordPress está retornando `HTTP 200` com body `[]` (array vazio) e o sistema atual faz `JSON.parse("[]")` sem erro, resultando em `post = []` que passa pela validação `response.ok` mas falha em `post.id` e `post.link`.
 
-### ✅ Já Funcionando Corretamente
-1. **Edge Function `publish-to-cms`** já separa WordPress.org (REST API + Basic Auth) de WordPress.com (OAuth + Public API)
-2. **Validação de resposta** já verifica `id`+`link` (WordPress.org) e `ID`+`URL` (WordPress.com)
-3. **Bloqueios SERP/Score** já foram removidos do backend (linha 598-600)
-4. **Normalização** já converte ambos formatos para `{ success, postId, postUrl }`
-
-### ⚠️ Problemas Identificados
-
-| Problema | Arquivo | Linha |
-|----------|---------|-------|
-| Frontend ainda exibe toasts de SERP/Score como "informativos" mas causa confusão | `ClientArticleEditor.tsx` | 1347-1355 |
-| `ClientQueue.tsx` ainda recalcula `canPublish` baseado em score | `ClientQueue.tsx` | 327-331 |
-| Logs não exibem HTTP status + corpo bruto para debugging | `publish-to-cms` | 238-240 |
-| Erros de conexão/rede não são loggados em detalhe | `publish-to-cms` | 242-246 |
+A mensagem atual "Erro HTTP 200: []" não é clara o suficiente.
 
 ---
 
 ## Mudanças Propostas
 
-### 1. Remover Toast Informativo de SERP/Score do Editor
-
-**Arquivo:** `src/pages/client/ClientArticleEditor.tsx`
-
-Remover linhas 1347-1355 que exibem toasts especiais para `SERP_NOT_ANALYZED` e `SCORE_TOO_LOW`. Esses códigos não são mais retornados pelo backend, então o código é desnecessário.
-
-```typescript
-// REMOVER COMPLETAMENTE
-if (result.code === 'SERP_NOT_ANALYZED') {
-  toast.info(result.message || 'Execute "Analisar Concorrência" antes de publicar.');
-  return;
-}
-
-if (result.code === 'SCORE_TOO_LOW') {
-  toast.info(result.message || 'Use "Aumentar Score" para otimizar antes de publicar.');
-  return;
-}
-```
-
----
-
-### 2. Corrigir ClientQueue para Não Bloquear por Score
-
-**Arquivo:** `src/pages/client/ClientQueue.tsx`
-
-A linha 330 ainda define `canPublish: newScore >= minScore`. Mudar para sempre `true`:
-
-```typescript
-// ANTES
-canPublish: newScore >= minScore,
-
-// DEPOIS
-canPublish: true, // Publicação sempre permitida
-```
-
----
-
-### 3. Melhorar Logs no Edge Function
+### 1. Edge Function: Validar Body Vazio/Inválido ANTES do parse
 
 **Arquivo:** `supabase/functions/publish-to-cms/index.ts`
 
-Adicionar logging detalhado com HTTP status e corpo bruto em todas as funções de publicação:
-
-#### 3.1 WordPress.org - `createWordPressPost`
+Modificar `createWordPressPost()` e `createWordPressComPost()` para detectar respostas inválidas antes do `JSON.parse`:
 
 ```typescript
-const response = await fetch(`${creds.siteUrl}/wp-json/wp/v2/posts`, {...});
+// Após: const responseText = await response.text();
+// Adicionar ANTES do try/catch JSON.parse:
 
-// Log detalhado
-const responseText = await response.text();
-console.log(`[WordPress.org] HTTP ${response.status}`);
-console.log(`[WordPress.org] Response body: ${responseText}`);
-
-// Parse após logging
-let post;
-try {
-  post = JSON.parse(responseText);
-} catch {
-  return { success: false, message: `Resposta inválida do WordPress: ${responseText.slice(0, 500)}` };
+// Validate non-empty response
+if (!responseText || responseText.trim() === "" || responseText.trim() === "[]") {
+  console.error(`[WordPress.org] Empty or invalid response body`);
+  return { 
+    success: false, 
+    message: `WordPress respondeu vazio — post não criado. HTTP ${response.status}. Verifique endpoint, autenticação ou bloqueio do host.`
+  };
 }
 
-if (response.ok && post && post.id && post.link) {
-  return { success: true, postId: String(post.id), postUrl: post.link };
+// Detect HTML error pages
+if (responseText.trim().startsWith("<!DOCTYPE") || responseText.trim().startsWith("<html")) {
+  console.error(`[WordPress.org] Received HTML instead of JSON`);
+  return { 
+    success: false, 
+    message: `WordPress retornou HTML em vez de JSON. HTTP ${response.status}. Endpoint incorreto ou REST API desabilitada.`
+  };
 }
-
-return { 
-  success: false, 
-  message: post?.message || `Erro HTTP ${response.status}: ${responseText.slice(0, 200)}` 
-};
 ```
 
-#### 3.2 WordPress.com - `createWordPressComPost`
+A mesma lógica será aplicada para `createWordPressComPost()`.
 
-Mesmo padrão de logging:
+---
+
+### 2. Edge Function: Melhorar Mensagem de Erro
+
+Quando `response.ok` mas sem `id`/`link`, tornar mensagem mais clara:
 
 ```typescript
-const responseText = await response.text();
-console.log(`[WordPress.com] HTTP ${response.status}`);
-console.log(`[WordPress.com] Response body: ${responseText}`);
-
-let post;
-try {
-  post = JSON.parse(responseText);
-} catch {
-  return { success: false, message: `Resposta inválida: ${responseText.slice(0, 500)}` };
-}
-
-if (response.ok && post && post.ID && post.URL) {
-  return { success: true, postId: String(post.ID), postUrl: post.URL };
-}
-
+// Linha 247-251 atual:
+console.error("[WordPress.org] Failed - missing id or link:", {...});
 return { 
   success: false, 
-  message: post?.error || post?.message || `Erro HTTP ${response.status}` 
+  message: `Publicação falhou. HTTP ${response.status}. Body: ${responseText.slice(0, 300)}. Verifique se o usuário tem permissão para criar posts.`
 };
 ```
 
 ---
 
-### 4. Exibir Erro Real no Frontend
+### 3. UI: Adicionar Botão "Desconectar" Explícito
 
-**Arquivo:** `src/pages/client/ClientArticleEditor.tsx`
+**Arquivo:** `src/components/blog-editor/CMSIntegrationsTab.tsx`
 
-O toast de erro já existe (linha 1357), mas pode ser melhorado para mostrar mais contexto:
+Adicionar um botão "Desconectar" visível ao lado do switch, que:
+1. Define `is_active = false`
+2. Limpa estado local (remove do array `integrations`)
+3. Mostra toast: "Integração desconectada. Você pode reconectar a qualquer momento."
+
+O ícone de lixeira existente permanece para exclusão definitiva.
 
 ```typescript
-// Após remover os blocos SERP/SCORE, manter apenas:
-toast.error(`Erro ao publicar: ${result.message || 'Erro desconhecido'}`);
+<Button
+  variant="outline"
+  size="sm"
+  onClick={async () => {
+    await updateIntegration(integration.id, { is_active: false });
+    toast.success("Integração desconectada");
+  }}
+  className="gap-1 text-orange-600"
+>
+  <Unplug className="h-4 w-4" />
+  Desconectar
+</Button>
 ```
 
 ---
 
-### 5. Garantir Fluxo Direto "Publicar"
+### 4. UI: Permitir Reconectar (Editar Credenciais)
 
-O botão já chama `publishArticle()` diretamente, sem validações. Confirmar que:
-
-- Nenhuma chamada a `validateForPublish()` bloqueia
-- Nenhum `if (!validation.canPublish) return` existe antes da publicação
-- O fluxo é: clique → `setIsPublishingCMS(true)` → `publishArticle()` → resultado
+Quando existir uma integração `is_active = false`, mostrar botão "Reconectar" que abre dialog para atualizar URL/credenciais do registro existente, em vez de criar um novo.
 
 ---
 
-## Tabela de Normalização de Resposta
+### 5. Deploy e Teste
 
-| Campo | WordPress.org | WordPress.com | OmniSeen Retorno |
-|-------|---------------|---------------|------------------|
-| ID do Post | `post.id` | `post.ID` | `postId` |
-| URL do Post | `post.link` | `post.URL` | `postUrl` |
-| Sucesso | HTTP 201 + id + link | HTTP 200 + ID + URL | `success: true` |
+1. Atualizar `publish-to-cms/index.ts`
+2. Deploy Edge Function
+3. Verificar logs com `HTTP status` + `body` completo
+4. Testar cenário: publicar em WordPress.org real
+
+---
+
+## Fluxo Final Garantido
+
+```
+Usuário clica "Publicar no WordPress"
+       ↓
+Edge Function POST /wp-json/wp/v2/posts
+       ↓
+Recebe resposta HTTP
+       ↓
+┌─────────────────────────────────┐
+│ Body vazio ("" ou "[]")?        │
+│ → Erro: "WordPress respondeu    │
+│   vazio — post não criado"      │
+├─────────────────────────────────┤
+│ Body é HTML?                    │
+│ → Erro: "REST API desabilitada" │
+├─────────────────────────────────┤
+│ JSON válido mas sem id/link?    │
+│ → Erro: "Publicação falhou.     │
+│   Body: {trecho}. Verifique     │
+│   permissões do usuário."       │
+├─────────────────────────────────┤
+│ JSON com id + link?             │
+│ → Sucesso: retorna URL do post  │
+└─────────────────────────────────┘
+       ↓
+Frontend exibe toast + abre URL
+```
 
 ---
 
@@ -160,57 +137,21 @@ O botão já chama `publishArticle()` diretamente, sem validações. Confirmar q
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/pages/client/ClientArticleEditor.tsx` | Remover toasts SERP_NOT_ANALYZED/SCORE_TOO_LOW |
-| `src/pages/client/ClientQueue.tsx` | Sempre `canPublish: true` |
-| `supabase/functions/publish-to-cms/index.ts` | Logging detalhado HTTP + body |
+| `supabase/functions/publish-to-cms/index.ts` | Validar body vazio/HTML antes de JSON.parse |
+| `src/components/blog-editor/CMSIntegrationsTab.tsx` | Adicionar botão "Desconectar" explícito |
 
 ---
 
-## Fluxo Final
+## Garantias Finais
 
-```text
-┌──────────────────────────────────────────────────────────────────┐
-│                    FLUXO DE PUBLICAÇÃO                           │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  1. Usuário clica "Publicar no WordPress"                        │
-│     ↓                                                            │
-│  2. Frontend chama publishArticle(integrationId, articleId)      │
-│     ↓                                                            │
-│  3. Edge Function detecta plataforma:                            │
-│     ├─ *.wordpress.com? → OAuth + Public API                     │
-│     └─ Outro? → REST API + Basic Auth                            │
-│     ↓                                                            │
-│  4. POST para endpoint correto                                   │
-│     ↓                                                            │
-│  5. Log: HTTP status + corpo bruto                               │
-│     ↓                                                            │
-│  6. Validar resposta:                                            │
-│     ├─ WordPress.org: post.id && post.link?                      │
-│     └─ WordPress.com: post.ID && post.URL?                       │
-│     ↓                                                            │
-│  7. Retornar { success, postId, postUrl }                        │
-│     ↓                                                            │
-│  8. Frontend exibe toast + abre URL                              │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
-```
+Após esta implementação:
 
----
-
-## Detalhes Técnicos
-
-### Endpoints Utilizados
-
-| Plataforma | Endpoint | Método | Auth |
-|------------|----------|--------|------|
-| WordPress.org | `{siteUrl}/wp-json/wp/v2/posts` | POST | Basic (user:app-password) |
-| WordPress.com | `public-api.wordpress.com/rest/v1.1/sites/{siteId}/posts/new` | POST | Bearer (OAuth token) |
-
-### Ordem de Implementação
-
-1. Atualizar `publish-to-cms/index.ts` com logging melhorado
-2. Remover códigos SERP do `ClientArticleEditor.tsx`
-3. Corrigir `ClientQueue.tsx` para sempre permitir publicação
-4. Deploy das Edge Functions
-5. Testar fluxo completo
+| Cenário | Resultado Garantido |
+|---------|---------------------|
+| WordPress.org com credenciais válidas | Post criado + URL retornada |
+| WordPress.com com OAuth válido | Post criado + URL retornada |
+| Body vazio `[]` ou `""` | Erro claro: "respondeu vazio" |
+| Body HTML | Erro claro: "REST API desabilitada" |
+| HTTP 200 sem id/link | Erro claro com body parcial |
+| Usuário desconecta | `is_active = false`, pode reconectar |
+| Usuário reconecta | Atualiza credenciais do registro existente |
