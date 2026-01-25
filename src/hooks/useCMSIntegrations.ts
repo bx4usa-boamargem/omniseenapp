@@ -142,7 +142,7 @@ export function useCMSIntegrations(blogId: string) {
     }
   };
 
-  const testConnection = async (integrationId: string): Promise<{ success: boolean; message: string }> => {
+  const testConnection = async (integrationId: string): Promise<{ success: boolean; message: string; code?: string; chain?: string[] }> => {
     setTesting(integrationId);
     try {
       const { data, error } = await supabase.functions.invoke("publish-to-cms", {
@@ -155,7 +155,12 @@ export function useCMSIntegrations(blogId: string) {
       }
 
       await fetchIntegrations();
-      return data;
+      return {
+        success: data?.success ?? false,
+        message: data?.message ?? "Erro desconhecido",
+        code: data?.code,
+        chain: data?.chain,
+      };
     } catch (err) {
       console.error("Error:", err);
       return { success: false, message: "Erro ao testar conexão" };
