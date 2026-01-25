@@ -317,11 +317,27 @@ const AppRoutes = () => {
   return <PlatformRoutes />;
 };
 
+/**
+ * Handler de reset do ErrorBoundary
+ * REGRA: Subdomínios públicos NUNCA redirecionam para /login
+ * - *.app.omniseen.app (blogs públicos) → reload
+ * - Domínios customizados → reload
+ * - app.omniseen.app (plataforma) → /login
+ */
+const handleErrorReset = () => {
+  if (isSubaccountHost() || isCustomDomainHost()) {
+    console.log('[ErrorBoundary] Public host detected, reloading instead of redirecting to login');
+    window.location.reload();
+    return;
+  }
+  window.location.href = '/login';
+};
+
 // Main App - with global ErrorBoundary for crash protection
 const App = () => (
   <ErrorBoundary 
     FallbackComponent={GlobalErrorFallback}
-    onReset={() => window.location.href = '/login'}
+    onReset={handleErrorReset}
     onError={(error) => console.error('[App] Global error caught:', error)}
   >
     <QueryClientProvider client={queryClient}>
