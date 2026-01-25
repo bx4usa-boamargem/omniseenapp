@@ -167,7 +167,7 @@ export function useCMSIntegrations(blogId: string) {
     isUpdate = false
   ): Promise<{ success: boolean; externalUrl?: string; message?: string; code?: string }> => {
     try {
-      const response = await supabase.functions.invoke("publish-to-cms", {
+      const { data, error } = await supabase.functions.invoke("publish-to-cms", {
         body: {
           action: isUpdate ? "update" : "create",
           integrationId,
@@ -175,33 +175,46 @@ export function useCMSIntegrations(blogId: string) {
         },
       });
 
-      // Supabase returns data even for 4xx errors - check data first
-      const data = response.data;
-      const error = response.error;
-
-      // If we got data with explicit success/error info, use it
-      if (data) {
-        if (data.success === false) {
-          return {
-            success: false,
-            message: data.message || "Erro ao publicar",
-            code: data.code,
-          };
-        }
-        
-        return {
-          success: data.success ?? true,
-          externalUrl: data.postUrl,
-          message: data.message,
-        };
-      }
-
-      // Handle pure error case (no data)
+      // Handle error with response body extraction
       if (error) {
         console.error("Error publishing article:", error);
+        
+        // Try to extract error body from context (Response object)
+        const context = (error as any).context;
+        if (context && typeof context.json === 'function') {
+          try {
+            const errorBody = await context.json();
+            return {
+              success: false,
+              message: errorBody.message || error.message,
+              code: errorBody.code,
+            };
+          } catch {
+            // Response body already consumed or invalid
+          }
+        }
+        
         return { 
           success: false, 
           message: error.message || "Erro ao publicar artigo" 
+        };
+      }
+
+      // Handle successful response with error payload
+      if (data && data.success === false) {
+        return {
+          success: false,
+          message: data.message || "Erro ao publicar",
+          code: data.code,
+        };
+      }
+      
+      // Handle success
+      if (data) {
+        return {
+          success: true,
+          externalUrl: data.postUrl,
+          message: data.message,
         };
       }
 
