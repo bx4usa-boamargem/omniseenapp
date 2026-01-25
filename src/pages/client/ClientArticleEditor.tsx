@@ -1320,25 +1320,49 @@ export default function ClientArticleEditor() {
                   size="sm"
                   onClick={async () => {
                     if (!existingArticleId || !activeIntegration) return;
-                    
+
                     setIsPublishingCMS(true);
-                    const result = await publishArticle(activeIntegration.id, existingArticleId);
-                    
-                    if (result.success) {
-                      toast.success(`Publicado com sucesso!`, {
-                        description: result.externalUrl ? `Artigo disponível em ${activeIntegration.platform === 'wordpress' ? 'WordPress' : 'Wix'}` : undefined,
-                        action: result.externalUrl ? {
-                          label: 'Abrir',
-                          onClick: () => window.open(result.externalUrl, '_blank')
-                        } : undefined
-                      });
-                      if (result.externalUrl) {
-                        window.open(result.externalUrl, '_blank');
+                    try {
+                      const result = await publishArticle(activeIntegration.id, existingArticleId);
+
+                      if (result.success) {
+                        toast.success(`Publicado com sucesso!`, {
+                          description: result.externalUrl
+                            ? `Artigo disponível em ${activeIntegration.platform === 'wordpress' ? 'WordPress' : 'Wix'}`
+                            : undefined,
+                          action: result.externalUrl
+                            ? {
+                                label: 'Abrir',
+                                onClick: () => window.open(result.externalUrl, '_blank'),
+                              }
+                            : undefined,
+                        });
+                        if (result.externalUrl) {
+                          window.open(result.externalUrl, '_blank');
+                        }
+                        return;
                       }
-                    } else {
+
+                      // Friendly handling for known publish gate codes
+                      if (result.code === 'SERP_NOT_ANALYZED') {
+                        toast.info(result.message || 'Execute “Analisar Concorrência” antes de publicar.');
+                        return;
+                      }
+
+                      if (result.code === 'SCORE_TOO_LOW') {
+                        toast.info(result.message || 'Use “Aumentar Score” para otimizar antes de publicar.');
+                        return;
+                      }
+
                       toast.error(result.message || 'Erro ao publicar no CMS');
+                    } catch (e) {
+                      // Absolute guard: never let an exception blank the editor
+                      const msg = e instanceof Error ? e.message : 'Erro inesperado ao publicar no CMS';
+                      console.error('CMS publish click error:', e);
+                      toast.error(msg);
+                    } finally {
+                      setIsPublishingCMS(false);
                     }
-                    setIsPublishingCMS(false);
                   }}
                   disabled={isPublishingCMS}
                   className="gap-2 border-green-500/30 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-500/10"
