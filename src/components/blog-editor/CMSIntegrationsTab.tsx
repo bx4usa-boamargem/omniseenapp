@@ -103,6 +103,7 @@ export function CMSIntegrationsTab({ blogId }: CMSIntegrationsTabProps) {
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [blogStatus, setBlogStatus] = useState<Record<string, BlogDetectionStatus>>({});
   const [detectingBlog, setDetectingBlog] = useState<string | null>(null);
   const [oauthLoading, setOauthLoading] = useState(false);
@@ -223,6 +224,16 @@ export function CMSIntegrationsTab({ blogId }: CMSIntegrationsTabProps) {
 
   const handleToggleActive = async (integrationId: string, isActive: boolean) => {
     await updateIntegration(integrationId, { is_active: isActive });
+    toast.success(isActive ? "Integração ativada" : "Integração desativada");
+  };
+
+  const handleDisconnect = async (integrationId: string) => {
+    setDisconnecting(integrationId);
+    const success = await updateIntegration(integrationId, { is_active: false });
+    if (success) {
+      toast.success("Integração desconectada. Você pode reconectar a qualquer momento.");
+    }
+    setDisconnecting(null);
   };
 
   const handleToggleAutoPublish = async (integrationId: string, autoPublish: boolean) => {
@@ -455,7 +466,7 @@ export function CMSIntegrationsTab({ blogId }: CMSIntegrationsTabProps) {
                     />
                   </div>
                   
-                  <div className="flex items-center gap-2 pt-2">
+                  <div className="flex items-center gap-2 pt-2 flex-wrap">
                     <Button
                       variant="outline"
                       size="sm"
@@ -481,12 +492,30 @@ export function CMSIntegrationsTab({ blogId }: CMSIntegrationsTabProps) {
                       </a>
                     </Button>
                     
+                    {integration.is_active && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDisconnect(integration.id)}
+                        disabled={disconnecting === integration.id}
+                        className="gap-1 text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-200"
+                      >
+                        {disconnecting === integration.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Unplug className="h-4 w-4" />
+                        )}
+                        Desconectar
+                      </Button>
+                    )}
+                    
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => handleDeleteIntegration(integration.id)}
                       disabled={deleting === integration.id}
                       className="text-destructive hover:text-destructive ml-auto"
+                      title="Excluir permanentemente"
                     >
                       {deleting === integration.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />

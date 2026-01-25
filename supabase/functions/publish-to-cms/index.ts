@@ -228,14 +228,45 @@ async function createWordPressPost(creds: WordPressCredentials, article: Article
     // Detailed logging: HTTP status + raw body
     const responseText = await response.text();
     console.log(`[WordPress.org] HTTP ${response.status}`);
-    console.log(`[WordPress.org] Response body: ${responseText.slice(0, 1000)}`);
+    console.log(`[WordPress.org] Raw response body: ${responseText.slice(0, 2000)}`);
     
-    // Parse after logging
+    // CRITICAL: Validate response BEFORE JSON.parse
+    const trimmedBody = responseText.trim();
+    
+    // Check for empty body
+    if (!trimmedBody || trimmedBody === "" || trimmedBody === "[]") {
+      console.error(`[WordPress.org] Empty or array response - post NOT created`);
+      return { 
+        success: false, 
+        message: `WordPress respondeu vazio — post não criado. HTTP ${response.status}. Verifique endpoint, autenticação ou bloqueio do host.`
+      };
+    }
+    
+    // Check for HTML error page instead of JSON
+    if (trimmedBody.startsWith("<!DOCTYPE") || trimmedBody.startsWith("<html") || trimmedBody.startsWith("<?xml")) {
+      console.error(`[WordPress.org] Received HTML/XML instead of JSON`);
+      return { 
+        success: false, 
+        message: `WordPress retornou HTML em vez de JSON. HTTP ${response.status}. Endpoint incorreto ou REST API desabilitada.`
+      };
+    }
+    
+    // Parse after validation
     let post;
     try {
-      post = JSON.parse(responseText);
+      post = JSON.parse(trimmedBody);
     } catch {
-      return { success: false, message: `Resposta inválida do WordPress: ${responseText.slice(0, 500)}` };
+      console.error(`[WordPress.org] JSON parse failed for body: ${trimmedBody.slice(0, 500)}`);
+      return { success: false, message: `Resposta inválida do WordPress (não é JSON). HTTP ${response.status}. Body: ${trimmedBody.slice(0, 300)}` };
+    }
+    
+    // Handle array response (sometimes WP returns [] for various errors)
+    if (Array.isArray(post)) {
+      console.error(`[WordPress.org] Received array instead of object - post NOT created`);
+      return { 
+        success: false, 
+        message: `WordPress retornou array vazio. HTTP ${response.status}. Verifique se o usuário tem permissão para criar posts.`
+      };
     }
     
     // CRITICAL: Validate that we got real post data (id + link required)
@@ -245,10 +276,10 @@ async function createWordPressPost(creds: WordPressCredentials, article: Article
     }
     
     // Treat as error if HTTP 200/201 but no id/link
-    console.error("[WordPress.org] Failed - missing id or link:", { status: response.status, hasId: !!post?.id, hasLink: !!post?.link });
+    console.error("[WordPress.org] Failed - missing id or link:", { status: response.status, hasId: !!post?.id, hasLink: !!post?.link, body: trimmedBody.slice(0, 500) });
     return { 
       success: false, 
-      message: post?.message || `Erro HTTP ${response.status}: ${responseText.slice(0, 200)}` 
+      message: `Publicação falhou. HTTP ${response.status}. Body: ${trimmedBody.slice(0, 300)}. Verifique se o usuário tem permissão para criar posts.`
     };
   } catch (error) {
     console.error("[WordPress.org] Network/connection error:", error);
@@ -284,14 +315,45 @@ async function createWordPressComPost(creds: WordPressComCredentials, article: A
     // Detailed logging: HTTP status + raw body
     const responseText = await response.text();
     console.log(`[WordPress.com] HTTP ${response.status}`);
-    console.log(`[WordPress.com] Response body: ${responseText.slice(0, 1000)}`);
+    console.log(`[WordPress.com] Raw response body: ${responseText.slice(0, 2000)}`);
     
-    // Parse after logging
+    // CRITICAL: Validate response BEFORE JSON.parse
+    const trimmedBody = responseText.trim();
+    
+    // Check for empty body
+    if (!trimmedBody || trimmedBody === "" || trimmedBody === "[]") {
+      console.error(`[WordPress.com] Empty or array response - post NOT created`);
+      return { 
+        success: false, 
+        message: `WordPress.com respondeu vazio — post não criado. HTTP ${response.status}. Verifique token OAuth ou permissões do site.`
+      };
+    }
+    
+    // Check for HTML error page instead of JSON
+    if (trimmedBody.startsWith("<!DOCTYPE") || trimmedBody.startsWith("<html") || trimmedBody.startsWith("<?xml")) {
+      console.error(`[WordPress.com] Received HTML/XML instead of JSON`);
+      return { 
+        success: false, 
+        message: `WordPress.com retornou HTML em vez de JSON. HTTP ${response.status}. Verifique se o token OAuth é válido.`
+      };
+    }
+    
+    // Parse after validation
     let post;
     try {
-      post = JSON.parse(responseText);
+      post = JSON.parse(trimmedBody);
     } catch {
-      return { success: false, message: `Resposta inválida do WordPress.com: ${responseText.slice(0, 500)}` };
+      console.error(`[WordPress.com] JSON parse failed for body: ${trimmedBody.slice(0, 500)}`);
+      return { success: false, message: `Resposta inválida do WordPress.com (não é JSON). HTTP ${response.status}. Body: ${trimmedBody.slice(0, 300)}` };
+    }
+    
+    // Handle array response
+    if (Array.isArray(post)) {
+      console.error(`[WordPress.com] Received array instead of object - post NOT created`);
+      return { 
+        success: false, 
+        message: `WordPress.com retornou array vazio. HTTP ${response.status}. Verifique permissões do usuário.`
+      };
     }
     
     // WordPress.com uses uppercase field names (ID + URL required)
@@ -301,10 +363,10 @@ async function createWordPressComPost(creds: WordPressComCredentials, article: A
     }
     
     // Treat as error if HTTP 200 but no ID/URL
-    console.error("[WordPress.com] Failed - missing ID or URL:", { status: response.status, hasID: !!post?.ID, hasURL: !!post?.URL });
+    console.error("[WordPress.com] Failed - missing ID or URL:", { status: response.status, hasID: !!post?.ID, hasURL: !!post?.URL, body: trimmedBody.slice(0, 500) });
     return { 
       success: false, 
-      message: post?.error || post?.message || `Erro HTTP ${response.status}: ${responseText.slice(0, 200)}` 
+      message: `Publicação falhou. HTTP ${response.status}. Body: ${trimmedBody.slice(0, 300)}. ${post?.error || post?.message || "Verifique permissões."}`
     };
   } catch (error) {
     console.error("[WordPress.com] Network/connection error:", error);
