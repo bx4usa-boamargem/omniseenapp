@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-export type CMSPlatform = "wordpress" | "wix" | "webflow" | "custom";
+export type CMSPlatform = "wordpress" | "wordpress-com" | "wix" | "webflow" | "custom";
 
 export interface CMSIntegration {
   id: string;
@@ -16,6 +16,9 @@ export interface CMSIntegration {
   auto_publish: boolean;
   last_sync_at: string | null;
   last_sync_status: string | null;
+  auth_type: string | null;
+  wordpress_site_id: string | null;
+  token_expires_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -247,6 +250,29 @@ export function useCMSIntegrations(blogId: string) {
     return integrations.find((i) => i.is_active);
   };
 
+  // Initiate WordPress.com OAuth flow
+  const initiateWordPressComOAuth = async (): Promise<{ success: boolean; authUrl?: string; message?: string }> => {
+    try {
+      const { data, error } = await supabase.functions.invoke("wordpress-com-oauth", {
+        body: { action: "authorize", blogId },
+      });
+
+      if (error) {
+        console.error("OAuth init error:", error);
+        return { success: false, message: error.message };
+      }
+
+      if (data?.success && data.authUrl) {
+        return { success: true, authUrl: data.authUrl };
+      }
+
+      return { success: false, message: data?.message || "Erro ao iniciar OAuth" };
+    } catch (err) {
+      console.error("OAuth error:", err);
+      return { success: false, message: "Erro ao iniciar autenticação" };
+    }
+  };
+
   return {
     integrations,
     loading,
@@ -258,6 +284,7 @@ export function useCMSIntegrations(blogId: string) {
     publishArticle,
     getPublishLogs,
     getActiveIntegration,
+    initiateWordPressComOAuth,
     refetch: fetchIntegrations,
   };
 }

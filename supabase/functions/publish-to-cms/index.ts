@@ -17,6 +17,12 @@ interface WordPressCredentials {
   apiKey: string;
 }
 
+interface WordPressComCredentials {
+  accessToken: string;
+  siteId: string;
+  siteUrl: string;
+}
+
 interface WixCredentials {
   siteUrl: string;
   apiKey: string;
@@ -32,7 +38,13 @@ interface ArticleData {
   tags?: string[];
 }
 
-// WordPress API Functions
+// Detect if URL is WordPress.com hosted
+function isWordPressDotCom(siteUrl: string): boolean {
+  const url = siteUrl.toLowerCase();
+  return url.includes('.wordpress.com') || url.includes('wpcomstaging.com');
+}
+
+// WordPress.org API Functions (self-hosted)
 async function testWordPressConnection(creds: WordPressCredentials): Promise<{ success: boolean; message: string }> {
   try {
     const authHeader = btoa(`${creds.username}:${creds.apiKey}`);
@@ -57,7 +69,33 @@ async function testWordPressConnection(creds: WordPressCredentials): Promise<{ s
   }
 }
 
-// Detect WordPress Blog Capability
+// WordPress.com API Functions (OAuth)
+async function testWordPressComConnection(creds: WordPressComCredentials): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await fetch(`https://public-api.wordpress.com/rest/v1.1/sites/${creds.siteId}`, {
+      headers: {
+        Authorization: `Bearer ${creds.accessToken}`,
+      },
+    });
+
+    if (response.ok) {
+      const site = await response.json();
+      return { success: true, message: `Conectado ao site: ${site.name}` };
+    } else if (response.status === 401) {
+      return { success: false, message: "Token expirado. Reconecte sua conta WordPress.com." };
+    } else {
+      const errorText = await response.text();
+      console.error("WordPress.com test error:", errorText);
+      return { success: false, message: `Erro ao conectar: HTTP ${response.status}` };
+    }
+  } catch (error) {
+    console.error("WordPress.com connection test error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+    return { success: false, message: `Erro de conexão: ${errorMessage}` };
+  }
+}
+
+// Detect WordPress Blog Capability (self-hosted)
 async function detectWordPressBlog(creds: WordPressCredentials): Promise<{
   success: boolean;
   hasBlog: boolean;
@@ -68,12 +106,10 @@ async function detectWordPressBlog(creds: WordPressCredentials): Promise<{
   try {
     const authHeader = btoa(`${creds.username}:${creds.apiKey}`);
     
-    // Check posts endpoint
     const postsRes = await fetch(`${creds.siteUrl}/wp-json/wp/v2/posts?per_page=1`, {
       headers: { Authorization: `Basic ${authHeader}` },
     });
     
-    // Check categories endpoint
     const catsRes = await fetch(`${creds.siteUrl}/wp-json/wp/v2/categories?per_page=1`, {
       headers: { Authorization: `Basic ${authHeader}` },
     });
@@ -81,7 +117,7 @@ async function detectWordPressBlog(creds: WordPressCredentials): Promise<{
     const postsOk = postsRes.ok;
     const catsOk = catsRes.ok;
     
-    console.log(`[detect-blog] WordPress: posts=${postsOk}, categories=${catsOk}`);
+    console.log(`[detect-blog] WordPress.org: posts=${postsOk}, categories=${catsOk}`);
     
     return {
       success: true,
@@ -90,20 +126,54 @@ async function detectWordPressBlog(creds: WordPressCredentials): Promise<{
       categories: catsOk,
       message: postsOk 
         ? "Blog WordPress detectado e pronto para publicação" 
-        : "Endpoint de posts não disponível - verifique se o site possui blog",
+        : "Endpoint de posts não disponível",
     };
   } catch (error) {
     console.error("WordPress detect blog error:", error);
     return { 
-      success: false, 
-      hasBlog: false, 
-      postsEndpoint: false, 
-      categories: false, 
+      success: false, hasBlog: false, postsEndpoint: false, categories: false, 
       message: "Erro ao detectar blog WordPress" 
     };
   }
 }
 
+// Detect WordPress.com Blog Capability (OAuth)
+async function detectWordPressComBlog(creds: WordPressComCredentials): Promise<{
+  success: boolean;
+  hasBlog: boolean;
+  postsEndpoint: boolean;
+  categories: boolean;
+  message: string;
+}> {
+  try {
+    const response = await fetch(
+      `https://public-api.wordpress.com/rest/v1.1/sites/${creds.siteId}/posts?number=1`,
+      { headers: { Authorization: `Bearer ${creds.accessToken}` } }
+    );
+    
+    const postsOk = response.ok;
+    
+    console.log(`[detect-blog] WordPress.com: posts=${postsOk}`);
+    
+    return {
+      success: true,
+      hasBlog: postsOk,
+      postsEndpoint: postsOk,
+      categories: postsOk, // WordPress.com always has categories
+      message: postsOk 
+        ? "Blog WordPress.com detectado e pronto para publicação" 
+        : "Não foi possível acessar o blog",
+    };
+  } catch (error) {
+    console.error("WordPress.com detect blog error:", error);
+    return { 
+      success: false, hasBlog: false, postsEndpoint: false, categories: false, 
+      message: "Erro ao detectar blog WordPress.com" 
+    };
+  }
+}
+
+// Create post on WordPress.org (self-hosted)
 async function createWordPressPost(creds: WordPressCredentials, article: ArticleData): Promise<{ success: boolean; postId?: string; postUrl?: string; message?: string }> {
   try {
     const authHeader = btoa(`${creds.username}:${creds.apiKey}`);
@@ -121,9 +191,7 @@ async function createWordPressPost(creds: WordPressCredentials, article: Article
         
         const uploadResponse = await fetch(`${creds.siteUrl}/wp-json/wp/v2/media`, {
           method: "POST",
-          headers: {
-            Authorization: `Basic ${authHeader}`,
-          },
+          headers: { Authorization: `Basic ${authHeader}` },
           body: formData,
         });
         
@@ -137,7 +205,6 @@ async function createWordPressPost(creds: WordPressCredentials, article: Article
       }
     }
     
-    // Create post
     const postData: Record<string, unknown> = {
       title: article.title,
       content: article.content,
@@ -160,9 +227,16 @@ async function createWordPressPost(creds: WordPressCredentials, article: Article
     
     if (response.ok) {
       const post = await response.json();
-      return { success: true, postId: String(post.id), postUrl: post.link };
+      // CRITICAL: Validate that we got real post data
+      if (post && post.id && post.link) {
+        console.log(`[WordPress.org] Post created successfully: ID=${post.id}, URL=${post.link}`);
+        return { success: true, postId: String(post.id), postUrl: post.link };
+      }
+      console.error("[WordPress.org] Response OK but invalid post data:", post);
+      return { success: false, message: "WordPress não retornou dados válidos do post" };
     } else {
       const errorData = await response.json().catch(() => ({}));
+      console.error("[WordPress.org] Create post failed:", response.status, errorData);
       return { success: false, message: errorData.message || `Erro ao criar post: HTTP ${response.status}` };
     }
   } catch (error) {
@@ -172,6 +246,52 @@ async function createWordPressPost(creds: WordPressCredentials, article: Article
   }
 }
 
+// Create post on WordPress.com (OAuth)
+async function createWordPressComPost(creds: WordPressComCredentials, article: ArticleData): Promise<{ success: boolean; postId?: string; postUrl?: string; message?: string }> {
+  try {
+    console.log(`[WordPress.com] Creating post on site ${creds.siteId}...`);
+    
+    const postData = {
+      title: article.title,
+      content: article.content,
+      excerpt: article.excerpt,
+      status: article.status,
+    };
+    
+    const response = await fetch(
+      `https://public-api.wordpress.com/rest/v1.1/sites/${creds.siteId}/posts/new`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${creds.accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(postData),
+      }
+    );
+    
+    if (response.ok) {
+      const post = await response.json();
+      // WordPress.com uses uppercase field names
+      if (post && post.ID && post.URL) {
+        console.log(`[WordPress.com] Post created successfully: ID=${post.ID}, URL=${post.URL}`);
+        return { success: true, postId: String(post.ID), postUrl: post.URL };
+      }
+      console.error("[WordPress.com] Response OK but invalid post data:", JSON.stringify(post).slice(0, 500));
+      return { success: false, message: "WordPress.com não retornou dados válidos do post" };
+    } else {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("[WordPress.com] Create post failed:", response.status, errorData);
+      return { success: false, message: errorData.message || `Erro ao criar post: HTTP ${response.status}` };
+    }
+  } catch (error) {
+    console.error("WordPress.com create post error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+    return { success: false, message: `Erro: ${errorMessage}` };
+  }
+}
+
+// Update post on WordPress.org
 async function updateWordPressPost(creds: WordPressCredentials, postId: string, article: ArticleData): Promise<{ success: boolean; postUrl?: string; message?: string }> {
   try {
     const authHeader = btoa(`${creds.username}:${creds.apiKey}`);
@@ -194,13 +314,55 @@ async function updateWordPressPost(creds: WordPressCredentials, postId: string, 
     
     if (response.ok) {
       const post = await response.json();
-      return { success: true, postUrl: post.link };
+      if (post && post.link) {
+        return { success: true, postUrl: post.link };
+      }
+      return { success: false, message: "WordPress não retornou dados válidos" };
     } else {
       const errorData = await response.json().catch(() => ({}));
       return { success: false, message: errorData.message || `Erro ao atualizar post: HTTP ${response.status}` };
     }
   } catch (error) {
     console.error("WordPress update post error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+    return { success: false, message: `Erro: ${errorMessage}` };
+  }
+}
+
+// Update post on WordPress.com
+async function updateWordPressComPost(creds: WordPressComCredentials, postId: string, article: ArticleData): Promise<{ success: boolean; postUrl?: string; message?: string }> {
+  try {
+    const postData = {
+      title: article.title,
+      content: article.content,
+      excerpt: article.excerpt,
+      status: article.status,
+    };
+    
+    const response = await fetch(
+      `https://public-api.wordpress.com/rest/v1.1/sites/${creds.siteId}/posts/${postId}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${creds.accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(postData),
+      }
+    );
+    
+    if (response.ok) {
+      const post = await response.json();
+      if (post && post.URL) {
+        return { success: true, postUrl: post.URL };
+      }
+      return { success: false, message: "WordPress.com não retornou dados válidos" };
+    } else {
+      const errorData = await response.json().catch(() => ({}));
+      return { success: false, message: errorData.message || `Erro ao atualizar post: HTTP ${response.status}` };
+    }
+  } catch (error) {
+    console.error("WordPress.com update post error:", error);
     const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     return { success: false, message: `Erro: ${errorMessage}` };
   }
@@ -232,7 +394,6 @@ async function testWixConnection(creds: WixCredentials): Promise<{ success: bool
 }
 
 function extractWixSiteId(siteUrl: string): string {
-  // For now return the URL as-is, Wix site ID needs to be configured separately
   return siteUrl.replace("https://", "").replace("http://", "").split("/")[0];
 }
 
@@ -240,7 +401,6 @@ async function createWixPost(creds: WixCredentials, article: ArticleData): Promi
   try {
     const siteId = extractWixSiteId(creds.siteUrl);
     
-    // First create a draft post
     const draftResponse = await fetch(`https://www.wixapis.com/blog/v3/draft-posts`, {
       method: "POST",
       headers: {
@@ -255,10 +415,7 @@ async function createWixPost(creds: WixCredentials, article: ArticleData): Promi
           richContent: {
             nodes: [{
               type: "PARAGRAPH",
-              nodes: [{
-                type: "TEXT",
-                textData: { text: article.content }
-              }]
+              nodes: [{ type: "TEXT", textData: { text: article.content } }]
             }]
           }
         }
@@ -273,7 +430,6 @@ async function createWixPost(creds: WixCredentials, article: ArticleData): Promi
     const draft = await draftResponse.json();
     const draftId = draft.draftPost.id;
     
-    // Publish the draft if status is publish
     if (article.status === "publish") {
       const publishResponse = await fetch(`https://www.wixapis.com/blog/v3/draft-posts/${draftId}/publish`, {
         method: "POST",
@@ -314,7 +470,7 @@ Deno.serve(async (req) => {
 
     console.log(`CMS action: ${action}, integration: ${integrationId}`);
 
-    // Fetch integration details from decrypted view (credentials are encrypted at rest)
+    // Fetch integration details from decrypted view
     const { data: integration, error: integrationError } = await supabaseClient
       .from("cms_integrations_decrypted")
       .select("*")
@@ -336,12 +492,24 @@ Deno.serve(async (req) => {
     });
 
     const platform = integration.platform;
+    const isWordPressCom = platform === "wordpress-com" || 
+      (platform === "wordpress" && integration.auth_type === "oauth");
 
     // Test connection
     if (action === "test") {
       let result;
       
-      if (platform === "wordpress") {
+      if (isWordPressCom) {
+        if (!integration.api_key || !integration.wordpress_site_id) {
+          result = { success: false, message: "Integração OAuth incompleta. Reconecte sua conta WordPress.com." };
+        } else {
+          result = await testWordPressComConnection({
+            accessToken: integration.api_key,
+            siteId: integration.wordpress_site_id,
+            siteUrl: integration.site_url,
+          });
+        }
+      } else if (platform === "wordpress") {
         result = await testWordPressConnection({
           siteUrl: integration.site_url,
           username: integration.username,
@@ -375,21 +543,24 @@ Deno.serve(async (req) => {
     if (action === "detect-blog") {
       let result;
       
-      if (platform === "wordpress") {
+      if (isWordPressCom) {
+        if (!integration.api_key || !integration.wordpress_site_id) {
+          result = { success: false, hasBlog: false, postsEndpoint: false, categories: false, message: "OAuth incompleto" };
+        } else {
+          result = await detectWordPressComBlog({
+            accessToken: integration.api_key,
+            siteId: integration.wordpress_site_id,
+            siteUrl: integration.site_url,
+          });
+        }
+      } else if (platform === "wordpress") {
         result = await detectWordPressBlog({
           siteUrl: integration.site_url,
           username: integration.username,
           apiKey: integration.api_key,
         });
       } else if (platform === "wix") {
-        // For Wix, we assume blog is available if connection works
-        result = { 
-          success: true, 
-          hasBlog: true, 
-          postsEndpoint: true, 
-          categories: true, 
-          message: "Wix Blog API disponível" 
-        };
+        result = { success: true, hasBlog: true, postsEndpoint: true, categories: true, message: "Wix Blog API disponível" };
       } else {
         result = { success: false, hasBlog: false, postsEndpoint: false, categories: false, message: `Plataforma ${platform} não suportada` };
       }
@@ -424,7 +595,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      // ===== SERP SCORE VALIDATION (BLOQUEIO SERVER-SIDE) =====
+      // SERP Score validation
       const { data: scoreData } = await supabaseClient
         .from('article_content_scores')
         .select('total_score, serp_analysis_id')
@@ -446,8 +617,6 @@ Deno.serve(async (req) => {
             code: 'SERP_NOT_ANALYZED',
             message: 'Artigo não passou por análise SERP. Execute "Analisar Concorrência" primeiro.'
           }),
-          // IMPORTANT: Return 200 for expected quality-gate blocks so the web client
-          // can handle the message without the SDK throwing a FunctionsHttpError.
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -459,8 +628,6 @@ Deno.serve(async (req) => {
             code: 'SCORE_TOO_LOW',
             message: `Content Score ${scoreData.total_score}/100 abaixo do mínimo exigido (${minScore}). Use "Aumentar Score" para otimizar.`
           }),
-          // IMPORTANT: Return 200 for expected quality-gate blocks so the web client
-          // can handle the message without the SDK throwing a FunctionsHttpError.
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -477,8 +644,25 @@ Deno.serve(async (req) => {
 
       let result: { success: boolean; postId?: string; postUrl?: string; message?: string };
       
-      if (platform === "wordpress") {
-        const creds = {
+      if (isWordPressCom) {
+        if (!integration.api_key || !integration.wordpress_site_id) {
+          result = { success: false, message: "Integração OAuth incompleta. Reconecte sua conta WordPress.com." };
+        } else {
+          const creds: WordPressComCredentials = {
+            accessToken: integration.api_key,
+            siteId: integration.wordpress_site_id,
+            siteUrl: integration.site_url,
+          };
+          
+          if (action === "create" || !article.external_post_id) {
+            result = await createWordPressComPost(creds, articleData);
+          } else {
+            const updateResult = await updateWordPressComPost(creds, article.external_post_id, articleData);
+            result = { ...updateResult, postId: article.external_post_id };
+          }
+        }
+      } else if (platform === "wordpress") {
+        const creds: WordPressCredentials = {
           siteUrl: integration.site_url,
           username: integration.username,
           apiKey: integration.api_key,
@@ -491,11 +675,10 @@ Deno.serve(async (req) => {
           result = { ...updateResult, postId: article.external_post_id };
         }
       } else if (platform === "wix") {
-        const creds = {
+        const creds: WixCredentials = {
           siteUrl: integration.site_url,
           apiKey: integration.api_key,
         };
-        
         result = await createWixPost(creds, articleData);
       } else {
         result = { success: false, message: `Plataforma ${platform} não suportada ainda` };

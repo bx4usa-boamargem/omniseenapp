@@ -90,6 +90,7 @@ import ClientLeads from "./pages/client/ClientLeads";
 import ClientEbooks from "./pages/client/ClientEbooks";
 import ClientEbookEditor from "./pages/client/ClientEbookEditor";
 import ClientDomains from "./pages/client/ClientDomains";
+import WordPressCallback from "./pages/cms/WordPressCallback";
 
 const queryClient = new QueryClient();
 
@@ -220,6 +221,7 @@ const PlatformRoutes = () => (
     <Route path="/reset-password" element={<ResetPassword />} />
     <Route path="/blocked" element={<Blocked />} />
     <Route path="/access-denied" element={<AccessDenied />} />
+    <Route path="/cms/wordpress-callback" element={<WordPressCallback />} />
     <Route path="/invite/accept" element={<AcceptInvite />} />
     <Route path="/oauth/callback" element={<OAuthCallback />} />
     

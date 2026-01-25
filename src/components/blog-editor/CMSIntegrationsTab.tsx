@@ -35,6 +35,7 @@ interface PlatformConfig {
   name: string;
   description: string;
   icon: string;
+  authType: "application-password" | "oauth" | "api-key";
   fields: Array<{
     key: string;
     label: string;
@@ -44,14 +45,16 @@ interface PlatformConfig {
     helpText?: string;
   }>;
   helpLink?: string;
+  oauthButton?: boolean;
 }
 
 const PLATFORMS: PlatformConfig[] = [
   {
     id: "wordpress",
-    name: "WordPress",
-    description: "Publique automaticamente no seu site WordPress",
+    name: "WordPress.org",
+    description: "Para sites WordPress auto-hospedados",
     icon: "🔵",
+    authType: "application-password",
     fields: [
       { key: "siteUrl", label: "URL do Site", type: "text", placeholder: "https://meusite.com.br", required: true },
       { key: "username", label: "Usuário", type: "text", placeholder: "admin", required: true, helpText: "Usuário do WordPress com permissão de publicação" },
@@ -60,10 +63,21 @@ const PLATFORMS: PlatformConfig[] = [
     helpLink: "https://make.wordpress.org/core/2020/11/05/application-passwords-integration-guide/",
   },
   {
+    id: "wordpress-com",
+    name: "WordPress.com",
+    description: "Para sites hospedados no WordPress.com",
+    icon: "🌐",
+    authType: "oauth",
+    oauthButton: true,
+    fields: [], // No fields needed - uses OAuth
+    helpLink: "https://wordpress.com/support/",
+  },
+  {
     id: "wix",
     name: "Wix",
     description: "Conecte seu site Wix para publicação automática",
     icon: "🟡",
+    authType: "api-key",
     fields: [
       { key: "siteUrl", label: "URL do Site", type: "text", placeholder: "https://meusite.wixsite.com/blog", required: true },
       { key: "apiKey", label: "API Key", type: "password", placeholder: "IST.xxx...", required: true, helpText: "Gere em Wix Dev Center → API Keys" },
@@ -80,7 +94,8 @@ export function CMSIntegrationsTab({ blogId }: CMSIntegrationsTabProps) {
     addIntegration, 
     updateIntegration, 
     deleteIntegration, 
-    testConnection 
+    testConnection,
+    initiateWordPressComOAuth,
   } = useCMSIntegrations(blogId);
   
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -90,6 +105,28 @@ export function CMSIntegrationsTab({ blogId }: CMSIntegrationsTabProps) {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [blogStatus, setBlogStatus] = useState<Record<string, BlogDetectionStatus>>({});
   const [detectingBlog, setDetectingBlog] = useState<string | null>(null);
+  const [oauthLoading, setOauthLoading] = useState(false);
+
+  // Handle WordPress.com OAuth
+  const handleWordPressComOAuth = async () => {
+    setOauthLoading(true);
+    try {
+      const result = await initiateWordPressComOAuth();
+      if (result.success && result.authUrl) {
+        // Open OAuth in new window
+        window.open(result.authUrl, "_blank", "width=600,height=700");
+        toast.info("Complete a autorização na janela do WordPress.com");
+        setDialogOpen(false);
+      } else {
+        toast.error(result.message || "Erro ao iniciar autenticação");
+      }
+    } catch (err) {
+      console.error("OAuth error:", err);
+      toast.error("Erro ao iniciar autenticação");
+    } finally {
+      setOauthLoading(false);
+    }
+  };
 
   const handleAddIntegration = async () => {
     if (!selectedPlatform) return;
@@ -243,9 +280,9 @@ export function CMSIntegrationsTab({ blogId }: CMSIntegrationsTabProps) {
             </DialogHeader>
             
             <Tabs value={selectedPlatform || undefined} onValueChange={(v) => setSelectedPlatform(v as CMSPlatform)}>
-              <TabsList className="grid grid-cols-2 w-full">
+              <TabsList className="grid grid-cols-3 w-full">
                 {PLATFORMS.map(platform => (
-                  <TabsTrigger key={platform.id} value={platform.id} className="gap-2">
+                  <TabsTrigger key={platform.id} value={platform.id} className="gap-1 text-xs sm:text-sm">
                     <span>{platform.icon}</span>
                     {platform.name}
                   </TabsTrigger>
@@ -272,39 +309,62 @@ export function CMSIntegrationsTab({ blogId }: CMSIntegrationsTabProps) {
                     </Alert>
                   )}
                   
-                  {platform.fields.map(field => (
-                    <div key={field.key} className="space-y-2">
-                      <Label htmlFor={field.key}>{field.label}</Label>
-                      <Input
-                        id={field.key}
-                        type={field.type}
-                        placeholder={field.placeholder}
-                        value={formData[field.key] || ""}
-                        onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
-                      />
-                      {field.helpText && (
-                        <p className="text-xs text-muted-foreground">{field.helpText}</p>
-                      )}
-                    </div>
-                  ))}
                   
-                  <Button 
-                    onClick={handleAddIntegration} 
-                    disabled={saving} 
-                    className="w-full"
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Conectando...
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Conectar {platform.name}
-                      </>
-                    )}
-                  </Button>
+                  {platform.oauthButton ? (
+                    <Button 
+                      onClick={handleWordPressComOAuth} 
+                      disabled={oauthLoading} 
+                      className="w-full gap-2"
+                    >
+                      {oauthLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Conectando...
+                        </>
+                      ) : (
+                        <>
+                          <ExternalLink className="h-4 w-4" />
+                          Conectar com WordPress.com
+                        </>
+                      )}
+                    </Button>
+                  ) : (
+                    <>
+                      {platform.fields.map(field => (
+                        <div key={field.key} className="space-y-2">
+                          <Label htmlFor={field.key}>{field.label}</Label>
+                          <Input
+                            id={field.key}
+                            type={field.type}
+                            placeholder={field.placeholder}
+                            value={formData[field.key] || ""}
+                            onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
+                          />
+                          {field.helpText && (
+                            <p className="text-xs text-muted-foreground">{field.helpText}</p>
+                          )}
+                        </div>
+                      ))}
+                      
+                      <Button 
+                        onClick={handleAddIntegration} 
+                        disabled={saving} 
+                        className="w-full"
+                      >
+                        {saving ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Conectando...
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Conectar {platform.name}
+                          </>
+                        )}
+                      </Button>
+                    </>
+                  )}
                 </TabsContent>
               ))}
             </Tabs>

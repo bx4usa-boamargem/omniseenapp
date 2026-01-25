@@ -2462,10 +2462,12 @@ export type Database = {
       }
       cms_integrations: {
         Row: {
+          access_token_encrypted: string | null
           api_key: string | null
           api_key_encrypted: string | null
           api_secret: string | null
           api_secret_encrypted: string | null
+          auth_type: string | null
           auto_publish: boolean | null
           blog_id: string
           created_at: string | null
@@ -2474,15 +2476,20 @@ export type Database = {
           last_sync_at: string | null
           last_sync_status: string | null
           platform: string
+          refresh_token_encrypted: string | null
           site_url: string
+          token_expires_at: string | null
           updated_at: string | null
           username: string | null
+          wordpress_site_id: string | null
         }
         Insert: {
+          access_token_encrypted?: string | null
           api_key?: string | null
           api_key_encrypted?: string | null
           api_secret?: string | null
           api_secret_encrypted?: string | null
+          auth_type?: string | null
           auto_publish?: boolean | null
           blog_id: string
           created_at?: string | null
@@ -2491,15 +2498,20 @@ export type Database = {
           last_sync_at?: string | null
           last_sync_status?: string | null
           platform: string
+          refresh_token_encrypted?: string | null
           site_url: string
+          token_expires_at?: string | null
           updated_at?: string | null
           username?: string | null
+          wordpress_site_id?: string | null
         }
         Update: {
+          access_token_encrypted?: string | null
           api_key?: string | null
           api_key_encrypted?: string | null
           api_secret?: string | null
           api_secret_encrypted?: string | null
+          auth_type?: string | null
           auto_publish?: boolean | null
           blog_id?: string
           created_at?: string | null
@@ -2508,9 +2520,12 @@ export type Database = {
           last_sync_at?: string | null
           last_sync_status?: string | null
           platform?: string
+          refresh_token_encrypted?: string | null
           site_url?: string
+          token_expires_at?: string | null
           updated_at?: string | null
           username?: string | null
+          wordpress_site_id?: string | null
         }
         Relationships: [
           {
@@ -6303,8 +6318,10 @@ export type Database = {
     Views: {
       cms_integrations_decrypted: {
         Row: {
+          access_token: string | null
           api_key: string | null
           api_secret: string | null
+          auth_type: string | null
           auto_publish: boolean | null
           blog_id: string | null
           created_at: string | null
@@ -6313,13 +6330,18 @@ export type Database = {
           last_sync_at: string | null
           last_sync_status: string | null
           platform: string | null
+          refresh_token: string | null
           site_url: string | null
+          token_expires_at: string | null
           updated_at: string | null
           username: string | null
+          wordpress_site_id: string | null
         }
         Insert: {
+          access_token?: never
           api_key?: never
           api_secret?: never
+          auth_type?: string | null
           auto_publish?: boolean | null
           blog_id?: string | null
           created_at?: string | null
@@ -6328,13 +6350,18 @@ export type Database = {
           last_sync_at?: string | null
           last_sync_status?: string | null
           platform?: string | null
+          refresh_token?: never
           site_url?: string | null
+          token_expires_at?: string | null
           updated_at?: string | null
           username?: string | null
+          wordpress_site_id?: string | null
         }
         Update: {
+          access_token?: never
           api_key?: never
           api_secret?: never
+          auth_type?: string | null
           auto_publish?: boolean | null
           blog_id?: string | null
           created_at?: string | null
@@ -6343,9 +6370,12 @@ export type Database = {
           last_sync_at?: string | null
           last_sync_status?: string | null
           platform?: string | null
+          refresh_token?: never
           site_url?: string | null
+          token_expires_at?: string | null
           updated_at?: string | null
           username?: string | null
+          wordpress_site_id?: string | null
         }
         Relationships: [
           {
