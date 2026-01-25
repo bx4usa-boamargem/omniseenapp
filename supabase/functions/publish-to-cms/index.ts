@@ -673,16 +673,22 @@ Deno.serve(async (req) => {
     console.log(`CMS action: ${action}, integration: ${integrationId}`);
 
     // Fetch integration details from decrypted view
+    // CRITICAL: Only fetch ACTIVE integrations - prevents ghost state publishing
     const { data: integration, error: integrationError } = await supabaseClient
       .from("cms_integrations_decrypted")
       .select("*")
       .eq("id", integrationId)
+      .eq("is_active", true)  // SECURITY: Reject inactive integrations at backend level
       .single();
 
     if (integrationError || !integration) {
-      console.error("Integration not found:", integrationError);
+      console.error("Integration not found or inactive:", integrationError);
       return new Response(
-        JSON.stringify({ success: false, message: "Integração não encontrada" }),
+        JSON.stringify({ 
+          success: false, 
+          code: "INTEGRATION_INACTIVE",
+          message: "Integração não encontrada ou desativada. Abra a Central de Integrações." 
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
       );
     }

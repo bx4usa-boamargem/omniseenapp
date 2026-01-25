@@ -116,6 +116,7 @@ export function CMSIntegrationCenterSheet({
     testConnection,
     publishArticle,
     initiateWordPressComOAuth,
+    refetch, // CRITICAL: Force state sync after operations
   } = useCMSIntegrations(blogId);
 
   // Dialog states
@@ -256,11 +257,14 @@ export function CMSIntegrationCenterSheet({
     const success = await updateIntegration(editingIntegration.id, updates as Parameters<typeof updateIntegration>[1]);
 
     if (success) {
+      await refetch(); // Force immediate state sync
       toast.success("Credenciais atualizadas! Testando conexão...");
       const testResult = await testConnection(editingIntegration.id);
       if (testResult.success) {
+        await refetch(); // Sync after test
         toast.success(testResult.message);
       } else {
+        await refetch(); // Sync even on error to show correct status
         toast.error(testResult.message);
       }
       setEditDialogOpen(false);
@@ -272,9 +276,11 @@ export function CMSIntegrationCenterSheet({
     setSaving(false);
   };
 
-  // Handle test connection
+  // Handle test connection - with state sync
   const handleTestConnection = async (integrationId: string) => {
     const result = await testConnection(integrationId);
+    await refetch(); // MANDATORY: Sync state after test
+    
     if (result.success) {
       toast.success(result.message);
       setLastErrorDetails(null);
@@ -293,21 +299,27 @@ export function CMSIntegrationCenterSheet({
     }
   };
 
-  // Handle disconnect
+  // Handle disconnect - CRITICAL: Force refetch to prevent ghost states
   const handleDisconnect = async (integrationId: string) => {
     setDisconnecting(integrationId);
     const success = await updateIntegration(integrationId, { is_active: false });
     if (success) {
-      toast.success("Integração desconectada. Você pode reconectar a qualquer momento.");
+      await refetch(); // MANDATORY: Sync state immediately
+      toast.success("Integração desconectada", {
+        description: "Não será mais usada para publicação. Reconecte quando desejar."
+      });
     }
     setDisconnecting(null);
   };
 
-  // Handle delete
+  // Handle delete - CRITICAL: Force refetch after deletion
   const handleDelete = async (integrationId: string) => {
     if (!confirm("Tem certeza que deseja excluir esta integração permanentemente?")) return;
     setDeleting(integrationId);
-    await deleteIntegration(integrationId);
+    const deleted = await deleteIntegration(integrationId);
+    if (deleted) {
+      await refetch(); // MANDATORY: Remove from state immediately
+    }
     setDeleting(null);
   };
 

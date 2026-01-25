@@ -74,7 +74,24 @@ async function exchangeCodeForTokens(code: string): Promise<TokenResponse> {
   if (!response.ok) {
     const errorText = await response.text();
     console.error("Token exchange error:", errorText);
-    throw new Error(`Failed to exchange code for tokens: ${response.status}`);
+    
+    // Parse error for specific, actionable messages
+    try {
+      const errorData = JSON.parse(errorText);
+      if (errorData.error === "invalid_client") {
+        throw new Error("OAuth inválido: Client ID não reconhecido pelo WordPress.com. Verifique as credenciais do app.");
+      }
+      if (errorData.error === "invalid_grant") {
+        throw new Error("Código de autorização expirado ou já utilizado. Tente conectar novamente.");
+      }
+      throw new Error(errorData.error_description || `Erro OAuth: HTTP ${response.status}`);
+    } catch (parseError) {
+      // Re-throw if already a specific OAuth error
+      if (parseError instanceof Error && parseError.message.includes("OAuth")) {
+        throw parseError;
+      }
+      throw new Error(`Falha na autenticação OAuth. HTTP ${response.status}`);
+    }
   }
   
   return await response.json();

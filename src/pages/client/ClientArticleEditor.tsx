@@ -137,7 +137,7 @@ export default function ClientArticleEditor() {
   const [isPublishingCMS, setIsPublishingCMS] = useState(false);
   const [showCMSSetupSheet, setShowCMSSetupSheet] = useState(false);
   const [showCMSCenter, setShowCMSCenter] = useState(false);
-  const { integrations, publishArticle, getActiveIntegration } = useCMSIntegrations(blog?.id || '');
+  const { integrations, publishArticle, getActiveIntegration, refetch: refetchIntegrations } = useCMSIntegrations(blog?.id || '');
   const activeIntegration = getActiveIntegration();
   
   // Check if can publish directly (active + tested with success)
@@ -1397,7 +1397,13 @@ export default function ClientArticleEditor() {
                     blogId={blog?.id || ''}
                     articleId={existingArticleId}
                     open={showCMSCenter}
-                    onOpenChange={setShowCMSCenter}
+                    onOpenChange={async (open) => {
+                      setShowCMSCenter(open);
+                      // CRITICAL: Refetch integrations when closing to sync state
+                      if (!open) {
+                        await refetchIntegrations();
+                      }
+                    }}
                     onPublishSuccess={(url) => window.open(url, '_blank')}
                   />
                 </>
