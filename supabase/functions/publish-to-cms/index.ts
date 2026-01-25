@@ -11,6 +11,124 @@ interface CMSPayload {
   articleId?: string;
 }
 
+// Redirect chain check result
+interface RedirectCheckResult {
+  success: boolean;
+  finalUrl: string;
+  chain: string[];
+  isLoop: boolean;
+  message: string;
+}
+
+// Check redirect chain to detect loops (http↔https, www↔non-www)
+async function checkRedirectChain(baseUrl: string): Promise<RedirectCheckResult> {
+  const chain: string[] = [];
+  let currentUrl = baseUrl.replace(/\/$/, "") + "/wp-json/";
+  const maxHops = 5;
+  
+  console.log(`[Redirect Check] Starting from: ${currentUrl}`);
+  
+  for (let i = 0; i < maxHops; i++) {
+    chain.push(currentUrl);
+    
+    try {
+      const response = await fetch(currentUrl, { 
+        method: "HEAD",
+        redirect: "manual",
+        headers: { "User-Agent": "OmniSeen/1.0" }
+      });
+      
+      console.log(`[Redirect Check] Hop ${i + 1}: ${currentUrl} -> HTTP ${response.status}`);
+      
+      // Success - no more redirects
+      if (response.status === 200) {
+        console.log(`[Redirect Check] Success! Final URL: ${currentUrl}`);
+        return { 
+          success: true, 
+          finalUrl: currentUrl.replace("/wp-json/", ""), 
+          chain, 
+          isLoop: false, 
+          message: "Endpoint acessível" 
+        };
+      }
+      
+      // Redirect detected
+      if ([301, 302, 307, 308].includes(response.status)) {
+        const location = response.headers.get("Location");
+        if (!location) {
+          console.log(`[Redirect Check] Redirect without Location header`);
+          break;
+        }
+        
+        // Normalize URL for comparison
+        const normalizedLocation = location.replace(/\/$/, "");
+        const normalizedCurrent = currentUrl.replace(/\/$/, "");
+        
+        // Detect loop: same URL appearing twice in chain
+        const existingIndex = chain.findIndex(url => 
+          url.replace(/\/$/, "") === normalizedLocation
+        );
+        
+        if (existingIndex !== -1) {
+          const loopStart = chain[existingIndex];
+          console.log(`[Redirect Check] LOOP DETECTED: ${loopStart} <-> ${currentUrl}`);
+          
+          // Determine loop type for clearer message
+          let loopType = "";
+          if (loopStart.includes("https://") !== currentUrl.includes("https://")) {
+            loopType = "http/https";
+          } else if (loopStart.includes("www.") !== currentUrl.includes("www.")) {
+            loopType = "www/sem-www";
+          } else {
+            loopType = "configuração";
+          }
+          
+          return {
+            success: false,
+            finalUrl: currentUrl,
+            chain: [...chain, location],
+            isLoop: true,
+            message: `Loop de redirect detectado (${loopType}). Corrija no WordPress/servidor: ${loopStart} ↔ ${location}`
+          };
+        }
+        
+        currentUrl = location;
+      } else if (response.status >= 400) {
+        console.log(`[Redirect Check] Error status: ${response.status}`);
+        return {
+          success: false,
+          finalUrl: currentUrl,
+          chain,
+          isLoop: false,
+          message: `Endpoint retornou HTTP ${response.status}. Verifique se a REST API está habilitada.`
+        };
+      } else {
+        break;
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : "Erro desconhecido";
+      console.error(`[Redirect Check] Fetch error:`, error);
+      return {
+        success: false,
+        finalUrl: currentUrl,
+        chain,
+        isLoop: false,
+        message: `Erro de conexão: ${errorMsg}`
+      };
+    }
+  }
+  
+  // Max hops reached without resolution
+  console.log(`[Redirect Check] Max hops (${maxHops}) reached`);
+  return {
+    success: false,
+    finalUrl: currentUrl,
+    chain,
+    isLoop: false,
+    message: `Muitos redirects (${chain.length}). Cadeia: ${chain.join(" → ")}`
+  };
+}
+
 interface WordPressCredentials {
   siteUrl: string;
   username: string;
@@ -581,7 +699,38 @@ Deno.serve(async (req) => {
 
     // Test connection
     if (action === "test") {
-      let result;
+      let result: { success: boolean; message: string; code?: string; chain?: string[] };
+      
+      // PREFLIGHT: Check for redirect loops on WordPress.org
+      if (platform === "wordpress" && !isWordPressCom) {
+        console.log(`[Test] Running redirect preflight for: ${integration.site_url}`);
+        const redirectCheck = await checkRedirectChain(integration.site_url);
+        
+        if (!redirectCheck.success) {
+          console.log(`[Test] Redirect check failed:`, redirectCheck);
+          
+          // Update integration status to error
+          await supabaseClient
+            .from("cms_integrations")
+            .update({
+              last_sync_at: new Date().toISOString(),
+              last_sync_status: "error",
+            })
+            .eq("id", integrationId);
+          
+          return new Response(
+            JSON.stringify({
+              success: false,
+              code: redirectCheck.isLoop ? "REDIRECT_LOOP" : "REDIRECT_ERROR",
+              message: redirectCheck.message,
+              chain: redirectCheck.chain,
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        console.log(`[Test] Redirect check passed. Final URL: ${redirectCheck.finalUrl}`);
+      }
       
       if (isWordPressCom) {
         if (!integration.api_key || !integration.wordpress_site_id) {
@@ -664,6 +813,37 @@ Deno.serve(async (req) => {
         );
       }
 
+      // PREFLIGHT: Check for redirect loops on WordPress.org before publishing
+      if (platform === "wordpress" && !isWordPressCom) {
+        console.log(`[Publish] Running redirect preflight for: ${integration.site_url}`);
+        const redirectCheck = await checkRedirectChain(integration.site_url);
+        
+        if (!redirectCheck.success) {
+          console.log(`[Publish] Redirect check failed:`, redirectCheck);
+          
+          // Log the failed attempt
+          await supabaseClient.from("cms_publish_logs").insert({
+            article_id: articleId,
+            integration_id: integrationId,
+            action: action,
+            status: "error",
+            error_message: redirectCheck.message,
+          });
+          
+          return new Response(
+            JSON.stringify({
+              success: false,
+              code: redirectCheck.isLoop ? "REDIRECT_LOOP" : "REDIRECT_ERROR",
+              message: redirectCheck.message,
+              chain: redirectCheck.chain,
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        
+        console.log(`[Publish] Redirect check passed. Proceeding with publication.`);
+      }
+
       // Fetch article
       const { data: article, error: articleError } = await supabaseClient
         .from("articles")
@@ -678,10 +858,6 @@ Deno.serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
         );
       }
-
-      // SERP validation removed - publication is always allowed
-      // SERP analysis is now optional, not blocking
-
 
       const articleData: ArticleData = {
         title: article.title,

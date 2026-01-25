@@ -122,6 +122,8 @@ export function CMSIntegrationCenterSheet({
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingIntegration, setEditingIntegration] = useState<CMSIntegration | null>(null);
+  const [errorDetailOpen, setErrorDetailOpen] = useState(false);
+  const [lastErrorDetails, setLastErrorDetails] = useState<{ message: string; chain?: string[] } | null>(null);
   
   // Form states
   const [selectedPlatform, setSelectedPlatform] = useState<CMSPlatform | null>(null);
@@ -275,8 +277,19 @@ export function CMSIntegrationCenterSheet({
     const result = await testConnection(integrationId);
     if (result.success) {
       toast.success(result.message);
+      setLastErrorDetails(null);
     } else {
-      toast.error(result.message);
+      // Check for redirect loop errors
+      if (result.code === "REDIRECT_LOOP" || result.code === "REDIRECT_ERROR") {
+        setLastErrorDetails({ message: result.message, chain: result.chain });
+        toast.error("Erro de redirect detectado", {
+          description: "Clique em 'Ver Detalhes' para diagnóstico completo",
+          duration: 8000,
+        });
+      } else {
+        toast.error(result.message);
+        setLastErrorDetails({ message: result.message });
+      }
     }
   };
 
@@ -359,6 +372,40 @@ export function CMSIntegrationCenterSheet({
 
         <ScrollArea className="flex-1">
           <div className="p-6 space-y-4">
+            {/* Error Details Alert */}
+            {lastErrorDetails && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription className="space-y-2">
+                  <p className="font-medium">{lastErrorDetails.message}</p>
+                  {lastErrorDetails.chain && lastErrorDetails.chain.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs font-medium mb-1">Cadeia de redirects:</p>
+                      <div className="bg-destructive/10 p-2 rounded text-xs font-mono overflow-x-auto">
+                        {lastErrorDetails.chain.map((url, idx) => (
+                          <div key={idx} className="flex items-center gap-1">
+                            {idx > 0 && <span className="text-destructive">↓</span>}
+                            <span className="break-all">{url}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-xs mt-2 text-muted-foreground">
+                        Corrija a configuração de URL canônica, SSL ou www no WordPress/servidor.
+                      </p>
+                    </div>
+                  )}
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-2"
+                    onClick={() => setLastErrorDetails(null)}
+                  >
+                    Dispensar
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            )}
+
             {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
