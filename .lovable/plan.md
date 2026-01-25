@@ -1,335 +1,216 @@
 
-# Plano: Suporte Nativo ao WordPress.com via OAuth
+# Plano: Sistema de Publicação WordPress Definitivo e Confiável
 
-## Visão Geral
+## Diagnóstico
 
-O WordPress.com (hospedado pela Automattic) **não suporta** a API REST padrão (`/wp-json/wp/v2`) com Application Passwords em planos gratuito e pessoal. Para publicar nesses sites, é obrigatório usar a **API pública do WordPress.com** (`public-api.wordpress.com`) com autenticação **OAuth 2.0**.
+Após análise completa do código, identifiquei os seguintes pontos:
 
-Este plano implementa o fluxo completo, similar a como o SEOwriting.ai, Zapier e Buffer fazem.
+### ✅ Já Funcionando Corretamente
+1. **Edge Function `publish-to-cms`** já separa WordPress.org (REST API + Basic Auth) de WordPress.com (OAuth + Public API)
+2. **Validação de resposta** já verifica `id`+`link` (WordPress.org) e `ID`+`URL` (WordPress.com)
+3. **Bloqueios SERP/Score** já foram removidos do backend (linha 598-600)
+4. **Normalização** já converte ambos formatos para `{ success, postId, postUrl }`
+
+### ⚠️ Problemas Identificados
+
+| Problema | Arquivo | Linha |
+|----------|---------|-------|
+| Frontend ainda exibe toasts de SERP/Score como "informativos" mas causa confusão | `ClientArticleEditor.tsx` | 1347-1355 |
+| `ClientQueue.tsx` ainda recalcula `canPublish` baseado em score | `ClientQueue.tsx` | 327-331 |
+| Logs não exibem HTTP status + corpo bruto para debugging | `publish-to-cms` | 238-240 |
+| Erros de conexão/rede não são loggados em detalhe | `publish-to-cms` | 242-246 |
 
 ---
 
-## Arquitetura da Solução
+## Mudanças Propostas
 
-```text
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                         FLUXO DE CONEXÃO                                        │
-├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                 │
-│  1. Usuário clica "Conectar com WordPress.com"                                  │
-│     ↓                                                                           │
-│  2. Edge Function gera URL OAuth                                                │
-│     → https://public-api.wordpress.com/oauth2/authorize                        │
-│     ↓                                                                           │
-│  3. Usuário autoriza no WordPress.com                                           │
-│     ↓                                                                           │
-│  4. Callback recebe código de autorização                                       │
-│     ↓                                                                           │
-│  5. Troca código por access_token + refresh_token                               │
-│     ↓                                                                           │
-│  6. Tokens armazenados criptografados no banco                                  │
-│     ↓                                                                           │
-│  7. Publicação via: POST /sites/{site_id}/posts/new                            │
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
+### 1. Remover Toast Informativo de SERP/Score do Editor
+
+**Arquivo:** `src/pages/client/ClientArticleEditor.tsx`
+
+Remover linhas 1347-1355 que exibem toasts especiais para `SERP_NOT_ANALYZED` e `SCORE_TOO_LOW`. Esses códigos não são mais retornados pelo backend, então o código é desnecessário.
+
+```typescript
+// REMOVER COMPLETAMENTE
+if (result.code === 'SERP_NOT_ANALYZED') {
+  toast.info(result.message || 'Execute "Analisar Concorrência" antes de publicar.');
+  return;
+}
+
+if (result.code === 'SCORE_TOO_LOW') {
+  toast.info(result.message || 'Use "Aumentar Score" para otimizar antes de publicar.');
+  return;
+}
 ```
 
 ---
 
-## Mudanças Necessárias
+### 2. Corrigir ClientQueue para Não Bloquear por Score
 
-### 1. Migração de Banco de Dados
+**Arquivo:** `src/pages/client/ClientQueue.tsx`
 
-**Adicionar colunas para OAuth na tabela `cms_integrations`:**
+A linha 330 ainda define `canPublish: newScore >= minScore`. Mudar para sempre `true`:
 
-```sql
--- Tipo de autenticação: 'api_key' (Application Passwords) ou 'oauth'
-ALTER TABLE cms_integrations ADD COLUMN IF NOT EXISTS 
-  auth_type TEXT DEFAULT 'api_key';
+```typescript
+// ANTES
+canPublish: newScore >= minScore,
 
--- Token de acesso OAuth (criptografado)
-ALTER TABLE cms_integrations ADD COLUMN IF NOT EXISTS 
-  access_token_encrypted BYTEA;
-
--- Refresh token OAuth (criptografado)  
-ALTER TABLE cms_integrations ADD COLUMN IF NOT EXISTS 
-  refresh_token_encrypted BYTEA;
-
--- Expiração do token
-ALTER TABLE cms_integrations ADD COLUMN IF NOT EXISTS 
-  token_expires_at TIMESTAMPTZ;
-
--- ID numérico do site no WordPress.com
-ALTER TABLE cms_integrations ADD COLUMN IF NOT EXISTS 
-  wordpress_site_id TEXT;
-```
-
-**Atualizar view decrypted:**
-
-```sql
-CREATE OR REPLACE VIEW cms_integrations_decrypted AS
-SELECT 
-  id, blog_id, platform, site_url, auth_type, wordpress_site_id,
-  COALESCE(decrypt_credential(api_key_encrypted, blog_id), api_key) AS api_key,
-  COALESCE(decrypt_credential(api_secret_encrypted, blog_id), api_secret) AS api_secret,
-  decrypt_credential(access_token_encrypted, blog_id) AS access_token,
-  decrypt_credential(refresh_token_encrypted, blog_id) AS refresh_token,
-  token_expires_at,
-  username, is_active, auto_publish, last_sync_at, last_sync_status, 
-  created_at, updated_at
-FROM cms_integrations;
+// DEPOIS
+canPublish: true, // Publicação sempre permitida
 ```
 
 ---
 
-### 2. Nova Edge Function: `wordpress-com-oauth`
-
-**Arquivo:** `supabase/functions/wordpress-com-oauth/index.ts`
-
-Esta função gerencia todo o fluxo OAuth 2.0:
-
-| Ação | Descrição |
-|------|-----------|
-| `authorize` | Gera URL de autorização OAuth para redirecionar usuário |
-| `callback` | Recebe código de autorização e troca por tokens |
-| `refresh` | Renova access_token quando expirado |
-| `get-sites` | Lista sites do usuário autenticado |
-
-**Fluxo de autorização:**
-
-1. Frontend chama `{ action: "authorize", blogId }` 
-2. Retorna URL para `public-api.wordpress.com/oauth2/authorize`
-3. Usuário autoriza e é redirecionado para callback
-4. Callback extrai código e chama `{ action: "callback", code, blogId }`
-5. Função troca código por tokens via `POST /oauth2/token`
-6. Tokens são criptografados e salvos na tabela
-
-**Endpoints WordPress.com utilizados:**
-
-- `POST /oauth2/token` - Troca código por tokens
-- `GET /rest/v1.1/me/sites` - Lista sites do usuário
-- `POST /rest/v1.1/sites/{id}/posts/new` - Criar post
-- `POST /rest/v1.1/sites/{id}/posts/{postId}` - Atualizar post
-
----
-
-### 3. Atualizar Edge Function: `publish-to-cms`
+### 3. Melhorar Logs no Edge Function
 
 **Arquivo:** `supabase/functions/publish-to-cms/index.ts`
 
-**Mudanças principais:**
+Adicionar logging detalhado com HTTP status e corpo bruto em todas as funções de publicação:
 
-#### 3.1 Detectar tipo de WordPress
+#### 3.1 WordPress.org - `createWordPressPost`
 
 ```typescript
-function isWordPressDotCom(siteUrl: string): boolean {
-  const url = siteUrl.toLowerCase();
-  return url.includes('.wordpress.com') || url.includes('wpcomstaging.com');
+const response = await fetch(`${creds.siteUrl}/wp-json/wp/v2/posts`, {...});
+
+// Log detalhado
+const responseText = await response.text();
+console.log(`[WordPress.org] HTTP ${response.status}`);
+console.log(`[WordPress.org] Response body: ${responseText}`);
+
+// Parse após logging
+let post;
+try {
+  post = JSON.parse(responseText);
+} catch {
+  return { success: false, message: `Resposta inválida do WordPress: ${responseText.slice(0, 500)}` };
 }
-```
 
-#### 3.2 Novas funções para WordPress.com API
-
-```typescript
-// Testar conexão WordPress.com
-async function testWordPressComConnection(accessToken: string, siteId: string)
-
-// Detectar blog WordPress.com
-async function detectWordPressComBlog(accessToken: string, siteId: string)
-
-// Criar post via API WordPress.com
-async function createWordPressComPost(
-  accessToken: string, 
-  siteId: string, 
-  article: ArticleData
-)
-
-// Atualizar post via API WordPress.com
-async function updateWordPressComPost(
-  accessToken: string, 
-  siteId: string, 
-  postId: string,
-  article: ArticleData
-)
-```
-
-#### 3.3 Validação robusta de resposta
-
-```typescript
-// Antes de declarar sucesso, verificar dados reais
-if (response.ok) {
-  const post = await response.json();
-  if (post && post.ID && post.URL) {
-    return { success: true, postId: String(post.ID), postUrl: post.URL };
-  }
-  console.error("WordPress.com returned OK but invalid data:", post);
-  return { success: false, message: "WordPress não retornou dados válidos" };
+if (response.ok && post && post.id && post.link) {
+  return { success: true, postId: String(post.id), postUrl: post.link };
 }
-```
 
-#### 3.4 Refresh automático de token expirado
-
-```typescript
-// Se token expirado, tentar refresh antes de falhar
-if (integration.token_expires_at && new Date(integration.token_expires_at) < new Date()) {
-  const refreshed = await refreshWordPressComToken(integration);
-  if (!refreshed.success) {
-    return { success: false, code: 'TOKEN_EXPIRED', message: 'Reconecte sua conta WordPress.com' };
-  }
-}
-```
-
----
-
-### 4. Atualizar Componente: `CMSIntegrationsTab.tsx`
-
-**Arquivo:** `src/components/blog-editor/CMSIntegrationsTab.tsx`
-
-**Mudanças:**
-
-#### 4.1 Separar WordPress.org e WordPress.com nas opções
-
-```typescript
-const PLATFORMS: PlatformConfig[] = [
-  {
-    id: "wordpress",
-    name: "WordPress.org",
-    description: "Para sites WordPress auto-hospedados",
-    icon: "🔵",
-    authType: "application-password",
-    fields: [...] // Campos atuais (URL, usuário, senha de aplicativo)
-  },
-  {
-    id: "wordpress-com",
-    name: "WordPress.com",
-    description: "Para sites hospedados no WordPress.com",
-    icon: "🌐",
-    authType: "oauth",
-    oauthButton: true,
-    helpText: "Conecte via OAuth com um clique"
-  },
-  // Wix continua igual...
-];
-```
-
-#### 4.2 Botão OAuth para WordPress.com
-
-```tsx
-{platform.authType === 'oauth' && (
-  <Button onClick={handleWordPressComOAuth} className="w-full gap-2">
-    <ExternalLink className="h-4 w-4" />
-    Conectar com WordPress.com
-  </Button>
-)}
-```
-
-#### 4.3 Detecção automática ao inserir URL
-
-```typescript
-const handleSiteUrlChange = (url: string) => {
-  if (url.includes('.wordpress.com')) {
-    setSelectedPlatform('wordpress-com');
-    toast.info('WordPress.com detectado! Use OAuth para conectar.');
-  }
+return { 
+  success: false, 
+  message: post?.message || `Erro HTTP ${response.status}: ${responseText.slice(0, 200)}` 
 };
 ```
 
-#### 4.4 Página de callback OAuth
+#### 3.2 WordPress.com - `createWordPressComPost`
 
-Criar componente para receber o código de autorização após redirecionamento do WordPress.com e completar a conexão.
+Mesmo padrão de logging:
 
----
+```typescript
+const responseText = await response.text();
+console.log(`[WordPress.com] HTTP ${response.status}`);
+console.log(`[WordPress.com] Response body: ${responseText}`);
 
-### 5. Atualizar Hook: `useCMSIntegrations.ts`
+let post;
+try {
+  post = JSON.parse(responseText);
+} catch {
+  return { success: false, message: `Resposta inválida: ${responseText.slice(0, 500)}` };
+}
 
-**Arquivo:** `src/hooks/useCMSIntegrations.ts`
+if (response.ok && post && post.ID && post.URL) {
+  return { success: true, postId: String(post.ID), postUrl: post.URL };
+}
 
-- Adicionar função `initiateWordPressComOAuth(blogId)` para iniciar fluxo OAuth
-- Adicionar função `completeWordPressComOAuth(code, blogId)` para finalizar conexão
-- Atualizar tipo `CMSIntegration` com novos campos OAuth
-
----
-
-### 6. Secrets Necessários
-
-**Novos secrets a configurar no projeto:**
-
-| Nome | Descrição |
-|------|-----------|
-| `WORDPRESS_COM_CLIENT_ID` | Client ID da aplicação WordPress.com |
-| `WORDPRESS_COM_CLIENT_SECRET` | Client Secret da aplicação |
-| `WORDPRESS_COM_REDIRECT_URI` | URL de callback (ex: `https://omniseenapp.lovable.app/cms/wordpress-callback`) |
-
-**Nota:** Será necessário criar uma aplicação no WordPress.com Developer Console.
+return { 
+  success: false, 
+  message: post?.error || post?.message || `Erro HTTP ${response.status}` 
+};
+```
 
 ---
 
-## Fluxo do Usuário Final
+### 4. Exibir Erro Real no Frontend
 
-### Cenário: Conectar WordPress.com
+**Arquivo:** `src/pages/client/ClientArticleEditor.tsx`
 
-1. Usuário vai em "Integrações CMS"
-2. Clica em "Adicionar"
-3. Seleciona aba "WordPress.com"
-4. Clica no botão "Conectar com WordPress.com"
-5. É redirecionado para tela de autorização do WordPress.com
-6. Autoriza o acesso
-7. Retorna ao OmniSeen com conexão estabelecida
-8. Pode publicar artigos diretamente
+O toast de erro já existe (linha 1357), mas pode ser melhorado para mostrar mais contexto:
+
+```typescript
+// Após remover os blocos SERP/SCORE, manter apenas:
+toast.error(`Erro ao publicar: ${result.message || 'Erro desconhecido'}`);
+```
 
 ---
 
-## Arquivos Afetados
+### 5. Garantir Fluxo Direto "Publicar"
 
-| Arquivo | Tipo |
-|---------|------|
-| `supabase/functions/wordpress-com-oauth/index.ts` | Criar |
-| `supabase/functions/publish-to-cms/index.ts` | Modificar |
-| `src/components/blog-editor/CMSIntegrationsTab.tsx` | Modificar |
-| `src/hooks/useCMSIntegrations.ts` | Modificar |
-| `src/pages/cms/WordPressCallback.tsx` | Criar |
-| `supabase/config.toml` | Modificar |
-| Migração SQL | Criar |
+O botão já chama `publishArticle()` diretamente, sem validações. Confirmar que:
+
+- Nenhuma chamada a `validateForPublish()` bloqueia
+- Nenhum `if (!validation.canPublish) return` existe antes da publicação
+- O fluxo é: clique → `setIsPublishingCMS(true)` → `publishArticle()` → resultado
 
 ---
 
-## API WordPress.com vs WordPress.org
+## Tabela de Normalização de Resposta
 
-| Aspecto | WordPress.org | WordPress.com |
-|---------|---------------|---------------|
-| **Autenticação** | Basic Auth (Application Password) | OAuth 2.0 Bearer Token |
-| **Endpoint base** | `{site}/wp-json/wp/v2/` | `public-api.wordpress.com/rest/v1.1/sites/{id}/` |
-| **Criar post** | `POST .../posts` | `POST .../posts/new` |
-| **ID do post** | `post.id` | `post.ID` (maiúsculo) |
-| **URL do post** | `post.link` | `post.URL` (maiúsculo) |
-| **Identificador** | URL do site | Site ID numérico |
+| Campo | WordPress.org | WordPress.com | OmniSeen Retorno |
+|-------|---------------|---------------|------------------|
+| ID do Post | `post.id` | `post.ID` | `postId` |
+| URL do Post | `post.link` | `post.URL` | `postUrl` |
+| Sucesso | HTTP 201 + id + link | HTTP 200 + ID + URL | `success: true` |
 
 ---
 
-## Pré-requisito: Criar Aplicação WordPress.com
+## Arquivos a Modificar
 
-Antes de implementar, você precisará criar uma aplicação no WordPress.com:
-
-1. Acesse [WordPress.com Developer Console](https://developer.wordpress.com/apps/)
-2. Clique em "Create New Application"
-3. Preencha:
-   - **Name**: OmniSeen
-   - **Description**: Publicação automatizada de artigos
-   - **Website URL**: https://omniseenapp.lovable.app
-   - **Redirect URLs**: https://omniseenapp.lovable.app/cms/wordpress-callback
-   - **Type**: Web
-4. Obtenha o Client ID e Client Secret
+| Arquivo | Mudança |
+|---------|---------|
+| `src/pages/client/ClientArticleEditor.tsx` | Remover toasts SERP_NOT_ANALYZED/SCORE_TOO_LOW |
+| `src/pages/client/ClientQueue.tsx` | Sempre `canPublish: true` |
+| `supabase/functions/publish-to-cms/index.ts` | Logging detalhado HTTP + body |
 
 ---
 
-## Ordem de Implementação
+## Fluxo Final
 
-1. **Pré-requisito**: Criar aplicação WordPress.com e obter credenciais
-2. **Secrets**: Configurar `WORDPRESS_COM_CLIENT_ID`, `WORDPRESS_COM_CLIENT_SECRET`, `WORDPRESS_COM_REDIRECT_URI`
-3. **Migração SQL**: Adicionar colunas OAuth na tabela
-4. **Edge Function OAuth**: Implementar `wordpress-com-oauth`
-5. **Atualizar publish-to-cms**: Adicionar funções WordPress.com
-6. **Componente Callback**: Criar página de callback OAuth
-7. **UI**: Atualizar `CMSIntegrationsTab` com nova opção
-8. **Hook**: Atualizar `useCMSIntegrations`
-9. **Testes**: Validar fluxo completo
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│                    FLUXO DE PUBLICAÇÃO                           │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. Usuário clica "Publicar no WordPress"                        │
+│     ↓                                                            │
+│  2. Frontend chama publishArticle(integrationId, articleId)      │
+│     ↓                                                            │
+│  3. Edge Function detecta plataforma:                            │
+│     ├─ *.wordpress.com? → OAuth + Public API                     │
+│     └─ Outro? → REST API + Basic Auth                            │
+│     ↓                                                            │
+│  4. POST para endpoint correto                                   │
+│     ↓                                                            │
+│  5. Log: HTTP status + corpo bruto                               │
+│     ↓                                                            │
+│  6. Validar resposta:                                            │
+│     ├─ WordPress.org: post.id && post.link?                      │
+│     └─ WordPress.com: post.ID && post.URL?                       │
+│     ↓                                                            │
+│  7. Retornar { success, postId, postUrl }                        │
+│     ↓                                                            │
+│  8. Frontend exibe toast + abre URL                              │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Detalhes Técnicos
+
+### Endpoints Utilizados
+
+| Plataforma | Endpoint | Método | Auth |
+|------------|----------|--------|------|
+| WordPress.org | `{siteUrl}/wp-json/wp/v2/posts` | POST | Basic (user:app-password) |
+| WordPress.com | `public-api.wordpress.com/rest/v1.1/sites/{siteId}/posts/new` | POST | Bearer (OAuth token) |
+
+### Ordem de Implementação
+
+1. Atualizar `publish-to-cms/index.ts` com logging melhorado
+2. Remover códigos SERP do `ClientArticleEditor.tsx`
+3. Corrigir `ClientQueue.tsx` para sempre permitir publicação
+4. Deploy das Edge Functions
+5. Testar fluxo completo
