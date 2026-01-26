@@ -147,6 +147,17 @@ function GlobalErrorFallback({ error, resetErrorBoundary }: { error: Error; rese
   );
 }
 
+// Componente de fallback local para evitar desmontar o App inteiro
+function PageErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
+  return (
+    <div className="p-6 border-2 border-destructive/20 bg-destructive/5 rounded-xl text-center">
+      <h2 className="text-lg font-bold text-destructive mb-2">Erro de Renderização Local</h2>
+      <p className="text-sm text-muted-foreground mb-4">{error.message}</p>
+      <Button onClick={resetErrorBoundary} variant="outline" size="sm">Tentar Recuperar Bloco</Button>
+    </div>
+  );
+}
+
 // User protected routes wrapper - uses TenantGuard
 const UserRoutes = () => (
   <TenantGuard>
@@ -173,61 +184,69 @@ const AdminRoutes = () => (
 const ClientRoutes = () => (
   <SubAccountGuard>
     <SubAccountLayout>
-      <Routes>
-        <Route path="dashboard" element={<ClientDashboard />} />
-        
-        {/* Resultados & ROI */}
-        <Route path="results" element={<ClientConsultantMetrics />} />
-        <Route path="leads" element={<ClientLeads />} />
-        
-        {/* Inteligência */}
-        <Route path="radar" element={<ClientStrategy />} />
-        <Route path="seo" element={<ClientSEO />} />
-        
-        {/* Conteúdo */}
-        <Route path="articles" element={<ClientArticles />} />
-        <Route path="portal" element={<ClientSite />} />
-        <Route path="landing-pages" element={<ClientLandingPages />} />
-        <Route 
-          path="landing-pages/new" 
-          element={<ClientLandingPageEditor key="lp-new" />} 
-        />
-        <Route 
-          path="landing-pages/:id" 
-          element={<ClientLandingPageEditor key="lp-edit" />} 
-        />
-        <Route path="create" element={<ClientArticleEditor />} />
-        <Route path="articles/:id/edit" element={<ClientArticleEditor />} />
-        <Route path="review/:id" element={<ClientReviewCenter />} />
-        <Route path="ebooks" element={<ClientEbooks />} />
-        <Route path="ebooks/:id" element={<ClientEbookEditor />} />
-        
-        {/* Operação */}
-        <Route path="automation" element={<ClientAutomation />} />
-        <Route path="profile" element={<ClientProfile />} />
-        <Route path="company" element={<ClientCompany />} />
-        <Route path="account" element={<ClientAccount />} />
-        <Route path="territories" element={<ClientTerritoryAnalytics />} />
-        <Route path="domains" element={<ClientDomains />} />
-        
-        {/* Ajuda */}
-        <Route path="help" element={<ClientHelp />} />
-        <Route path="help/category/:category" element={<ClientHelpCategory />} />
-        <Route path="help/search" element={<ClientHelpSearch />} />
-        <Route path="help/:slug" element={<ClientHelpArticle />} />
-        
-        {/* Legacy redirects para compatibilidade */}
-        <Route path="posts" element={<Navigate to="/client/articles" replace />} />
-        <Route path="site" element={<Navigate to="/client/portal" replace />} />
-        <Route path="strategy" element={<Navigate to="/client/radar" replace />} />
-        <Route path="consultant" element={<Navigate to="/client/results" replace />} />
-        <Route path="performance" element={<Navigate to="/client/results?tab=performance" replace />} />
-        <Route path="notifications" element={<Navigate to="/client/profile?tab=account" replace />} />
-        <Route path="queue" element={<Navigate to="/client/automation?tab=queue" replace />} />
-        <Route path="integrations/gsc" element={<Navigate to="/client/profile?tab=account" replace />} />
-        
-        <Route path="*" element={<Navigate to="/client/dashboard" replace />} />
-      </Routes>
+      <ErrorBoundary 
+        FallbackComponent={PageErrorFallback}
+        onReset={() => {
+          // Limpa estados que podem estar causando o conflito de DOM
+          window.location.hash = '';
+        }}
+      >
+        <Routes>
+          <Route path="dashboard" element={<ClientDashboard />} />
+          
+          {/* Resultados & ROI */}
+          <Route path="results" element={<ClientConsultantMetrics />} />
+          <Route path="leads" element={<ClientLeads />} />
+          
+          {/* Inteligência */}
+          <Route path="radar" element={<ClientStrategy />} />
+          <Route path="seo" element={<ClientSEO />} />
+          
+          {/* Conteúdo */}
+          <Route path="articles" element={<ClientArticles />} />
+          <Route path="portal" element={<ClientSite />} />
+          <Route path="landing-pages" element={<ClientLandingPages />} />
+          <Route 
+            path="landing-pages/new" 
+            element={<ClientLandingPageEditor key="lp-new" />} 
+          />
+          <Route 
+            path="landing-pages/:id" 
+            element={<ClientLandingPageEditor key="lp-edit" />} 
+          />
+          <Route path="create" element={<ClientArticleEditor />} />
+          <Route path="articles/:id/edit" element={<ClientArticleEditor />} />
+          <Route path="review/:id" element={<ClientReviewCenter />} />
+          <Route path="ebooks" element={<ClientEbooks />} />
+          <Route path="ebooks/:id" element={<ClientEbookEditor />} />
+          
+          {/* Operação */}
+          <Route path="automation" element={<ClientAutomation />} />
+          <Route path="profile" element={<ClientProfile />} />
+          <Route path="company" element={<ClientCompany />} />
+          <Route path="account" element={<ClientAccount />} />
+          <Route path="territories" element={<ClientTerritoryAnalytics />} />
+          <Route path="domains" element={<ClientDomains />} />
+          
+          {/* Ajuda */}
+          <Route path="help" element={<ClientHelp />} />
+          <Route path="help/category/:category" element={<ClientHelpCategory />} />
+          <Route path="help/search" element={<ClientHelpSearch />} />
+          <Route path="help/:slug" element={<ClientHelpArticle />} />
+          
+          {/* Legacy redirects para compatibilidade */}
+          <Route path="posts" element={<Navigate to="/client/articles" replace />} />
+          <Route path="site" element={<Navigate to="/client/portal" replace />} />
+          <Route path="strategy" element={<Navigate to="/client/radar" replace />} />
+          <Route path="consultant" element={<Navigate to="/client/results" replace />} />
+          <Route path="performance" element={<Navigate to="/client/results?tab=performance" replace />} />
+          <Route path="notifications" element={<Navigate to="/client/profile?tab=account" replace />} />
+          <Route path="queue" element={<Navigate to="/client/automation?tab=queue" replace />} />
+          <Route path="integrations/gsc" element={<Navigate to="/client/profile?tab=account" replace />} />
+          
+          <Route path="*" element={<Navigate to="/client/dashboard" replace />} />
+        </Routes>
+      </ErrorBoundary>
     </SubAccountLayout>
   </SubAccountGuard>
 );

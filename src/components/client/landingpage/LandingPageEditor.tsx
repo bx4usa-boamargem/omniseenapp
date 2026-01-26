@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useRef } from "react";
 import { 
   Sparkles, 
   Save, 
@@ -50,7 +51,14 @@ interface LandingPageEditorProps {
 
 export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
   const navigate = useNavigate();
+  const isMounted = useRef(true); // Controle de montagem
   const { blog, loading: blogLoading } = useBlog();
+  
+  useEffect(() => {
+    isMounted.current = true;
+    return () => { isMounted.current = false; };
+  }, []);
+
   const { generatePage, savePage, updatePage, deletePage, publishPage, unpublishPage, generating, saving } = useLandingPages();
 
   const publicBaseUrl = blog ? getCanonicalBlogUrl(blog) : "";
@@ -101,6 +109,7 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
         .single();
 
       if (error) throw error;
+      if (!isMounted.current) return;
 
       const landingPage = data as unknown as LandingPage;
       setPage(landingPage);

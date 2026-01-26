@@ -32,148 +32,133 @@ export function LandingPagePreview({
   isEditing = false,
   onEditBlock,
 }: LandingPagePreviewProps) {
+  // CRITICAL: Removendo qualquer uso de refs ou DOM direto para evitar insertBefore error
   const whatsapp = pageData.contact?.whatsapp || pageData.contact?.phone;
 
-  // Gerar uma chave de renderização baseada na versão dos dados para evitar conflitos de DOM
-  const renderKey = useMemo(() => {
-    try {
-      return Math.random().toString(36).substring(7);
-    } catch (e) {
-      return 'static-key';
-    }
-  }, [pageData]);
+  // Se pageData estiver incompleto, não renderiza nada para evitar quebra de árvore
+  if (!pageData || !pageData.hero) {
+    return <div className="p-10 text-center text-muted-foreground">Carregando estrutura da página...</div>;
+  }
 
   return (
-    <div className="w-full h-full" key={renderKey}>
-      <div className="min-h-screen bg-background">
-        {/* Hero Section */}
-        {visibility.hero && pageData.hero && (
-          <div key="block-hero">
-            <HeroBlock
-              data={pageData.hero}
-              whatsapp={whatsapp}
-              primaryColor={primaryColor}
-              isEditing={isEditing}
-              onEdit={(field, value) => onEditBlock?.('hero', { field, value })}
-            />
-          </div>
-        )}
-
-        {/* Service Cards */}
-        {visibility.services && pageData.services?.length > 0 && (
-          <div key="block-services">
-            <ServiceCardsBlock
-              services={pageData.services}
-              phone={pageData.contact?.phone || ""}
-              primaryColor={primaryColor}
-              isEditing={isEditing}
-              onEdit={(index, field, value) => onEditBlock?.('services', { index, field, value })}
-            />
-          </div>
-        )}
-
-        {/* Emergency Banner */}
-        {visibility.emergency_banner && pageData.emergency_banner && (
-          <EmergencyBannerBlock
-            data={pageData.emergency_banner}
-            primaryColor={primaryColor}
-            isEditing={isEditing}
-            onEdit={(field, value) => onEditBlock?.('emergency_banner', { field, value })}
-          />
-        )}
-
-        {/* Service Details */}
-        {visibility.service_details && pageData.service_details?.length > 0 && (
-          <ServiceDetailBlock
-            details={pageData.service_details}
-            primaryColor={primaryColor}
-            isEditing={isEditing}
-            onEdit={(index, field, value) => onEditBlock?.('service_details', { index, field, value })}
-          />
-        )}
-
-        {/* Process Steps */}
-        {visibility.process_steps && pageData.process_steps?.length > 0 && (
-          <ProcessStepsBlock
-            steps={pageData.process_steps}
-            primaryColor={primaryColor}
-            isEditing={isEditing}
-            onEdit={(index, field, value) => onEditBlock?.('process_steps', { index, field, value })}
-          />
-        )}
-
-        {/* Why Choose Us */}
-        {visibility.why_choose_us && pageData.why_choose_us?.length > 0 && (
-          <WhyChooseUsBlock
-            items={pageData.why_choose_us}
-            primaryColor={primaryColor}
-            isEditing={isEditing}
-            onEdit={(index, field, value) => onEditBlock?.('why_choose_us', { index, field, value })}
-          />
-        )}
-
-        {/* Testimonials */}
-        {visibility.testimonials && pageData.testimonials?.length > 0 && (
-          <TestimonialsBlock
-            testimonials={pageData.testimonials}
-            primaryColor={primaryColor}
-            isEditing={isEditing}
-            onEdit={(index, field, value) => onEditBlock?.('testimonials', { index, field, value })}
-          />
-        )}
-
-        {/* Areas Served */}
-        {visibility.areas_served && pageData.areas_served && (
-          <AreasServedBlock
-            data={pageData.areas_served}
-            primaryColor={primaryColor}
-            mapEmbedUrl={pageData.contact?.map_embed_url}
-            isEditing={isEditing}
-            onEdit={(field, value) => onEditBlock?.('areas_served', { field, value })}
-          />
-        )}
-
-        {/* FAQ */}
-        {visibility.faq && pageData.faq?.length > 0 && (
-          <FAQBlock
-            faqs={pageData.faq}
-            phone={pageData.contact?.phone}
-            primaryColor={primaryColor}
-            isEditing={isEditing}
-            onEdit={(index, field, value) => onEditBlock?.('faq', { index, field, value })}
-          />
-        )}
-
-        {/* CTA Banner */}
-        {visibility.cta_banner && pageData.cta_banner && (
-          <CTABannerBlock
-            data={pageData.cta_banner}
+    <div className="w-full bg-background isolate">
+      {/* Cada bloco em um Fragment para não poluir a árvore DOM */}
+      {visibility.hero && (
+        <section id="lp-hero" className="relative z-10">
+          <HeroBlock
+            data={pageData.hero}
             whatsapp={whatsapp}
             primaryColor={primaryColor}
             isEditing={isEditing}
-            onEdit={(field, value) => onEditBlock?.('cta_banner', { field, value })}
+            onEdit={(field, value) => onEditBlock?.('hero', { field, value })}
           />
-        )}
+        </section>
+      )}
 
-        {/* Contact Form */}
-        {visibility.contact && pageData.contact && (
-          <ContactFormBlock
-            contact={pageData.contact}
-            blogId={blogId}
-            services={pageData.services?.map(s => s.title) || []}
+      {visibility.services && pageData.services?.length > 0 && (
+        <section id="lp-services">
+          <ServiceCardsBlock
+            services={pageData.services}
+            phone={pageData.contact?.phone || ""}
             primaryColor={primaryColor}
             isEditing={isEditing}
-            onEdit={(field, value) => onEditBlock?.('contact', { field, value })}
+            onEdit={(index, field, value) => onEditBlock?.('services', { index, field, value })}
           />
-        )}
+        </section>
+      )}
 
-        {/* Footer */}
-        <footer className="py-6 px-4 bg-muted/50 border-t border-border">
-          <div className="container max-w-6xl mx-auto text-center text-sm text-muted-foreground">
-            <p>Desenvolvido com 💜 por <strong>Omniseen</strong></p>
-          </div>
-        </footer>
-      </div>
+      {visibility.emergency_banner && pageData.emergency_banner && (
+        <EmergencyBannerBlock
+          data={pageData.emergency_banner}
+          primaryColor={primaryColor}
+          isEditing={isEditing}
+          onEdit={(field, value) => onEditBlock?.('emergency_banner', { field, value })}
+        />
+      )}
+
+      {visibility.service_details && pageData.service_details?.length > 0 && (
+        <ServiceDetailBlock
+          details={pageData.service_details}
+          primaryColor={primaryColor}
+          isEditing={isEditing}
+          onEdit={(index, field, value) => onEditBlock?.('service_details', { index, field, value })}
+        />
+      )}
+
+      {visibility.process_steps && pageData.process_steps?.length > 0 && (
+        <ProcessStepsBlock
+          steps={pageData.process_steps}
+          primaryColor={primaryColor}
+          isEditing={isEditing}
+          onEdit={(index, field, value) => onEditBlock?.('process_steps', { index, field, value })}
+        />
+      )}
+
+      {visibility.why_choose_us && pageData.why_choose_us?.length > 0 && (
+        <WhyChooseUsBlock
+          items={pageData.why_choose_us}
+          primaryColor={primaryColor}
+          isEditing={isEditing}
+          onEdit={(index, field, value) => onEditBlock?.('why_choose_us', { index, field, value })}
+        />
+      )}
+
+      {visibility.testimonials && pageData.testimonials?.length > 0 && (
+        <TestimonialsBlock
+          testimonials={pageData.testimonials}
+          primaryColor={primaryColor}
+          isEditing={isEditing}
+          onEdit={(index, field, value) => onEditBlock?.('testimonials', { index, field, value })}
+        />
+      )}
+
+      {visibility.areas_served && pageData.areas_served && (
+        <AreasServedBlock
+          data={pageData.areas_served}
+          primaryColor={primaryColor}
+          mapEmbedUrl={pageData.contact?.map_embed_url}
+          isEditing={isEditing}
+          onEdit={(field, value) => onEditBlock?.('areas_served', { field, value })}
+        />
+      )}
+
+      {visibility.faq && pageData.faq?.length > 0 && (
+        <FAQBlock
+          faqs={pageData.faq}
+          phone={pageData.contact?.phone}
+          primaryColor={primaryColor}
+          isEditing={isEditing}
+          onEdit={(index, field, value) => onEditBlock?.('faq', { index, field, value })}
+        />
+      )}
+
+      {visibility.cta_banner && pageData.cta_banner && (
+        <CTABannerBlock
+          data={pageData.cta_banner}
+          whatsapp={whatsapp}
+          primaryColor={primaryColor}
+          isEditing={isEditing}
+          onEdit={(field, value) => onEditBlock?.('cta_banner', { field, value })}
+        />
+      )}
+
+      {visibility.contact && pageData.contact && (
+        <ContactFormBlock
+          contact={pageData.contact}
+          blogId={blogId}
+          services={pageData.services?.map(s => s.title) || []}
+          primaryColor={primaryColor}
+          isEditing={isEditing}
+          onEdit={(field, value) => onEditBlock?.('contact', { field, value })}
+        />
+      )}
+
+      {/* Footer */}
+      <footer className="py-6 px-4 bg-muted/50 border-t border-border">
+        <div className="container max-w-6xl mx-auto text-center text-sm text-muted-foreground">
+          <p>Desenvolvido com 💜 por <strong>Omniseen</strong></p>
+        </div>
+      </footer>
     </div>
   );
 }
