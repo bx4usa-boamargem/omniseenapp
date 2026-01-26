@@ -260,10 +260,11 @@ async function runResearchStage(params: {
 }
 
 function buildGovernanceBlock(research: ResearchPackage): string {
-  const topTerms = (research.serp.commonTerms || []).slice(0, 30);
-  const topTitles = (research.serp.topTitles || []).slice(0, 5);
-  const gaps = (research.serp.contentGaps || []).slice(0, 10);
-  const sources = (research.sources || []).slice(0, 15);
+  // Keep this compact to avoid prompt/context overflow.
+  const topTerms = (research.serp.commonTerms || []).slice(0, 12);
+  const topTitles = (research.serp.topTitles || []).slice(0, 3);
+  const gaps = (research.serp.contentGaps || []).slice(0, 5);
+  const sources = (research.sources || []).slice(0, 8);
 
   return `
 # GOVERNANÇA (OBRIGATÓRIA)
@@ -279,9 +280,9 @@ Você só pode escrever com base nos dados abaixo.
 ${sources.map(u => `- ${u}`).join('\n')}
 
 REGRAS:
-1) É PROIBIDO inventar estatísticas, tendências, concorrentes ou afirmações factuais fora do pacote.
-2) Se faltar dado, diga explicitamente "não encontrado nas fontes".
-3) Toda afirmação factual importante deve ser apoiada por um link de uma das FONTES PERMITIDAS.
+1) É PROIBIDO inventar estatísticas/tendências/concorrentes fora do pacote.
+2) Se faltar dado, diga: "não encontrado nas fontes".
+3) Afirmação factual relevante => cite uma fonte permitida.
 `;
 }
 
@@ -1390,15 +1391,10 @@ serve(async (req) => {
     const territorialContext = buildTerritorialContext(territoryData as GeoTerritoryData);
     const governanceBlock = buildGovernanceBlock(researchPackage);
 
-    const systemPrompt = `${GEO_WRITER_IDENTITY}
+    // Keep identity compact to avoid context overflow.
+    const GEO_WRITER_IDENTITY_COMPACT = `Você é o OmniCore Writer da Omniseen.\n\nRegras: 1) H1 único. 2) H2/H3 consistentes. 3) Parágrafos curtos. 4) Use links externos para fontes. 5) Não invente dados fora do pacote.`;
 
-${governanceBlock}
-
-${researchInjection}
-${territorialContext}
-
-## CONTEXTO DO CLIENTE
-${buildUniversalPrompt(clientStrategy, funnel_mode as FunnelMode, article_goal as ArticleGoal | null, theme, keywords)}`;
+    const systemPrompt = `${GEO_WRITER_IDENTITY_COMPACT}\n\n${governanceBlock}\n\n${researchInjection}\n${territorialContext}\n\n## CONTEXTO DO CLIENTE\n${buildUniversalPrompt(clientStrategy, funnel_mode as FunnelMode, article_goal as ArticleGoal | null, theme, keywords)}`;
 
     // ============================================================================
     // STAGE 2 (WRITER)
@@ -1477,7 +1473,7 @@ ${buildUniversalPrompt(clientStrategy, funnel_mode as FunnelMode, article_goal a
     };
 
     const writerStart = nowMs();
-    const writerUserPrompt = `Escreva o artigo completo sobre: "${theme}"\n\nREGRAS CRÍTICAS:\n- Use APENAS as fontes e dados do pacote de pesquisa\n- Inclua links externos (https://...) apontando para FONTES PERMITIDAS\n- Estruture com H1–H3, e inclua FAQ + meta tags\n- Não invente estatísticas ou tendências. Se faltar dado: "não encontrado nas fontes".`;
+    const writerUserPrompt = `Escreva o artigo completo sobre: "${theme}"\n\nREGRAS CRÍTICAS:\n- Use APENAS as fontes e dados do pacote de pesquisa\n- Inclua links externos (https://...) apontando para FONTES PERMITIDAS\n- Estruture com H1–H3, inclua FAQ + meta tags\n- Não invente estatísticas/tendências. Se faltar dado: "não encontrado nas fontes".`;
 
     const gatewayUrl = 'https://ai.gateway.lovable.dev/v1/chat/completions';
 
@@ -1546,7 +1542,7 @@ ${buildUniversalPrompt(clientStrategy, funnel_mode as FunnelMode, article_goal a
 
     const seoSystem = `Você é um Agente SEO. Reestruture o texto para máxima performance orgânica.\n\nRegras:\n- H1 único, H2/H3 consistentes, densidade semântica alta sem keyword stuffing\n- Use entidades/termos do SERP e respeite intenção de busca\n- Gere FAQ/snippet/meta tags\n- NÃO crie fatos novos. Use apenas o pacote de pesquisa e o rascunho.`;
 
-    const seoUser = `PACOTE DE PESQUISA (resumo):\n- Termos: ${(researchPackage.serp.commonTerms || []).slice(0, 30).join(', ')}\n- Títulos top: ${(researchPackage.serp.topTitles || []).slice(0, 5).join(' | ')}\n- Gaps: ${(researchPackage.serp.contentGaps || []).slice(0, 10).join(' | ')}\n- Fontes permitidas: ${(researchPackage.sources || []).slice(0, 10).join(' | ')}\n\nRAScunho (writer):\nTitle: ${writerOut.title}\nMeta: ${writerOut.meta_description}\n\nCONTENT:\n${(writerOut.content || '').substring(0, 12000)}\n\nReescreva/reestruture e retorne via tool optimize_article.`;
+    const seoUser = `PACOTE DE PESQUISA (resumo):\n- Termos: ${(researchPackage.serp.commonTerms || []).slice(0, 12).join(', ')}\n- Títulos top: ${(researchPackage.serp.topTitles || []).slice(0, 3).join(' | ')}\n- Gaps: ${(researchPackage.serp.contentGaps || []).slice(0, 5).join(' | ')}\n- Fontes permitidas: ${(researchPackage.sources || []).slice(0, 8).join(' | ')}\n\nRASCUNHO (writer):\nTitle: ${writerOut.title}\nMeta: ${writerOut.meta_description}\n\nCONTENT:\n${(writerOut.content || '').substring(0, 6000)}\n\nReestruture e retorne via tool optimize_article.`;
 
     const seoStart = nowMs();
     const seoCall = await callLovableJsonTool({
@@ -1592,7 +1588,7 @@ ${buildUniversalPrompt(clientStrategy, funnel_mode as FunnelMode, article_goal a
 
     const qaSystem = `Você é um Agente de Qualidade editorial e factual.\n\nTarefa:\n- Verificar clareza, autoridade e legibilidade\n- Verificar se afirmações factuais derivam do pacote de pesquisa\n- Reprovar se houver afirmações sem suporte\n\nRetorne JSON estrito:\n{\n  "approved": true|false,\n  "score": 0-100,\n  "issues": [{"code":"...","message":"..."}]\n}`;
 
-    const qaUser = `PACOTE DE PESQUISA (fontes permitidas):\n${(researchPackage.sources || []).slice(0, 15).join('\n')}\n\nARTIGO:\nTITLE: ${seoOut.title}\nMETA: ${seoOut.meta_description}\n\nCONTENT (início):\n${contentForQa.substring(0, 12000)}\n\nValide se o conteúdo depende APENAS das fontes e do pacote. Se houver qualquer invenção, reprove.`;
+    const qaUser = `PACOTE DE PESQUISA (fontes permitidas):\n${(researchPackage.sources || []).slice(0, 8).join('\n')}\n\nARTIGO:\nTITLE: ${seoOut.title}\nMETA: ${seoOut.meta_description}\n\nCONTENT (início):\n${contentForQa.substring(0, 6000)}\n\nValide se o conteúdo depende APENAS das fontes e do pacote. Se houver qualquer invenção, reprove.`;
 
     const qaStart = nowMs();
     const qa = await callLovableQa({
