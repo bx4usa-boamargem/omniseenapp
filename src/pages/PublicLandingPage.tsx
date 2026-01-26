@@ -21,55 +21,104 @@ export default function PublicLandingPage() {
 
   useEffect(() => {
     const run = async () => {
-      if (!blogSlug || !pageSlug) return;
+      if (!pageSlug) return;
+
       setLoading(true);
       setError(null);
 
       try {
-        const { data: blogRow, error: blogErr } = await supabase
-          .from("blogs")
-          .select("id, name, primary_color, secondary_color, slug, platform_subdomain, custom_domain, domain_verified")
-          .eq("slug", blogSlug)
-          .maybeSingle();
+        // ==============================
+        // 1) Resolve blog + page
+        // ==============================
+        // A) Canonical (platform): /blog/:blogSlug/p/:pageSlug
+        // B) Short URL (platform): /p/:pageSlug
+        // ==============================
 
-        if (blogErr || !blogRow?.id) {
-          setError("Blog não encontrado");
-          return;
-        }
+        let resolvedBlog: any | null = null;
+        let resolvedPage: any | null = null;
 
-        setBlog(blogRow);
+        if (blogSlug) {
+          // Resolve via blog slug first
+          const { data: blogRow, error: blogErr } = await supabase
+            .from("blogs")
+            .select("id, name, primary_color, secondary_color, slug, platform_subdomain, custom_domain, domain_verified")
+            .eq("slug", blogSlug)
+            .maybeSingle();
 
-        const [pageRes, agentRes, profileRes] = await Promise.all([
-          supabase
+          if (blogErr || !blogRow?.id) {
+            setError("Blog não encontrado");
+            return;
+          }
+
+          resolvedBlog = blogRow;
+
+          const { data: pageRow } = await supabase
             .from("landing_pages")
             .select("*")
             .eq("blog_id", blogRow.id)
             .eq("slug", pageSlug)
             .eq("status", "published")
-            .maybeSingle(),
-          supabase
-            .from("brand_agent_config")
-            .select("is_enabled, agent_name, agent_avatar_url, welcome_message, proactive_delay_seconds")
-            .eq("blog_id", blogRow.id)
-            .maybeSingle(),
-          supabase
-            .from("business_profile")
-            .select("company_name, logo_url, services, niche, city")
-            .eq("blog_id", blogRow.id)
-            .maybeSingle(),
-        ]);
+            .maybeSingle();
 
-        if (!pageRes.data) {
+          resolvedPage = pageRow;
+        } else {
+          // Short URL: find the published page by slug, then fetch its blog
+          const { data: pageRow } = await supabase
+            .from("landing_pages")
+            .select("*")
+            .eq("slug", pageSlug)
+            .eq("status", "published")
+            .order("published_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!pageRow?.blog_id) {
+            setError("Página não encontrada");
+            return;
+          }
+
+          resolvedPage = pageRow;
+
+          const { data: blogRow, error: blogErr } = await supabase
+            .from("blogs")
+            .select("id, name, primary_color, secondary_color, slug, platform_subdomain, custom_domain, domain_verified")
+            .eq("id", pageRow.blog_id)
+            .maybeSingle();
+
+          if (blogErr || !blogRow?.id) {
+            setError("Blog não encontrado");
+            return;
+          }
+
+          resolvedBlog = blogRow;
+        }
+
+        if (!resolvedPage) {
           setError("Página não encontrada");
           return;
         }
 
+        setBlog(resolvedBlog);
+
+        const [agentRes, profileRes] = await Promise.all([
+          supabase
+            .from("brand_agent_config")
+            .select("is_enabled, agent_name, agent_avatar_url, welcome_message, proactive_delay_seconds")
+            .eq("blog_id", resolvedBlog.id)
+            .maybeSingle(),
+          supabase
+            .from("business_profile")
+            .select("company_name, logo_url, services, niche, city")
+            .eq("blog_id", resolvedBlog.id)
+            .maybeSingle(),
+        ]);
+
         const normalizedPage = {
-          ...pageRes.data,
+          ...resolvedPage,
           page_data:
-            typeof pageRes.data.page_data === "string"
-              ? JSON.parse(pageRes.data.page_data)
-              : pageRes.data.page_data,
+            typeof resolvedPage.page_data === "string"
+              ? JSON.parse(resolvedPage.page_data)
+              : resolvedPage.page_data,
         };
 
         setPage(normalizedPage);
@@ -106,7 +155,7 @@ export default function PublicLandingPage() {
   }
 
   const canonicalBase = getCanonicalBlogUrl(blog);
-  const canonicalUrl = `${canonicalBase}/p/${pageSlug}`;
+  const canonicalUrl = `${canonicalBase}/p/${page.slug}`;
 
   return (
     <>

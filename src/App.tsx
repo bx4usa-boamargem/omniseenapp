@@ -262,6 +262,13 @@ const PlatformRoutes = () => (
     <Route path="/ebook/:slug" element={<PublicEbook />} />
     <Route path="/review/:token" element={<ClientReview />} />
 
+    {/*
+      Public Super Pages (short URL)
+      - Required for shared links like /p/:slug on app.omniseen.app
+      - PublicLandingPage was updated to resolve blog via landing_pages.slug when blogSlug is absent
+    */}
+    <Route path="/p/:pageSlug/*" element={<PublicLandingPage />} />
+
     {/* Public blog + legacy redirects (never 404 for published URLs) */}
     <Route path="/blog/:blogSlug/page/:pageSlug" element={<BlogLegacyLandingPageRedirect />} />
     <Route path="/blog/:blogSlug/landing/:pageSlug" element={<BlogLegacyLandingPageRedirect />} />

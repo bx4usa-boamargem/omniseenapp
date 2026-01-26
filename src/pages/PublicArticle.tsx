@@ -179,7 +179,6 @@ const PublicArticle = () => {
           .from("blogs")
           .select("*")
           .eq("slug", blogSlug)
-          .eq("onboarding_completed", true)
           .single();
 
         if (blogError || !blogData) {
