@@ -15,6 +15,7 @@ import {
   Lightbulb, TrendingUp, Sparkles, X, Plus, Globe, Radar
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 import { ClientCompetitorsTab } from '@/components/client/strategy/ClientCompetitorsTab';
 import { ClientOpportunitiesTab } from '@/components/client/strategy/ClientOpportunitiesTab';
 import { MarketRadarTab } from '@/components/client/strategy/MarketRadarTab';
@@ -81,6 +82,7 @@ interface ClientStrategy {
 
 export default function ClientStrategy() {
   const { blog } = useBlog();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
@@ -240,14 +242,24 @@ export default function ClientStrategy() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-3 text-gray-800 dark:text-white">
-          <Compass className="h-8 w-8 text-primary" />
-          Estratégia
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Informações do seu negócio para personalizar artigos gerados pela IA
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-3 text-gray-800 dark:text-white">
+            <Compass className="h-8 w-8 text-primary" />
+            Estratégia
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            Informações do seu negócio para personalizar artigos gerados pela IA
+          </p>
+        </div>
+
+        <Button
+          className="gap-2"
+          onClick={() => navigate('/client/landing-pages/new')}
+        >
+          <Sparkles className="h-4 w-4" />
+          Criar Super Página
+        </Button>
       </div>
 
       {/* Status Alert */}

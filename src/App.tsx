@@ -27,8 +27,10 @@ import EditArticle from "./pages/EditArticle";
 import AutomationSettings from "./pages/AutomationSettings";
 import PublicBlog from "./pages/PublicBlog";
 import PublicArticle from "./pages/PublicArticle";
+import PublicLandingPage from "./pages/PublicLandingPage";
 import CustomDomainBlog from "./pages/CustomDomainBlog";
 import CustomDomainArticle from "./pages/CustomDomainArticle";
+import CustomDomainLandingPage from "./pages/CustomDomainLandingPage";
 import Pricing from "./pages/Pricing";
 import Subscription from "./pages/Subscription";
 import Analytics from "./pages/Analytics";
@@ -75,6 +77,8 @@ import ClientAutomation from "./pages/client/ClientAutomation";
 import ClientCompany from "./pages/client/ClientCompany";
 import ClientAccount from "./pages/client/ClientAccount";
 import ClientProfile from "./pages/client/ClientProfile";
+import ClientLandingPages from "./pages/client/ClientLandingPages";
+import ClientLandingPageEditor from "./pages/client/ClientLandingPageEditor";
 import ClientSEO from "./pages/client/ClientSEO";
 import ClientArticles from "./pages/client/ClientArticles";
 import ClientReviewCenter from "./pages/client/ClientReviewCenter";
@@ -172,6 +176,9 @@ const ClientRoutes = () => (
         {/* Conteúdo */}
         <Route path="articles" element={<ClientArticles />} />
         <Route path="portal" element={<ClientSite />} />
+        <Route path="landing-pages" element={<ClientLandingPages />} />
+        <Route path="landing-pages/new" element={<ClientLandingPageEditor />} />
+        <Route path="landing-pages/:id" element={<ClientLandingPageEditor />} />
         <Route path="create" element={<ClientArticleEditor />} />
         <Route path="articles/:id/edit" element={<ClientArticleEditor />} />
         <Route path="review/:id" element={<ClientReviewCenter />} />
@@ -200,8 +207,6 @@ const ClientRoutes = () => (
         <Route path="performance" element={<Navigate to="/client/results?tab=performance" replace />} />
         <Route path="notifications" element={<Navigate to="/client/profile?tab=account" replace />} />
         <Route path="queue" element={<Navigate to="/client/automation?tab=queue" replace />} />
-        <Route path="landing-pages" element={<Navigate to="/client/articles" replace />} />
-        <Route path="landing-pages/*" element={<Navigate to="/client/articles" replace />} />
         <Route path="integrations/gsc" element={<Navigate to="/client/profile?tab=account" replace />} />
         
         <Route path="*" element={<Navigate to="/client/dashboard" replace />} />
@@ -246,6 +251,7 @@ const PlatformRoutes = () => (
     <Route path="/ebook/:slug" element={<PublicEbook />} />
     <Route path="/review/:token" element={<ClientReview />} />
     <Route path="/blog/:blogSlug" element={<PublicBlog />} />
+    <Route path="/blog/:blogSlug/p/:pageSlug" element={<PublicLandingPage />} />
     <Route path="/blog/:blogSlug/:articleSlug" element={<PublicArticle />} />
 
     {/* Protected user routes - redirects to /client */}

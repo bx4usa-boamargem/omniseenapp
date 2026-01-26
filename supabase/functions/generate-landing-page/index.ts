@@ -21,18 +21,48 @@ interface GenerateRequest {
   target_audience?: string;
 }
 
+type SerpMatrixLite = {
+  commonTerms?: string[];
+  topTitles?: string[];
+  contentGaps?: string[];
+  competitors?: Array<{ url: string; title: string }>;
+};
+
+function buildSerpPack(matrix: SerpMatrixLite | null) {
+  const topTerms = (matrix?.commonTerms || []).slice(0, 12);
+  const topTitles = (matrix?.topTitles || []).slice(0, 3);
+  const gaps = (matrix?.contentGaps || []).slice(0, 6);
+  const competitors = (matrix?.competitors || []).slice(0, 5).map(c => c.url).filter(Boolean);
+  return { topTerms, topTitles, gaps, competitors };
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startedAt = Date.now();
+
   try {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY not configured");
+    }
+
+    // Research is mandatory for Super Page quality. analyze-serp relies on Perplexity.
+    if (!PERPLEXITY_API_KEY) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "RESEARCH_REQUIRED",
+          message: "PERPLEXITY_API_KEY não configurada. Pesquisa SERP é obrigatória para Super Páginas."
+        }),
+        { status: 424, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -65,121 +95,82 @@ serve(async (req) => {
     const city = body.city || profile?.city || "sua cidade";
     const companyName = body.company_name || profile?.company_name || "Nossa Empresa";
     const services = body.services || profile?.services?.split(",").map((s: string) => s.trim()) || [];
-    const phone = body.phone || profile?.phone || "";
-    const whatsapp = body.whatsapp || profile?.whatsapp || phone;
-    const address = body.address || profile?.address || "";
+    const phone = body.phone || (profile as any)?.phone || "";
+    const whatsapp = body.whatsapp || (profile as any)?.whatsapp || phone;
+    const address = body.address || (profile as any)?.address || "";
     const email = body.email || "";
-    const differentiator = body.differentiator || profile?.differentiator || "";
+    const differentiator = body.differentiator || (profile as any)?.differentiator || "";
     const targetAudience = body.target_audience || profile?.target_audience || "";
 
     // Build neighborhoods list from territories
-    const neighborhoods = territories?.map(t => t.neighborhood).filter(Boolean) || [];
+    const neighborhoods = territories?.map(t => (t as any).neighborhood).filter(Boolean) || [];
 
-    // Create the system prompt for landing page generation
-    const systemPrompt = `Você é um especialista em criação de landing pages de alta conversão para negócios locais.
-Sua tarefa é gerar uma estrutura JSON completa para uma landing page profissional.
+    // -------------------------------------------------------------------------
+    // Research (SERP + competitors) - deterministic pack from analyze-serp
+    // -------------------------------------------------------------------------
+    const keyword = `${niche} em ${city}`;
 
-REGRAS CRÍTICAS:
-1. Todo o conteúdo DEVE ser em português brasileiro
-2. O conteúdo deve ser ESPECÍFICO para o nicho e cidade informados
-3. Use dados reais e convincentes (não genéricos)
-4. Inclua CTAs claros e persuasivos
-5. Mencione bairros/regiões atendidas quando disponíveis
-6. Gere depoimentos realistas (com nomes brasileiros e bairros locais)
-7. FAQs devem responder dúvidas reais do nicho
+    const researchStart = Date.now();
+    const serpRes = await fetch(`${SUPABASE_URL}/functions/v1/analyze-serp`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        keyword,
+        territory: city,
+        blogId: blog_id,
+        forceRefresh: false,
+        useFirecrawl: true,
+      }),
+    });
 
-ESTRUTURA JSON ESPERADA:
-{
-  "hero": {
-    "title": "Título impactante com palavra-chave principal",
-    "subtitle": "Subtítulo persuasivo que destaca o benefício",
-    "cta_text": "Texto do botão de ação",
-    "cta_phone": "telefone formatado"
-  },
-  "services": [
-    {
-      "id": "uuid",
-      "icon": "nome-do-icone",
-      "title": "Nome do Serviço",
-      "description": "Descrição breve e persuasiva",
-      "cta_text": "Texto do botão"
+    if (!serpRes.ok) {
+      const t = await serpRes.text().catch(() => '');
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'RESEARCH_FAILED',
+          message: `Falha ao analisar SERP (analyze-serp): ${serpRes.status} ${t.substring(0, 200)}`
+        }),
+        { status: 424, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-  ],
-  "service_details": [
-    {
-      "id": "uuid",
-      "title": "Título do Serviço Detalhado",
-      "content": "Descrição completa do serviço",
-      "bullets": ["Benefício 1", "Benefício 2", "Benefício 3"],
-      "side": "left" ou "right"
-    }
-  ],
-  "emergency_banner": {
-    "title": "Atendimento de Emergência",
-    "subtitle": "Disponível 24 horas por dia",
-    "phone": "telefone",
-    "is_24h": true
-  },
-  "process_steps": [
-    {
-      "step": 1,
-      "title": "Título do Passo",
-      "description": "Descrição do que acontece neste passo"
-    }
-  ],
-  "why_choose_us": [
-    {
-      "id": "uuid",
-      "icon": "nome-do-icone",
-      "title": "Diferencial",
-      "description": "Por que este diferencial importa"
-    }
-  ],
-  "testimonials": [
-    {
-      "id": "uuid",
-      "name": "Nome do Cliente",
-      "location": "Bairro, Cidade",
-      "quote": "Depoimento realista e convincente",
-      "rating": 5
-    }
-  ],
-  "areas_served": {
-    "title": "Atendemos em ${city} e Região",
-    "regions": [
-      {
-        "name": "Nome da Região",
-        "neighborhoods": ["Bairro 1", "Bairro 2"]
-      }
-    ]
-  },
-  "faq": [
-    {
-      "id": "uuid",
-      "question": "Pergunta frequente do nicho",
-      "answer": "Resposta detalhada e profissional"
-    }
-  ],
-  "contact": {
-    "address": "endereço completo",
-    "phone": "telefone formatado",
-    "whatsapp": "whatsapp",
-    "email": "email",
-    "hours": "Horário de funcionamento"
-  },
-  "cta_banner": {
-    "title": "Chamada para ação final",
-    "subtitle": "Texto persuasivo para conversão",
-    "cta_text": "Texto do botão",
-    "phone": "telefone"
-  }
-}
 
-ÍCONES DISPONÍVEIS: wrench, shield, clock, star, home, settings, zap, heart, check, phone, award, users, thumbsup, target, banknote`;
+    const serpJson = await serpRes.json();
+    const matrix: SerpMatrixLite | null = serpJson?.matrix || null;
+    const serpPack = buildSerpPack(matrix);
+    const researchMs = Date.now() - researchStart;
 
-    const userPrompt = `Gere uma landing page completa para:
+    // -------------------------------------------------------------------------
+    // Super Page generation (LP JSON) - compact prompts to avoid context overflow
+    // -------------------------------------------------------------------------
+    const systemPrompt = `Você é um especialista em criação de SUPER PÁGINAS (landing pages) para negócios locais.
+
+Objetivo: gerar uma página que RANQUEIA e CONVERTE.
+
+REGRAS:
+- Português BR.
+- Específico para NICHO + CIDADE.
+- Copie a INTENÇÃO do SERP (sem copiar texto).
+- Use termos/entidades do SERP naturalmente.
+- CTAs fortes e claros.
+- Inclua bairros/regiões quando houver.
+- FAQs reais.
+
+ENTRADA SERP (obrigatória):
+- Títulos top: ${serpPack.topTitles.join(' | ') || 'N/A'}
+- Entidades/termos: ${serpPack.topTerms.join(', ') || 'N/A'}
+- Gaps: ${serpPack.gaps.join(' | ') || 'N/A'}
+- Concorrentes (URLs): ${serpPack.competitors.join(' | ') || 'N/A'}
+
+Retorne APENAS JSON válido no schema esperado (hero, services, service_details, testimonials, areas_served, faq, contact, cta_banner).`;
+
+    const userPrompt = `Crie uma SUPER PÁGINA para:
 
 EMPRESA: ${companyName}
+QUERY (keyword): ${keyword}
 NICHO: ${niche}
 CIDADE: ${city}
 SERVIÇOS: ${services.join(", ") || "Não especificados"}
@@ -188,13 +179,18 @@ WHATSAPP: ${whatsapp}
 ENDEREÇO: ${address || "Não especificado"}
 DIFERENCIAL: ${differentiator || "Qualidade e profissionalismo"}
 PÚBLICO-ALVO: ${targetAudience || "Clientes locais"}
-BAIRROS ATENDIDOS: ${neighborhoods.join(", ") || "Toda a cidade"}
+BAIRROS ATENDIDOS: ${neighborhoods.slice(0, 12).join(", ") || "Toda a cidade"}
 
-Gere o JSON completo seguindo EXATAMENTE a estrutura especificada.
-Os IDs devem ser strings únicas (pode usar números ou texto simples).
-Gere pelo menos 3 serviços, 3 depoimentos, 5 FAQs, e 4 diferenciais.`;
+Requisitos mínimos:
+- 3+ serviços
+- 4+ diferenciais (why_choose_us)
+- 3+ depoimentos
+- 5+ FAQs
+- Áreas atendidas com pelo menos 2 regiões
 
-    console.log("[generate-landing-page] Calling Lovable AI...");
+IDs podem ser strings simples. Não use markdown.`;
+
+    const aiStart = Date.now();
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -208,14 +204,14 @@ Gere pelo menos 3 serviços, 3 depoimentos, 5 FAQs, e 4 diferenciais.`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        temperature: 0.7,
+        temperature: 0.6,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error("[generate-landing-page] AI error:", response.status, errorText);
-      
+
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
@@ -228,7 +224,7 @@ Gere pelo menos 3 serviços, 3 depoimentos, 5 FAQs, e 4 diferenciais.`;
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
-      
+
       throw new Error(`AI gateway error: ${response.status}`);
     }
 
@@ -239,12 +235,9 @@ Gere pelo menos 3 serviços, 3 depoimentos, 5 FAQs, e 4 diferenciais.`;
       throw new Error("No content received from AI");
     }
 
-    console.log("[generate-landing-page] Raw AI response length:", content.length);
-
     // Parse JSON from AI response
     let pageData;
     try {
-      // Try to extract JSON from the response
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         pageData = JSON.parse(jsonMatch[0]);
@@ -256,21 +249,34 @@ Gere pelo menos 3 serviços, 3 depoimentos, 5 FAQs, e 4 diferenciais.`;
       throw new Error("Failed to parse AI response as JSON");
     }
 
-    // Log usage
-    await supabase.from("ai_usage_logs").insert({
-      blog_id,
-      provider: "lovable_ai",
-      endpoint: "generate-landing-page",
-      cost_usd: 0.01,
-      metadata: {
-        model: "google/gemini-3-flash-preview",
-        niche,
-        city,
-        services_count: services.length
-      }
-    });
+    const aiMs = Date.now() - aiStart;
 
-    console.log("[generate-landing-page] Success! Generated page data.");
+    // Log usage
+    await supabase.from("ai_usage_logs").insert([
+      {
+        blog_id,
+        provider: "perplexity",
+        endpoint: "analyze-serp",
+        cost_usd: 0.015,
+        success: true,
+        metadata: { keyword, city, niche, duration_ms: researchMs }
+      },
+      {
+        blog_id,
+        provider: "lovable_ai",
+        endpoint: "generate-landing-page",
+        cost_usd: 0.01,
+        success: true,
+        metadata: {
+          model: "google/gemini-3-flash-preview",
+          keyword,
+          niche,
+          city,
+          services_count: services.length,
+          duration_ms: aiMs,
+        }
+      }
+    ]);
 
     return new Response(
       JSON.stringify({
@@ -280,7 +286,14 @@ Gere pelo menos 3 serviços, 3 depoimentos, 5 FAQs, e 4 diferenciais.`;
           company_name: companyName,
           niche,
           city,
-          services
+          services,
+          keyword,
+          serp: serpPack,
+        },
+        timings: {
+          total_ms: Date.now() - startedAt,
+          research_ms: researchMs,
+          generation_ms: aiMs,
         }
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -289,9 +302,9 @@ Gere pelo menos 3 serviços, 3 depoimentos, 5 FAQs, e 4 diferenciais.`;
   } catch (error) {
     console.error("[generate-landing-page] Error:", error);
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error instanceof Error ? error.message : "Unknown error" 
+      JSON.stringify({
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error"
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

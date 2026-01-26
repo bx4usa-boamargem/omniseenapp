@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import CustomDomainBlog from '@/pages/CustomDomainBlog';
 import CustomDomainArticle from '@/pages/CustomDomainArticle';
+import CustomDomainLandingPage from '@/pages/CustomDomainLandingPage';
 import { useDomainResolution } from '@/hooks/useDomainResolution';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -50,6 +51,7 @@ export function BlogRoutes() {
   return (
     <Routes>
       <Route path="/" element={<CustomDomainBlog blogId={blogId} />} />
+      <Route path="/p/:pageSlug" element={<CustomDomainLandingPage blogId={blogId} />} />
       <Route path="/:articleSlug" element={<CustomDomainArticle blogId={blogId} />} />
     </Routes>
   );

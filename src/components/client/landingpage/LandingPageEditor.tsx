@@ -43,6 +43,7 @@ import { LandingPagePreview } from "./LandingPagePreview";
 import { LandingPageData, BlockVisibility, DEFAULT_BLOCK_VISIBILITY, LandingPage } from "./types/landingPageTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getCanonicalBlogUrl } from "@/utils/blogUrl";
 
 interface LandingPageEditorProps {
   pageId?: string;
@@ -52,6 +53,8 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
   const navigate = useNavigate();
   const { blog, loading: blogLoading } = useBlog();
   const { generatePage, savePage, updatePage, deletePage, publishPage, unpublishPage, generating, saving } = useLandingPages();
+
+  const publicBaseUrl = blog ? getCanonicalBlogUrl(blog) : "";
 
   const [page, setPage] = useState<LandingPage | null>(null);
   const [pageData, setPageData] = useState<LandingPageData | null>(null);
@@ -289,7 +292,7 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
                   {page.status === "published" && (
                     <Button variant="ghost" size="icon" asChild>
                       <a 
-                        href={`/${page.slug}`} 
+                        href={`${publicBaseUrl}/p/${page.slug}`} 
                         target="_blank" 
                         rel="noopener noreferrer"
                       >
