@@ -33,7 +33,10 @@ export function DynamicTrackingScripts({
     };
 
     // Helper to add inline script
-    const addInlineScript = (content: string, location: "head" | "body" = "head"): HTMLScriptElement => {
+    const addInlineScript = (
+      content: string,
+      location: "head" | "body" = "head"
+    ): HTMLScriptElement => {
       const script = document.createElement("script");
       script.innerHTML = content;
       if (location === "head") {
@@ -56,54 +59,59 @@ export function DynamicTrackingScripts({
       `);
     }
 
-    // Google Tag Manager
+    // Google Tag Manager (sem usar insertBefore para evitar crashes de DOM)
     if (trackingConfig?.gtm_id) {
       addInlineScript(`
-        (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-        new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-        j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-        'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-        })(window,document,'script','dataLayer','${trackingConfig.gtm_id}');
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({'gtm.start': new Date().getTime(), event: 'gtm.js'});
       `);
+      addScript(`https://www.googletagmanager.com/gtm.js?id=${trackingConfig.gtm_id}`);
 
-      // GTM noscript fallback
-      const noscript = document.createElement("noscript");
-      const iframe = document.createElement("iframe");
-      iframe.src = `https://www.googletagmanager.com/ns.html?id=${trackingConfig.gtm_id}`;
-      iframe.height = "0";
-      iframe.width = "0";
-      iframe.style.display = "none";
-      iframe.style.visibility = "hidden";
-      noscript.appendChild(iframe);
-      document.body.insertBefore(noscript, document.body.firstChild);
-      addedElements.push(noscript);
+      // GTM noscript fallback (append é suficiente)
+      try {
+        const noscript = document.createElement("noscript");
+        const iframe = document.createElement("iframe");
+        iframe.src = `https://www.googletagmanager.com/ns.html?id=${trackingConfig.gtm_id}`;
+        iframe.height = "0";
+        iframe.width = "0";
+        iframe.style.display = "none";
+        iframe.style.visibility = "hidden";
+        noscript.appendChild(iframe);
+        document.body.appendChild(noscript);
+        addedElements.push(noscript);
+      } catch (e) {
+        console.warn('[DynamicTrackingScripts] GTM noscript skipped:', e);
+      }
     }
 
-    // Meta Pixel (Facebook/Instagram)
+    // Meta Pixel (Facebook/Instagram) (sem usar insertBefore)
     if (trackingConfig?.meta_pixel_id) {
       addInlineScript(`
         !function(f,b,e,v,n,t,s)
         {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
         n.callMethod.apply(n,arguments):n.queue.push(arguments)};
         if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-        n.queue=[];t=b.createElement(e);t.async=!0;
-        t.src=v;s=b.getElementsByTagName(e)[0];
-        s.parentNode.insertBefore(t,s)}(window, document,'script',
+        n.queue=[];}(window, document,'script',
         'https://connect.facebook.net/en_US/fbevents.js');
         fbq('init', '${trackingConfig.meta_pixel_id}');
         fbq('track', 'PageView');
       `);
+      addScript('https://connect.facebook.net/en_US/fbevents.js');
 
       // Meta Pixel noscript
-      const noscript = document.createElement("noscript");
-      const img = document.createElement("img");
-      img.height = 1;
-      img.width = 1;
-      img.style.display = "none";
-      img.src = `https://www.facebook.com/tr?id=${trackingConfig.meta_pixel_id}&ev=PageView&noscript=1`;
-      noscript.appendChild(img);
-      document.body.appendChild(noscript);
-      addedElements.push(noscript);
+      try {
+        const noscript = document.createElement("noscript");
+        const img = document.createElement("img");
+        img.height = 1;
+        img.width = 1;
+        img.style.display = "none";
+        img.src = `https://www.facebook.com/tr?id=${trackingConfig.meta_pixel_id}&ev=PageView&noscript=1`;
+        noscript.appendChild(img);
+        document.body.appendChild(noscript);
+        addedElements.push(noscript);
+      } catch (e) {
+        console.warn('[DynamicTrackingScripts] Meta noscript skipped:', e);
+      }
     }
 
     // Google Ads
@@ -163,7 +171,7 @@ export function DynamicTrackingScripts({
             script.parentNode.removeChild(script);
           }
         } catch (e) {
-          console.warn('[Tracking] Script cleanup skipped:', e);
+          console.warn('[DynamicTrackingScripts] Script cleanup skipped:', e);
         }
       });
       addedElements.forEach((element) => {
@@ -172,7 +180,7 @@ export function DynamicTrackingScripts({
             element.parentNode.removeChild(element);
           }
         } catch (e) {
-          console.warn('[Tracking] Element cleanup skipped:', e);
+          console.warn('[DynamicTrackingScripts] Element cleanup skipped:', e);
         }
       });
     };

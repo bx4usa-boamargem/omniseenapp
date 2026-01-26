@@ -38,10 +38,10 @@ export const TrackingScripts = () => {
     if (FB_PIXEL_ID.includes('XXXXXXX')) {
       console.log('Tracking: Facebook Pixel ID not configured');
     } else {
-      // Initialize Facebook Pixel
-      (function(f: any, b: any, e: any, v: any, n?: any, t?: any, s?: any) {
+      // Initialize Facebook Pixel (defensive: avoid insertBefore crashes)
+      (function (f: any, b: any, e: any, v: any, n?: any, t?: any, s?: any) {
         if (f.fbq) return;
-        n = f.fbq = function() {
+        n = f.fbq = function () {
           n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments);
         };
         if (!f._fbq) f._fbq = n;
@@ -53,9 +53,17 @@ export const TrackingScripts = () => {
         t.async = !0;
         t.src = v;
         s = b.getElementsByTagName(e)[0];
-        s.parentNode.insertBefore(t, s);
+        try {
+          if (s?.parentNode && (s.parentNode as ParentNode).contains(s)) {
+            s.parentNode.insertBefore(t, s);
+          } else {
+            b.head.appendChild(t);
+          }
+        } catch (err) {
+          console.warn('[TrackingScripts] FB pixel insertion skipped:', err);
+        }
       })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
-      
+
       window.fbq('init', FB_PIXEL_ID);
       window.fbq('track', 'PageView');
     }
@@ -65,10 +73,10 @@ export const TrackingScripts = () => {
     } else {
       // Initialize LinkedIn Insight Tag
       window._linkedin_partner_id = LINKEDIN_PARTNER_ID;
-      (function(l: any) {
+      (function (l: any) {
         if (!l) {
           const _linkedin_data_partner_ids = [window._linkedin_partner_id];
-          window.lintrk = function(a: any, b: any) {
+          window.lintrk = function (a: any, b: any) {
             window.lintrk.q.push([a, b]);
           };
           window.lintrk.q = [];
@@ -78,7 +86,15 @@ export const TrackingScripts = () => {
         b.type = 'text/javascript';
         b.async = true;
         b.src = 'https://snap.licdn.com/li.lms-analytics/insight.min.js';
-        s.parentNode?.insertBefore(b, s);
+        try {
+          if (s?.parentNode && (s.parentNode as ParentNode).contains(s)) {
+            s.parentNode.insertBefore(b, s);
+          } else {
+            document.head.appendChild(b);
+          }
+        } catch (err) {
+          console.warn('[TrackingScripts] LinkedIn insertion skipped:', err);
+        }
       })(window.lintrk);
     }
   }, []);
@@ -92,7 +108,7 @@ export const trackEvent = {
     if (window.gtag) {
       window.gtag('event', 'sign_up_click', {
         event_category: 'engagement',
-        event_label: 'CTA Click'
+        event_label: 'CTA Click',
       });
     }
     if (window.fbq) {
@@ -102,28 +118,28 @@ export const trackEvent = {
       window.lintrk('track', { conversion_id: 'sign_up' });
     }
   },
-  
+
   demoView: () => {
     if (window.gtag) {
       window.gtag('event', 'demo_view', {
         event_category: 'engagement',
-        event_label: 'Demo Modal Opened'
+        event_label: 'Demo Modal Opened',
       });
     }
     if (window.fbq) {
       window.fbq('track', 'ViewContent', { content_name: 'Demo' });
     }
   },
-  
+
   pricingView: () => {
     if (window.gtag) {
       window.gtag('event', 'pricing_view', {
         event_category: 'engagement',
-        event_label: 'Pricing Section Viewed'
+        event_label: 'Pricing Section Viewed',
       });
     }
     if (window.fbq) {
       window.fbq('track', 'ViewContent', { content_name: 'Pricing' });
     }
-  }
+  },
 };
