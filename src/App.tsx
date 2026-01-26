@@ -188,8 +188,14 @@ const ClientRoutes = () => (
         <Route path="articles" element={<ClientArticles />} />
         <Route path="portal" element={<ClientSite />} />
         <Route path="landing-pages" element={<ClientLandingPages />} />
-        <Route path="landing-pages/new" element={<ClientLandingPageEditor />} />
-        <Route path="landing-pages/:id" element={<ClientLandingPageEditor />} />
+        <Route 
+          path="landing-pages/new" 
+          element={<ClientLandingPageEditor key="lp-new" />} 
+        />
+        <Route 
+          path="landing-pages/:id" 
+          element={<ClientLandingPageEditor key="lp-edit" />} 
+        />
         <Route path="create" element={<ClientArticleEditor />} />
         <Route path="articles/:id/edit" element={<ClientArticleEditor />} />
         <Route path="review/:id" element={<ClientReviewCenter />} />

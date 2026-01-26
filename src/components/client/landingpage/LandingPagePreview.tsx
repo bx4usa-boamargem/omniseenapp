@@ -34,7 +34,7 @@ export function LandingPagePreview({
   const whatsapp = pageData.contact?.whatsapp || pageData.contact?.phone;
 
   return (
-    <ScrollArea className="h-full">
+    <div className="w-full h-full">
       <div className="min-h-screen bg-background">
         {/* Hero Section */}
         {visibility.hero && pageData.hero && (
@@ -160,6 +160,6 @@ export function LandingPagePreview({
           </div>
         </footer>
       </div>
-    </ScrollArea>
+    </div>
   );
 }

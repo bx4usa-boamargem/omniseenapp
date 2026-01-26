@@ -19,7 +19,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Accordion,
   AccordionContent,
@@ -359,7 +358,7 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
               </TabsTrigger>
             </TabsList>
 
-            <ScrollArea className="flex-1">
+            <div className="flex-1 overflow-y-auto">
               <TabsContent value="preview" className="p-4 m-0 space-y-4">
                 <Card>
                   <CardHeader className="pb-3">
@@ -458,21 +457,23 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
                   </AccordionItem>
                 </Accordion>
               </TabsContent>
-            </ScrollArea>
+            </div>
           </Tabs>
         </div>
 
         {/* Right Panel - Preview */}
-        <div className="flex-1 bg-muted/30 overflow-hidden">
+        <div className="flex-1 bg-muted/30 overflow-hidden relative">
           {pageData ? (
-            <LandingPagePreview
-              pageData={pageData}
-              blogId={blog?.id || ""}
-              primaryColor={blog?.primary_color}
-              visibility={visibility}
-              isEditing={false}
-              onEditBlock={handleEditBlock}
-            />
+            <div className="absolute inset-0 overflow-y-auto">
+              <LandingPagePreview
+                pageData={pageData}
+                blogId={blog?.id || ""}
+                primaryColor={blog?.primary_color}
+                visibility={visibility}
+                isEditing={false}
+                onEditBlock={handleEditBlock}
+              />
+            </div>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-center p-8">
               <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6">
