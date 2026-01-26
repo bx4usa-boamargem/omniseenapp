@@ -1,14 +1,13 @@
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { 
-  LayoutDashboard, 
-  Globe, 
-  Zap, 
-  Building2, 
-  User, 
-  Menu, 
-  LogOut, 
-  Compass, 
+import {
+  LayoutDashboard,
+  Globe,
+  Zap,
+  Building2,
+  User,
+  LogOut,
+  Compass,
   TrendingUp,
   FileText,
   Activity,
@@ -17,7 +16,7 @@ import {
   HelpCircle,
   Users,
   BookOpen,
-  LayoutTemplate
+  LayoutTemplate,
 } from 'lucide-react';
 import { FloatingSupportChat } from '@/components/support/FloatingSupportChat';
 import { Button } from '@/components/ui/button';
@@ -45,21 +44,23 @@ interface NavSection {
   items: NavItem[];
 }
 
-// Nova estrutura organizada em blocos semânticos
-const navSections: NavSection[] = [
+const INTERNAL_ADMIN_EMAIL = 'omniseenblog@gmail.com';
+
+// Estrutura completa (modo interno/admin) — mantém tudo disponível
+const FULL_NAV_SECTIONS: NavSection[] = [
   {
     label: 'RESULTADOS',
     items: [
       { icon: TrendingUp, label: 'Resultados & ROI', path: '/client/results' },
       { icon: Users, label: 'Leads Capturados', path: '/client/leads' },
-    ]
+    ],
   },
   {
     label: 'INTELIGÊNCIA',
     items: [
       { icon: Compass, label: 'Radar de Oportunidades', path: '/client/radar' },
       { icon: Activity, label: 'Análise de SEO', path: '/client/seo' },
-    ]
+    ],
   },
   {
     label: 'CONTEÚDO',
@@ -68,7 +69,7 @@ const navSections: NavSection[] = [
       { icon: LayoutTemplate, label: 'Super Páginas', path: '/client/landing-pages' },
       { icon: Globe, label: 'Portal Público', path: '/client/portal' },
       // eBooks item will be added dynamically for admins only
-    ]
+    ],
   },
   {
     label: 'OPERAÇÃO',
@@ -78,7 +79,37 @@ const navSections: NavSection[] = [
       { icon: User, label: 'Perfil', path: '/client/profile' },
       { icon: Globe, label: 'Domínios', path: '/client/domains' },
       { icon: HelpCircle, label: 'Ajuda', path: '/client/help' },
-    ]
+    ],
+  },
+];
+
+// Estrutura enxuta (modo cliente) — guia o fluxo em 3 passos
+const MVP_NAV_SECTIONS: NavSection[] = [
+  {
+    label: '1) OPORTUNIDADES',
+    items: [{ icon: Compass, label: 'Radar', path: '/client/radar' }],
+  },
+  {
+    label: '2) CRIAR',
+    items: [
+      { icon: FileText, label: 'Artigos', path: '/client/articles' },
+      { icon: LayoutTemplate, label: 'Super Páginas', path: '/client/landing-pages' },
+    ],
+  },
+  {
+    label: '3) PUBLICAR',
+    items: [
+      { icon: Globe, label: 'Portal Público', path: '/client/portal' },
+      { icon: Globe, label: 'Domínios', path: '/client/domains' },
+    ],
+  },
+  {
+    label: 'PROVA DE VALOR',
+    items: [{ icon: Users, label: 'Leads', path: '/client/leads' }],
+  },
+  {
+    label: 'CONFIG',
+    items: [{ icon: User, label: 'Minha Conta', path: '/client/profile' }],
   },
 ];
 
@@ -90,25 +121,43 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
 
+  const isInternalAccount = useMemo(() => {
+    const email = user?.email?.toLowerCase();
+    return email === INTERNAL_ADMIN_EMAIL;
+  }, [user?.email]);
+
   // Check if user is platform admin to show Admin Panel link
   useEffect(() => {
     const checkAdminRole = async () => {
       if (!user?.id) return;
-      
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id);
-      
-      const hasAdminRole = roles?.some(r => 
-        ['admin', 'platform_admin'].includes(r.role as string)
-      ) ?? false;
-      
+
+      const { data: roles } = await supabase.from('user_roles').select('role').eq('user_id', user.id);
+
+      const hasAdminRole =
+        roles?.some((r) => ['admin', 'platform_admin'].includes(r.role as string)) ?? false;
+
       setIsPlatformAdmin(hasAdminRole);
     };
-    
+
     checkAdminRole();
   }, [user?.id]);
+
+  const showAdvancedNav = isPlatformAdmin || isInternalAccount;
+
+  const navSections = useMemo(() => {
+    const base = showAdvancedNav ? FULL_NAV_SECTIONS : MVP_NAV_SECTIONS;
+
+    // Add eBooks only for internal/admin
+    return base.map((section) => {
+      if (section.label === 'CONTEÚDO' && showAdvancedNav) {
+        return {
+          ...section,
+          items: [...section.items, { icon: BookOpen, label: 'eBooks', path: '/client/ebooks' }],
+        };
+      }
+      return section;
+    });
+  }, [showAdvancedNav]);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -132,21 +181,23 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
   const NavButton = ({ item }: { item: NavItem }) => {
     const Icon = item.icon;
     const active = isActive(item.path);
-    
+
     return (
       <button
         onClick={() => handleNavigation(item.path)}
         className={cn(
-          "client-nav-item w-full flex items-center gap-4 text-left",
-          active 
-            ? "active text-gray-900 dark:text-white font-medium" 
-            : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+          'client-nav-item w-full flex items-center gap-4 text-left',
+          active
+            ? 'active text-gray-900 dark:text-white font-medium'
+            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
         )}
       >
-        <Icon className={cn(
-          "h-5 w-5 shrink-0 transition-colors",
-          active ? "text-violet-600 dark:text-orange-400" : "text-gray-400 dark:text-gray-500"
-        )} />
+        <Icon
+          className={cn(
+            'h-5 w-5 shrink-0 transition-colors',
+            active ? 'text-violet-600 dark:text-orange-400' : 'text-gray-400 dark:text-gray-500'
+          )}
+        />
         <span className="text-sm">{item.label}</span>
       </button>
     );
@@ -169,44 +220,39 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto scrollbar-hide">
-        {/* Dashboard - sempre primeiro */}
-        <div className="p-4 pb-0" data-tour="dashboard-menu">
-          <NavButton item={{ icon: LayoutDashboard, label: 'Dashboard', path: '/client/dashboard' }} />
-        </div>
+        {/* Home/Dashboard - only for internal/admin */}
+        {showAdvancedNav && (
+          <div className="p-4 pb-0" data-tour="dashboard-menu">
+            <NavButton item={{ icon: LayoutDashboard, label: 'Dashboard', path: '/client/dashboard' }} />
+          </div>
+        )}
 
-        {/* Seções organizadas - with data-tour for guided tour */}
-        {navSections.map((section) => {
-          // Build items list, adding eBooks for admins in CONTEÚDO section
-          let items = section.items;
-          if (section.label === 'CONTEÚDO' && isPlatformAdmin) {
-            items = [
-              ...section.items,
-              { icon: BookOpen, label: 'eBooks', path: '/client/ebooks' }
-            ];
-          }
-          
-          return (
-            <div key={section.label}>
-              <SectionLabel label={section.label} />
-              <div className="px-4 space-y-1">
-                {items.map((item) => {
-                  // Add data-tour attributes for specific menu items
-                  const tourId = item.path === '/client/radar' ? 'radar-menu' 
-                    : item.path === '/client/articles' ? 'articles-menu'
-                    : item.path === '/client/automation' ? 'automation-menu'
-                    : item.path === '/client/profile' ? 'company-menu'
-                    : undefined;
-                  
-                  return (
-                    <div key={item.path} data-tour={tourId}>
-                      <NavButton item={item} />
-                    </div>
-                  );
-                })}
-              </div>
+        {/* Seções */}
+        {navSections.map((section) => (
+          <div key={section.label}>
+            <SectionLabel label={section.label} />
+            <div className="px-4 space-y-1">
+              {section.items.map((item) => {
+                const tourId =
+                  item.path === '/client/radar'
+                    ? 'radar-menu'
+                    : item.path === '/client/articles'
+                      ? 'articles-menu'
+                      : item.path === '/client/automation'
+                        ? 'automation-menu'
+                        : item.path === '/client/profile'
+                          ? 'company-menu'
+                          : undefined;
+
+                return (
+                  <div key={item.path} data-tour={tourId}>
+                    <NavButton item={item} />
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        ))}
 
         {/* Admin Panel - only visible for platform admins */}
         {isPlatformAdmin && (
@@ -247,23 +293,15 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
         <SidebarContent />
       </aside>
 
-      {/* Mobile Header - Hidden on mobile, we use bottom nav instead */}
-      {/* Only show header on tablet/desktop when sidebar is visible */}
-      
       {/* Main Content */}
       <main className="flex-1 md:ml-64">
-        <div className={cn(
-          "min-h-screen",
-          isMobile ? "pb-20" : "" // Add padding for bottom nav on mobile
-        )}>
-          <div className="p-4 md:p-8 max-w-5xl mx-auto">
-            {children}
-          </div>
+        <div className={cn('min-h-screen', isMobile ? 'pb-20' : '')}>
+          <div className="p-4 md:p-8 max-w-5xl mx-auto">{children}</div>
         </div>
       </main>
 
       {/* Mobile Bottom Navigation */}
-      {isMobile && <MobileBottomNav />}
+      {isMobile && <MobileBottomNav showAdvanced={showAdvancedNav} />}
 
       {/* Floating AI Support Chat - Hidden on mobile to avoid conflict with bottom nav */}
       {!isMobile && <FloatingSupportChat />}

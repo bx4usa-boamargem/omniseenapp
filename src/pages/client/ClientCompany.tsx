@@ -106,7 +106,11 @@ export default function ClientCompany({ embedded }: { embedded?: boolean }) {
           // Use platform_subdomain if set, otherwise use slug as fallback
           const currentSlug = blogData.platform_subdomain || blogData.slug || '';
           // Clean any domain suffix that might still exist
-          const cleanSlug = currentSlug.replace('.omniseen.app', '').replace('https://', '');
+          const cleanSlug = currentSlug
+            .replace(/^https?:\/\//, '')
+            .replace('.app.omniseen.app', '')
+            .replace('.omniseen.app', '')
+            .replace(/\/$/, '');
           setBlogSlug(cleanSlug);
         }
       } catch (error) {
@@ -310,12 +314,12 @@ export default function ClientCompany({ embedded }: { embedded?: boolean }) {
                   Seu blog ficará em:
                 </p>
                 <a 
-                  href={`https://${blogSlug}.omniseen.app`}
+                  href={`https://${blogSlug}.app.omniseen.app`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-primary hover:underline font-mono"
                 >
-                  https://{blogSlug}.omniseen.app
+                  https://{blogSlug}.app.omniseen.app
                 </a>
               </div>
             )}

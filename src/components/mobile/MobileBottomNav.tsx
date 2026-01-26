@@ -1,5 +1,14 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Compass, FileText, Zap, User } from 'lucide-react';
+import {
+  Compass,
+  FileText,
+  LayoutTemplate,
+  Globe,
+  Users,
+  LayoutDashboard,
+  Zap,
+  User,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface NavItem {
@@ -8,7 +17,20 @@ interface NavItem {
   label: string;
 }
 
-const navItems: NavItem[] = [
+interface MobileBottomNavProps {
+  /** quando true, mostra navegação completa (conta interna/admin) */
+  showAdvanced?: boolean;
+}
+
+const MVP_NAV_ITEMS: NavItem[] = [
+  { path: '/client/radar', icon: Compass, label: 'Radar' },
+  { path: '/client/articles', icon: FileText, label: 'Artigos' },
+  { path: '/client/landing-pages', icon: LayoutTemplate, label: 'Páginas' },
+  { path: '/client/portal', icon: Globe, label: 'Portal' },
+  { path: '/client/leads', icon: Users, label: 'Leads' },
+];
+
+const ADVANCED_NAV_ITEMS: NavItem[] = [
   { path: '/client/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { path: '/client/radar', icon: Compass, label: 'Radar' },
   { path: '/client/articles', icon: FileText, label: 'Artigos' },
@@ -16,9 +38,11 @@ const navItems: NavItem[] = [
   { path: '/client/account', icon: User, label: 'Conta' },
 ];
 
-export function MobileBottomNav() {
+export function MobileBottomNav({ showAdvanced }: MobileBottomNavProps) {
   const navigate = useNavigate();
   const location = useLocation();
+
+  const navItems = showAdvanced ? ADVANCED_NAV_ITEMS : MVP_NAV_ITEMS;
 
   const isActive = (path: string) => {
     // Special handling for radar - include /client/strategy paths
