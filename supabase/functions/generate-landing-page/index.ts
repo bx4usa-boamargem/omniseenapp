@@ -36,6 +36,24 @@ function buildSerpPack(matrix: SerpMatrixLite | null) {
   return { topTerms, topTitles, gaps, competitors };
 }
 
+const SERVICE_AUTHORITY_PROMPT = `
+Você é um Especialista em Conversão Local e SEO. Sua tarefa é gerar o page_data para uma "Super Página" de alta performance.
+Siga fielmente o layout de empresas líderes de mercado (ex: Roofing in Chicago).
+
+ESTRUTURA OBRIGATÓRIA:
+1. HERO: Headline com [Serviço] em [Cidade]. CTA secundário logo abaixo.
+2. CALL TO ACTION GIGANTE: Número de telefone em destaque (Call Now).
+3. SERVICE CARDS: No mínimo 3 cards. Cada um com: Título, Descrição curta e Botão de Ação específico.
+4. EMERGENCY BLOCK: Banner de urgência para problemas imediatos.
+5. AUTHORITY CONTENT: Texto longo (800+ palavras) estruturado em H2/H3 usando os termos de SEO fornecidos.
+6. WHY CHOOSE US: Lista de benefícios reais e prova de confiança.
+
+REGRAS VISUAIS:
+- Use parágrafos curtos.
+- Foque em botões de ação claros.
+- Gere prompts de imagem realistas para os cards (trabalhadores reais, ferramentas, contexto urbano).
+`;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });

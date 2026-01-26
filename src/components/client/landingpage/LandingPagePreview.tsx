@@ -1,4 +1,5 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { ArticleContent } from "@/components/public/ArticleContent";
 import { LandingPageData, BlockVisibility, DEFAULT_BLOCK_VISIBILITY } from "./types/landingPageTypes";
 import {
   HeroBlock,
@@ -151,6 +152,18 @@ export function LandingPagePreview({
           isEditing={isEditing}
           onEdit={(field, value) => onEditBlock?.('contact', { field, value })}
         />
+      )}
+
+      {/* Authority Content - Hybrid editorial block for SEO */}
+      {pageData.authority_content && (
+        <section id="lp-authority" className="py-16 px-4 bg-background">
+          <div className="container max-w-4xl mx-auto">
+            <ArticleContent 
+              content={pageData.authority_content} 
+              contentImages={[]} 
+            />
+          </div>
+        </section>
       )}
 
       {/* Footer */}
