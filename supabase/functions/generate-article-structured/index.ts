@@ -578,6 +578,7 @@ async function persistArticleToDb(
   // Preparar dados para inserção (no duplicate found)
   const insertData = {
     blog_id: blogId,
+    user_id: user_id || null, // CRITICAL FIX: Set user_id for RLS policy
     title: articleData.title || 'Artigo sem título',
     title_fingerprint: titleFingerprint, // NEW: For deduplication
     slug: uniqueSlug,
@@ -600,7 +601,7 @@ async function persistArticleToDb(
     score_locked: true,   // Protect score from automatic changes
   };
   
-  console.log(`[PERSIST] Inserting article with slug: ${uniqueSlug}, status: ${insertData.status}`);
+  console.log(`[PERSIST] Inserting article with slug: ${uniqueSlug}, status: ${insertData.status}, user_id: ${insertData.user_id}`);
   
   const { data, error } = await supabaseClient
     .from('articles')
