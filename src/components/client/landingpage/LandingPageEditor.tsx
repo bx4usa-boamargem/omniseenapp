@@ -160,6 +160,10 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
   const handleGenerate = async () => {
     if (!blog?.id) return;
 
+    // Reset state to avoid DOM conflicts during new generation
+    setPageData(null);
+    setPage(null);
+
     const result = await generatePage({
       blog_id: blog.id,
       company_name: businessProfile?.company_name,
@@ -169,10 +173,9 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
     });
 
     if (result) {
-      console.log("[Editor] Received resolved data:", result);
-      setPageData(result);
-      // Salva imediatamente após a resolução bem-sucedida das imagens
-      await handleSave(result);
+      // O result já vem persistido do hook useLandingPages
+      // Precisamos apenas recarregar a lista ou a página atual
+      window.location.reload(); // Forçar recarregamento para estabilizar a árvore React com os novos dados do DB
     }
   };
 

@@ -112,54 +112,82 @@ export function useLandingPages(): UseLandingPagesReturn {
     setGenerating(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      
+      // 1. GERAÇÃO DO JSON ESTRUTURAL
       const { data, error } = await supabase.functions.invoke("generate-landing-page", {
         body: request,
       });
 
       if (error || !data.success) throw error || new Error(data.error);
-
       const pageData = data.page_data;
       
-      // LOG DE RESOLUÇÃO
-      console.log("[ImagePipeline] Starting resolution for prompts:", {
-        hero: pageData.hero?.image_prompt,
-        servicesCount: pageData.services?.length
-      });
+      toast.info("Geração de Imagens Fotográficas em andamento...");
 
-      toast.info("Gerando imagens fotográficas reais...");
-
-      // RESOLUÇÃO SEQUENCIAL COM RETRY
+      // 2. RESOLUÇÃO REAL DE IMAGENS (PIPELINE IDÊNTICO AO ARTIGO)
+      // Resolve Hero
       if (pageData.hero?.image_prompt) {
-        pageData.hero.image_url = await generateLandingPageImage({
-          prompt: pageData.hero.image_prompt,
-          context: 'hero',
-          pageTitle: pageData.hero.headline,
-          userId: user?.id,
-          blogId: request.blog_id,
-          fileName: `hero-${Date.now()}.png`
+        const { data: heroImg } = await supabase.functions.invoke("generate-image", {
+          body: {
+            prompt: pageData.hero.image_prompt,
+            context: 'hero',
+            articleTitle: pageData.hero.headline,
+            blog_id: request.blog_id,
+            user_id: user?.id
+          }
         });
+        if (heroImg?.publicUrl) pageData.hero.image_url = heroImg.publicUrl;
       }
 
+      // Resolve Service Cards
       if (Array.isArray(pageData.services)) {
         for (let i = 0; i < pageData.services.length; i++) {
           if (pageData.services[i].image_prompt) {
-            pageData.services[i].image_url = await generateLandingPageImage({
-              prompt: pageData.services[i].image_prompt,
-              context: `service-${i}`,
-              pageTitle: pageData.services[i].title,
-              userId: user?.id,
-              blogId: request.blog_id,
-              fileName: `service-${i}-${Date.now()}.png`
+            const { data: svcImg } = await supabase.functions.invoke("generate-image", {
+              body: {
+                prompt: pageData.services[i].image_prompt,
+                context: `service_${i}`,
+                articleTitle: pageData.services[i].title,
+                blog_id: request.blog_id,
+                user_id: user?.id
+              }
             });
+            if (svcImg?.publicUrl) pageData.services[i].image_url = svcImg.publicUrl;
           }
         }
       }
 
-      toast.success("Imagens resolvidas com sucesso!");
+      // 3. PERSISTÊNCIA OBRIGATÓRIA ANTES DO RENDER
+      const slug = (pageData.hero?.headline || "lp")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "") + "-" + Date.now();
+
+      const { data: savedPage, error: saveError } = await supabase
+        .from("landing_pages")
+        .insert({
+          blog_id: request.blog_id,
+          user_id: user?.id,
+          title: pageData.hero?.headline || "Nova Super Página",
+          slug: slug,
+          page_data: pageData,
+          status: 'published', // Forçar publicado para o preview público funcionar
+          published_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (saveError) {
+        console.error("[Pipeline] Save Error:", saveError);
+        throw saveError;
+      }
+
+      toast.success("Super Página gerada, resolvida e publicada!");
       return pageData;
     } catch (err: any) {
-      console.error("[useLandingPages] Generation Pipeline Error:", err);
-      toast.error("Erro no pipeline de geração: " + err.message);
+      console.error("[useLandingPages] Critical Pipeline Failure:", err);
+      toast.error("Falha na criação da Super Página");
       return null;
     } finally {
       setGenerating(false);
