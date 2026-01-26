@@ -6,6 +6,7 @@ import { SEOHead } from "@/components/public/SEOHead";
 import { BrandSalesAgentWidget } from "@/components/public/BrandSalesAgentWidget";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCanonicalBlogUrl } from "@/utils/blogUrl";
+import { ServiceAuthorityLayout } from "@/components/client/landingpage/layouts/ServiceAuthorityLayout";
 
 export default function PublicLandingPage() {
   const { blogSlug, pageSlug } = useParams();
@@ -162,13 +163,20 @@ export default function PublicLandingPage() {
       <SEOHead
         title={page.seo_title || page.title}
         description={page.seo_description || undefined}
-        ogImage={page.featured_image_url || page.page_data?.hero?.background_image_url || undefined}
+        ogImage={page.featured_image_url || page.page_data?.hero?.image_url || undefined}
         canonicalUrl={canonicalUrl}
       />
 
-      {/* LandingPagePreview usa ScrollArea(h-full) — precisamos garantir altura */}
-      <div className="h-[100dvh]">
-        <LandingPagePreview pageData={page.page_data} blogId={blog.id} primaryColor={primaryColor} />
+      <div className="min-h-screen bg-background">
+        {page.page_data?.template === 'service_authority_v1' ? (
+          <ServiceAuthorityLayout 
+            pageData={page.page_data} 
+            primaryColor={primaryColor} 
+            isEditing={false} 
+          />
+        ) : (
+          <LandingPagePreview pageData={page.page_data} blogId={blog.id} primaryColor={primaryColor} />
+        )}
       </div>
 
       {agentConfig?.is_enabled && (

@@ -184,9 +184,8 @@ export function useLandingPages(): UseLandingPagesReturn {
         .replace(/(^-|-$)/g, "");
       const finalSlug = `${baseSlug}-${timestamp}`;
 
-      const insertPayload = {
+      const insertPayload: any = {
         blog_id: request.blog_id,
-        user_id: user.id,
         title: pageData.hero?.headline || "Nova Super Página",
         slug: finalSlug,
         page_data: pageData,
@@ -194,7 +193,13 @@ export function useLandingPages(): UseLandingPagesReturn {
         published_at: new Date().toISOString()
       };
 
-      console.log("[Pipeline] Attempting final insert:", insertPayload);
+      // Só adiciona user_id se o usuário estiver autenticado, 
+      // mas o trigger no banco já vai cuidar disso como fallback.
+      if (user?.id) {
+        insertPayload.user_id = user.id;
+      }
+
+      console.log("[Pipeline] Attempting final insert with user_id resolution:", insertPayload);
 
       const { data: savedPage, error: saveError } = await supabase
         .from("landing_pages")
@@ -204,7 +209,20 @@ export function useLandingPages(): UseLandingPagesReturn {
 
       if (saveError) {
         console.error("[Pipeline] Save Error Detail:", saveError);
-        throw new Error(`Database save failed: ${saveError.message}`);
+        // Fallback: Tenta inserir sem user_id explicitamente (confiando no trigger/default do banco)
+        if (saveError.message.includes('user_id')) {
+          console.info("[Pipeline] Retrying insert without explicit user_id field...");
+          const { user_id, ...payloadWithoutUser } = insertPayload;
+          const { data: retryData, error: retryError } = await supabase
+            .from("landing_pages")
+            .insert([payloadWithoutUser])
+            .select()
+            .single();
+          
+          if (retryError) throw new Error(`Database save failed after retry: ${retryError.message}`);
+        } else {
+          throw new Error(`Database save failed: ${saveError.message}`);
+        }
       }
 
       toast.success("Super Página gerada e publicada!");
