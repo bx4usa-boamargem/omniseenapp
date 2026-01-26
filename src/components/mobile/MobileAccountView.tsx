@@ -21,10 +21,10 @@ interface MobileAccountViewProps {
 
 const accountItems = [
   { 
-    icon: Building2, 
-    label: 'Minha Empresa', 
-    path: '/client/company',
-    description: 'Perfil do negócio'
+    icon: User, 
+    label: 'Perfil', 
+    path: '/client/profile',
+    description: 'Conta + Empresa'
   },
   { 
     icon: MapPin, 
@@ -39,15 +39,9 @@ const accountItems = [
     description: 'Configurar blog'
   },
   { 
-    icon: User, 
-    label: 'Perfil', 
-    path: '/client/account',
-    description: 'Dados da conta'
-  },
-  { 
     icon: CreditCard, 
     label: 'Plano', 
-    path: '/client/account',
+    path: '/client/profile?tab=account',
     description: 'Gerenciar assinatura'
   },
 ];

@@ -38,7 +38,7 @@ const validateBlogSlug = (slug: string): { valid: boolean; error?: string } => {
   return { valid: true };
 };
 
-export default function ClientCompany() {
+export default function ClientCompany({ embedded }: { embedded?: boolean }) {
   const { blog } = useBlog();
   const { previewMessage } = useGlobalWhatsApp();
   const [loading, setLoading] = useState(true);
@@ -245,15 +245,17 @@ export default function ClientCompany() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-3 text-gray-800 dark:text-white">
-          <Building2 className="h-8 w-8 text-primary" />
-          Minha Empresa
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Conte sobre seu negócio para a IA criar artigos perfeitos
-        </p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-3 text-gray-800 dark:text-white">
+            <Building2 className="h-8 w-8 text-primary" />
+            Minha Empresa
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            Conte sobre seu negócio para a IA criar artigos perfeitos
+          </p>
+        </div>
+      )}
 
       {/* Form */}
       <Card>

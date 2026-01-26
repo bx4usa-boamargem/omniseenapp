@@ -74,6 +74,7 @@ import ClientSite from "./pages/client/ClientSite";
 import ClientAutomation from "./pages/client/ClientAutomation";
 import ClientCompany from "./pages/client/ClientCompany";
 import ClientAccount from "./pages/client/ClientAccount";
+import ClientProfile from "./pages/client/ClientProfile";
 import ClientSEO from "./pages/client/ClientSEO";
 import ClientArticles from "./pages/client/ClientArticles";
 import ClientReviewCenter from "./pages/client/ClientReviewCenter";
@@ -179,6 +180,7 @@ const ClientRoutes = () => (
         
         {/* Operação */}
         <Route path="automation" element={<ClientAutomation />} />
+        <Route path="profile" element={<ClientProfile />} />
         <Route path="company" element={<ClientCompany />} />
         <Route path="account" element={<ClientAccount />} />
         <Route path="territories" element={<ClientTerritoryAnalytics />} />
@@ -196,11 +198,11 @@ const ClientRoutes = () => (
         <Route path="strategy" element={<Navigate to="/client/radar" replace />} />
         <Route path="consultant" element={<Navigate to="/client/results" replace />} />
         <Route path="performance" element={<Navigate to="/client/results?tab=performance" replace />} />
-        <Route path="notifications" element={<Navigate to="/client/account" replace />} />
+        <Route path="notifications" element={<Navigate to="/client/profile?tab=account" replace />} />
         <Route path="queue" element={<Navigate to="/client/automation?tab=queue" replace />} />
         <Route path="landing-pages" element={<Navigate to="/client/articles" replace />} />
         <Route path="landing-pages/*" element={<Navigate to="/client/articles" replace />} />
-        <Route path="integrations/gsc" element={<Navigate to="/client/account" replace />} />
+        <Route path="integrations/gsc" element={<Navigate to="/client/profile?tab=account" replace />} />
         
         <Route path="*" element={<Navigate to="/client/dashboard" replace />} />
       </Routes>

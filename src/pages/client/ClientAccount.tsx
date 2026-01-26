@@ -30,7 +30,7 @@ interface Profile {
   avatar_url: string | null;
 }
 
-export default function ClientAccount() {
+export default function ClientAccount({ embedded }: { embedded?: boolean }) {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { blog } = useBlog();
@@ -172,17 +172,19 @@ export default function ClientAccount() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className={embedded ? "space-y-8" : "space-y-8"}>
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-3 text-gray-800 dark:text-white">
-          <User className="h-8 w-8 text-primary" />
-          Minha Conta
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Gerencie sua conta, perfil e configurações
-        </p>
-      </div>
+      {!embedded && (
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-3 text-gray-800 dark:text-white">
+            <User className="h-8 w-8 text-primary" />
+            Minha Conta
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">
+            Gerencie sua conta, perfil e configurações
+          </p>
+        </div>
+      )}
 
       {/* Profile Section */}
       <Card>

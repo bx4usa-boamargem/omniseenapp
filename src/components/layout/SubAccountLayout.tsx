@@ -73,8 +73,7 @@ const navSections: NavSection[] = [
     items: [
       { icon: Zap, label: 'Automação', path: '/client/automation' },
       { icon: MapPin, label: 'Territórios', path: '/client/territories' },
-      { icon: Building2, label: 'Minha Empresa', path: '/client/company' },
-      { icon: User, label: 'Minha Conta', path: '/client/account' },
+      { icon: User, label: 'Perfil', path: '/client/profile' },
       { icon: Globe, label: 'Domínios', path: '/client/domains' },
       { icon: HelpCircle, label: 'Ajuda', path: '/client/help' },
     ]
@@ -193,7 +192,7 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
                   const tourId = item.path === '/client/radar' ? 'radar-menu' 
                     : item.path === '/client/articles' ? 'articles-menu'
                     : item.path === '/client/automation' ? 'automation-menu'
-                    : item.path === '/client/company' ? 'company-menu'
+                    : item.path === '/client/profile' ? 'company-menu'
                     : undefined;
                   
                   return (
