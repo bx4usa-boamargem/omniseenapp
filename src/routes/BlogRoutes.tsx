@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import CustomDomainBlog from '@/pages/CustomDomainBlog';
 import CustomDomainArticle from '@/pages/CustomDomainArticle';
 import CustomDomainLandingPage from '@/pages/CustomDomainLandingPage';
@@ -12,6 +12,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 export function BlogRoutes() {
   const { blogId, isLoading, error } = useDomainResolution();
 
+  // Legacy redirects (avoid 404 from old links)
+  const LegacyBlogRootRedirect = () => <Navigate to="/" replace />;
+  const LegacyLandingPageRedirect = () => {
+    const { pageSlug } = useParams();
+    return <Navigate to={`/p/${pageSlug}`} replace />;
+  };
+  const LegacyArticleRedirect = () => {
+    const { articleSlug } = useParams();
+    return <Navigate to={`/${articleSlug}`} replace />;
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background">
@@ -24,7 +35,7 @@ export function BlogRoutes() {
           <Skeleton className="h-12 w-2/3 mx-auto mb-4" />
           <Skeleton className="h-6 w-1/2 mx-auto mb-12" />
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1, 2, 3, 4, 5, 6].map(i => (
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <Skeleton key={i} className="h-80 rounded-xl" />
             ))}
           </div>
@@ -37,12 +48,8 @@ export function BlogRoutes() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-foreground mb-2">
-            Blog não encontrado
-          </h1>
-          <p className="text-muted-foreground">
-            Este domínio não está configurado corretamente.
-          </p>
+          <h1 className="text-2xl font-bold text-foreground mb-2">Blog não encontrado</h1>
+          <p className="text-muted-foreground">Este domínio não está configurado corretamente.</p>
         </div>
       </div>
     );
@@ -50,9 +57,20 @@ export function BlogRoutes() {
 
   return (
     <Routes>
+      {/* Legacy paths from platform URLs */}
+      <Route path="/blog/:blogSlug" element={<LegacyBlogRootRedirect />} />
+      <Route path="/blog/:blogSlug/p/:pageSlug" element={<LegacyLandingPageRedirect />} />
+      <Route path="/blog/:blogSlug/p/:pageSlug/*" element={<LegacyLandingPageRedirect />} />
+      <Route path="/blog/:blogSlug/:articleSlug" element={<LegacyArticleRedirect />} />
+      <Route path="/blog/:blogSlug/:articleSlug/*" element={<LegacyArticleRedirect />} />
+
+      {/* Canonical public routes for custom domain/subdomain */}
       <Route path="/" element={<CustomDomainBlog blogId={blogId} />} />
-      <Route path="/p/:pageSlug" element={<CustomDomainLandingPage blogId={blogId} />} />
-      <Route path="/:articleSlug" element={<CustomDomainArticle blogId={blogId} />} />
+      <Route path="/p/:pageSlug/*" element={<CustomDomainLandingPage blogId={blogId} />} />
+      <Route path="/:articleSlug/*" element={<CustomDomainArticle blogId={blogId} />} />
+
+      {/* Fallback: never render blank */}
+      <Route path="*" element={<CustomDomainBlog blogId={blogId} />} />
     </Routes>
   );
 }

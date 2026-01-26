@@ -174,14 +174,31 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
   };
 
   const handlePublish = async () => {
-    if (!page?.id) return;
-    
+    if (!page?.id || !pageData) return;
+
+    // Always persist current editor state before toggling publish
+    await updatePage(page.id, {
+      title,
+      slug,
+      page_data: pageData,
+      seo_title: seoTitle,
+      seo_description: seoDescription,
+    });
+
     if (page.status === "published") {
-      await unpublishPage(page.id);
-      setPage(prev => prev ? { ...prev, status: "draft" } : null);
-    } else {
-      await publishPage(page.id);
-      setPage(prev => prev ? { ...prev, status: "published" } : null);
+      const ok = await unpublishPage(page.id);
+      if (ok) {
+        setPage((prev) => (prev ? { ...prev, status: "draft" } : null));
+        await loadPage();
+      }
+      return;
+    }
+
+    const ok = await publishPage(page.id);
+    if (ok) {
+      setPage((prev) => (prev ? { ...prev, status: "published" } : null));
+      // Reload to reflect generated images + final published data
+      await loadPage();
     }
   };
 

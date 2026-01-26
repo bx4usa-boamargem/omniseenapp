@@ -105,6 +105,17 @@ const ArticleEditRedirect = () => {
   return <Navigate to={`/app/articles/${id}/edit`} replace />;
 };
 
+// Legacy blog redirects (avoid 404s on public content)
+const BlogLegacyLandingPageRedirect = () => {
+  const { blogSlug, pageSlug } = useParams();
+  return <Navigate to={`/blog/${blogSlug}/p/${pageSlug}`} replace />;
+};
+
+const BlogLegacyArticleRedirect = () => {
+  const { blogSlug, articleSlug } = useParams();
+  return <Navigate to={`/blog/${blogSlug}/${articleSlug}`} replace />;
+};
+
 // Global Error Fallback - prevents white screen crashes
 function GlobalErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
   return (
@@ -220,7 +231,7 @@ const PlatformRoutes = () => (
   <Routes>
     {/* Redirect root to login */}
     <Route path="/" element={<Navigate to="/login" replace />} />
-    
+
     {/* New Auth routes */}
     <Route path="/login" element={<Login />} />
     <Route path="/signup" element={<Signup />} />
@@ -231,12 +242,12 @@ const PlatformRoutes = () => (
     <Route path="/cms/wordpress-callback" element={<WordPressCallback />} />
     <Route path="/invite/accept" element={<AcceptInvite />} />
     <Route path="/oauth/callback" element={<OAuthCallback />} />
-    
+
     {/* Legacy auth redirects */}
     <Route path="/auth" element={<Navigate to="/login" replace />} />
     <Route path="/forgot-password" element={<Navigate to="/reset-password" replace />} />
     <Route path="/oauth/google/callback" element={<Navigate to="/oauth/callback" replace />} />
-    
+
     {/* Public content */}
     <Route path="/help" element={<Help />} />
     <Route path="/help/:slug" element={<HelpArticle />} />
@@ -250,9 +261,17 @@ const PlatformRoutes = () => (
     <Route path="/pricing" element={<Pricing />} />
     <Route path="/ebook/:slug" element={<PublicEbook />} />
     <Route path="/review/:token" element={<ClientReview />} />
-    <Route path="/blog/:blogSlug" element={<PublicBlog />} />
-    <Route path="/blog/:blogSlug/p/:pageSlug" element={<PublicLandingPage />} />
-    <Route path="/blog/:blogSlug/:articleSlug" element={<PublicArticle />} />
+
+    {/* Public blog + legacy redirects (never 404 for published URLs) */}
+    <Route path="/blog/:blogSlug/page/:pageSlug" element={<BlogLegacyLandingPageRedirect />} />
+    <Route path="/blog/:blogSlug/landing/:pageSlug" element={<BlogLegacyLandingPageRedirect />} />
+    <Route path="/blog/:blogSlug/landing-pages/:pageSlug" element={<BlogLegacyLandingPageRedirect />} />
+    <Route path="/blog/:blogSlug/post/:articleSlug" element={<BlogLegacyArticleRedirect />} />
+    <Route path="/blog/:blogSlug/articles/:articleSlug" element={<BlogLegacyArticleRedirect />} />
+
+    <Route path="/blog/:blogSlug/*" element={<PublicBlog />} />
+    <Route path="/blog/:blogSlug/p/:pageSlug/*" element={<PublicLandingPage />} />
+    <Route path="/blog/:blogSlug/:articleSlug/*" element={<PublicArticle />} />
 
     {/* Protected user routes - redirects to /client */}
     <Route path="/app/*" element={<UserRoutes />} />
