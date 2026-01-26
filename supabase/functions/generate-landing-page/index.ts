@@ -54,6 +54,27 @@ REGRAS VISUAIS:
 - Gere prompts de imagem realistas para os cards (trabalhadores reais, ferramentas, contexto urbano).
 `;
 
+const SERVICE_AUTHORITY_SCHEMA_PROMPT = `
+Você deve gerar um JSON estrito para o template "service_authority_v1".
+REGRAS DE CONTEÚDO:
+- Hero: Headline focada em benefício + Cidade.
+- Call Now: Destaque o telefone.
+- Services: Mínimo 3 cards. CADA UM deve ter um "image_prompt" detalhado (estilo fotorealista, trabalhador real, ferramentas, sem anime).
+- Authority Content: 1600-2200 palavras. Estrutura H2/H3 rica. Incorpore no mínimo 8 prompts de imagem fotográfica no meio do texto.
+- Nada de emojis ou ilustrações.
+
+ESTRUTURA DO JSON:
+{
+  "template": "service_authority_v1",
+  "brand": { "company_name": "...", "phone": "...", "city": "...", "service": "..." },
+  "hero": { "headline": "...", "subheadline": "...", "image_prompt": "photorealistic professional photo of..." },
+  "services": [{ "title": "...", "desc": "...", "cta": "Schedule", "image_prompt": "photorealistic photo of..." }],
+  "emergency": { "headline": "Need Urgent Help?", "subtext": "Available 24/7" },
+  "authority_content": "<h2>...</h2><p>...</p>",
+  "faq": [{ "question": "...", "answer": "..." }]
+}
+`;
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });

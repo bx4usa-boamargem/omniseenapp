@@ -40,6 +40,7 @@ import {
 import { useBlog } from "@/hooks/useBlog";
 import { useLandingPages } from "./hooks/useLandingPages";
 import { LandingPagePreview } from "./LandingPagePreview";
+import { ServiceAuthorityLayout } from "./layouts/ServiceAuthorityLayout";
 import { LandingPageData, BlockVisibility, DEFAULT_BLOCK_VISIBILITY, LandingPage } from "./types/landingPageTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -332,6 +333,11 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
                     </Button>
                   )}
 
+                  <Button variant="outline" onClick={() => window.open(`/p/${slug}`, '_blank')}>
+                    <Eye className="w-4 h-4 mr-2" />
+                    Preview Published
+                  </Button>
+
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="ghost" size="icon" className="text-destructive">
@@ -483,14 +489,25 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
         <div className="flex-1 bg-muted/30 overflow-hidden relative">
           {pageData ? (
             <div className="absolute inset-0 overflow-y-auto">
-              <LandingPagePreview
-                pageData={pageData}
-                blogId={blog?.id || ""}
-                primaryColor={blog?.primary_color}
-                visibility={visibility}
-                isEditing={false}
-                onEditBlock={handleEditBlock}
-              />
+              {pageData.template === 'service_authority_v1' ? (
+                <div className="max-w-[1200px] mx-auto shadow-2xl shadow-black/10 min-h-full">
+                  <ServiceAuthorityLayout
+                    pageData={pageData}
+                    primaryColor={blog?.primary_color || "#2563eb"}
+                    isEditing={true}
+                    onEditBlock={handleEditBlock}
+                  />
+                </div>
+              ) : (
+                <LandingPagePreview
+                  pageData={pageData}
+                  blogId={blog?.id || ""}
+                  primaryColor={blog?.primary_color}
+                  visibility={visibility}
+                  isEditing={false}
+                  onEditBlock={handleEditBlock}
+                />
+              )}
             </div>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-center p-8">
