@@ -1632,11 +1632,19 @@ serve(async (req) => {
     console.log(`[QA] External links found: ${externalUrls.length}, supported: ${supportedLinks.length}`);
     console.log(`[QA] Allowed domains: ${Array.from(allowedDomains).slice(0, 5).join(', ')}`);
 
-    if (supportedLinks.length < 2) {
+    // FAST MODE: Relaxed QA - no minimum external links required (400-1000 word articles)
+    // DEEP MODE: Strict QA - minimum 2 external links required (1500-3000 word articles)
+    const isFastMode = requestedGenerationMode === 'fast' || source === 'chat' || source === 'instagram';
+    const minExternalLinks = isFastMode ? 0 : 2;
+    
+    console.log(`[QA] Mode: ${isFastMode ? 'FAST (relaxed)' : 'DEEP (strict)'}, min links required: ${minExternalLinks}`);
+
+    if (supportedLinks.length < minExternalLinks) {
       await logStage(supabase, blog_id, 'qa', 'internal', 'qa-deterministic', false, 0, { 
         supported_links: supportedLinks.length,
         external_links: externalUrls.length,
-        allowed_domains: Array.from(allowedDomains).slice(0, 10)
+        allowed_domains: Array.from(allowedDomains).slice(0, 10),
+        generation_mode: isFastMode ? 'fast' : 'deep'
       });
       return new Response(
         JSON.stringify({
