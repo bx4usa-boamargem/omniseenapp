@@ -9,6 +9,8 @@ import { getCanonicalBlogUrl } from "@/utils/blogUrl";
 import { ServiceAuthorityLayout } from "@/components/client/landingpage/layouts/ServiceAuthorityLayout";
 import { InstitutionalLayout } from "@/components/client/landingpage/layouts/InstitutionalLayout";
 import { SpecialistAuthorityLayout } from "@/components/client/landingpage/layouts/SpecialistAuthorityLayout";
+import { inferVisibilityFromPageData } from "@/components/client/landingpage/utils/pageDataNormalizer";
+import { DEFAULT_BLOCK_VISIBILITY } from "@/components/client/landingpage/types/landingPageTypes";
 
 export default function PublicLandingPage() {
   const { blogSlug, pageSlug } = useParams();
@@ -173,19 +175,22 @@ export default function PublicLandingPage() {
         {page.page_data?.template === 'institutional_v1' ? (
           <InstitutionalLayout 
             pageData={page.page_data} 
-            primaryColor={primaryColor} 
+            primaryColor={primaryColor}
+            visibility={page.page_data?.meta?.block_visibility || inferVisibilityFromPageData(page.page_data)}
             isEditing={false} 
           />
         ) : page.page_data?.template === 'specialist_authority_v1' ? (
           <SpecialistAuthorityLayout 
             pageData={page.page_data} 
-            primaryColor={primaryColor} 
+            primaryColor={primaryColor}
+            visibility={page.page_data?.meta?.block_visibility || inferVisibilityFromPageData(page.page_data)}
             isEditing={false} 
           />
         ) : page.page_data?.template === 'service_authority_v1' ? (
           <ServiceAuthorityLayout 
             pageData={page.page_data} 
-            primaryColor={primaryColor} 
+            primaryColor={primaryColor}
+            visibility={page.page_data?.meta?.block_visibility || inferVisibilityFromPageData(page.page_data)}
             isEditing={false} 
           />
         ) : (

@@ -1,10 +1,11 @@
-import { LandingPageData } from "../types/landingPageTypes";
+import { LandingPageData, BlockVisibility, DEFAULT_BLOCK_VISIBILITY } from "../types/landingPageTypes";
 import { User, Award, BookOpen, Mic, Star, MessageSquare, Calendar, ArrowRight, Linkedin, Instagram, Youtube } from "lucide-react";
 import { ArticleContent } from "@/components/public/ArticleContent";
 
 interface SpecialistAuthorityLayoutProps {
   pageData: any;
   primaryColor: string;
+  visibility: BlockVisibility;
   isEditing?: boolean;
   onEditBlock?: (blockType: string, data: any) => void;
 }
@@ -12,10 +13,11 @@ interface SpecialistAuthorityLayoutProps {
 export function SpecialistAuthorityLayout({
   pageData,
   primaryColor,
+  visibility,
   isEditing = false,
   onEditBlock,
 }: SpecialistAuthorityLayoutProps) {
-  console.log("[SpecialistAuthorityLayout] Rendering with template:", pageData.template);
+  console.log("[SpecialistAuthorityLayout] Rendering with visibility:", visibility);
 
   const specialist = pageData.specialist || {};
   const hero = pageData.hero || {};
@@ -27,6 +29,9 @@ export function SpecialistAuthorityLayout({
   const authorityContent = pageData.authority_content || "";
   const social = pageData.social || {};
 
+  // Use provided visibility or fallback to defaults
+  const v = visibility || DEFAULT_BLOCK_VISIBILITY;
+
   return (
     <div className="w-full bg-white text-slate-900 font-sans selection:bg-amber-100 border border-slate-200">
       {/* Template Badge */}
@@ -34,109 +39,111 @@ export function SpecialistAuthorityLayout({
         Specialist Authority Template v1.0
       </div>
 
-      {/* 1. Authority Hero with Specialist Photo */}
-      <section className="relative min-h-[600px] flex items-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
-        {/* Decorative Elements */}
-        <div className="absolute top-0 right-0 w-1/2 h-full opacity-10">
-          <div className="absolute inset-0 bg-gradient-to-l from-amber-500/30 to-transparent" />
-        </div>
+      {/* 1. Authority Hero with Specialist Photo - respects visibility.hero */}
+      {v.hero && (
+        <section className="relative min-h-[600px] flex items-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
+          {/* Decorative Elements */}
+          <div className="absolute top-0 right-0 w-1/2 h-full opacity-10">
+            <div className="absolute inset-0 bg-gradient-to-l from-amber-500/30 to-transparent" />
+          </div>
 
-        <div className="relative z-10 container max-w-6xl mx-auto px-6 py-16">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            {/* Left: Content */}
-            <div>
-              {/* Credentials Badge */}
-              {specialist.credentials && (
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 mb-6">
-                  <Award className="w-4 h-4" style={{ color: primaryColor }} />
-                  <span className="text-sm font-medium">{specialist.credentials}</span>
-                </div>
-              )}
+          <div className="relative z-10 container max-w-6xl mx-auto px-6 py-16">
+            <div className="grid lg:grid-cols-2 gap-12 items-center">
+              {/* Left: Content */}
+              <div>
+                {/* Credentials Badge */}
+                {specialist.credentials && (
+                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 mb-6">
+                    <Award className="w-4 h-4" style={{ color: primaryColor }} />
+                    <span className="text-sm font-medium">{specialist.credentials}</span>
+                  </div>
+                )}
 
-              {/* Headline */}
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight mb-6 leading-tight">
-                {hero.headline || specialist.name || "Especialista"}
-              </h1>
-              
-              <p className="text-xl md:text-2xl opacity-80 mb-4">
-                {specialist.title || hero.subheadline}
-              </p>
-
-              {hero.tagline && (
-                <p className="text-lg opacity-60 mb-8 italic">
-                  "{hero.tagline}"
+                {/* Headline */}
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight mb-6 leading-tight">
+                  {hero.headline || specialist.name || "Especialista"}
+                </h1>
+                
+                <p className="text-xl md:text-2xl opacity-80 mb-4">
+                  {specialist.title || hero.subheadline}
                 </p>
-              )}
 
-              {/* CTA Button */}
-              <a
-                href={cta.action_url || "#contact"}
-                className="inline-flex items-center gap-2 px-8 py-4 rounded-lg font-bold text-lg transition-all shadow-xl hover:shadow-2xl hover:scale-105"
-                style={{ backgroundColor: primaryColor }}
-              >
-                <Calendar className="w-5 h-5" />
-                {cta.action_text || "Agende uma Consulta"}
-                <ArrowRight className="w-5 h-5" />
-              </a>
+                {hero.tagline && (
+                  <p className="text-lg opacity-60 mb-8 italic">
+                    "{hero.tagline}"
+                  </p>
+                )}
 
-              {/* Social Links */}
-              <div className="flex gap-4 mt-8">
-                {social.linkedin && (
-                  <a href={social.linkedin} target="_blank" rel="noopener noreferrer" className="opacity-60 hover:opacity-100 transition-opacity">
-                    <Linkedin className="w-6 h-6" />
-                  </a>
-                )}
-                {social.instagram && (
-                  <a href={social.instagram} target="_blank" rel="noopener noreferrer" className="opacity-60 hover:opacity-100 transition-opacity">
-                    <Instagram className="w-6 h-6" />
-                  </a>
-                )}
-                {social.youtube && (
-                  <a href={social.youtube} target="_blank" rel="noopener noreferrer" className="opacity-60 hover:opacity-100 transition-opacity">
-                    <Youtube className="w-6 h-6" />
-                  </a>
+                {/* CTA Button */}
+                <a
+                  href={cta.action_url || "#contact"}
+                  className="inline-flex items-center gap-2 px-8 py-4 rounded-lg font-bold text-lg transition-all shadow-xl hover:shadow-2xl hover:scale-105"
+                  style={{ backgroundColor: primaryColor }}
+                >
+                  <Calendar className="w-5 h-5" />
+                  {cta.action_text || "Agende uma Consulta"}
+                  <ArrowRight className="w-5 h-5" />
+                </a>
+
+                {/* Social Links */}
+                <div className="flex gap-4 mt-8">
+                  {social.linkedin && (
+                    <a href={social.linkedin} target="_blank" rel="noopener noreferrer" className="opacity-60 hover:opacity-100 transition-opacity">
+                      <Linkedin className="w-6 h-6" />
+                    </a>
+                  )}
+                  {social.instagram && (
+                    <a href={social.instagram} target="_blank" rel="noopener noreferrer" className="opacity-60 hover:opacity-100 transition-opacity">
+                      <Instagram className="w-6 h-6" />
+                    </a>
+                  )}
+                  {social.youtube && (
+                    <a href={social.youtube} target="_blank" rel="noopener noreferrer" className="opacity-60 hover:opacity-100 transition-opacity">
+                      <Youtube className="w-6 h-6" />
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Right: Specialist Photo or Smart Placeholder */}
+              <div className="hidden lg:flex justify-center">
+                {specialist.photo_url ? (
+                  <img 
+                    src={specialist.photo_url}
+                    alt={specialist.name || "Especialista"}
+                    className="w-80 h-96 rounded-2xl object-cover shadow-2xl border-2 border-white/20"
+                  />
+                ) : (
+                  <div 
+                    className="w-80 h-96 rounded-2xl flex items-center justify-center shadow-2xl"
+                    style={{ 
+                      background: `linear-gradient(135deg, ${primaryColor}20, ${primaryColor}40)`,
+                      border: `2px solid ${primaryColor}30`
+                    }}
+                  >
+                    <div className="text-center">
+                      <div 
+                        className="w-24 h-24 mx-auto rounded-full flex items-center justify-center text-4xl font-black shadow-lg"
+                        style={{ backgroundColor: primaryColor, color: 'white' }}
+                      >
+                        {(specialist.name || "E").charAt(0).toUpperCase()}
+                      </div>
+                      <p className="text-sm mt-4 font-medium text-white/80">
+                        {specialist.title || "Especialista"}
+                      </p>
+                      {specialist.credentials && (
+                        <p className="text-xs mt-2 text-white/60">
+                          {specialist.credentials}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
-
-            {/* Right: Specialist Photo or Smart Placeholder */}
-            <div className="hidden lg:flex justify-center">
-              {specialist.photo_url ? (
-                <img 
-                  src={specialist.photo_url}
-                  alt={specialist.name || "Especialista"}
-                  className="w-80 h-96 rounded-2xl object-cover shadow-2xl border-2 border-white/20"
-                />
-              ) : (
-                <div 
-                  className="w-80 h-96 rounded-2xl flex items-center justify-center shadow-2xl"
-                  style={{ 
-                    background: `linear-gradient(135deg, ${primaryColor}20, ${primaryColor}40)`,
-                    border: `2px solid ${primaryColor}30`
-                  }}
-                >
-                  <div className="text-center">
-                    <div 
-                      className="w-24 h-24 mx-auto rounded-full flex items-center justify-center text-4xl font-black shadow-lg"
-                      style={{ backgroundColor: primaryColor, color: 'white' }}
-                    >
-                      {(specialist.name || "E").charAt(0).toUpperCase()}
-                    </div>
-                    <p className="text-sm mt-4 font-medium text-white/80">
-                      {specialist.title || "Especialista"}
-                    </p>
-                    {specialist.credentials && (
-                      <p className="text-xs mt-2 text-white/60">
-                        {specialist.credentials}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* 2. About/Bio Section */}
       <section className="py-20 px-6 bg-white">
@@ -214,8 +221,8 @@ export function SpecialistAuthorityLayout({
         </div>
       </section>
 
-      {/* 3. Methodology Section */}
-      {methodology.name && (
+      {/* 3. Methodology Section - respects visibility.process_steps */}
+      {v.process_steps && methodology.name && (
         <section className="py-20 px-6 bg-slate-50">
           <div className="container max-w-5xl mx-auto">
             <div className="text-center mb-12">
@@ -263,8 +270,8 @@ export function SpecialistAuthorityLayout({
         </section>
       )}
 
-      {/* 4. Testimonials */}
-      {testimonials.length > 0 && (
+      {/* 4. Testimonials - respects visibility.testimonials */}
+      {v.testimonials && testimonials.length > 0 && (
         <section className="py-20 px-6 bg-white">
           <div className="container max-w-5xl mx-auto">
             <div className="text-center mb-12">
@@ -362,29 +369,31 @@ export function SpecialistAuthorityLayout({
         </section>
       )}
 
-      {/* 7. CTA Section */}
-      <section 
-        className="py-20 px-6 text-white"
-        style={{ backgroundColor: primaryColor }}
-      >
-        <div className="container max-w-3xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-black mb-4">
-            {cta.headline || "Pronto para Transformar Sua Vida?"}
-          </h2>
-          <p className="text-xl opacity-90 mb-8">
-            {cta.description || "Agende uma sessão e descubra como posso ajudar você a alcançar seus objetivos."}
-          </p>
-          <a
-            href={cta.action_url || "#contact"}
-            className="inline-flex items-center gap-2 px-10 py-5 rounded-lg font-bold text-lg bg-white transition-all shadow-xl hover:shadow-2xl hover:scale-105"
-            style={{ color: primaryColor }}
-          >
-            <Calendar className="w-5 h-5" />
-            {cta.action_text || "Agendar Consulta"}
-            <ArrowRight className="w-5 h-5" />
-          </a>
-        </div>
-      </section>
+      {/* 7. CTA Section - respects visibility.cta_banner */}
+      {v.cta_banner && (
+        <section 
+          className="py-20 px-6 text-white"
+          style={{ backgroundColor: primaryColor }}
+        >
+          <div className="container max-w-3xl mx-auto text-center">
+            <h2 className="text-3xl md:text-4xl font-black mb-4">
+              {cta.headline || "Pronto para Transformar Sua Vida?"}
+            </h2>
+            <p className="text-xl opacity-90 mb-8">
+              {cta.description || "Agende uma sessão e descubra como posso ajudar você a alcançar seus objetivos."}
+            </p>
+            <a
+              href={cta.action_url || "#contact"}
+              className="inline-flex items-center gap-2 px-10 py-5 rounded-lg font-bold text-lg bg-white transition-all shadow-xl hover:shadow-2xl hover:scale-105"
+              style={{ color: primaryColor }}
+            >
+              <Calendar className="w-5 h-5" />
+              {cta.action_text || "Agendar Consulta"}
+              <ArrowRight className="w-5 h-5" />
+            </a>
+          </div>
+        </section>
+      )}
 
       {/* Footer */}
       <footer className="py-8 px-6 bg-slate-950 text-white/60 text-center text-sm">

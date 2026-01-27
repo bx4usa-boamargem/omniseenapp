@@ -1,10 +1,11 @@
-import { LandingPageData } from "../types/landingPageTypes";
+import { LandingPageData, BlockVisibility, DEFAULT_BLOCK_VISIBILITY } from "../types/landingPageTypes";
 import { Building2, Target, Users, Trophy, Mail, Phone, MapPin, Clock } from "lucide-react";
 import { ArticleContent } from "@/components/public/ArticleContent";
 
 interface InstitutionalLayoutProps {
   pageData: any;
   primaryColor: string;
+  visibility: BlockVisibility;
   isEditing?: boolean;
   onEditBlock?: (blockType: string, data: any) => void;
 }
@@ -12,10 +13,11 @@ interface InstitutionalLayoutProps {
 export function InstitutionalLayout({
   pageData,
   primaryColor,
+  visibility,
   isEditing = false,
   onEditBlock,
 }: InstitutionalLayoutProps) {
-  console.log("[InstitutionalLayout] Rendering with template:", pageData.template);
+  console.log("[InstitutionalLayout] Rendering with visibility:", visibility);
 
   const brand = pageData.brand || {};
   const hero = pageData.hero || {};
@@ -26,6 +28,9 @@ export function InstitutionalLayout({
   const contact = pageData.contact || {};
   const authorityContent = pageData.authority_content || "";
 
+  // Use provided visibility or fallback to defaults
+  const v = visibility || DEFAULT_BLOCK_VISIBILITY;
+
   return (
     <div className="w-full bg-white text-slate-900 font-sans selection:bg-blue-100 border border-slate-200">
       {/* Template Badge */}
@@ -33,66 +38,68 @@ export function InstitutionalLayout({
         Institutional Template v1.0
       </div>
 
-      {/* 1. Corporate Hero */}
-      <section 
-        className="relative min-h-[500px] flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden"
-      >
-        {/* Background Pattern */}
-        <div className="absolute inset-0 opacity-5">
-          <div className="absolute inset-0" style={{
-            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-          }} />
-        </div>
+      {/* 1. Corporate Hero - respects visibility.hero */}
+      {v.hero && (
+        <section 
+          className="relative min-h-[500px] flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden"
+        >
+          {/* Background Pattern */}
+          <div className="absolute inset-0 opacity-5">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            }} />
+          </div>
 
-        <div className="relative z-10 container max-w-5xl mx-auto px-6 text-center">
-          {/* Logo/Company Name */}
-          <div className="mb-8">
-            <Building2 className="w-16 h-16 mx-auto mb-4 opacity-80" />
-            <h2 className="text-xl font-medium tracking-wide uppercase opacity-70">
-              {brand.company_name || "Empresa"}
-            </h2>
-            {brand.founded_year && (
-              <p className="text-sm opacity-50 mt-1">Desde {brand.founded_year}</p>
+          <div className="relative z-10 container max-w-5xl mx-auto px-6 text-center">
+            {/* Logo/Company Name */}
+            <div className="mb-8">
+              <Building2 className="w-16 h-16 mx-auto mb-4 opacity-80" />
+              <h2 className="text-xl font-medium tracking-wide uppercase opacity-70">
+                {brand.company_name || "Empresa"}
+              </h2>
+              {brand.founded_year && (
+                <p className="text-sm opacity-50 mt-1">Desde {brand.founded_year}</p>
+              )}
+            </div>
+
+            {/* Headline */}
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight mb-6 leading-tight">
+              {hero.headline || "Excelência em Resultados"}
+            </h1>
+            
+            <p className="text-xl md:text-2xl opacity-80 max-w-3xl mx-auto mb-8 leading-relaxed">
+              {hero.subheadline || brand.tagline || "Soluções corporativas de alto impacto para empresas que buscam excelência."}
+            </p>
+
+            {/* CTA Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <a
+                href={`tel:${contact.phone || brand.phone}`}
+                className="px-8 py-4 rounded-lg font-bold text-lg transition-all shadow-xl hover:shadow-2xl"
+                style={{ backgroundColor: primaryColor }}
+              >
+                <Phone className="inline-block w-5 h-5 mr-2 -mt-1" />
+                Fale Conosco
+              </a>
+              <a
+                href={`mailto:${contact.email}`}
+                className="px-8 py-4 rounded-lg font-bold text-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 transition-all"
+              >
+                <Mail className="inline-block w-5 h-5 mr-2 -mt-1" />
+                Solicitar Proposta
+              </a>
+            </div>
+
+            {/* City Tag */}
+            {brand.city && (
+              <p className="mt-8 text-sm opacity-60 flex items-center justify-center gap-2">
+                <MapPin className="w-4 h-4" />
+                {brand.city}
+              </p>
             )}
           </div>
-
-          {/* Headline */}
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tight mb-6 leading-tight">
-            {hero.headline || "Excelência em Resultados"}
-          </h1>
-          
-          <p className="text-xl md:text-2xl opacity-80 max-w-3xl mx-auto mb-8 leading-relaxed">
-            {hero.subheadline || brand.tagline || "Soluções corporativas de alto impacto para empresas que buscam excelência."}
-          </p>
-
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a
-              href={`tel:${contact.phone || brand.phone}`}
-              className="px-8 py-4 rounded-lg font-bold text-lg transition-all shadow-xl hover:shadow-2xl"
-              style={{ backgroundColor: primaryColor }}
-            >
-              <Phone className="inline-block w-5 h-5 mr-2 -mt-1" />
-              Fale Conosco
-            </a>
-            <a
-              href={`mailto:${contact.email}`}
-              className="px-8 py-4 rounded-lg font-bold text-lg bg-white/10 backdrop-blur-sm border border-white/20 hover:bg-white/20 transition-all"
-            >
-              <Mail className="inline-block w-5 h-5 mr-2 -mt-1" />
-              Solicitar Proposta
-            </a>
-          </div>
-
-          {/* City Tag */}
-          {brand.city && (
-            <p className="mt-8 text-sm opacity-60 flex items-center justify-center gap-2">
-              <MapPin className="w-4 h-4" />
-              {brand.city}
-            </p>
-          )}
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* 2. About Section - Mission, Vision, Values */}
       <section className="py-20 px-6 bg-slate-50">
@@ -167,8 +174,8 @@ export function InstitutionalLayout({
         </div>
       </section>
 
-      {/* 3. Services/Areas Grid */}
-      {servicesAreas.length > 0 && (
+      {/* 3. Services/Areas Grid - respects visibility.services */}
+      {v.services && servicesAreas.length > 0 && (
         <section className="py-20 px-6 bg-white">
           <div className="container max-w-6xl mx-auto">
             <div className="text-center mb-16">
@@ -199,8 +206,8 @@ export function InstitutionalLayout({
         </section>
       )}
 
-      {/* 4. Cases/Results */}
-      {cases.length > 0 && (
+      {/* 4. Cases/Results - respects visibility.testimonials */}
+      {v.testimonials && cases.length > 0 && (
         <section className="py-20 px-6 bg-slate-900 text-white">
           <div className="container max-w-6xl mx-auto">
             <div className="text-center mb-16">
@@ -276,107 +283,109 @@ export function InstitutionalLayout({
         </section>
       )}
 
-      {/* 7. Contact Section */}
-      <section className="py-20 px-6 bg-slate-900 text-white">
-        <div className="container max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-black mb-4">
-              Entre em Contato
-            </h2>
-            <div className="w-24 h-1 mx-auto" style={{ backgroundColor: primaryColor }} />
-          </div>
+      {/* 7. Contact Section - respects visibility.contact */}
+      {v.contact && (
+        <section className="py-20 px-6 bg-slate-900 text-white">
+          <div className="container max-w-4xl mx-auto">
+            <div className="text-center mb-12">
+              <h2 className="text-3xl md:text-4xl font-black mb-4">
+                Entre em Contato
+              </h2>
+              <div className="w-24 h-1 mx-auto" style={{ backgroundColor: primaryColor }} />
+            </div>
 
-          <div className="grid md:grid-cols-2 gap-8">
-            {/* Contact Info */}
-            <div className="space-y-6">
-              {(contact.phone || brand.phone) && (
-                <div className="flex items-center gap-4">
-                  <div 
-                    className="w-12 h-12 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: `${primaryColor}20` }}
-                  >
-                    <Phone className="w-5 h-5" style={{ color: primaryColor }} />
-                  </div>
-                  <div>
-                    <p className="text-sm opacity-60">Telefone</p>
-                    <a 
-                      href={`tel:${contact.phone || brand.phone}`}
-                      className="text-lg font-medium hover:underline"
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Contact Info */}
+              <div className="space-y-6">
+                {(contact.phone || brand.phone) && (
+                  <div className="flex items-center gap-4">
+                    <div 
+                      className="w-12 h-12 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: `${primaryColor}20` }}
                     >
-                      {contact.phone || brand.phone}
-                    </a>
+                      <Phone className="w-5 h-5" style={{ color: primaryColor }} />
+                    </div>
+                    <div>
+                      <p className="text-sm opacity-60">Telefone</p>
+                      <a 
+                        href={`tel:${contact.phone || brand.phone}`}
+                        className="text-lg font-medium hover:underline"
+                      >
+                        {contact.phone || brand.phone}
+                      </a>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {contact.email && (
-                <div className="flex items-center gap-4">
-                  <div 
-                    className="w-12 h-12 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: `${primaryColor}20` }}
-                  >
-                    <Mail className="w-5 h-5" style={{ color: primaryColor }} />
-                  </div>
-                  <div>
-                    <p className="text-sm opacity-60">E-mail</p>
-                    <a 
-                      href={`mailto:${contact.email}`}
-                      className="text-lg font-medium hover:underline"
+                {contact.email && (
+                  <div className="flex items-center gap-4">
+                    <div 
+                      className="w-12 h-12 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: `${primaryColor}20` }}
                     >
-                      {contact.email}
-                    </a>
+                      <Mail className="w-5 h-5" style={{ color: primaryColor }} />
+                    </div>
+                    <div>
+                      <p className="text-sm opacity-60">E-mail</p>
+                      <a 
+                        href={`mailto:${contact.email}`}
+                        className="text-lg font-medium hover:underline"
+                      >
+                        {contact.email}
+                      </a>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {contact.address && (
-                <div className="flex items-center gap-4">
-                  <div 
-                    className="w-12 h-12 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: `${primaryColor}20` }}
-                  >
-                    <MapPin className="w-5 h-5" style={{ color: primaryColor }} />
+                {contact.address && (
+                  <div className="flex items-center gap-4">
+                    <div 
+                      className="w-12 h-12 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: `${primaryColor}20` }}
+                    >
+                      <MapPin className="w-5 h-5" style={{ color: primaryColor }} />
+                    </div>
+                    <div>
+                      <p className="text-sm opacity-60">Endereço</p>
+                      <p className="text-lg font-medium">{contact.address}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm opacity-60">Endereço</p>
-                    <p className="text-lg font-medium">{contact.address}</p>
-                  </div>
-                </div>
-              )}
+                )}
 
-              {contact.hours && (
-                <div className="flex items-center gap-4">
-                  <div 
-                    className="w-12 h-12 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: `${primaryColor}20` }}
-                  >
-                    <Clock className="w-5 h-5" style={{ color: primaryColor }} />
+                {contact.hours && (
+                  <div className="flex items-center gap-4">
+                    <div 
+                      className="w-12 h-12 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: `${primaryColor}20` }}
+                    >
+                      <Clock className="w-5 h-5" style={{ color: primaryColor }} />
+                    </div>
+                    <div>
+                      <p className="text-sm opacity-60">Horário</p>
+                      <p className="text-lg font-medium">{contact.hours}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm opacity-60">Horário</p>
-                    <p className="text-lg font-medium">{contact.hours}</p>
-                  </div>
+                )}
+              </div>
+
+              {/* Map Embed */}
+              {contact.map_embed && (
+                <div className="rounded-xl overflow-hidden border border-white/10">
+                  <iframe
+                    src={contact.map_embed}
+                    width="100%"
+                    height="300"
+                    style={{ border: 0 }}
+                    allowFullScreen
+                    loading="lazy"
+                    referrerPolicy="no-referrer-when-downgrade"
+                  />
                 </div>
               )}
             </div>
-
-            {/* Map Embed */}
-            {contact.map_embed && (
-              <div className="rounded-xl overflow-hidden border border-white/10">
-                <iframe
-                  src={contact.map_embed}
-                  width="100%"
-                  height="300"
-                  style={{ border: 0 }}
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                />
-              </div>
-            )}
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Footer */}
       <footer className="py-8 px-6 bg-slate-950 text-white/60 text-center text-sm">

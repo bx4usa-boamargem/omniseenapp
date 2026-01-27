@@ -619,6 +619,7 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
                   <InstitutionalLayout
                     pageData={pageData}
                     primaryColor={blog?.primary_color || "#475569"}
+                    visibility={visibility}
                     isEditing={true}
                     onEditBlock={handleEditBlock}
                   />
@@ -626,6 +627,7 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
                   <SpecialistAuthorityLayout
                     pageData={pageData}
                     primaryColor={blog?.primary_color || "#d97706"}
+                    visibility={visibility}
                     isEditing={true}
                     onEditBlock={handleEditBlock}
                   />
@@ -633,6 +635,7 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
                   <ServiceAuthorityLayout
                     pageData={pageData}
                     primaryColor={blog?.primary_color || "#2563eb"}
+                    visibility={visibility}
                     isEditing={true}
                     onEditBlock={handleEditBlock}
                   />

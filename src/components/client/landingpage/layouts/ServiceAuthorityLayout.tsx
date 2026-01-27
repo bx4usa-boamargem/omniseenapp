@@ -1,4 +1,4 @@
-import { LandingPageData } from "../types/landingPageTypes";
+import { LandingPageData, BlockVisibility, DEFAULT_BLOCK_VISIBILITY } from "../types/landingPageTypes";
 import { AuthorityHero } from "./AuthorityHero";
 import { CallNowStrip } from "./CallNowStrip";
 import { ServiceCardGrid } from "./ServiceCardGrid";
@@ -9,8 +9,9 @@ import { FooterCTA } from "./FooterCTA";
 import { ArticleContent } from "@/components/public/ArticleContent";
 
 interface ServiceAuthorityLayoutProps {
-  pageData: any; // Using any temporarily to support the new schema
+  pageData: any;
   primaryColor: string;
+  visibility: BlockVisibility;
   isEditing?: boolean;
   onEditBlock?: (blockType: string, data: any) => void;
 }
@@ -18,27 +19,30 @@ interface ServiceAuthorityLayoutProps {
 export function ServiceAuthorityLayout({
   pageData,
   primaryColor,
+  visibility,
   isEditing = false,
   onEditBlock,
 }: ServiceAuthorityLayoutProps) {
-  // Debug log para confirmar que o layout novo está sendo montado
-  console.log("[ServiceAuthorityLayout] Rendering with template:", pageData.template);
+  console.log("[ServiceAuthorityLayout] Rendering with visibility:", visibility);
 
   const hero = pageData.hero || {};
   const services = pageData.services || [];
   const emergency = pageData.emergency || {};
-  const authorityContent = pageData.authority_content || ""; // Agora pode ser string direta ou html
+  const authorityContent = pageData.authority_content || "";
   const brand = pageData.brand || {};
+
+  // Use provided visibility or fallback to defaults
+  const v = visibility || DEFAULT_BLOCK_VISIBILITY;
 
   return (
     <div className="w-full bg-white text-slate-900 font-sans selection:bg-blue-100 border border-slate-200">
-      {/* Marcador visual de que o layout novo está ativo */}
+      {/* Template Badge */}
       <div className="bg-slate-900 text-white text-[10px] px-2 py-1 uppercase tracking-widest font-bold">
         Service Authority Template v1.0
       </div>
 
-      {/* 1. Authority Hero - only render if hero data exists */}
-      {hero && Object.keys(hero).length > 0 && (
+      {/* 1. Authority Hero - respects visibility.hero */}
+      {v.hero && hero && Object.keys(hero).length > 0 && (
         <AuthorityHero 
           data={{...hero, phone: brand.phone}} 
           primaryColor={primaryColor} 
@@ -47,7 +51,7 @@ export function ServiceAuthorityLayout({
         />
       )}
 
-      {/* 2. Call Now Strip (Floating-style or fixed) - only if phone exists */}
+      {/* 2. Call Now Strip - always visible if phone exists (utility component) */}
       {brand.phone && (
         <CallNowStrip 
           phone={brand.phone} 
@@ -55,8 +59,8 @@ export function ServiceAuthorityLayout({
         />
       )}
 
-      {/* 3. Service Card Grid - only if services exist */}
-      {services.length > 0 && (
+      {/* 3. Service Card Grid - respects visibility.services */}
+      {v.services && services.length > 0 && (
         <ServiceCardGrid 
           services={services} 
           primaryColor={primaryColor}
@@ -65,8 +69,8 @@ export function ServiceAuthorityLayout({
         />
       )}
 
-      {/* 4. Emergency CTA - only if emergency data exists */}
-      {emergency && Object.keys(emergency).length > 0 && (
+      {/* 4. Emergency CTA - respects visibility.emergency_banner */}
+      {v.emergency_banner && emergency && Object.keys(emergency).length > 0 && (
         <EmergencyCTA 
           data={emergency} 
           phone={brand.phone}
@@ -75,8 +79,8 @@ export function ServiceAuthorityLayout({
         />
       )}
 
-      {/* 5. Authority Content Block - only if content exists */}
-      {authorityContent && (
+      {/* 5. Authority Content Block - respects visibility.service_details (SEO content) */}
+      {v.service_details && authorityContent && (
         <section className="py-24 px-6 bg-slate-50 border-y border-slate-200">
           <div className="container max-w-4xl mx-auto">
             <div className="prose prose-slate prose-lg max-w-none 
@@ -89,16 +93,16 @@ export function ServiceAuthorityLayout({
         </section>
       )}
 
-      {/* 6. FAQ Section - only if FAQs exist */}
-      {pageData.faq && pageData.faq.length > 0 && (
+      {/* 6. FAQ Section - respects visibility.faq */}
+      {v.faq && pageData.faq && pageData.faq.length > 0 && (
         <FAQSection 
           faqs={pageData.faq} 
           primaryColor={primaryColor}
         />
       )}
 
-      {/* 7. Footer CTA - only if brand name or phone exists */}
-      {(brand.company_name || brand.phone) && (
+      {/* 7. Footer CTA - respects visibility.cta_banner */}
+      {v.cta_banner && (brand.company_name || brand.phone) && (
         <FooterCTA 
           brandName={brand.company_name} 
           phone={brand.phone}
