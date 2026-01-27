@@ -59,32 +59,81 @@ serve(async (req) => {
 
     console.log('[provision-tenant] User authenticated:', user.email);
 
-    // Check if user already has a membership
+    // =============================================
+    // IDEMPOTENCY CHECK: Find existing complete setup
+    // =============================================
+    
+    // Check if user already has a COMPLETE membership (with blog)
     const { data: existingMembership } = await supabaseAdmin
       .from('tenant_members')
-      .select('tenant_id, tenants(id, slug)')
+      .select(`
+        tenant_id,
+        tenants!inner(id, slug),
+        tenant:tenants!inner(
+          blogs!inner(id, slug, platform_subdomain)
+        )
+      `)
       .eq('user_id', user.id)
       .maybeSingle();
 
     if (existingMembership?.tenant_id) {
-      console.log('[provision-tenant] User already has membership:', existingMembership.tenant_id);
+      // User has membership, check if it's complete (has blog)
+      const tenantData = existingMembership.tenant as any;
+      const blogs = tenantData?.blogs;
       
-      // Get blog info
-      const { data: blog } = await supabaseAdmin
-        .from('blogs')
-        .select('id, slug, platform_subdomain')
-        .eq('tenant_id', existingMembership.tenant_id)
-        .maybeSingle();
-
-      return new Response(
-        JSON.stringify({ 
-          status: 'already_provisioned', 
-          tenant_id: existingMembership.tenant_id,
-          blog_id: blog?.id,
-          subdomain: blog?.platform_subdomain
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (blogs && blogs.length > 0) {
+        const blog = blogs[0];
+        console.log('[provision-tenant] User already fully provisioned:', existingMembership.tenant_id);
+        
+        return new Response(
+          JSON.stringify({ 
+            status: 'already_provisioned', 
+            tenant_id: existingMembership.tenant_id,
+            blog_id: blog.id,
+            subdomain: blog.platform_subdomain
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // Has membership but incomplete - will try to complete below
+      console.log('[provision-tenant] Incomplete setup found, will attempt to complete');
+    }
+    
+    // Alternative check: user might own a tenant without membership (edge case cleanup)
+    const { data: ownedTenant } = await supabaseAdmin
+      .from('tenants')
+      .select(`
+        id, slug,
+        blogs(id, slug, platform_subdomain)
+      `)
+      .eq('owner_user_id', user.id)
+      .maybeSingle();
+    
+    if (ownedTenant?.id) {
+      const blogs = ownedTenant.blogs as any[];
+      if (blogs && blogs.length > 0) {
+        console.log('[provision-tenant] Found owned tenant with blog:', ownedTenant.id);
+        
+        // Ensure membership exists (idempotent insert)
+        await supabaseAdmin
+          .from('tenant_members')
+          .upsert({
+            tenant_id: ownedTenant.id,
+            user_id: user.id,
+            role: 'owner'
+          }, { onConflict: 'tenant_id,user_id' });
+        
+        return new Response(
+          JSON.stringify({ 
+            status: 'already_provisioned', 
+            tenant_id: ownedTenant.id,
+            blog_id: blogs[0].id,
+            subdomain: blogs[0].platform_subdomain
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Generate unique slug with collision handling
@@ -150,16 +199,17 @@ serve(async (req) => {
 
     console.log('[provision-tenant] Tenant created:', tenant.id);
 
-    // Create tenant member (owner)
+    // Create tenant member (owner) - IDEMPOTENT with upsert
     const { error: memberError } = await supabaseAdmin
       .from('tenant_members')
-      .insert({
+      .upsert({
         tenant_id: tenant.id,
         user_id: user.id,
         role: 'owner'
-      });
+      }, { onConflict: 'tenant_id,user_id' });
 
-    if (memberError) {
+    if (memberError && memberError.code !== '23505') {
+      // Only fail if it's NOT a duplicate key error
       console.error('[provision-tenant] Member creation error:', memberError);
       // Rollback tenant
       await supabaseAdmin.from('tenants').delete().eq('id', tenant.id);
@@ -169,7 +219,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('[provision-tenant] Member created');
+    console.log('[provision-tenant] Member created or already exists');
 
     // Create blog
     const { data: blog, error: blogError } = await supabaseAdmin
