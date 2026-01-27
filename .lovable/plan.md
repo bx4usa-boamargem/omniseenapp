@@ -1,445 +1,271 @@
 
-# Plano: Super Páginas - Grid de Cards + SEO Completo
+# Plano: Controle Editorial de WhatsApp + Correção de Artigos 404
 
-## Visão Geral
+## Análise Diagnóstica
 
-Este plano implementa duas melhorias críticas no módulo de Super Páginas:
+### Problema 1: Mensagem de WhatsApp Longa/Robótica
+**Causa raiz identificada:**
+- O sistema usa um template global (`global_comm_config`) com mensagem complexa:
+  ```
+  "Olá! Encontrei sua empresa ao buscar por {service} em {neighborhood}. 
+   Li o artigo "{article_title}" no blog da unidade {territory_name} 
+   e gostaria de falar com um especialista local."
+  ```
+- O dono do negócio (subconta) NÃO tem controle sobre essa mensagem
+- A mensagem é gerada automaticamente com placeholders que nem sempre fazem sentido
 
-1. **Grid de Cards com Preview** - Transformar a listagem atual (lista simples) em um grid visual similar aos Artigos
-2. **Painel SEO Completo no Editor** - Adicionar sidebar de SEO com velocímetro, métricas e auto-correção
+**Solução:**
+- Adicionar campo `whatsapp_lead_template` na tabela `business_profile` por tenant
+- Permitir edição em "Minha Empresa" com preview em tempo real
+- Usar template do tenant quando disponível, senão fallback para global simplificado
+
+### Problema 2: Artigos Retornando 404
+**Diagnóstico realizado:**
+- ✅ Edge Function `content-api` funciona corretamente (testada com sucesso)
+- ✅ Tabela `tenant_domains` tem domínios cadastrados no formato correto
+- ✅ RPC `resolve_domain` mapeia corretamente hostname → blog_id
+- ✅ Rotas em `BlogRoutes.tsx` estão configuradas: `/:articleSlug/*` → `CustomDomainArticle`
+- ✅ Hook `useBlogArticle` chama `content-api` com route `blog.article`
+
+**Possível causa:**
+O problema ocorre no ambiente de PREVIEW (lovable.app), não em produção. O `getCurrentHostname()` retorna `id-preview--xxx.lovable.app` que não está mapeado na `tenant_domains`.
+
+**Solução:**
+- Melhorar a resolução de hostname no hook `useBlogArticle` para aceitar `blogId` como override
+- Garantir que `CustomDomainArticle` passe o `blogId` recebido via props para o hook
+- Adicionar fallback de resolução quando hostname não resolve via RPC
 
 ---
 
-## PARTE 1: Grid de Cards com Preview
+## Implementação Técnica
 
-### Arquitetura Atual vs. Proposta
+### PARTE 1: Controle Editorial de WhatsApp
 
-| Atual | Proposto |
-|-------|----------|
-| Lista vertical simples | Grid responsivo (4/3/2/1 colunas) |
-| Apenas título + badge | Card com thumbnail, título, data, status, ações |
-| Sem filtros | Filtros por status + busca por título |
-| Botão "Editar" único | Menu dropdown com duplicar/arquivar/deletar |
+#### 1.1 Migração de Banco
+```sql
+ALTER TABLE business_profile 
+ADD COLUMN IF NOT EXISTS whatsapp_lead_template TEXT;
 
-### Componentes a Criar
-
-#### 1.1 LandingPageCard.tsx
-
-Novo componente de card visual:
-
-```
-┌────────────────────────────────┐
-│ ┌────────────────────────────┐ │
-│ │                            │ │
-│ │      THUMBNAIL/PREVIEW     │ │  ← Imagem hero ou placeholder
-│ │                            │ │
-│ └────────────────────────────┘ │
-│                                │
-│ Título da Super Página         │  ← Truncado em 2 linhas
-│ Serviços locais • Teresina     │  ← Template + cidade
-│                                │
-│ ┌──────┐        12 jan 2025    │  ← Badge status + data
-│ │ Pub. │                       │
-│ └──────┘                       │
-│                                │
-│ [Abrir] [Editar] [...]         │  ← Ações
-└────────────────────────────────┘
+COMMENT ON COLUMN business_profile.whatsapp_lead_template IS 
+'Template customizado para mensagens de WhatsApp. Suporta: {{titulo}}, {{pagina}}, {{servico}}';
 ```
 
-**Dados exibidos:**
-- `featured_image_url` ou `page_data.hero.background_image_url` como thumbnail
-- Fallback: placeholder colorido com inicial do título
-- Badge de status: Publicada (verde), Rascunho (cinza), Arquivada (amarelo)
-- Data de criação formatada
-- Template type como subtítulo
+#### 1.2 Atualizar Hook useGlobalWhatsApp
+Modificar para aceitar template override do tenant:
 
-**Menu de ações (dropdown ...):**
-- Duplicar
-- Arquivar/Desarquivar
-- Excluir (com confirmação)
-
-#### 1.2 LandingPageFilters.tsx
-
-Barra de filtros no topo:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ [Todas ▼] [Publicadas] [Rascunho] [Arquivadas]   🔍 Buscar  │
-└─────────────────────────────────────────────────────────────┘
+```typescript
+interface WhatsAppContext {
+  phone: string;
+  companyName?: string;
+  service?: string;
+  city?: string;
+  articleTitle?: string;
+  pageSlug?: string;           // NOVO: slug da página
+  tenantTemplate?: string;     // NOVO: template customizado do tenant
+}
 ```
 
-**Funcionalidades:**
-- Tabs ou select para status: `all | published | draft | archived`
-- Input de busca filtrando por título (client-side)
-- Ordenação implícita: mais recente primeiro
+Lógica de interpolação:
+```typescript
+function interpolateTenantTemplate(template: string, context: WhatsAppContext): string {
+  return template
+    .replace(/\{\{titulo\}\}/g, context.articleTitle || 'seu site')
+    .replace(/\{\{pagina\}\}/g, context.pageSlug || '')
+    .replace(/\{\{servico\}\}/g, context.service || 'seus serviços');
+}
+```
 
-### 1.3 Modificações no ClientLandingPages.tsx
-
-Substituir a div `grid gap-4` atual por:
+#### 1.3 Atualizar ClientCompany.tsx
+Adicionar campo de template com preview:
 
 ```tsx
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-  {filteredPages.map((page) => (
-    <LandingPageCard
-      key={page.id}
-      page={page}
-      publicBaseUrl={publicBaseUrl}
-      onEdit={() => navigate(`/client/landing-pages/${page.id}`)}
-      onDuplicate={() => handleDuplicate(page.id)}
-      onArchive={() => handleArchive(page.id)}
-      onDelete={() => handleDelete(page.id)}
-    />
-  ))}
+{/* Template de Mensagem WhatsApp */}
+<div className="space-y-2">
+  <Label>Mensagem automática de contato</Label>
+  <Textarea
+    placeholder="Olá! Vi seu site e gostaria de saber mais sobre seus serviços."
+    value={whatsappTemplate}
+    onChange={(e) => setWhatsappTemplate(e.target.value)}
+    className="min-h-[80px]"
+  />
+  <p className="text-xs text-muted-foreground">
+    Placeholders disponíveis: <code>{"{{titulo}}"}</code>, <code>{"{{pagina}}"}</code>, <code>{"{{servico}}"}</code>
+  </p>
+  
+  {/* Preview da mensagem */}
+  {whatsappTemplate && (
+    <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+      <p className="text-sm font-medium text-green-600 flex items-center gap-2">
+        <MessageCircle className="h-4 w-4" />
+        Preview:
+      </p>
+      <p className="text-sm text-muted-foreground italic">
+        "{interpolatePreview(whatsappTemplate)}"
+      </p>
+    </div>
+  )}
 </div>
 ```
 
-### 1.4 Thumbnail/Preview Strategy
-
-**Ordem de prioridade para thumbnail:**
-1. `featured_image_url` (se existir no banco)
-2. `page_data.hero.background_image_url` (imagem do hero)
-3. Placeholder elegante com:
-   - Cor baseada no `template_type`
-   - Inicial do título grande
-   - Gradiente sutil
-
-### 1.5 Hook useLandingPages - Novas Funções
-
-Adicionar ao hook existente:
-
-```typescript
-duplicatePage: (id: string) => Promise<LandingPage | null>;
-archivePage: (id: string) => Promise<boolean>;
-unarchivePage: (id: string) => Promise<boolean>;
+#### 1.4 Valor Default Humano
+Se o tenant não definir template, usar mensagem simples:
 ```
+"Olá! Vi seu site e gostaria de saber mais sobre seus serviços."
+```
+
+#### 1.5 Atualizar Componentes de CTA
+Modificar `CTABanner.tsx`, `WhatsAppFloatButton.tsx`, e `CTABannerBlock.tsx`:
+- Buscar `whatsapp_lead_template` do `business_profile`
+- Usar template do tenant quando disponível
+- Fallback para default simples (não o template global longo)
 
 ---
 
-## PARTE 2: Painel SEO no Editor
+### PARTE 2: Correção de Artigos 404
 
-### Arquitetura do SEO para Landing Pages
+#### 2.1 Atualizar useBlogArticle Hook
+Permitir passar `blogId` diretamente para bypass da resolução por hostname:
 
-Reaproveitar o motor de SEO existente dos artigos, adaptando para a estrutura de Super Páginas.
+```typescript
+// src/hooks/useContentApi.ts
 
-### 2.1 Schema de Banco - Novas Colunas
-
-A tabela `landing_pages` precisa de colunas para armazenar o snapshot SEO:
-
-```sql
-ALTER TABLE landing_pages 
-ADD COLUMN IF NOT EXISTS seo_score INTEGER,
-ADD COLUMN IF NOT EXISTS seo_metrics JSONB,
-ADD COLUMN IF NOT EXISTS seo_recommendations JSONB,
-ADD COLUMN IF NOT EXISTS seo_analyzed_at TIMESTAMPTZ;
+export function useBlogArticle(
+  slug: string | undefined,
+  options?: { blogId?: string }  // NOVO
+): UseBlogArticleResult {
+  // ...
+  
+  useEffect(() => {
+    const fetch = async () => {
+      // Se blogId foi passado, usar diretamente sem resolver hostname
+      if (options?.blogId) {
+        const result = await fetchContentApiByBlogId<BlogArticleData>(
+          "blog.article", 
+          options.blogId,
+          { slug }
+        );
+        // ...
+      } else {
+        // Comportamento atual: resolve por hostname
+        const result = await fetchContentApi<BlogArticleData>("blog.article", { slug });
+        // ...
+      }
+    };
+  }, [slug, options?.blogId]);
+}
 ```
 
-**Estrutura de `seo_metrics`:**
-```json
-{
-  "breakdown": {
-    "title_points": 15,
-    "meta_points": 12,
-    "keywords_points": 15,
-    "content_points": 18,
-    "density_points": 15,
-    "image_points": 15
-  },
-  "diagnostics": {
-    "title_length": 58,
-    "meta_length": 145,
-    "word_count": 1800,
-    "density": { "dedetização": 1.2, "pragas": 0.8 },
-    "missing": []
-  },
-  "serp_benchmark": {
-    "avg_words_niche": 1500,
-    "competitors_analyzed": 10,
-    "semantic_coverage": 78
+#### 2.2 Nova Função fetchContentApiByBlogId
+```typescript
+export async function fetchContentApiByBlogId<T>(
+  route: ContentRoute,
+  blogId: string,
+  params: Record<string, unknown> = {}
+): Promise<ContentApiResponse<T> | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke("content-api", {
+      body: { blog_id: blogId, route, params },  // Usa blog_id em vez de host
+    });
+    // ...
   }
 }
 ```
 
-**Estrutura de `seo_recommendations`:**
-```json
-[
-  {
-    "type": "title",
-    "severity": "warning",
-    "message": "Título poderia ter entre 50-60 caracteres",
-    "auto_fixable": true
-  },
-  {
-    "type": "content",
-    "severity": "info",
-    "message": "Adicione mais 200 palavras para score máximo",
-    "auto_fixable": true
-  }
-]
-```
-
-### 2.2 Componente LandingPageSEOPanel.tsx
-
-Sidebar de SEO similar ao `SEOScoreAnalyzer`, adaptado para Landing Pages:
-
-```
-┌─────────────────────────────────┐
-│  SEO Score                      │
-│  ┌───────────────────────┐      │
-│  │        78             │      │  ← Velocímetro animado
-│  │       Bom             │      │
-│  └───────────────────────┘      │
-│                                 │
-│ ───────────────────────────     │
-│  📊 SERP do Nicho               │
-│  • Média palavras: 1.500        │
-│  • Concorrentes: 10             │
-│  • Cobertura: 78%               │
-│                                 │
-│ ───────────────────────────     │
-│  📐 Estrutura                   │
-│  ✓ Título: 58 chars (ideal)     │
-│  ⚠ Meta: 145 chars (-15)        │
-│  ✓ Palavras: 1.800              │
-│  ✓ Imagens: 6                   │
-│  ⚠ H2s: 4 (recomendado 6+)      │
-│                                 │
-│ ───────────────────────────     │
-│  🔤 Densidade de Keywords       │
-│  • dedetização: 1.2% ✓          │
-│  • pragas: 0.8% ⚠               │
-│                                 │
-│ ───────────────────────────     │
-│  💡 Recomendações               │
-│  • Expandir meta description    │
-│  • Adicionar mais H2s           │
-│                                 │
-│ [⚡ Corrigir automaticamente]   │
-│ [🔄 Reanalisar]                 │
-└─────────────────────────────────┘
-```
-
-**Props esperadas:**
-```typescript
-interface LandingPageSEOPanelProps {
-  pageId: string;
-  pageData: LandingPageData;
-  seoTitle: string;
-  seoDescription: string;
-  seoKeywords: string[];
-  seoScore?: number;
-  seoMetrics?: any;
-  seoRecommendations?: any[];
-  seoAnalyzedAt?: string;
-  onReanalyze: () => Promise<void>;
-  onAutoFix: () => Promise<void>;
-  isAnalyzing?: boolean;
-  isFixing?: boolean;
-}
-```
-
-### 2.3 Extração de Conteúdo para Análise SEO
-
-Landing Pages têm estrutura diferente de artigos. O conteúdo a analisar inclui:
+#### 2.3 Atualizar content-api Edge Function
+Aceitar `blog_id` diretamente como alternativa a `host`:
 
 ```typescript
-function extractLandingPageContent(pageData: LandingPageData): string {
-  const parts: string[] = [];
-  
-  // Hero
-  if (pageData.hero) {
-    parts.push(pageData.hero.title || '');
-    parts.push(pageData.hero.subtitle || '');
-  }
-  
-  // Services
-  pageData.services?.forEach(s => {
-    parts.push(s.title || '');
-    parts.push(s.description || '');
-  });
-  
-  // Service Details
-  pageData.service_details?.forEach(d => {
-    parts.push(d.title || '');
-    parts.push(d.content || '');
-    d.bullets?.forEach(b => parts.push(b));
-  });
-  
-  // Why Choose Us
-  pageData.why_choose_us?.forEach(w => {
-    parts.push(w.title || '');
-    parts.push(w.description || '');
-  });
-  
-  // FAQ
-  pageData.faq?.forEach(f => {
-    parts.push(f.question || '');
-    parts.push(f.answer || '');
-  });
-  
-  // Authority Content (SEO block)
-  if (pageData.authority_content) {
-    parts.push(pageData.authority_content);
-  }
-  
-  return parts.join(' ');
+// supabase/functions/content-api/index.ts
+
+interface ContentRequest {
+  host?: string;        // Resolução por hostname (comportamento atual)
+  blog_id?: string;     // NOVO: bypass de resolução
+  route: ContentRoute;
+  params?: Record<string, unknown>;
+}
+
+// Na lógica principal:
+let tenant: TenantResolution | null = null;
+
+if (req.blog_id) {
+  // Bypass: usar blog_id diretamente
+  tenant = {
+    blog_id: req.blog_id,
+    tenant_id: null,
+    domain: 'direct',
+    domain_type: 'subdomain',
+    status: 'active'
+  };
+} else if (req.host) {
+  tenant = await resolveTenant(supabase, req.host);
 }
 ```
 
-### 2.4 Edge Function: analyze-landing-page-seo
-
-Nova Edge Function para análise SEO de Landing Pages:
+#### 2.4 Atualizar CustomDomainArticle
+Passar `blogId` recebido como prop para o hook:
 
 ```typescript
-// supabase/functions/analyze-landing-page-seo/index.ts
+// src/pages/CustomDomainArticle.tsx
 
-interface AnalyzeLandingPageSEORequest {
-  landing_page_id: string;
-  include_serp?: boolean; // Se deve buscar dados SERP
+export default function CustomDomainArticle({ blogId }: CustomDomainArticleProps) {
+  const { articleSlug } = useParams();
+  
+  // Passar blogId para o hook (bypass hostname resolution)
+  const { blog, article, related, loading, error } = useBlogArticle(articleSlug, { blogId });
+  
+  // ...resto do código
 }
-
-// Retorno
-{
-  success: true,
-  score_total: 78,
-  breakdown: { ... },
-  diagnostics: { ... },
-  recommendations: [ ... ],
-  serp_benchmark: { ... } // Se include_serp=true
-}
-```
-
-**Lógica:**
-1. Buscar `landing_pages` pelo ID
-2. Extrair conteúdo textual usando `extractLandingPageContent`
-3. Usar `computeSeoScore` do módulo compartilhado
-4. Gerar recomendações baseadas no breakdown
-5. Opcionalmente, buscar dados SERP do cache (`serp_analysis_cache`)
-6. Salvar snapshot no banco
-
-### 2.5 Edge Function: fix-landing-page-seo
-
-Nova Edge Function para auto-correção:
-
-```typescript
-// supabase/functions/fix-landing-page-seo/index.ts
-
-interface FixLandingPageSEORequest {
-  landing_page_id: string;
-  fix_types?: ('title' | 'meta' | 'content' | 'keywords')[];
-}
-```
-
-**Lógica:**
-1. Buscar página e business_profile
-2. Usar IA (Gemini) para melhorar cada campo solicitado
-3. Atualizar `page_data` e campos SEO
-4. Recalcular score
-5. Retornar nova versão
-
-### 2.6 Integração no LandingPageEditor
-
-Adicionar nova tab "SEO" no painel lateral esquerdo:
-
-```tsx
-<TabsList className="w-full rounded-none border-b">
-  <TabsTrigger value="preview">Preview</TabsTrigger>
-  <TabsTrigger value="settings">Config</TabsTrigger>
-  <TabsTrigger value="seo">SEO</TabsTrigger>  {/* NOVO */}
-</TabsList>
-
-<TabsContent value="seo">
-  <LandingPageSEOPanel
-    pageId={page?.id}
-    pageData={pageData}
-    seoTitle={seoTitle}
-    seoDescription={seoDescription}
-    seoKeywords={seoKeywords}
-    seoScore={page?.seo_score}
-    seoMetrics={page?.seo_metrics}
-    seoRecommendations={page?.seo_recommendations}
-    seoAnalyzedAt={page?.seo_analyzed_at}
-    onReanalyze={handleReanalyze}
-    onAutoFix={handleAutoFix}
-    isAnalyzing={isAnalyzing}
-    isFixing={isFixing}
-  />
-</TabsContent>
 ```
 
 ---
-
-## Arquivos a Criar
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/components/client/landingpage/LandingPageCard.tsx` | Card visual para o grid |
-| `src/components/client/landingpage/LandingPageFilters.tsx` | Barra de filtros |
-| `src/components/client/landingpage/LandingPageSEOPanel.tsx` | Sidebar SEO completa |
-| `supabase/functions/analyze-landing-page-seo/index.ts` | Análise SEO de LP |
-| `supabase/functions/fix-landing-page-seo/index.ts` | Auto-correção SEO |
 
 ## Arquivos a Modificar
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/pages/client/ClientLandingPages.tsx` | Grid de cards + filtros |
-| `src/components/client/landingpage/LandingPageEditor.tsx` | Tab SEO + handlers |
-| `src/components/client/landingpage/hooks/useLandingPages.ts` | Duplicate, archive functions |
-| `src/components/client/landingpage/types/landingPageTypes.ts` | Tipos SEO |
-| `supabase/config.toml` | Novas Edge Functions |
-
-## Migração de Banco
-
-```sql
--- Adicionar colunas de SEO snapshot
-ALTER TABLE landing_pages 
-ADD COLUMN IF NOT EXISTS seo_score INTEGER,
-ADD COLUMN IF NOT EXISTS seo_metrics JSONB,
-ADD COLUMN IF NOT EXISTS seo_recommendations JSONB,
-ADD COLUMN IF NOT EXISTS seo_analyzed_at TIMESTAMPTZ;
-
--- Índice para ordenação por score
-CREATE INDEX IF NOT EXISTS idx_landing_pages_seo_score 
-ON landing_pages(seo_score DESC NULLS LAST);
-```
+| `src/pages/client/ClientCompany.tsx` | Adicionar campo whatsapp_lead_template |
+| `src/lib/whatsappBuilder.ts` | Adicionar função interpolateTenantTemplate |
+| `src/hooks/useGlobalWhatsApp.ts` | Suportar tenantTemplate no contexto |
+| `src/components/public/CTABanner.tsx` | Usar template do tenant |
+| `src/components/public/WhatsAppFloatButton.tsx` | Usar template do tenant |
+| `src/components/client/landingpage/blocks/CTABannerBlock.tsx` | Usar template do tenant |
+| `src/hooks/useContentApi.ts` | Aceitar blogId override no useBlogArticle |
+| `supabase/functions/content-api/index.ts` | Aceitar blog_id como alternativa a host |
+| `src/pages/CustomDomainArticle.tsx` | Passar blogId para useBlogArticle |
 
 ---
 
-## Fluxo de Análise SEO
+## Fluxo Final
 
-```text
-┌────────────────────────────────────────────────────────────────────┐
-│                     FLUXO SEO - LANDING PAGE                       │
-├────────────────────────────────────────────────────────────────────┤
-│                                                                    │
-│  [Usuário abre editor]                                             │
-│         ↓                                                          │
-│  ┌──────────────────────────────────────────────┐                 │
-│  │ Verificar seo_analyzed_at                    │                 │
-│  │ → Se existe e < 24h: mostrar cache           │                 │
-│  │ → Se não: mostrar "Reanalisar"               │                 │
-│  └──────────────────────────────────────────────┘                 │
-│         ↓                                                          │
-│  [Usuário clica "Reanalisar"]                                      │
-│         ↓                                                          │
-│  analyze-landing-page-seo                                          │
-│  → Extrai conteúdo textual de page_data                            │
-│  → Calcula score via computeSeoScore                               │
-│  → Gera recomendações                                              │
-│  → Busca SERP benchmark (se disponível)                            │
-│  → Salva snapshot no banco                                         │
-│         ↓                                                          │
-│  [Atualiza UI com novo score + métricas]                           │
-│                                                                    │
-│  [Usuário clica "Corrigir automaticamente"]                        │
-│         ↓                                                          │
-│  fix-landing-page-seo                                              │
-│  → IA melhora título, meta, content                                │
-│  → Atualiza page_data                                              │
-│  → Recalcula score                                                 │
-│  → Retorna delta de melhoria                                       │
-│                                                                    │
-└────────────────────────────────────────────────────────────────────┘
+### WhatsApp CTA
+```
+1. Usuário configura template em "Minha Empresa"
+   "Olá! Vi o artigo {{titulo}} e quero saber sobre {{servico}}."
+
+2. Ao clicar em CTA WhatsApp no artigo:
+   → Sistema busca business_profile.whatsapp_lead_template
+   → Interpola placeholders: "Olá! Vi o artigo 'Dedetização em Restaurantes' e quero saber sobre controle de pragas."
+   → Gera link: https://wa.me/5586988887777?text=...
+
+3. Se template não definido:
+   → Usa default: "Olá! Vi seu site e gostaria de saber mais sobre seus serviços."
+```
+
+### Resolução de Artigos
+```
+1. Usuário acessa: https://trulynolen.app.omniseen.app/dedetizacao-em-restaurantes
+
+2. BlogRoutes resolve blogId via useDomainResolution
+   → blogId: 781c9714-7459-4839-80b1-940489c6d5f8
+
+3. CustomDomainArticle recebe blogId como prop
+   → Passa para useBlogArticle({ blogId })
+
+4. useBlogArticle chama content-api com blog_id direto
+   → Bypass de resolução por hostname
+   → Artigo retornado corretamente
+
+5. Artigo renderizado com sucesso ✓
 ```
 
 ---
@@ -448,38 +274,10 @@ ON landing_pages(seo_score DESC NULLS LAST);
 
 | Critério | Implementação |
 |----------|---------------|
-| Grid de cards responsivo | 4/3/2/1 colunas por breakpoint |
-| Thumbnail em cada card | Imagem hero ou placeholder colorido |
-| Filtros por status | Tabs: Todas/Publicadas/Rascunho/Arquivadas |
-| Busca por título | Input com debounce client-side |
-| Menu dropdown com ações | Duplicar, Arquivar, Excluir |
-| Tab SEO no editor | Nova aba com painel completo |
-| Velocímetro de score | Componente SEOScoreGauge reutilizado |
-| Métricas SERP/benchmark | Exibir se disponível no cache |
-| Estrutura (palavras, H2, imagens) | Indicadores visuais de status |
-| Densidade de keywords | Lista com % e status |
-| Recomendações | Lista de sugestões acionáveis |
-| Botão "Corrigir automaticamente" | Chama fix-landing-page-seo |
-| Botão "Reanalisar" | Chama analyze-landing-page-seo |
-| SEO persistido | Colunas seo_score, seo_metrics, etc. |
-| Score carrega rápido | Cache/snapshot evita recálculo constante |
-
----
-
-## Resultado Final
-
-### Tela Super Páginas
-- Grid visual moderno com thumbnails
-- Filtros intuitivos por status
-- Busca rápida por título
-- Ações rápidas via menu dropdown
-- UX consistente com tela de Artigos
-
-### Editor de Super Página
-- Nova tab SEO no painel lateral
-- Velocímetro animado com score 0-100
-- Métricas detalhadas de estrutura
-- Benchmark SERP do nicho (quando disponível)
-- Auto-correção com IA
-- Reanálise manual sob demanda
-- Cache de análise para performance
+| Campo de template editável | "Minha Empresa" com textarea + preview |
+| Placeholders funcionais | {{titulo}}, {{pagina}}, {{servico}} |
+| Default humano | "Olá! Vi seu site..." quando vazio |
+| Preview em tempo real | Mostra mensagem interpolada ao digitar |
+| Artigos publicados acessíveis | Via blogId passado como prop |
+| content-api aceita blog_id | Alternativa a resolução por host |
+| Zero mensagens "inventadas" | Sistema nunca gera texto que o dono não aprovou |
