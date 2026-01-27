@@ -224,6 +224,7 @@ export const DEFAULT_BLOCK_VISIBILITY: BlockVisibility = {
 // Landing page template types
 export type LandingPageTemplateType = 
   | 'service_authority_v1' 
+  | 'service_authority_pro_v1'  // Super Página PRO
   | 'institutional_v1' 
   | 'specialist_authority_v1';
 
@@ -241,6 +242,20 @@ export const TEMPLATE_DEFAULT_VISIBILITY: Record<LandingPageTemplateType, BlockV
     areas_served: true,
     faq: true,
     contact: true,
+    cta_banner: true,
+  },
+  service_authority_pro_v1: {
+    hero: true,
+    services: true,         // service_cards
+    service_details: true,  // deep_dives
+    emergency_banner: true,
+    materials: true,        // materials_quality
+    process_steps: true,    // inspection_process
+    why_choose_us: true,    // local_context
+    testimonials: true,
+    areas_served: true,
+    faq: true,
+    contact: true,          // footer_cta
     cta_banner: true,
   },
   institutional_v1: {

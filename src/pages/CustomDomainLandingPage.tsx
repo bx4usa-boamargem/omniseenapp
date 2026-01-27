@@ -2,10 +2,16 @@ import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { useLandingPage, useAgentConfig } from "@/hooks/useContentApi";
 import { LandingPagePreview } from "@/components/client/landingpage/LandingPagePreview";
+import { ServiceAuthorityProLayout } from "@/components/client/landingpage/layouts/ServiceAuthorityProLayout";
+import { ServiceAuthorityLayout } from "@/components/client/landingpage/layouts/ServiceAuthorityLayout";
+import { InstitutionalLayout } from "@/components/client/landingpage/layouts/InstitutionalLayout";
+import { SpecialistAuthorityLayout } from "@/components/client/landingpage/layouts/SpecialistAuthorityLayout";
 import { SEOHead } from "@/components/public/SEOHead";
 import { BrandSalesAgentWidget } from "@/components/public/BrandSalesAgentWidget";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCanonicalBlogUrl } from "@/utils/blogUrl";
+import { DEFAULT_BLOCK_VISIBILITY } from "@/components/client/landingpage/types/landingPageTypes";
+import { DEFAULT_PRO_VISIBILITY } from "@/components/client/landingpage/types/serviceAuthorityProTypes";
 
 interface CustomDomainLandingPageProps {
   blogId: string;
@@ -51,22 +57,66 @@ export default function CustomDomainLandingPage({ blogId }: CustomDomainLandingP
     ? JSON.parse(page.page_data) 
     : page.page_data;
 
+  const template = pageData?.template || 'service_authority_v1';
+
+  // Render the appropriate layout based on template
+  const renderLayout = () => {
+    switch (template) {
+      case 'service_authority_pro_v1':
+        return (
+          <ServiceAuthorityProLayout
+            pageData={pageData}
+            primaryColor={primaryColor}
+            visibility={DEFAULT_PRO_VISIBILITY}
+          />
+        );
+      case 'institutional_v1':
+        return (
+          <InstitutionalLayout
+            pageData={pageData}
+            primaryColor={primaryColor}
+            visibility={DEFAULT_BLOCK_VISIBILITY}
+          />
+        );
+      case 'specialist_authority_v1':
+        return (
+          <SpecialistAuthorityLayout
+            pageData={pageData}
+            primaryColor={primaryColor}
+            visibility={DEFAULT_BLOCK_VISIBILITY}
+          />
+        );
+      case 'service_authority_v1':
+        return (
+          <ServiceAuthorityLayout
+            pageData={pageData}
+            primaryColor={primaryColor}
+            visibility={DEFAULT_BLOCK_VISIBILITY}
+          />
+        );
+      default:
+        return (
+          <LandingPagePreview 
+            pageData={pageData} 
+            blogId={blog.id} 
+            primaryColor={primaryColor} 
+          />
+        );
+    }
+  };
+
   return (
     <>
       <SEOHead
         title={page.seo_title || page.title}
         description={page.seo_description || undefined}
-        ogImage={page.featured_image_url || (pageData as any)?.hero?.background_image_url || undefined}
+        ogImage={page.featured_image_url || (pageData as any)?.hero?.background_image_url || (pageData as any)?.hero?.image_url || undefined}
         canonicalUrl={canonicalUrl}
       />
 
-      {/* LandingPagePreview uses ScrollArea(h-full) - ensure proper height */}
-      <div className="h-[100dvh]">
-        <LandingPagePreview 
-          pageData={pageData} 
-          blogId={blog.id} 
-          primaryColor={primaryColor} 
-        />
+      {/* Layout wrapper - uses ScrollArea(h-full) internally */}
+      <div className="min-h-screen landing-page-pro">
+        {renderLayout()}
       </div>
 
       {agentConfig?.is_enabled && (

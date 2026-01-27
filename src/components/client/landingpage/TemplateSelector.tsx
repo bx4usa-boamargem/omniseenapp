@@ -1,8 +1,9 @@
-import { Building2, Briefcase, User } from "lucide-react";
+import { Building2, Briefcase, User, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type LandingPageTemplate = 
   | 'service_authority_v1' 
+  | 'service_authority_pro_v1'
   | 'institutional_v1' 
   | 'specialist_authority_v1';
 
@@ -18,7 +19,16 @@ const TEMPLATE_OPTIONS: Array<{
   description: string;
   icon: React.ComponentType<{ className?: string }>;
   color: string;
+  isPro?: boolean;
 }> = [
+  {
+    id: 'service_authority_pro_v1',
+    name: 'Super Página PRO',
+    description: '12 seções, 15+ imagens reais, layout premium com alternância visual',
+    icon: Zap,
+    color: '#8b5cf6', // violet
+    isPro: true,
+  },
   {
     id: 'service_authority_v1',
     name: 'Serviços Locais',
@@ -83,13 +93,18 @@ export function TemplateSelector({ value, onChange, disabled }: TemplateSelector
                 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <h4 className={cn(
                       "font-semibold transition-colors",
                       isSelected ? "text-slate-900" : "text-slate-700"
                     )}>
                       {template.name}
                     </h4>
+                    {(template as any).isPro && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-violet-500 to-orange-500 text-white uppercase tracking-wider">
+                        PRO
+                      </span>
+                    )}
                     {isSelected && (
                       <span 
                         className="text-xs font-medium px-2 py-0.5 rounded-full"

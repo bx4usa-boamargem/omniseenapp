@@ -41,11 +41,13 @@ import { useBlog } from "@/hooks/useBlog";
 import { useLandingPages } from "./hooks/useLandingPages";
 import { LandingPagePreview } from "./LandingPagePreview";
 import { ServiceAuthorityLayout } from "./layouts/ServiceAuthorityLayout";
+import { ServiceAuthorityProLayout } from "./layouts/ServiceAuthorityProLayout";
 import { InstitutionalLayout } from "./layouts/InstitutionalLayout";
 import { SpecialistAuthorityLayout } from "./layouts/SpecialistAuthorityLayout";
 import { TemplateSelector, LandingPageTemplate } from "./TemplateSelector";
 import { LandingPageSEOPanel } from "./LandingPageSEOPanel";
 import { LandingPageData, BlockVisibility, DEFAULT_BLOCK_VISIBILITY, TEMPLATE_DEFAULT_VISIBILITY, LandingPage, LandingPageTemplateType } from "./types/landingPageTypes";
+import { DEFAULT_PRO_VISIBILITY } from "./types/serviceAuthorityProTypes";
 import { normalizePageDataForSave, inferVisibilityFromPageData } from "./utils/pageDataNormalizer";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -615,7 +617,15 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
           {pageData ? (
             <div className="absolute inset-0 overflow-y-auto">
               <div className="max-w-[1200px] mx-auto shadow-2xl shadow-black/10 min-h-full">
-                {pageData.template === 'institutional_v1' ? (
+                {pageData.template === 'service_authority_pro_v1' ? (
+                  <ServiceAuthorityProLayout
+                    pageData={pageData as any}
+                    primaryColor={blog?.primary_color || "#8b5cf6"}
+                    visibility={visibility as any}
+                    isEditing={true}
+                    onEditBlock={handleEditBlock}
+                  />
+                ) : pageData.template === 'institutional_v1' ? (
                   <InstitutionalLayout
                     pageData={pageData}
                     primaryColor={blog?.primary_color || "#475569"}

@@ -6,26 +6,22 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-type LandingPageTemplate = 'service_authority_v1' | 'institutional_v1' | 'specialist_authority_v1';
+type LandingPageTemplate = 'service_authority_v1' | 'service_authority_pro_v1' | 'institutional_v1' | 'specialist_authority_v1';
 
 // Helper functions for SEO field generation
 function buildSeoTitle(pageData: any, companyName: string, niche: string, city: string): string {
-  // Priority: use hero headline if it's good length
   const heroHeadline = pageData.hero?.headline || pageData.hero?.title || '';
   if (heroHeadline.length >= 30 && heroHeadline.length <= 60) {
     return heroHeadline;
   }
   
-  // Build a proper SEO title
   const parts = [companyName, niche, city].filter(Boolean);
   let title = parts.join(' - ');
   
-  // Ensure it's not too long
   if (title.length > 60) {
     title = `${companyName} - ${niche}`.slice(0, 60);
   }
   
-  // Ensure it's not too short
   if (title.length < 30 && city) {
     title = `${companyName}: ${niche} em ${city}`.slice(0, 60);
   }
@@ -34,29 +30,24 @@ function buildSeoTitle(pageData: any, companyName: string, niche: string, city: 
 }
 
 function buildSeoDescription(pageData: any, niche: string, city: string, companyName: string): string {
-  // Priority: use hero subheadline if it's good length
   const heroSubheadline = pageData.hero?.subheadline || pageData.hero?.subtitle || '';
   if (heroSubheadline.length >= 120 && heroSubheadline.length <= 160) {
     return heroSubheadline;
   }
   
-  // Build a proper meta description with CTA
   const cityPart = city ? ` em ${city}` : '';
   const description = `${companyName} oferece serviços de ${niche}${cityPart}. Atendimento profissional e qualidade garantida. Solicite seu orçamento grátis!`;
   
-  // Ensure proper length
   return description.slice(0, 160);
 }
 
 function extractKeywords(pageData: any, niche: string, services: string[], city: string, companyName: string): string[] {
   const keywords = new Set<string>();
   
-  // Add primary keywords
   if (niche) keywords.add(niche.toLowerCase());
   if (city) keywords.add(`${niche} ${city}`.toLowerCase());
   if (companyName) keywords.add(companyName.toLowerCase());
   
-  // Add service-based keywords
   services.slice(0, 3).forEach(service => {
     if (service) {
       keywords.add(service.toLowerCase().trim());
@@ -66,10 +57,8 @@ function extractKeywords(pageData: any, niche: string, services: string[], city:
     }
   });
   
-  // Extract from hero if available
   const heroTitle = pageData.hero?.headline || pageData.hero?.title || '';
   if (heroTitle) {
-    // Extract significant words (3+ chars)
     const words = heroTitle.toLowerCase().split(/\s+/).filter((w: string) => w.length > 3);
     words.slice(0, 2).forEach((w: string) => keywords.add(w));
   }
@@ -78,23 +67,211 @@ function extractKeywords(pageData: any, niche: string, services: string[], city:
 }
 
 function buildSlug(headline: string, niche: string, city: string): string {
-  // Try to build from headline first
   let base = headline || `${niche} ${city}` || 'landing-page';
   
-  // Normalize and slugify
   const slug = base
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // Remove accents
-    .replace(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric with hyphens
-    .replace(/(^-|-$)/g, "") // Remove leading/trailing hyphens
-    .slice(0, 50); // Limit length
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 50);
   
   return slug || 'super-pagina';
 }
 
+// PRO Template Prompt-Mestre para Imagens Fotorealistas
+function buildProImagePrompt(niche: string, city: string, sectionName: string, sceneDescription: string): string {
+  return `Photorealistic professional photography of ${sceneDescription} in ${city}, related to ${niche} services. Clean composition, natural lighting, commercial style, high detail, modern, trustworthy atmosphere, no text, no logos, no watermark.`;
+}
+
+// MEGA-PROMPT PRO - 12 seções, 15 imagens
+const SERVICE_AUTHORITY_PRO_PROMPT = (company: string, niche: string, city: string, services: string[]) => `
+Você é um Arquiteto de Landing Pages de Alta Conversão no padrão SEOwriting.ai.
+Gere um JSON para o template "service_authority_pro_v1".
+
+## MÉTRICAS OBRIGATÓRIAS
+- 12 seções H2 distintas
+- 15 image_prompts FOTOREALISTAS únicos
+- 6+ CTAs distribuídos
+- 1500+ palavras de conteúdo total
+- Textos CONTROLADOS por bloco (ver limites)
+
+## LIMITES DE TEXTO (INVIOLÁVEIS)
+| Seção | Limite |
+|-------|--------|
+| Hero headline | 8-12 palavras |
+| Hero subheadline | 20-30 palavras |
+| Service Card desc | 40-60 palavras |
+| Deep Dive intro | 50-80 palavras |
+| Deep Dive bullets | 5-7 items por seção |
+| Local challenge desc | 30-50 palavras |
+| FAQ answer | 50-100 palavras |
+| Inspection steps | 4-6 steps |
+
+## CONTEXTO
+- Empresa: ${company}
+- Nicho: ${niche}
+- Cidade: ${city}
+- Serviços: ${services.join(', ')}
+
+## REGRA DE IMAGE_PROMPT (PROMPT-MESTRE OBRIGATÓRIO)
+Para CADA image_prompt, use EXATAMENTE este formato:
+"Photorealistic professional photography of [CENA ESPECÍFICA] in ${city}, related to ${niche} services. Clean composition, natural lighting, commercial style, high detail, modern, trustworthy atmosphere, no text, no logos, no watermark."
+
+Substitua [CENA ESPECÍFICA] por uma descrição contextual única para cada seção.
+
+## ESTRUTURA JSON OBRIGATÓRIA (12 seções + 15 imagens)
+
+{
+  "template": "service_authority_pro_v1",
+  "brand": {
+    "company_name": "${company}",
+    "phone": "(11) 99999-9999",
+    "city": "${city}",
+    "niche": "${niche}",
+    "tagline": "Slogan profissional"
+  },
+  "hero": {
+    "headline": "Headline de 8-12 palavras com benefício e cidade",
+    "subheadline": "Subheadline de 20-30 palavras explicando o valor",
+    "image_prompt": "Photorealistic..."
+  },
+  "service_cards": [
+    {
+      "id": "service-1",
+      "title": "${services[0] || 'Serviço Principal'}",
+      "description": "Descrição de 40-60 palavras sobre este serviço específico...",
+      "cta_text": "Solicitar Orçamento",
+      "image_prompt": "Photorealistic..."
+    },
+    {
+      "id": "service-2",
+      "title": "${services[1] || 'Serviço Secundário'}",
+      "description": "Descrição de 40-60 palavras...",
+      "cta_text": "Saiba Mais",
+      "image_prompt": "Photorealistic..."
+    },
+    {
+      "id": "service-3",
+      "title": "${services[2] || 'Serviço Adicional'}",
+      "description": "Descrição de 40-60 palavras...",
+      "cta_text": "Agendar Visita",
+      "image_prompt": "Photorealistic..."
+    },
+    {
+      "id": "service-4",
+      "title": "${services[3] || 'Serviço Extra'}",
+      "description": "Descrição de 40-60 palavras...",
+      "cta_text": "Ligar Agora",
+      "image_prompt": "Photorealistic..."
+    }
+  ],
+  "emergency": {
+    "headline": "Urgência em ${niche}?",
+    "subtext": "Atendimento 24 horas, 7 dias por semana. Ligue agora!"
+  },
+  "deep_dives": [
+    {
+      "id": "deep-1",
+      "title": "Primeiro Tema Aprofundado",
+      "intro": "Introdução de 50-80 palavras sobre este tema...",
+      "hero_image_prompt": "Photorealistic wide shot...",
+      "side_image_prompt": "Photorealistic close-up detail...",
+      "bullets": ["Benefício 1", "Benefício 2", "Benefício 3", "Benefício 4", "Benefício 5"],
+      "cta_text": "Solicitar Orçamento"
+    },
+    {
+      "id": "deep-2",
+      "title": "Segundo Tema Aprofundado",
+      "intro": "Introdução de 50-80 palavras...",
+      "hero_image_prompt": "Photorealistic...",
+      "side_image_prompt": "Photorealistic...",
+      "bullets": ["Benefício A", "Benefício B", "Benefício C", "Benefício D", "Benefício E"],
+      "cta_text": "Agendar Consulta"
+    }
+  ],
+  "local_context": {
+    "title": "Por Que ${city} Precisa de ${niche} Especializado",
+    "intro": "Introdução de 50-80 palavras sobre o contexto local...",
+    "hero_image_prompt": "Photorealistic urban scene of ${city}...",
+    "challenges": [
+      {
+        "id": "challenge-1",
+        "title": "Desafio Local 1",
+        "description": "Descrição de 30-50 palavras...",
+        "image_prompt": "Photorealistic..."
+      },
+      {
+        "id": "challenge-2",
+        "title": "Desafio Local 2",
+        "description": "Descrição de 30-50 palavras...",
+        "image_prompt": "Photorealistic..."
+      },
+      {
+        "id": "challenge-3",
+        "title": "Desafio Local 3",
+        "description": "Descrição de 30-50 palavras...",
+        "image_prompt": "Photorealistic..."
+      }
+    ]
+  },
+  "inspection_process": {
+    "title": "Nosso Processo de Avaliação",
+    "intro": "Introdução de 40-60 palavras...",
+    "steps": [
+      "Passo 1: Agendamento",
+      "Passo 2: Avaliação inicial",
+      "Passo 3: Diagnóstico",
+      "Passo 4: Proposta detalhada",
+      "Passo 5: Execução"
+    ],
+    "image_prompt": "Photorealistic professional inspection...",
+    "special_offer": "Avaliação Gratuita"
+  },
+  "materials_quality": {
+    "title": "Materiais e Equipamentos de Qualidade",
+    "description": "Descrição de 60-100 palavras sobre a qualidade dos materiais...",
+    "image_prompt": "Photorealistic close-up of premium professional tools and materials..."
+  },
+  "areas_served": {
+    "title": "Áreas Atendidas em ${city}",
+    "intro": "Cobertura completa na região metropolitana",
+    "neighborhoods": ["Centro", "Zona Norte", "Zona Sul", "Zona Leste", "Zona Oeste", "Região 1", "Região 2", "Região 3"]
+  },
+  "faq": [
+    { "id": "faq-1", "question": "Pergunta frequente 1?", "answer": "Resposta de 50-100 palavras..." },
+    { "id": "faq-2", "question": "Pergunta frequente 2?", "answer": "Resposta de 50-100 palavras..." },
+    { "id": "faq-3", "question": "Pergunta frequente 3?", "answer": "Resposta de 50-100 palavras..." },
+    { "id": "faq-4", "question": "Pergunta frequente 4?", "answer": "Resposta de 50-100 palavras..." },
+    { "id": "faq-5", "question": "Pergunta frequente 5?", "answer": "Resposta de 50-100 palavras..." },
+    { "id": "faq-6", "question": "Pergunta frequente 6?", "answer": "Resposta de 50-100 palavras..." }
+  ],
+  "testimonials": [
+    { "id": "test-1", "quote": "Depoimento real e convincente...", "name": "João S.", "location": "${city}" },
+    { "id": "test-2", "quote": "Outro depoimento...", "name": "Maria P.", "location": "${city}" },
+    { "id": "test-3", "quote": "Terceiro depoimento...", "name": "Carlos R.", "location": "${city}" }
+  ],
+  "footer_cta": {
+    "headline": "Pronto para Resolver Seu Problema?",
+    "phone": "(11) 99999-9999",
+    "badges": ["Atendimento 24h", "Garantia de Qualidade", "Orçamento Grátis"]
+  }
+}
+
+## REGRAS CRÍTICAS
+1. TODOS os image_prompt devem ser únicos e específicos ao contexto
+2. NENHUM texto genérico ou placeholder
+3. Conteúdo em português do Brasil
+4. Cidade e nicho devem aparecer naturalmente no conteúdo
+5. CTAs devem variar (não repetir "Saiba Mais" em todas as seções)
+
+Retorne APENAS o JSON válido, sem markdown ou explicações.`;
+
 // Template-specific prompts with photo_prompt for specialist
 const TEMPLATE_PROMPTS: Record<LandingPageTemplate, (company: string, niche: string, city: string, services: string[]) => string> = {
+  service_authority_pro_v1: SERVICE_AUTHORITY_PRO_PROMPT,
+  
   service_authority_v1: (company, niche, city, services) => `Você é um Especialista em Landing Pages de Alta Conversão para Serviços Locais.
 Gere um JSON para o template "service_authority_v1".
 REGRAS:

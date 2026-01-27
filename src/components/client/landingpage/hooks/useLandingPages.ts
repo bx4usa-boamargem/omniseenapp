@@ -24,68 +24,186 @@ interface UseLandingPagesReturn {
   regeneratePage: (id: string) => Promise<LandingPageData | null>;
 }
 
-async function generateLandingPageImage(params: {
-  prompt: string;
-  context: string;
-  pageTitle: string;
-  userId?: string;
-  blogId?: string;
-  fileName: string;
-}): Promise<string | null> {
-  const { prompt, context, pageTitle, userId, blogId, fileName } = params;
+// Fallback placeholder images (internal storage URLs)
+const FALLBACK_IMAGES = {
+  hero: 'https://images.unsplash.com/photo-1560472355-536de3962603?w=1200&h=600&fit=crop',
+  service: 'https://images.unsplash.com/photo-1581092160607-ee67d3958e78?w=600&h=400&fit=crop',
+  local: 'https://images.unsplash.com/photo-1449824913935-59a10b8d2000?w=1200&h=600&fit=crop',
+  process: 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=600&h=400&fit=crop',
+  materials: 'https://images.unsplash.com/photo-1504917595217-d4dc5ebe6122?w=600&h=400&fit=crop',
+  challenge: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=600&h=400&fit=crop',
+};
 
-  try {
-    const { data, error } = await supabase.functions.invoke("generate-image", {
-      body: {
-        prompt: `Photorealistic professional photography, ${prompt}, natural lighting, high detail, no text, no logos, no cartoon, no 3D, no anime.`,
-        context,
-        articleTitle: pageTitle,
-        articleTheme: pageTitle,
-        user_id: userId,
-        blog_id: blogId,
-      },
-    });
+// Generate a single image with retry logic and internal fallback
+async function generateImageWithRetry(
+  prompt: string,
+  context: string,
+  blogId: string,
+  userId: string,
+  maxRetries: number = 2
+): Promise<string> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[ProImagePipeline] Attempt ${attempt} for ${context}`);
+      
+      const { data, error } = await supabase.functions.invoke("generate-image", {
+        body: {
+          prompt,
+          context,
+          blog_id: blogId,
+          user_id: userId,
+        },
+      });
 
-    if (error) throw error;
-
-    if (data?.publicUrl) return data.publicUrl as string;
-
-    if (data?.imageBase64) {
-      return await uploadImageToStorage(data.imageBase64 as string, fileName, "article-images");
+      if (!error && data?.publicUrl) {
+        console.log(`[ProImagePipeline] ✅ ${context} resolved on attempt ${attempt}`);
+        return data.publicUrl;
+      }
+      
+      console.warn(`[ProImagePipeline] Attempt ${attempt} failed for ${context}:`, error);
+    } catch (e) {
+      console.warn(`[ProImagePipeline] Exception on attempt ${attempt} for ${context}:`, e);
     }
-  } catch (err) {
-    console.error(`[ImagePipeline] Generation failed for ${context}, falling back to Unsplash:`, err);
-    // Fallback para Unsplash usando o prompt simplificado
-    const query = encodeURIComponent(prompt.split(',')[0]);
-    return `https://source.unsplash.com/featured/?${query},professional,service`;
+  }
+  
+  // Return appropriate fallback based on context
+  const fallbackKey = context.includes('hero') ? 'hero' 
+    : context.includes('service') ? 'service'
+    : context.includes('challenge') ? 'challenge'
+    : context.includes('local') ? 'local'
+    : context.includes('inspection') ? 'process'
+    : context.includes('materials') ? 'materials'
+    : 'service';
+  
+  console.log(`[ProImagePipeline] ⚠️ Using fallback for ${context}`);
+  return FALLBACK_IMAGES[fallbackKey as keyof typeof FALLBACK_IMAGES];
+}
+
+// Resolve all 15+ images for PRO template
+async function resolveAllProImages(
+  pageData: any,
+  blogId: string,
+  userId: string
+): Promise<{ data: any; resolved: number; failed: number }> {
+  const prompts: Array<{ key: string; path: string[]; prompt: string }> = [];
+
+  // Extract all 15 image prompts
+  // 1. Hero (1)
+  if (pageData.hero?.image_prompt && !pageData.hero?.image_url) {
+    prompts.push({ 
+      key: 'hero', 
+      path: ['hero', 'image_url'], 
+      prompt: pageData.hero.image_prompt 
+    });
   }
 
-  return null;
-}
+  // 2. Service Cards (4)
+  pageData.service_cards?.forEach((card: any, i: number) => {
+    if (card.image_prompt && !card.image_url) {
+      prompts.push({ 
+        key: `service_${i}`, 
+        path: ['service_cards', String(i), 'image_url'], 
+        prompt: card.image_prompt 
+      });
+    }
+  });
 
-function buildHeroPrompt(pageData: LandingPageData, profile?: any): string {
-  const companyName = profile?.company_name || "empresa";
-  const services = profile?.services || profile?.niche || "serviços";
-  const city = profile?.city ? ` em ${profile.city}` : "";
+  // 3. Deep Dives (4 = 2x2)
+  pageData.deep_dives?.forEach((dive: any, i: number) => {
+    if (dive.hero_image_prompt && !dive.hero_image_url) {
+      prompts.push({ 
+        key: `dive_${i}_hero`, 
+        path: ['deep_dives', String(i), 'hero_image_url'], 
+        prompt: dive.hero_image_prompt 
+      });
+    }
+    if (dive.side_image_prompt && !dive.side_image_url) {
+      prompts.push({ 
+        key: `dive_${i}_side`, 
+        path: ['deep_dives', String(i), 'side_image_url'], 
+        prompt: dive.side_image_prompt 
+      });
+    }
+  });
 
-  const title = pageData.hero?.title || "";
-  const subtitle = pageData.hero?.subtitle || "";
+  // 4. Local Context (4 = 1 hero + 3 challenges)
+  if (pageData.local_context?.hero_image_prompt && !pageData.local_context?.hero_image_url) {
+    prompts.push({ 
+      key: 'local_hero', 
+      path: ['local_context', 'hero_image_url'], 
+      prompt: pageData.local_context.hero_image_prompt 
+    });
+  }
+  pageData.local_context?.challenges?.forEach((c: any, i: number) => {
+    if (c.image_prompt && !c.image_url) {
+      prompts.push({ 
+        key: `challenge_${i}`, 
+        path: ['local_context', 'challenges', String(i), 'image_url'], 
+        prompt: c.image_prompt 
+      });
+    }
+  });
 
-  return (
-    pageData.hero?.background_image_prompt ||
-    `Professional, realistic hero photograph for a service landing page.\nCompany: ${companyName}\nService: ${services}${city}\nHeadline: ${title}\nContext: ${subtitle}\n\nRequirements:\n- Realistic photography, natural lighting\n- Modern, clean composition\n- No text, no logos, no watermarks\n- 16:9 aspect ratio`
-  );
-}
+  // 5. Inspection Process (1)
+  if (pageData.inspection_process?.image_prompt && !pageData.inspection_process?.image_url) {
+    prompts.push({ 
+      key: 'inspection', 
+      path: ['inspection_process', 'image_url'], 
+      prompt: pageData.inspection_process.image_prompt 
+    });
+  }
 
-function buildServiceDetailPrompt(detail: any, profile?: any): string {
-  const companyName = profile?.company_name || "empresa";
-  const services = profile?.services || profile?.niche || "serviços";
-  const city = profile?.city ? ` em ${profile.city}` : "";
+  // 6. Materials (1)
+  if (pageData.materials_quality?.image_prompt && !pageData.materials_quality?.image_url) {
+    prompts.push({ 
+      key: 'materials', 
+      path: ['materials_quality', 'image_url'], 
+      prompt: pageData.materials_quality.image_prompt 
+    });
+  }
 
-  return (
-    detail.image_prompt ||
-    `Professional realistic photo illustrating "${detail.title}".\nCompany: ${companyName}\nIndustry: ${services}${city}\n\nRequirements:\n- Realistic photography\n- No text, no logos, no watermarks\n- Editorial quality, clean composition\n- 16:9 aspect ratio`
-  );
+  console.log(`[ProImagePipeline] Starting resolution of ${prompts.length} images...`);
+
+  let resolved = 0;
+  let failed = 0;
+  const nextData = JSON.parse(JSON.stringify(pageData));
+
+  // Process in batches of 4 for performance
+  const batchSize = 4;
+  for (let i = 0; i < prompts.length; i += batchSize) {
+    const batch = prompts.slice(i, i + batchSize);
+    
+    toast.info(`Gerando imagens ${i + 1}-${Math.min(i + batchSize, prompts.length)} de ${prompts.length}...`);
+    
+    const results = await Promise.allSettled(
+      batch.map(async (p) => {
+        const url = await generateImageWithRetry(p.prompt, p.key, blogId, userId);
+        return { key: p.key, path: p.path, url };
+      })
+    );
+
+    // Apply results to data
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value?.url) {
+        const { path, url } = result.value;
+        
+        // Navigate to the correct nested property
+        let target: any = nextData;
+        for (let j = 0; j < path.length - 1; j++) {
+          const key = path[j];
+          if (!target[key]) target[key] = {};
+          target = target[key];
+        }
+        target[path[path.length - 1]] = url;
+        resolved++;
+      } else {
+        failed++;
+      }
+    }
+  }
+
+  console.log(`[ProImagePipeline] Complete: ${resolved} resolved, ${failed} failed`);
+  return { data: nextData, resolved, failed };
 }
 
 export function useLandingPages(): UseLandingPagesReturn {
@@ -120,6 +238,8 @@ export function useLandingPages(): UseLandingPagesReturn {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("User not authenticated");
       
+      toast.info("Gerando estrutura da página...");
+      
       // 1. GERAÇÃO DO JSON ESTRUTURAL
       const { data, error } = await supabase.functions.invoke("generate-landing-page", {
         body: request,
@@ -130,57 +250,52 @@ export function useLandingPages(): UseLandingPagesReturn {
         throw new Error(data?.error || "IA generation failed");
       }
       
-      const pageData = data.page_data;
+      let pageData = data.page_data;
+      const isPro = pageData.template === 'service_authority_pro_v1';
       
-      // Inicializar URLs como null para evitar erros de render
-      if (pageData.hero) pageData.hero.image_url = null;
-      if (Array.isArray(pageData.services)) {
-        pageData.services = pageData.services.map((s: any) => ({ ...s, image_url: null }));
-      }
-
-      toast.info("Geração de Imagens Fotográficas em andamento...");
-
-      // 2. RESOLUÇÃO DE IMAGENS (Pipeline idêntico ao Artigo)
-      // Resolve Hero - Usando prompt limpo e curto
-      if (pageData.hero?.image_prompt) {
-        try {
-          const { data: heroImg } = await supabase.functions.invoke("generate-image", {
-            body: {
-              prompt: pageData.hero.image_prompt,
-              context: 'hero',
-              blog_id: request.blog_id,
-              user_id: user.id
-            }
-          });
-          if (heroImg?.publicUrl) pageData.hero.image_url = heroImg.publicUrl;
-        } catch (e) {
-          console.warn("[Pipeline] Hero image resolution failed, continuing...");
+      // 2. RESOLUÇÃO DE IMAGENS
+      if (isPro) {
+        // PRO template: resolve all 15 images with pipeline
+        toast.info("Gerando 15+ imagens fotográficas profissionais...");
+        const imageResult = await resolveAllProImages(pageData, request.blog_id, user.id);
+        pageData = imageResult.data;
+        console.log(`[generatePage] PRO images: ${imageResult.resolved} resolved, ${imageResult.failed} failed`);
+      } else {
+        // Standard template: resolve hero + services only
+        if (pageData.hero?.image_prompt) {
+          try {
+            const heroUrl = await generateImageWithRetry(
+              pageData.hero.image_prompt, 
+              'hero', 
+              request.blog_id, 
+              user.id
+            );
+            pageData.hero.image_url = heroUrl;
+          } catch (e) {
+            console.warn("[Pipeline] Hero image failed");
+          }
         }
-      }
 
-      // Resolve Service Cards
-      if (Array.isArray(pageData.services)) {
-        for (let i = 0; i < pageData.services.length; i++) {
-          if (pageData.services[i].image_prompt) {
-            try {
-              const { data: svcImg } = await supabase.functions.invoke("generate-image", {
-                body: {
-                  prompt: pageData.services[i].image_prompt,
-                  context: `service_${i}`,
-                  blog_id: request.blog_id,
-                  user_id: user.id
-                }
-              });
-              if (svcImg?.publicUrl) pageData.services[i].image_url = svcImg.publicUrl;
-            } catch (e) {
-              console.warn(`[Pipeline] Service ${i} image resolution failed, continuing...`);
+        if (Array.isArray(pageData.services)) {
+          for (let i = 0; i < pageData.services.length; i++) {
+            if (pageData.services[i].image_prompt) {
+              try {
+                const svcUrl = await generateImageWithRetry(
+                  pageData.services[i].image_prompt,
+                  `service_${i}`,
+                  request.blog_id,
+                  user.id
+                );
+                pageData.services[i].image_url = svcUrl;
+              } catch (e) {
+                console.warn(`[Pipeline] Service ${i} image failed`);
+              }
             }
           }
         }
       }
 
-      // 3. PERSISTÊNCIA OBRIGATÓRIA ANTES DO RENDER
-      // Usar um slug robusto e único
+      // 3. PERSISTÊNCIA
       const timestamp = Date.now();
       const baseSlug = (pageData.hero?.headline || "lp")
         .toLowerCase()
@@ -192,23 +307,20 @@ export function useLandingPages(): UseLandingPagesReturn {
 
       const insertPayload: any = {
         blog_id: request.blog_id,
+        user_id: user.id,
         title: data.seo_title || pageData.hero?.headline || "Nova Super Página",
         slug: data.slug || finalSlug,
         page_data: pageData,
+        template_type: pageData.template || request.template_type || 'service_authority_v1',
         status: 'published',
         published_at: new Date().toISOString(),
         seo_title: data.seo_title || pageData.hero?.headline || "Nova Super Página",
         seo_description: data.seo_description || pageData.hero?.subheadline || "",
         seo_keywords: data.seo_keywords || [],
+        generation_source: 'ai',
       };
 
-      // Só adiciona user_id se o usuário estiver autenticado, 
-      // mas o trigger no banco já vai cuidar disso como fallback.
-      if (user?.id) {
-        insertPayload.user_id = user.id;
-      }
-
-      console.log("[Pipeline] Attempting final insert with user_id resolution:", insertPayload);
+      console.log("[Pipeline] Saving page to database...");
 
       const { data: savedPage, error: saveError } = await supabase
         .from("landing_pages")
@@ -217,24 +329,15 @@ export function useLandingPages(): UseLandingPagesReturn {
         .single();
 
       if (saveError) {
-        console.error("[Pipeline] Save Error Detail:", saveError);
-        // Fallback: Tenta inserir sem user_id explicitamente (confiando no trigger/default do banco)
-        if (saveError.message.includes('user_id')) {
-          console.info("[Pipeline] Retrying insert without explicit user_id field...");
-          const { user_id, ...payloadWithoutUser } = insertPayload;
-          const { data: retryData, error: retryError } = await supabase
-            .from("landing_pages")
-            .insert([payloadWithoutUser])
-            .select()
-            .single();
-          
-          if (retryError) throw new Error(`Database save failed after retry: ${retryError.message}`);
-        } else {
-          throw new Error(`Database save failed: ${saveError.message}`);
-        }
+        console.error("[Pipeline] Save Error:", saveError);
+        throw new Error(`Database save failed: ${saveError.message}`);
       }
 
-      toast.success("Super Página gerada e publicada!");
+      toast.success(isPro 
+        ? "🎉 Super Página PRO criada com sucesso!" 
+        : "Super Página gerada e publicada!"
+      );
+      
       return pageData;
     } catch (err: any) {
       console.error("[useLandingPages] CRITICAL FAILURE:", err);
@@ -249,41 +352,32 @@ export function useLandingPages(): UseLandingPagesReturn {
     async (page: Partial<LandingPage> & { blog_id: string }): Promise<LandingPage | null> => {
       setSaving(true);
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
+        const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Usuário não autenticado");
 
-        // Garantir que page_data seja um objeto limpo antes de enviar
         const cleanPageData = typeof page.page_data === 'string' 
           ? JSON.parse(page.page_data) 
           : JSON.parse(JSON.stringify(page.page_data || {}));
 
-        const slug =
-          page.slug ||
-          page.title
-            ?.toLowerCase()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/(^-|-$)/g, "") ||
-          `page-${Date.now()}`;
+        const slug = page.slug || page.title
+          ?.toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "") || `page-${Date.now()}`;
 
         const insertData = {
           blog_id: page.blog_id,
           user_id: user.id,
           title: page.title || "Nova Landing Page",
           slug,
-          page_data: cleanPageData, // Enviar como objeto puro para o SDK do Supabase
+          page_data: cleanPageData,
           status: page.status || "draft",
           seo_title: page.seo_title || page.title,
           seo_description: page.seo_description || "",
-          template_type: page.template_type || "service_page",
+          template_type: page.template_type || cleanPageData.template || "service_page",
           generation_source: page.generation_source || "ai",
         };
-
-        console.log("[useLandingPages] Attempting save with data:", insertData);
 
         const { data, error } = await supabase
           .from("landing_pages")
@@ -291,19 +385,15 @@ export function useLandingPages(): UseLandingPagesReturn {
           .select()
           .single();
 
-        if (error) {
-          console.error("[useLandingPages] Supabase Insert Error:", error);
-          throw error;
-        }
+        if (error) throw error;
 
         toast.success("Landing page salva!");
         await fetchPages(page.blog_id);
         return data as unknown as LandingPage;
       } catch (error: any) {
         console.error("[useLandingPages] Save error:", error);
-
         if (error.code === "23505") {
-          toast.error("Já existe uma página com esse slug. Escolha outro nome.");
+          toast.error("Já existe uma página com esse slug.");
         } else {
           toast.error("Erro ao salvar landing page");
         }
@@ -329,14 +419,11 @@ export function useLandingPages(): UseLandingPagesReturn {
       if (updates.status !== undefined) updateData.status = updates.status;
       if (updates.featured_image_url !== undefined) updateData.featured_image_url = updates.featured_image_url;
 
-      // Clean and normalize page_data before saving
       if (updates.page_data !== undefined) {
-        // Deep clone to create clean JSON without undefined values
         const cleanData = typeof updates.page_data === 'string' 
           ? JSON.parse(updates.page_data) 
           : JSON.parse(JSON.stringify(updates.page_data));
         
-        // Remove any undefined/null top-level keys
         Object.keys(cleanData).forEach(key => {
           if (cleanData[key] === undefined || cleanData[key] === null) {
             delete cleanData[key];
@@ -364,9 +451,7 @@ export function useLandingPages(): UseLandingPagesReturn {
   const deletePage = useCallback(async (id: string): Promise<boolean> => {
     try {
       const { error } = await supabase.from("landing_pages").delete().eq("id", id);
-
       if (error) throw error;
-
       setPages((prev) => prev.filter((p) => p.id !== id));
       toast.success("Landing page excluída");
       return true;
@@ -379,101 +464,20 @@ export function useLandingPages(): UseLandingPagesReturn {
 
   const publishPage = useCallback(async (id: string): Promise<boolean> => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      const { data: pageRow, error: pageErr } = await supabase
+      const { error } = await supabase
         .from("landing_pages")
-        .select("id, blog_id, title, slug, page_data, featured_image_url")
-        .eq("id", id)
-        .maybeSingle();
-
-      if (pageErr || !pageRow) throw pageErr || new Error("Landing page não encontrada");
-
-      const blogId = pageRow.blog_id as string;
-      const pageTitle = (pageRow.title as string) || "Landing Page";
-
-      const pageData: LandingPageData =
-        typeof pageRow.page_data === "string" ? JSON.parse(pageRow.page_data) : (pageRow.page_data as any);
-
-      const { data: profile } = await supabase
-        .from("business_profile")
-        .select("company_name, services, niche, city")
-        .eq("blog_id", blogId)
-        .maybeSingle();
-
-      let mutated = false;
-      const nextData: LandingPageData = JSON.parse(JSON.stringify(pageData));
-
-      if (!nextData.hero?.background_image_url) {
-        const heroUrl = await generateLandingPageImage({
-          prompt: buildHeroPrompt(nextData, profile),
-          context: "hero",
-          pageTitle,
-          userId: user?.id,
-          blogId,
-          fileName: `lp-${id}-hero-${Date.now()}.png`,
-        });
-
-        if (heroUrl) {
-          nextData.hero = { ...nextData.hero, background_image_url: heroUrl };
-          mutated = true;
-        }
-      }
-
-      if (Array.isArray(nextData.service_details)) {
-        const updatedDetails = [...nextData.service_details];
-
-        for (let i = 0; i < updatedDetails.length; i++) {
-          const detail = updatedDetails[i];
-          if (detail?.image_url) continue;
-
-          const sectionContext = `section_${Math.min(4, i + 1)}`;
-          const sectionUrl = await generateLandingPageImage({
-            prompt: buildServiceDetailPrompt(detail, profile),
-            context: sectionContext,
-            pageTitle,
-            userId: user?.id,
-            blogId,
-            fileName: `lp-${id}-detail-${i + 1}-${Date.now()}.png`,
-          });
-
-          if (sectionUrl) {
-            updatedDetails[i] = { ...detail, image_url: sectionUrl };
-            mutated = true;
-          }
-        }
-
-        nextData.service_details = updatedDetails;
-      }
-
-      const featuredImageUrl =
-        (pageRow.featured_image_url as string | null) || nextData.hero?.background_image_url || null;
-
-      const updatePayload: Record<string, unknown> = {
-        featured_image_url: featuredImageUrl,
-        status: "published",
-        published_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      if (mutated) updatePayload.page_data = nextData as any;
-
-      const { error } = await supabase.from("landing_pages").update(updatePayload).eq("id", id);
+        .update({
+          status: "published",
+          published_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
 
       if (error) throw error;
 
       setPages((prev) =>
         prev.map((p) =>
-          p.id === id
-            ? {
-                ...p,
-                status: "published" as const,
-                published_at: new Date().toISOString(),
-                featured_image_url: featuredImageUrl || undefined,
-              }
-            : p
+          p.id === id ? { ...p, status: "published" as const, published_at: new Date().toISOString() } : p
         )
       );
 
@@ -490,10 +494,7 @@ export function useLandingPages(): UseLandingPagesReturn {
     try {
       const { error } = await supabase
         .from("landing_pages")
-        .update({
-          status: "draft",
-          updated_at: new Date().toISOString(),
-        })
+        .update({ status: "draft", updated_at: new Date().toISOString() })
         .eq("id", id);
 
       if (error) throw error;
@@ -543,7 +544,6 @@ export function useLandingPages(): UseLandingPagesReturn {
         .single();
 
       if (error) throw error;
-
       return data as unknown as LandingPage;
     } catch (error) {
       console.error("[useLandingPages] Duplicate error:", error);
@@ -631,32 +631,31 @@ export function useLandingPages(): UseLandingPagesReturn {
   }, []);
 
   const regeneratePage = useCallback(async (id: string): Promise<LandingPageData | null> => {
+    setGenerating(true);
     try {
-      // 1. Fetch existing page for context
       const { data: existingPage, error: fetchError } = await supabase
         .from("landing_pages")
         .select("*")
         .eq("id", id)
         .single();
 
-      if (fetchError || !existingPage) {
-        throw new Error("Landing page not found");
-      }
+      if (fetchError || !existingPage) throw new Error("Landing page not found");
 
-      // 2. Fetch business profile for generation context
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+
       const { data: profile } = await supabase
         .from("business_profile")
         .select("*")
         .eq("blog_id", existingPage.blog_id)
         .single();
 
-      // Safely access page_data.template
       const pageDataObj = existingPage.page_data as Record<string, unknown> | null;
-      const currentTemplate = (pageDataObj?.template as string) || "service_authority_v1";
+      const currentTemplate = (pageDataObj?.template as string) || existingPage.template_type || "service_authority_v1";
       
       console.log(`[regeneratePage] Regenerating page ${id} with template ${currentTemplate}`);
+      toast.info("Regenerando conteúdo da página...");
 
-      // 3. Call generate-landing-page with current template
       const { data, error } = await supabase.functions.invoke("generate-landing-page", {
         body: {
           blog_id: existingPage.blog_id,
@@ -673,9 +672,16 @@ export function useLandingPages(): UseLandingPagesReturn {
         throw new Error(data?.error || "Regeneration failed");
       }
 
-      const newPageData = data.page_data;
+      let newPageData = data.page_data;
+      const isPro = currentTemplate === 'service_authority_pro_v1';
 
-      // 4. Update existing page with new content (keep ID and slug)
+      // Resolve images for PRO template
+      if (isPro) {
+        toast.info("Regenerando imagens fotográficas...");
+        const imageResult = await resolveAllProImages(newPageData, existingPage.blog_id, user.id);
+        newPageData = imageResult.data;
+      }
+
       const { error: updateError } = await supabase
         .from("landing_pages")
         .update({
@@ -688,18 +694,7 @@ export function useLandingPages(): UseLandingPagesReturn {
         })
         .eq("id", id);
 
-      if (updateError) {
-        throw updateError;
-      }
-
-      // 5. Re-analyze SEO
-      try {
-        await supabase.functions.invoke("analyze-landing-page-seo", {
-          body: { landing_page_id: id }
-        });
-      } catch (e) {
-        console.warn("[regeneratePage] SEO re-analysis failed:", e);
-      }
+      if (updateError) throw updateError;
 
       toast.success("Página regenerada com sucesso!");
       return newPageData;
@@ -707,6 +702,8 @@ export function useLandingPages(): UseLandingPagesReturn {
       console.error("[useLandingPages] Regenerate error:", error);
       toast.error("Erro ao regenerar página");
       return null;
+    } finally {
+      setGenerating(false);
     }
   }, []);
 
