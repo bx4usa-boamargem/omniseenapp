@@ -1,12 +1,8 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  Compass,
+  Hammer,
   FileText,
-  LayoutTemplate,
-  Globe,
   Users,
-  LayoutDashboard,
-  Zap,
   User,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -22,32 +18,31 @@ interface MobileBottomNavProps {
   showAdvanced?: boolean;
 }
 
-const MVP_NAV_ITEMS: NavItem[] = [
-  { path: '/client/radar', icon: Compass, label: 'Radar' },
-  { path: '/client/articles', icon: FileText, label: 'Artigos' },
-  { path: '/client/landing-pages', icon: LayoutTemplate, label: 'Páginas' },
-  { path: '/client/portal', icon: Globe, label: 'Portal' },
+// Navegação simplificada para mobile - segue o mesmo modelo do sidebar minimalista
+const MOBILE_NAV_ITEMS: NavItem[] = [
+  { path: '/client/dashboard', icon: Hammer, label: 'Painel' },
+  { path: '/client/articles', icon: FileText, label: 'Docs' },
   { path: '/client/leads', icon: Users, label: 'Leads' },
-];
-
-const ADVANCED_NAV_ITEMS: NavItem[] = [
-  { path: '/client/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { path: '/client/radar', icon: Compass, label: 'Radar' },
-  { path: '/client/articles', icon: FileText, label: 'Artigos' },
-  { path: '/client/automation', icon: Zap, label: 'Máquina' },
-  { path: '/client/account', icon: User, label: 'Conta' },
+  { path: '/client/settings', icon: User, label: 'Conta' },
 ];
 
 export function MobileBottomNav({ showAdvanced }: MobileBottomNavProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const navItems = showAdvanced ? ADVANCED_NAV_ITEMS : MVP_NAV_ITEMS;
-
   const isActive = (path: string) => {
-    // Special handling for radar - include /client/strategy paths
-    if (path === '/client/radar') {
-      return location.pathname === '/client/radar' || location.pathname.startsWith('/client/strategy');
+    if (path === '/client/dashboard') {
+      return location.pathname === '/client/dashboard';
+    }
+    if (path === '/client/articles') {
+      return location.pathname.startsWith('/client/articles') || 
+             location.pathname.startsWith('/client/landing-pages') ||
+             location.pathname.startsWith('/client/create') ||
+             location.pathname.startsWith('/client/radar');
+    }
+    if (path === '/client/settings') {
+      return location.pathname.startsWith('/client/settings') ||
+             location.pathname.startsWith('/client/profile');
     }
     return location.pathname === path || location.pathname.startsWith(path + '/');
   };
@@ -55,7 +50,7 @@ export function MobileBottomNav({ showAdvanced }: MobileBottomNavProps) {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-background border-t border-border safe-area-bottom">
       <div className="flex items-center justify-around h-16 px-2">
-        {navItems.map((item) => {
+        {MOBILE_NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = isActive(item.path);
           

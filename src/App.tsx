@@ -96,6 +96,7 @@ import ClientLeads from "./pages/client/ClientLeads";
 import ClientEbooks from "./pages/client/ClientEbooks";
 import ClientEbookEditor from "./pages/client/ClientEbookEditor";
 import ClientDomains from "./pages/client/ClientDomains";
+import ClientSettings from "./pages/client/ClientSettings";
 import WordPressCallback from "./pages/cms/WordPressCallback";
 
 const queryClient = new QueryClient();
@@ -228,6 +229,7 @@ const ClientRoutes = () => (
           <Route path="account" element={<ClientAccount />} />
           <Route path="territories" element={<ClientTerritoryAnalytics />} />
           <Route path="domains" element={<ClientDomains />} />
+          <Route path="settings" element={<ClientSettings />} />
           
           {/* Ajuda */}
           <Route path="help" element={<ClientHelp />} />
