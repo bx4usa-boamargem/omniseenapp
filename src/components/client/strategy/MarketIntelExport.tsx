@@ -42,6 +42,7 @@ export function MarketIntelExport({ data, intels }: MarketIntelExportProps) {
   
   const exportJSON = () => {
     setExporting(true);
+    let anchor: HTMLAnchorElement | null = null;
     try {
       const exportData = {
         exported_at: new Date().toISOString(),
@@ -61,13 +62,23 @@ export function MarketIntelExport({ data, intels }: MarketIntelExportProps) {
       
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `market-intel-${format(new Date(), 'yyyy-MM-dd')}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `market-intel-${format(new Date(), 'yyyy-MM-dd')}.json`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      
+      // Defensive cleanup - check if element still exists before removing
+      setTimeout(() => {
+        try {
+          if (anchor && anchor.parentNode && document.contains(anchor)) {
+            anchor.parentNode.removeChild(anchor);
+          }
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          console.warn('[Export] Cleanup skipped:', e);
+        }
+      }, 100);
       
       toast.success('JSON exportado com sucesso!');
     } catch (error) {
@@ -78,6 +89,7 @@ export function MarketIntelExport({ data, intels }: MarketIntelExportProps) {
   
   const exportCSV = () => {
     setExporting(true);
+    let anchor: HTMLAnchorElement | null = null;
     try {
       // Export content ideas as CSV
       const headers = ['Título', 'Ângulo', 'Objetivo', 'Keywords', 'Por que agora', 'Fontes'];
@@ -94,13 +106,23 @@ export function MarketIntelExport({ data, intels }: MarketIntelExportProps) {
       
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `content-ideas-${format(new Date(), 'yyyy-MM-dd')}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `content-ideas-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      
+      // Defensive cleanup - check if element still exists before removing
+      setTimeout(() => {
+        try {
+          if (anchor && anchor.parentNode && document.contains(anchor)) {
+            anchor.parentNode.removeChild(anchor);
+          }
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          console.warn('[Export] Cleanup skipped:', e);
+        }
+      }, 100);
       
       toast.success('CSV exportado com sucesso!');
     } catch (error) {

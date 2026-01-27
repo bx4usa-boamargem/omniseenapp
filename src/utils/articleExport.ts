@@ -167,8 +167,14 @@ export async function exportToPDF(article: ExportArticle, options: ExportOptions
     const filename = `${article.title.replace(/[^a-zA-Z0-9]/g, '-')}.pdf`;
     pdf.save(filename);
   } finally {
-    // Cleanup
-    document.body.removeChild(element);
+    // Defensive cleanup - check if element still exists before removing
+    try {
+      if (element && element.parentNode && document.contains(element)) {
+        element.parentNode.removeChild(element);
+      }
+    } catch (e) {
+      console.warn('[ArticleExport] Cleanup skipped:', e);
+    }
   }
 }
 
