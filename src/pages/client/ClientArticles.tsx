@@ -1,20 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useBlog } from '@/hooks/useBlog';
 import { supabase } from '@/integrations/supabase/client';
 import { getArticleUrl } from '@/utils/blogUrl';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,54 +25,19 @@ import {
 } from '@/components/ui/dialog';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { 
   FileText, 
   Plus, 
-  Search, 
-  MoreVertical,
-  PenSquare,
-  ExternalLink,
-  Sparkles,
-  ImagePlus,
-  Archive,
-  Trash2,
   AlertTriangle,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
-  RotateCcw,
-  Radar,
-  Target,
-  Zap
+  Archive
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-
-type ArticleStatus = 'published' | 'draft' | 'archived';
-
-interface Article {
-  id: string;
-  title: string;
-  slug: string;
-  status: string | null;
-  created_at: string;
-  published_at: string | null;
-  featured_image_url: string | null;
-  generation_source: string | null;
-  opportunity_id: string | null;
-  funnel_stage: string | null;
-}
-
-interface StatusCounts {
-  published: number;
-  draft: number;
-  archived: number;
-  total: number;
-}
-
-const ITEMS_PER_PAGE = 10;
+import { ArticleCard, Article } from '@/components/client/articles/ArticleCard';
+import { ArticleFilters, useArticleFilters } from '@/components/client/articles/ArticleFilters';
 
 export default function ClientArticles() {
   const navigate = useNavigate();
@@ -90,16 +45,10 @@ export default function ClientArticles() {
   
   const [loading, setLoading] = useState(true);
   const [articles, setArticles] = useState<Article[]>([]);
-  const [statusCounts, setStatusCounts] = useState<StatusCounts>({ published: 0, draft: 0, archived: 0, total: 0 });
-  const [activeTab, setActiveTab] = useState<'all' | ArticleStatus>('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [currentPage, setCurrentPage] = useState(1);
   
   // Delete dialog state
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [articleToDelete, setArticleToDelete] = useState<string | null>(null);
-  const [bulkDeleteDialogOpen, setBulkDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Duplicate detection and resolution
@@ -108,6 +57,16 @@ export default function ClientArticles() {
   const [selectedToKeep, setSelectedToKeep] = useState<Map<string, string>>(new Map());
   const [isResolvingDuplicates, setIsResolvingDuplicates] = useState(false);
 
+  // Use the filters hook
+  const {
+    statusFilter,
+    setStatusFilter,
+    searchQuery,
+    setSearchQuery,
+    filteredArticles,
+    statusCounts,
+  } = useArticleFilters(articles);
+
   const fetchArticles = async () => {
     if (!blog?.id) return;
     
@@ -115,27 +74,13 @@ export default function ClientArticles() {
     try {
       const { data, error } = await supabase
         .from('articles')
-        .select('id, title, slug, status, created_at, published_at, featured_image_url, generation_source, opportunity_id, funnel_stage')
+        .select('id, title, slug, status, created_at, published_at, featured_image_url, generation_source, opportunity_id, funnel_stage, category')
         .eq('blog_id', blog.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
       setArticles(data || []);
-      
-      // Calculate status counts
-      const counts = (data || []).reduce<StatusCounts>(
-        (acc, article) => {
-          acc.total++;
-          const status = article.status as ArticleStatus | null;
-          if (status === 'published') acc.published++;
-          else if (status === 'archived') acc.archived++;
-          else acc.draft++;
-          return acc;
-        },
-        { published: 0, draft: 0, archived: 0, total: 0 }
-      );
-      setStatusCounts(counts);
 
       // Detect duplicates
       detectDuplicates(data || []);
@@ -179,53 +124,6 @@ export default function ClientArticles() {
     fetchArticles();
   }, [blog?.id]);
 
-  // Filter articles by tab and search
-  const filteredArticles = useMemo(() => {
-    let result = articles;
-
-    // Filter by status
-    if (activeTab !== 'all') {
-      result = result.filter(a => {
-        if (activeTab === 'draft') return !a.status || a.status === 'draft';
-        return a.status === activeTab;
-      });
-    }
-
-    // Filter by search
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(a => a.title.toLowerCase().includes(query));
-    }
-
-    return result;
-  }, [articles, activeTab, searchQuery]);
-
-  // Pagination
-  const totalPages = Math.ceil(filteredArticles.length / ITEMS_PER_PAGE);
-  const paginatedArticles = filteredArticles.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
-
-  // Selection handlers
-  const toggleSelect = (id: string) => {
-    const newSelected = new Set(selectedIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedIds(newSelected);
-  };
-
-  const toggleSelectAll = () => {
-    if (selectedIds.size === paginatedArticles.length) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(paginatedArticles.map(a => a.id)));
-    }
-  };
-
   // Action handlers
   const handleEdit = (id: string) => {
     navigate(`/client/articles/${id}/edit`);
@@ -238,11 +136,10 @@ export default function ClientArticles() {
     let cleanDomain = blog.custom_domain;
     if (cleanDomain) {
       cleanDomain = cleanDomain
-        .replace(/^https?:\/\//, '')  // Remove https:// or http://
-        .replace(/\/$/, '');          // Remove trailing slash
+        .replace(/^https?:\/\//, '')
+        .replace(/\/$/, '');
     }
     
-    // Use utility function with proper domain_verified check
     const url = getArticleUrl({
       slug: blog.slug,
       custom_domain: cleanDomain,
@@ -251,6 +148,34 @@ export default function ClientArticles() {
     }, article.slug);
     
     window.open(url, '_blank');
+  };
+
+  const handleDuplicate = async (id: string) => {
+    const article = articles.find(a => a.id === id);
+    if (!article || !blog?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('articles')
+        .insert({
+          blog_id: blog.id,
+          title: `${article.title} (cópia)`,
+          slug: `${article.slug}-copia-${Date.now()}`,
+          status: 'draft',
+          featured_image_url: article.featured_image_url,
+          category: article.category,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast.success('Artigo duplicado com sucesso!');
+      fetchArticles();
+    } catch (error) {
+      console.error('Error duplicating article:', error);
+      toast.error('Erro ao duplicar artigo');
+    }
   };
 
   const handleArchive = async (id: string) => {
@@ -268,6 +193,28 @@ export default function ClientArticles() {
       console.error('Error archiving article:', error);
       toast.error('Erro ao arquivar artigo');
     }
+  };
+
+  const handleRestore = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('articles')
+        .update({ status: 'draft' })
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      toast.success('Artigo restaurado como rascunho');
+      fetchArticles();
+    } catch (error) {
+      console.error('Error restoring article:', error);
+      toast.error('Erro ao restaurar artigo');
+    }
+  };
+
+  const handleDeleteClick = (id: string) => {
+    setArticleToDelete(id);
+    setDeleteDialogOpen(true);
   };
 
   const handleDelete = async () => {
@@ -291,68 +238,6 @@ export default function ClientArticles() {
       toast.error('Erro ao excluir artigo');
     } finally {
       setIsDeleting(false);
-    }
-  };
-
-  const handleBulkDelete = async () => {
-    if (selectedIds.size === 0) return;
-    
-    setIsDeleting(true);
-    try {
-      const { error } = await supabase
-        .from('articles')
-        .delete()
-        .in('id', Array.from(selectedIds));
-
-      if (error) throw error;
-      
-      toast.success(`${selectedIds.size} artigos excluídos`);
-      setBulkDeleteDialogOpen(false);
-      setSelectedIds(new Set());
-      fetchArticles();
-    } catch (error) {
-      console.error('Error bulk deleting:', error);
-      toast.error('Erro ao excluir artigos');
-    } finally {
-      setIsDeleting(false);
-    }
-  };
-
-  const handleBulkArchive = async () => {
-    if (selectedIds.size === 0) return;
-    
-    try {
-      const { error } = await supabase
-        .from('articles')
-        .update({ status: 'archived' })
-        .in('id', Array.from(selectedIds));
-
-      if (error) throw error;
-      
-      toast.success(`${selectedIds.size} artigos arquivados`);
-      setSelectedIds(new Set());
-      fetchArticles();
-    } catch (error) {
-      console.error('Error bulk archiving:', error);
-      toast.error('Erro ao arquivar artigos');
-    }
-  };
-
-  // Restore archived article
-  const handleRestore = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('articles')
-        .update({ status: 'draft' })
-        .eq('id', id);
-
-      if (error) throw error;
-      
-      toast.success('Artigo restaurado como rascunho');
-      fetchArticles();
-    } catch (error) {
-      console.error('Error restoring article:', error);
-      toast.error('Erro ao restaurar artigo');
     }
   };
 
@@ -406,34 +291,6 @@ export default function ClientArticles() {
     }
   };
 
-  const getOriginBadge = (article: Article) => {
-    if (article.opportunity_id) {
-      return (
-        <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/30 text-[10px] px-1.5 gap-1">
-          <Radar className="h-3 w-3" />
-          Radar
-        </Badge>
-      );
-    }
-    if (article.funnel_stage || article.generation_source === 'sales_funnel') {
-      return (
-        <Badge className="bg-orange-500/10 text-orange-600 border-orange-500/30 text-[10px] px-1.5 gap-1">
-          <Target className="h-3 w-3" />
-          Funil
-        </Badge>
-      );
-    }
-    if (article.generation_source === 'automation') {
-      return (
-        <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/30 text-[10px] px-1.5 gap-1">
-          <Zap className="h-3 w-3" />
-          Auto
-        </Badge>
-      );
-    }
-    return null;
-  };
-
   const duplicateCount = Array.from(duplicates.values()).reduce((acc, group) => acc + group.length - 1, 0);
 
   if (loading) {
@@ -441,9 +298,9 @@ export default function ClientArticles() {
       <div className="space-y-6">
         <Skeleton className="h-10 w-48" />
         <Skeleton className="h-12 w-full" />
-        <div className="space-y-3">
-          {[1, 2, 3, 4, 5].map(i => (
-            <Skeleton key={i} className="h-20 w-full" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+            <Skeleton key={i} className="aspect-[4/3] w-full" />
           ))}
         </div>
       </div>
@@ -455,17 +312,17 @@ export default function ClientArticles() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-text-main flex items-center gap-2 sm:gap-3">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground flex items-center gap-2 sm:gap-3">
             <FileText className="h-6 w-6 sm:h-7 sm:w-7 text-primary" />
             Meus Artigos
           </h1>
-          <p className="text-text-muted text-xs sm:text-sm mt-1">
+          <p className="text-muted-foreground text-xs sm:text-sm mt-1">
             Gerencie todos os seus artigos em um só lugar
           </p>
         </div>
         <Button 
           onClick={() => navigate('/client/create')}
-          className="gap-2 client-btn-primary w-full sm:w-auto"
+          className="gap-2 w-full sm:w-auto"
         >
           <Plus className="h-4 w-4" />
           Criar Novo
@@ -475,8 +332,8 @@ export default function ClientArticles() {
       {/* Duplicate Warning with Action */}
       {duplicateCount > 0 && (
         <div className="flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
-          <AlertTriangle className="h-5 w-5 text-amber-500" />
-          <div className="flex-1">
+          <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
             <span className="text-amber-600 dark:text-amber-400 font-medium">
               {duplicateCount} possíveis duplicados detectados
             </span>
@@ -488,213 +345,55 @@ export default function ClientArticles() {
             size="sm" 
             variant="outline"
             onClick={() => setShowDuplicatesModal(true)}
-            className="border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+            className="border-amber-500/50 text-amber-600 hover:bg-amber-500/10 flex-shrink-0"
           >
-            Resolver Duplicados
+            Resolver
           </Button>
         </div>
       )}
 
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as typeof activeTab); setCurrentPage(1); }}>
-        <TabsList className="flex overflow-x-auto scrollbar-hide w-full max-w-full sm:max-w-md bg-muted h-auto p-1">
-          <TabsTrigger value="all" className="gap-1 text-xs sm:text-sm flex-1 min-w-0 px-2 sm:px-3 py-1.5 sm:py-2">
-            <span className="truncate">Todos</span>
-            <Badge variant="secondary" className="ml-1 text-[10px] sm:text-xs">{statusCounts.total}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="published" className="gap-1 text-xs sm:text-sm flex-1 min-w-0 px-2 sm:px-3 py-1.5 sm:py-2">
-            <span className="truncate hidden xs:inline">Publicados</span>
-            <span className="truncate xs:hidden">Pub.</span>
-            <Badge variant="secondary" className="ml-1 text-[10px] sm:text-xs">{statusCounts.published}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="draft" className="gap-1 text-xs sm:text-sm flex-1 min-w-0 px-2 sm:px-3 py-1.5 sm:py-2">
-            <span className="truncate hidden xs:inline">Rascunhos</span>
-            <span className="truncate xs:hidden">Rasc.</span>
-            <Badge variant="secondary" className="ml-1 text-[10px] sm:text-xs">{statusCounts.draft}</Badge>
-          </TabsTrigger>
-          <TabsTrigger value="archived" className="gap-1 text-xs sm:text-sm flex-1 min-w-0 px-2 sm:px-3 py-1.5 sm:py-2">
-            <span className="truncate hidden xs:inline">Arquivados</span>
-            <span className="truncate xs:hidden">Arq.</span>
-            <Badge variant="secondary" className="ml-1 text-[10px] sm:text-xs">{statusCounts.archived}</Badge>
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {/* Filters */}
+      <ArticleFilters
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        statusCounts={statusCounts}
+      />
 
-      {/* Search and bulk actions */}
-      <div className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por título..."
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-            className="pl-10"
-          />
-        </div>
-        
-        {selectedIds.size > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              {selectedIds.size} selecionado(s)
-            </span>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={handleBulkArchive}
-              className="gap-1"
-            >
-              <Archive className="h-4 w-4" />
-              Arquivar
-            </Button>
-            <Button 
-              variant="destructive" 
-              size="sm" 
-              onClick={() => setBulkDeleteDialogOpen(true)}
-              className="gap-1"
-            >
-              <Trash2 className="h-4 w-4" />
-              Excluir
-            </Button>
-          </div>
-        )}
-
-        <span className="text-sm text-muted-foreground ml-auto">
+      {/* Articles count */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-muted-foreground">
           {filteredArticles.length} artigo(s)
         </span>
       </div>
 
-      {/* Articles List */}
-      <div className="client-card divide-y divide-border-soft">
-        {/* Header row */}
-        <div className="flex items-center gap-4 px-4 py-3 bg-muted/50 rounded-t-xl">
-          <Checkbox 
-            checked={paginatedArticles.length > 0 && selectedIds.size === paginatedArticles.length}
-            onCheckedChange={toggleSelectAll}
-          />
-          <span className="flex-1 text-sm font-medium text-muted-foreground">Título</span>
-          <span className="w-24 text-sm font-medium text-muted-foreground text-center">Status</span>
-          <span className="w-28 text-sm font-medium text-muted-foreground text-center">Data</span>
-          <span className="w-10" />
+      {/* Articles Grid */}
+      {filteredArticles.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center border border-dashed border-border rounded-xl">
+          <FileText className="h-12 w-12 text-muted-foreground/50 mb-4" />
+          <p className="text-muted-foreground mb-2">Nenhum artigo encontrado</p>
+          <Button 
+            variant="link" 
+            onClick={() => navigate('/client/create')}
+          >
+            Criar seu primeiro artigo
+          </Button>
         </div>
-
-        {/* Article rows */}
-        {paginatedArticles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <FileText className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground">Nenhum artigo encontrado</p>
-            <Button 
-              variant="link" 
-              onClick={() => navigate('/client/create')}
-              className="mt-2"
-            >
-              Criar seu primeiro artigo
-            </Button>
-          </div>
-        ) : (
-          paginatedArticles.map(article => (
-            <div 
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredArticles.map((article) => (
+            <ArticleCard
               key={article.id}
-              className="flex items-center gap-4 px-4 py-4 hover:bg-muted/30 transition-colors"
-            >
-              <Checkbox 
-                checked={selectedIds.has(article.id)}
-                onCheckedChange={() => toggleSelect(article.id)}
-              />
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-medium text-text-main truncate">{article.title}</h3>
-                  {getOriginBadge(article)}
-                </div>
-                {!article.featured_image_url && (
-                  <span className="text-xs text-amber-500">Sem imagem de capa</span>
-                )}
-              </div>
-
-              <div className="w-24 flex justify-center">
-                {getStatusBadge(article.status)}
-              </div>
-
-              <div className="w-28 text-center text-sm text-muted-foreground">
-                {format(new Date(article.created_at), 'dd MMM yyyy', { locale: ptBR })}
-              </div>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={() => handleEdit(article.id)}>
-                    <PenSquare className="h-4 w-4 mr-2" />
-                    Editar
-                  </DropdownMenuItem>
-                  {article.status === 'published' && (
-                    <DropdownMenuItem onClick={() => handleView(article)}>
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Visualizar
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onClick={() => navigate(`/client/articles/${article.id}/edit?rewrite=true`)}>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    Reescrever com IA
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate(`/client/articles/${article.id}/edit?tab=images`)}>
-                    <ImagePlus className="h-4 w-4 mr-2" />
-                    Gerenciar Imagens
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {article.status !== 'archived' && (
-                    <DropdownMenuItem onClick={() => handleArchive(article.id)}>
-                      <Archive className="h-4 w-4 mr-2" />
-                      Arquivar
-                    </DropdownMenuItem>
-                  )}
-                  {article.status === 'archived' && (
-                    <DropdownMenuItem onClick={() => handleRestore(article.id)}>
-                      <RotateCcw className="h-4 w-4 mr-2" />
-                      Restaurar
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem 
-                    onClick={() => { setArticleToDelete(article.id); setDeleteDialogOpen(true); }}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Excluir
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between pt-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Anterior
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            Página {currentPage} de {totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-          >
-            Próximo
-            <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
+              article={article}
+              onEdit={() => handleEdit(article.id)}
+              onDuplicate={() => handleDuplicate(article.id)}
+              onArchive={() => handleArchive(article.id)}
+              onRestore={() => handleRestore(article.id)}
+              onDelete={() => handleDeleteClick(article.id)}
+              onView={() => handleView(article)}
+            />
+          ))}
         </div>
       )}
 
@@ -720,28 +419,6 @@ export default function ClientArticles() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Bulk Delete Confirmation Dialog */}
-      <AlertDialog open={bulkDeleteDialogOpen} onOpenChange={setBulkDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir {selectedIds.size} artigos?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação não pode ser desfeita. Todos os artigos selecionados serão permanentemente excluídos.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleBulkDelete} 
-              disabled={isDeleting}
-              className="bg-destructive hover:bg-destructive/90"
-            >
-              {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : `Excluir ${selectedIds.size} artigos`}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       {/* Duplicates Resolution Modal */}
       <Dialog open={showDuplicatesModal} onOpenChange={setShowDuplicatesModal}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
@@ -754,7 +431,7 @@ export default function ClientArticles() {
           
           <div className="space-y-4 py-4">
             {Array.from(duplicates.entries()).map(([normalizedTitle, group]) => (
-              <div key={normalizedTitle} className="p-4 border border-border-soft rounded-lg bg-muted/30">
+              <div key={normalizedTitle} className="p-4 border border-border rounded-lg bg-muted/30">
                 <RadioGroup 
                   value={selectedToKeep.get(normalizedTitle) || group[0].id}
                   onValueChange={(v) => {
@@ -767,7 +444,7 @@ export default function ClientArticles() {
                     <div key={article.id} className="flex items-center gap-3 py-2">
                       <RadioGroupItem value={article.id} id={article.id} />
                       <Label htmlFor={article.id} className="flex-1 cursor-pointer">
-                        <span className="font-medium text-text-main">{article.title}</span>
+                        <span className="font-medium">{article.title}</span>
                         <span className="text-xs text-muted-foreground ml-2">
                           {format(new Date(article.created_at), 'dd/MM/yyyy', { locale: ptBR })}
                         </span>
