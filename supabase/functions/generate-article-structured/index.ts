@@ -1609,15 +1609,40 @@ serve(async (req) => {
       .map(m => (m.match(/\((https?:\/\/[^)]+)\)/)?.[1] || '').trim())
       .filter(Boolean);
 
-    const allowed = new Set((researchPackage.sources || []).map(s => s.trim()));
-    const supportedLinks = externalUrls.filter(u => allowed.has(u));
+    // Extract base domains from allowed sources for flexible matching
+    const extractDomain = (url: string): string => {
+      try {
+        const parsed = new URL(url);
+        return parsed.hostname.replace(/^www\./, '');
+      } catch {
+        return url.replace(/^https?:\/\/(www\.)?/, '').split('/')[0];
+      }
+    };
+
+    const allowedDomains = new Set(
+      (researchPackage.sources || []).map(s => extractDomain(s.trim()))
+    );
+
+    // Match by domain instead of exact URL (AI may use subpages from allowed sources)
+    const supportedLinks = externalUrls.filter(u => {
+      const urlDomain = extractDomain(u);
+      return allowedDomains.has(urlDomain);
+    });
+
+    console.log(`[QA] External links found: ${externalUrls.length}, supported: ${supportedLinks.length}`);
+    console.log(`[QA] Allowed domains: ${Array.from(allowedDomains).slice(0, 5).join(', ')}`);
 
     if (supportedLinks.length < 2) {
-      await logStage(supabase, blog_id, 'qa', 'internal', 'qa-deterministic', false, 0, { supported_links: supportedLinks.length });
+      await logStage(supabase, blog_id, 'qa', 'internal', 'qa-deterministic', false, 0, { 
+        supported_links: supportedLinks.length,
+        external_links: externalUrls.length,
+        allowed_domains: Array.from(allowedDomains).slice(0, 10)
+      });
       return new Response(
         JSON.stringify({
           error: 'QUALITY_GATE_FAILED',
           message: 'QA bloqueou: o artigo não contém links suficientes para fontes reais do pacote de pesquisa (mínimo 2).',
+          debug: { found: externalUrls.length, supported: supportedLinks.length }
         }),
         { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
