@@ -2,7 +2,7 @@ import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import CustomDomainBlog from '@/pages/CustomDomainBlog';
 import CustomDomainArticle from '@/pages/CustomDomainArticle';
 import CustomDomainLandingPage from '@/pages/CustomDomainLandingPage';
-import { useDomainResolution } from '@/hooks/useDomainResolution';
+import { usePublicDomainResolution } from '@/hooks/usePublicDomainResolution';
 import { Skeleton } from '@/components/ui/skeleton';
 
 /**
@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
  * Usadas quando acesso é via subdomínio ({slug}.app.omniseen.app) ou domínio customizado
  */
 export function BlogRoutes() {
-  const { blogId, isLoading, error } = useDomainResolution();
+  const { blogId, isLoading, error } = usePublicDomainResolution();
 
   // Legacy redirects (avoid 404 from old links)
   const LegacyBlogRootRedirect = () => <Navigate to="/" replace />;
