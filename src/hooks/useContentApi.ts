@@ -138,6 +138,32 @@ export async function fetchContentApi<T>(
   }
 }
 
+/**
+ * Fetch content-api with direct blog_id (bypasses hostname resolution)
+ * Useful when blogId is already known (e.g., from useDomainResolution)
+ */
+export async function fetchContentApiByBlogId<T>(
+  route: ContentRoute,
+  blogId: string,
+  params: Record<string, unknown> = {}
+): Promise<ContentApiResponse<T> | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke("content-api", {
+      body: { blog_id: blogId, route, params },
+    });
+
+    if (error) {
+      console.error("[useContentApi] Edge function error (by blog_id):", error);
+      return null;
+    }
+
+    return data as ContentApiResponse<T>;
+  } catch (err) {
+    console.error("[useContentApi] Fetch error (by blog_id):", err);
+    return null;
+  }
+}
+
 // ============================================================
 // HOOK: useBlogHome - Fetch blog home with articles
 // ============================================================
@@ -208,7 +234,14 @@ interface UseBlogArticleResult {
   error: string | null;
 }
 
-export function useBlogArticle(slug: string | undefined): UseBlogArticleResult {
+interface UseBlogArticleOptions {
+  blogId?: string; // If provided, bypasses hostname resolution
+}
+
+export function useBlogArticle(
+  slug: string | undefined, 
+  options?: UseBlogArticleOptions
+): UseBlogArticleResult {
   const [blog, setBlog] = useState<BlogMeta | null>(null);
   const [article, setArticle] = useState<ArticleFull | null>(null);
   const [related, setRelated] = useState<ArticleSummary[]>([]);
@@ -226,7 +259,10 @@ export function useBlogArticle(slug: string | undefined): UseBlogArticleResult {
       setLoading(true);
       setError(null);
 
-      const result = await fetchContentApi<BlogArticleData>("blog.article", { slug });
+      // If blogId is provided, bypass hostname resolution
+      const result = options?.blogId
+        ? await fetchContentApiByBlogId<BlogArticleData>("blog.article", options.blogId, { slug })
+        : await fetchContentApi<BlogArticleData>("blog.article", { slug });
 
       if (!result) {
         setError("Falha ao carregar artigo");
@@ -247,7 +283,7 @@ export function useBlogArticle(slug: string | undefined): UseBlogArticleResult {
     };
 
     fetch();
-  }, [slug]);
+  }, [slug, options?.blogId]);
 
   return { blog, article, related, loading, error };
 }

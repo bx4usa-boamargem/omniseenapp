@@ -55,7 +55,10 @@ export default function CustomDomainArticle({ blogId, blogSlug: propBlogSlug }: 
   const { articleSlug } = useParams<{ articleSlug?: string }>();
   const navigate = useNavigate();
   
-  const { blog, article, related, loading, error } = useBlogArticle(articleSlug);
+  // Pass blogId to bypass hostname resolution when available
+  const { blog, article, related, loading, error } = useBlogArticle(articleSlug, { 
+    blogId: blogId || undefined 
+  });
   const { agentConfig, businessProfile } = useAgentConfig();
   const [isFocusedMode, setIsFocusedMode] = useState(false);
 

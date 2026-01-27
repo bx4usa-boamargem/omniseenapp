@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useBlog } from '@/hooks/useBlog';
-import { useGlobalWhatsApp } from '@/hooks/useGlobalWhatsApp';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -40,7 +39,6 @@ const validateBlogSlug = (slug: string): { valid: boolean; error?: string } => {
 
 export default function ClientCompany({ embedded }: { embedded?: boolean }) {
   const { blog } = useBlog();
-  const { previewMessage } = useGlobalWhatsApp();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -56,6 +54,7 @@ export default function ClientCompany({ embedded }: { embedded?: boolean }) {
   const [targetAudience, setTargetAudience] = useState('');
   const [differentiator, setDifferentiator] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+  const [whatsappTemplate, setWhatsappTemplate] = useState('');
   
   // Blog slug state
   const [blogSlug, setBlogSlug] = useState('');
@@ -85,6 +84,7 @@ export default function ClientCompany({ embedded }: { embedded?: boolean }) {
           setWhatsapp((profile as Record<string, unknown>).whatsapp as string || '');
           setCity((profile as Record<string, unknown>).city as string || '');
           setServices((profile as Record<string, unknown>).services as string || '');
+          setWhatsappTemplate((profile as Record<string, unknown>).whatsapp_lead_template as string || '');
           if (profile.brand_keywords && profile.brand_keywords.length > 0) {
             setDifferentiator(profile.brand_keywords.join(', '));
           }
@@ -200,14 +200,15 @@ export default function ClientCompany({ embedded }: { embedded?: boolean }) {
 
       if (profileError) throw profileError;
 
-      // Update whatsapp, city, services separately
-      if (whatsapp !== undefined || city || services) {
+      // Update whatsapp, city, services, whatsapp_lead_template separately
+      if (whatsapp !== undefined || city || services || whatsappTemplate !== undefined) {
         await supabase
           .from('business_profile')
           .update({ 
             whatsapp: whatsapp || null,
             city: city || null,
-            services: services || null
+            services: services || null,
+            whatsapp_lead_template: whatsappTemplate || null
           } as Record<string, unknown>)
           .eq('blog_id', blog.id);
       }
@@ -438,25 +439,43 @@ export default function ClientCompany({ embedded }: { embedded?: boolean }) {
             <p className="text-xs text-muted-foreground">
               Selecione o país e digite o número local
             </p>
+          </div>
+          
+          {/* WhatsApp Lead Template - NOVO CAMPO */}
+          <div className="space-y-2">
+            <Label htmlFor="whatsappTemplate">Mensagem automática de contato</Label>
+            <Textarea
+              id="whatsappTemplate"
+              placeholder="Olá! Vi seu site e gostaria de saber mais sobre seus serviços."
+              value={whatsappTemplate}
+              onChange={(e) => setWhatsappTemplate(e.target.value)}
+              className="min-h-[80px]"
+            />
+            <p className="text-xs text-muted-foreground">
+              Placeholders disponíveis: <code className="bg-muted px-1 rounded">{"{{titulo}}"}</code>, <code className="bg-muted px-1 rounded">{"{{pagina}}"}</code>, <code className="bg-muted px-1 rounded">{"{{servico}}"}</code>
+            </p>
             
-            {/* WhatsApp Link Preview - Uses Global Template */}
-            {whatsapp && whatsapp.length >= 10 && (
+            {/* Preview da mensagem */}
+            {(whatsappTemplate || !whatsappTemplate) && whatsapp && whatsapp.length >= 10 && (
               <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 space-y-2">
                 <p className="text-sm font-medium text-green-600 dark:text-green-400 flex items-center gap-2">
                   <MessageCircle className="h-4 w-4" />
-                  Preview da mensagem automática:
+                  Preview da mensagem:
                 </p>
                 <p className="text-sm text-muted-foreground italic">
-                  "{previewMessage({ 
-                    phone: whatsapp, 
-                    companyName: companyName || undefined, 
-                    service: services || undefined, 
-                    city: city || undefined 
-                  })}"
+                  "{whatsappTemplate 
+                    ? whatsappTemplate
+                        .replace(/\{\{titulo\}\}/g, 'Exemplo de Artigo')
+                        .replace(/\{\{pagina\}\}/g, 'pagina-exemplo')
+                        .replace(/\{\{servico\}\}/g, services || 'seus serviços')
+                    : 'Olá! Vi seu site e gostaria de saber mais sobre seus serviços.'
+                  }"
                 </p>
-                <p className="text-xs text-muted-foreground">
-                  💡 A mensagem é gerada automaticamente pelo sistema da OmniSeen
-                </p>
+                {!whatsappTemplate && (
+                  <p className="text-xs text-muted-foreground">
+                    💡 Mensagem padrão - personalize acima para sua marca
+                  </p>
+                )}
               </div>
             )}
           </div>

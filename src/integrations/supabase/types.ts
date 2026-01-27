@@ -2112,6 +2112,7 @@ export type Database = {
           value_per_intent: number | null
           value_per_visibility: number | null
           whatsapp: string | null
+          whatsapp_lead_template: string | null
         }
         Insert: {
           average_margin?: number | null
@@ -2144,6 +2145,7 @@ export type Database = {
           value_per_intent?: number | null
           value_per_visibility?: number | null
           whatsapp?: string | null
+          whatsapp_lead_template?: string | null
         }
         Update: {
           average_margin?: number | null
@@ -2176,6 +2178,7 @@ export type Database = {
           value_per_intent?: number | null
           value_per_visibility?: number | null
           whatsapp?: string | null
+          whatsapp_lead_template?: string | null
         }
         Relationships: [
           {

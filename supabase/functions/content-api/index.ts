@@ -17,7 +17,8 @@ type ContentRoute =
   | "agent.config";
 
 interface ContentRequest {
-  host: string;
+  host?: string;              // Hostname for resolution
+  blog_id?: string;           // Direct blog_id (bypasses hostname resolution)
   route: ContentRoute;
   params?: Record<string, unknown>;
 }
@@ -62,29 +63,44 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { host, route, params = {} } = await req.json() as ContentRequest;
+    const { host, blog_id, route, params = {} } = await req.json() as ContentRequest;
 
-    if (!host || !route) {
+    // Must have either host or blog_id
+    if (!route || (!host && !blog_id)) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: host, route" }),
+        JSON.stringify({ error: "Missing required fields: route and (host or blog_id)" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`[content-api] Request: host=${host}, route=${route}, params=${JSON.stringify(params)}`);
+    console.log(`[content-api] Request: host=${host}, blog_id=${blog_id}, route=${route}, params=${JSON.stringify(params)}`);
 
     // Create Supabase client with service role (bypasses RLS)
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase: SupabaseClientAny = createClient(supabaseUrl, serviceRoleKey);
 
-    // Step 1: Resolve tenant by host
-    const tenant = await resolveTenant(supabase, host);
+    // Step 1: Resolve tenant - either by direct blog_id or by host
+    let tenant: TenantResolution | null = null;
+    
+    if (blog_id) {
+      // Direct blog_id provided - bypass hostname resolution
+      console.log(`[content-api] Using direct blog_id: ${blog_id}`);
+      tenant = {
+        blog_id: blog_id,
+        tenant_id: null,
+        domain: "direct",
+        domain_type: "subdomain",
+        status: "active",
+      };
+    } else if (host) {
+      tenant = await resolveTenant(supabase, host);
+    }
     
     if (!tenant) {
-      console.log(`[content-api] Tenant not found for host: ${host}`);
+      console.log(`[content-api] Tenant not found for host: ${host}, blog_id: ${blog_id}`);
       return new Response(
-        JSON.stringify({ error: "Tenant not found", host }),
+        JSON.stringify({ error: "Tenant not found", host, blog_id }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

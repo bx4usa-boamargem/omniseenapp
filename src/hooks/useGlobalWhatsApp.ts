@@ -29,7 +29,7 @@ interface UseGlobalWhatsAppReturn {
 
 const DEFAULT_CONFIG: GlobalCommConfig = {
   whatsapp_base_url: 'https://wa.me/{phone}?text={message}',
-  message_template: 'Olá! Encontrei sua empresa ao buscar por {service} em {neighborhood}. Li o artigo "{article_title}" no blog da unidade {territory_name} e gostaria de falar com um especialista local.',
+  message_template: 'Olá! Vi seu site e gostaria de saber mais sobre seus serviços.',
   placeholders: ['phone', 'service', 'city', 'article_title', 'company_name', 'neighborhood', 'territory_name', 'lead_source']
 };
 
