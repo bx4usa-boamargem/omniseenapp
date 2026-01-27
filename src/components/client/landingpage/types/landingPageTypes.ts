@@ -178,6 +178,12 @@ export const DEFAULT_BLOCK_VISIBILITY: BlockVisibility = {
   cta_banner: true,
 };
 
+// Landing page template types
+export type LandingPageTemplateType = 
+  | 'service_authority_v1' 
+  | 'institutional_v1' 
+  | 'specialist_authority_v1';
+
 // Generation request types
 export interface GenerateLandingPageRequest {
   blog_id: string;
@@ -192,6 +198,7 @@ export interface GenerateLandingPageRequest {
   territories?: string[];
   differentiator?: string;
   target_audience?: string;
+  template_type?: LandingPageTemplateType;
 }
 
 export interface GenerateLandingPageResponse {

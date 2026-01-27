@@ -41,6 +41,9 @@ import { useBlog } from "@/hooks/useBlog";
 import { useLandingPages } from "./hooks/useLandingPages";
 import { LandingPagePreview } from "./LandingPagePreview";
 import { ServiceAuthorityLayout } from "./layouts/ServiceAuthorityLayout";
+import { InstitutionalLayout } from "./layouts/InstitutionalLayout";
+import { SpecialistAuthorityLayout } from "./layouts/SpecialistAuthorityLayout";
+import { TemplateSelector, LandingPageTemplate } from "./TemplateSelector";
 import { LandingPageData, BlockVisibility, DEFAULT_BLOCK_VISIBILITY, LandingPage } from "./types/landingPageTypes";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -74,6 +77,7 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("preview");
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<LandingPageTemplate>('service_authority_v1');
 
   // Fetch business profile for generation context
   const [businessProfile, setBusinessProfile] = useState<any>(null);
@@ -170,7 +174,8 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
       niche: businessProfile?.niche,
       city: businessProfile?.city,
       services: businessProfile?.services?.split(','),
-      phone: businessProfile?.phone || ""
+      phone: businessProfile?.phone || "",
+      template_type: selectedTemplate // Pass selected template
     });
 
     if (result) {
@@ -382,6 +387,22 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
 
             <div className="flex-1 overflow-y-auto">
               <TabsContent value="preview" className="p-4 m-0 space-y-4">
+                {/* Template Selector - Only show when no page data yet */}
+                {!pageData && (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm">Escolher Template</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <TemplateSelector
+                        value={selectedTemplate}
+                        onChange={setSelectedTemplate}
+                        disabled={generating}
+                      />
+                    </CardContent>
+                  </Card>
+                )}
+
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm">Blocos Visíveis</CardTitle>
@@ -487,25 +508,39 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
         <div className="flex-1 bg-muted/30 overflow-hidden relative">
           {pageData ? (
             <div className="absolute inset-0 overflow-y-auto">
-              {pageData.template === 'service_authority_v1' ? (
-                <div className="max-w-[1200px] mx-auto shadow-2xl shadow-black/10 min-h-full">
+              <div className="max-w-[1200px] mx-auto shadow-2xl shadow-black/10 min-h-full">
+                {pageData.template === 'institutional_v1' ? (
+                  <InstitutionalLayout
+                    pageData={pageData}
+                    primaryColor={blog?.primary_color || "#475569"}
+                    isEditing={true}
+                    onEditBlock={handleEditBlock}
+                  />
+                ) : pageData.template === 'specialist_authority_v1' ? (
+                  <SpecialistAuthorityLayout
+                    pageData={pageData}
+                    primaryColor={blog?.primary_color || "#d97706"}
+                    isEditing={true}
+                    onEditBlock={handleEditBlock}
+                  />
+                ) : pageData.template === 'service_authority_v1' ? (
                   <ServiceAuthorityLayout
                     pageData={pageData}
                     primaryColor={blog?.primary_color || "#2563eb"}
                     isEditing={true}
                     onEditBlock={handleEditBlock}
                   />
-                </div>
-              ) : (
-                <LandingPagePreview
-                  pageData={pageData}
-                  blogId={blog?.id || ""}
-                  primaryColor={blog?.primary_color}
-                  visibility={visibility}
-                  isEditing={false}
-                  onEditBlock={handleEditBlock}
-                />
-              )}
+                ) : (
+                  <LandingPagePreview
+                    pageData={pageData}
+                    blogId={blog?.id || ""}
+                    primaryColor={blog?.primary_color}
+                    visibility={visibility}
+                    isEditing={false}
+                    onEditBlock={handleEditBlock}
+                  />
+                )}
+              </div>
             </div>
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-center p-8">

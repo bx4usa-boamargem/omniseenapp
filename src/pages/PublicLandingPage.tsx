@@ -7,6 +7,8 @@ import { BrandSalesAgentWidget } from "@/components/public/BrandSalesAgentWidget
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCanonicalBlogUrl } from "@/utils/blogUrl";
 import { ServiceAuthorityLayout } from "@/components/client/landingpage/layouts/ServiceAuthorityLayout";
+import { InstitutionalLayout } from "@/components/client/landingpage/layouts/InstitutionalLayout";
+import { SpecialistAuthorityLayout } from "@/components/client/landingpage/layouts/SpecialistAuthorityLayout";
 
 export default function PublicLandingPage() {
   const { blogSlug, pageSlug } = useParams();
@@ -168,7 +170,19 @@ export default function PublicLandingPage() {
       />
 
       <div className="min-h-screen bg-background">
-        {page.page_data?.template === 'service_authority_v1' ? (
+        {page.page_data?.template === 'institutional_v1' ? (
+          <InstitutionalLayout 
+            pageData={page.page_data} 
+            primaryColor={primaryColor} 
+            isEditing={false} 
+          />
+        ) : page.page_data?.template === 'specialist_authority_v1' ? (
+          <SpecialistAuthorityLayout 
+            pageData={page.page_data} 
+            primaryColor={primaryColor} 
+            isEditing={false} 
+          />
+        ) : page.page_data?.template === 'service_authority_v1' ? (
           <ServiceAuthorityLayout 
             pageData={page.page_data} 
             primaryColor={primaryColor} 
