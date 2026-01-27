@@ -217,7 +217,68 @@ serve(async (req) => {
       console.log('[provision-tenant] Domain created');
     }
 
-    // Update profile onboarding status
+    // =============================================
+    // MVP-1: AUTO-CREATE AUXILIARY RECORDS
+    // =============================================
+
+    // 1. Create brand_agent_config (Sales Agent)
+    const { error: agentError } = await supabaseAdmin
+      .from('brand_agent_config')
+      .insert({
+        blog_id: blog.id,
+        is_enabled: true,
+        agent_name: 'Consultor',
+        welcome_message: `Olá! Sou o consultor da ${tenantName}. Como posso ajudar?`,
+        proactive_delay_seconds: 5,
+        max_tokens_per_day: 50000,
+        agent_subscription_status: 'trial'
+      });
+
+    if (agentError) {
+      console.error('[provision-tenant] Agent config error:', agentError);
+      // Not critical, continue
+    } else {
+      console.log('[provision-tenant] Brand agent config created');
+    }
+
+    // 2. Create business_profile
+    const { error: businessError } = await supabaseAdmin
+      .from('business_profile')
+      .insert({
+        blog_id: blog.id,
+        company_name: tenantName
+      });
+
+    if (businessError) {
+      console.error('[provision-tenant] Business profile error:', businessError);
+      // Not critical, continue
+    } else {
+      console.log('[provision-tenant] Business profile created');
+    }
+
+    // 3. Create blog_automation (manual mode by default)
+    const { error: autoError } = await supabaseAdmin
+      .from('blog_automation')
+      .insert({
+        blog_id: blog.id,
+        mode: 'manual',
+        is_active: false,
+        frequency: 'weekly',
+        articles_per_period: 1,
+        preferred_time: '09:00'
+      });
+
+    if (autoError) {
+      console.error('[provision-tenant] Automation config error:', autoError);
+      // Not critical, continue
+    } else {
+      console.log('[provision-tenant] Blog automation config created');
+    }
+
+    // =============================================
+    // UPDATE PROFILE ONBOARDING STATUS
+    // =============================================
+
     const { error: profileError } = await supabaseAdmin
       .from('profiles')
       .update({ onboarding_completed: true })
