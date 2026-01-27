@@ -38,9 +38,8 @@ export function LandingPageFilters({
             onClick={() => onStatusFilterChange(tab.value)}
             className={cn(
               "rounded-md px-3 py-1.5 h-auto text-sm transition-colors",
-              statusFilter === tab.value
-                ? "bg-background shadow-sm font-medium"
-                : "hover:bg-background/50"
+              "text-muted-foreground hover:text-foreground hover:bg-muted/80",
+              statusFilter === tab.value && "bg-background text-foreground shadow-sm font-medium hover:bg-background"
             )}
           >
             {tab.label}

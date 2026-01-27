@@ -58,9 +58,8 @@ export function ArticleFilters({
             onClick={() => onStatusFilterChange(tab.value)}
             className={cn(
               "rounded-md px-2 sm:px-3 py-1.5 h-auto text-xs sm:text-sm transition-colors gap-1 whitespace-nowrap",
-              statusFilter === tab.value
-                ? "bg-background shadow-sm font-medium"
-                : "hover:bg-background/50"
+              "text-muted-foreground hover:text-foreground hover:bg-muted/80",
+              statusFilter === tab.value && "bg-background text-foreground shadow-sm font-medium hover:bg-background"
             )}
           >
             <span className="hidden sm:inline">{tab.label}</span>
