@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { getNextStructureWithTemplate, type StructureType } from "../_shared/structureRotation.ts";
+import { getNextEditorialModel, type EditorialModel } from "../_shared/editorialRotation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -92,6 +93,15 @@ serve(async (req) => {
     
     console.log(`[CONVERT] Structure rotation: type=${structureType}, activity=${activitySlug}, template=${template?.display_name || 'fallback'}`);
 
+    // 3b. ROTAÇÃO EDITORIAL - Determinar próximo modelo de conteúdo
+    console.log(`[CONVERT] Calculating next editorial model for blog ${blogId}...`);
+    const editorialModel: EditorialModel = await getNextEditorialModel(
+      supabase,
+      blogId,
+      profile?.niche
+    );
+    
+    console.log(`[CONVERT] Editorial rotation: model=${editorialModel}`);
     // 4. Buscar dados adicionais para GEO mode (território e whatsapp)
     const { data: territory } = await supabase
       .from("territories")
@@ -150,6 +160,8 @@ serve(async (req) => {
         article_structure_type: structureType,
         structure_prompt: template?.generation_prompt || null,
         activity_slug: activitySlug,
+        // ROTAÇÃO EDITORIAL - Modelo de conteúdo
+        editorial_model: editorialModel,
       }),
     });
 
