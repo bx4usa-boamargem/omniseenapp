@@ -1,369 +1,354 @@
 
-# Plano: Reestruturação Completa do Dashboard e Sidebar da Omniseen
+# Plano: Sidebar Minimalista Premium com Painéis Flutuantes Hover
 
 ## Visão Geral
 
-Reestruturar completamente o Dashboard (Painel) e o Sidebar da subconta para seguir o modelo estrutural do concorrente SEOwriting, mantendo 100% da identidade visual Omniseen (cores, tipografia, efeitos hover, ícones).
-
-**Escopo CONGELADO (não será modificado):**
-- Geração de imagens
-- Edição de imagens
-- Pipelines de IA
-- Edge functions
-- Super Página Pro
+Transformar o sidebar atual em uma barra de comando premium no estilo SEOwriting.ai, onde cada ícone abre um painel flutuante ao passar o mouse (hover), sem exigir cliques.
 
 ---
 
-## Parte 1: Sidebar (SubAccountLayout)
+## Análise da Referência (SEOwriting.ai)
 
-### Alterações Necessárias
+Com base nas imagens fornecidas:
 
-**Arquivo:** `src/components/layout/SubAccountLayout.tsx`
-
-| Item Atual | Ação | Novo Comportamento |
-|------------|------|-------------------|
-| Dashboard no sidebar (admin) | **Remover** | Logo clicável leva ao Dashboard |
-| Estrutura MVP_NAV_SECTIONS | **Manter** | Já está correta |
-| Logo OmniseenLogo | **Modificar** | Adicionar onClick para /client/dashboard |
-
-### Estrutura Final do Sidebar (MVP)
-
-```
-[Logo Omniseen] → clicável → /client/dashboard
-──────────────────
-1) OPORTUNIDADES
-   └── Radar
-2) CRIAR
-   ├── Artigos
-   └── Super Páginas
-3) PUBLICAR
-   ├── Portal Público
-   └── Domínios
-4) PROVA DE VALOR
-   └── Leads
-5) CONFIG
-   └── Minha Conta
-──────────────────
-Tema (toggle)
-Sair
-```
-
-### Modificações no Código
-
-1. **Remover item Dashboard do modo admin:**
-   - Linha 224-227: Remover o bloco condicional que adiciona Dashboard para admins
-   - O Dashboard será acessado clicando no logo
-
-2. **Tornar logo clicável:**
-   - Linha 217-219: Envolver OmniseenLogo em um button/link que navega para `/client/dashboard`
+| Característica | SEOwriting.ai | Omniseen Atual |
+|----------------|---------------|----------------|
+| Sidebar | Ícones minimalistas | Ícones minimalistas |
+| Abertura de menu | Hover | Click (tooltip) |
+| Painéis flutuantes | Fora do sidebar, à direita | Não existe |
+| Ícone de criação | Caneta/Lápis | Martelo |
+| Conteúdo dos painéis | Ícone colorido + título + subtítulo | Apenas tooltip |
 
 ---
 
-## Parte 2: Dashboard (ClientDashboardMvp)
+## Arquitetura Proposta
 
-### Refatoração Completa
+### Novo Componente: `SidebarHoverPanel.tsx`
 
-**Arquivo:** `src/pages/client/ClientDashboardMvp.tsx`
+Componente reutilizável para painéis flutuantes com:
+- Ícone colorido (customizável)
+- Título
+- Subtítulo
+- Hover elegante
 
-O arquivo atual tem ~195 linhas e precisa ser completamente reescrito para conter 6 blocos distintos.
-
-### Estrutura dos 6 Blocos
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ BLOCO 1: BOAS-VINDAS                                            │
-│ "Bem-vindo, {Nome} 👋"                                          │
-│ [subdomínio]                           [✨ Gerar Artigo]        │
-├─────────────────────────────────────────────────────────────────┤
-│ BLOCO 2: STATUS RÁPIDO (4 cards)                                │
-│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐            │
-│ │ Total    │ │Publicados│ │ Visualiz.│ │ Leads    │            │
-│ │ Artigos  │ │          │ │          │ │ Gerados  │            │
-│ └──────────┘ └──────────┘ └──────────┘ └──────────┘            │
-├─────────────────────────────────────────────────────────────────┤
-│ BLOCO 3: PROVA DE VALOR                                         │
-│ "Últimos 7 dias vs período anterior"    [Ver detalhes →]       │
-│ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐             │
-│ │ 👁 Visitas   │ │ 🎯 Cliques   │ │ 💬 Leads    │             │
-│ │   Totais     │ │   nos CTAs   │ │   Reais     │             │
-│ └──────────────┘ └──────────────┘ └──────────────┘             │
-├─────────────────────────────────────────────────────────────────┤
-│ BLOCO 4: FERRAMENTAS (Grid 2x2)                                 │
-│ ┌───────────────────────────┐ ┌───────────────────────────┐    │
-│ │ 📝 Postagem 1 Clique     │ │ 📦 Geração em Massa      │    │
-│ │    ⚡ Relâmpago           │ │    😱 Poder que assusta  │    │
-│ └───────────────────────────┘ └───────────────────────────┘    │
-│ ┌───────────────────────────┐ ┌───────────────────────────┐    │
-│ │ 🚀 Super Página          │ │ ✍️ Ferramenta Reescrita  │    │
-│ │    Foguete de Conversão  │ │    🆕 Novo               │    │
-│ └───────────────────────────┘ └───────────────────────────┘    │
-├─────────────────────────────────────────────────────────────────┤
-│ BLOCO 5: ÚLTIMOS DOCUMENTOS                                     │
-│ Título           | Tipo         | Palavras | Data  | Score    │
-│ ─────────────────────────────────────────────────────────────  │
-│ Como escolher... | Artigo       | 1.234    | 21Jan | 83%      │
-│ Página Inicial   | Super Página | 2.100    | 18Jan | 100%     │
-├─────────────────────────────────────────────────────────────────┤
-│ BLOCO 6: SEU PLANO                                              │
-│ 🏷 Plano: Trial (7 dias)                                       │
-│ Status: Ativo | Dias restantes: 5                              │
-│ [Atualizar Plano]              [Cancelar Conta]                │
-└─────────────────────────────────────────────────────────────────┘
+```text
+┌─────────────────────────────────────────────────────────┐
+│ [Sidebar]    │ [Painel Flutuante]                       │
+│              │                                          │
+│   🖊️ ────────>  ┌────────────────────────────────┐      │
+│              │  │ 📄 Postagem de Blog            │      │
+│              │  │    Gere artigos com um clique  │      │
+│              │  │ 📚 Geração em Massa            │      │
+│              │  │    Até 100 artigos             │      │
+│              │  │ 🚀 Super Página                │      │
+│              │  │    Landing pages SERP          │      │
+│              │  │ ✨ Ferramenta de Reescrita     │      │
+│              │  │    Transforme textos           │      │
+│              │  └────────────────────────────────┘      │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Parte 3: Novos Componentes a Criar
+## Modificações Necessárias
 
-### 3.1 ToolsGrid.tsx
+### 1. Criar `src/components/layout/SidebarHoverPanel.tsx`
 
-**Arquivo:** `src/components/dashboard/ToolsGrid.tsx`
-
-Grid 2x2 de cards de produtos com:
-- Ícone grande
-- Nome da ferramenta
-- Descrição curta
-- Tag opcional (emoji + texto)
-- Navegação ao clicar
+Componente para cada item do painel flutuante:
 
 ```typescript
-interface Tool {
+interface PanelItem {
   id: string;
   icon: React.ElementType;
-  name: string;
-  description: string;
-  tag?: { emoji: string; text: string };
+  iconColor: string;        // Cor do fundo do ícone
+  iconTextColor: string;    // Cor do ícone
+  title: string;
+  subtitle: string;
   path: string;
+  badge?: string;           // Ex: "Novo!"
   comingSoon?: boolean;
 }
 
-const TOOLS: Tool[] = [
+interface SidebarHoverPanelProps {
+  items: PanelItem[];
+  onNavigate: (path: string) => void;
+}
+```
+
+Estilo do painel:
+- Fundo branco (`bg-white dark:bg-gray-900`)
+- Bordas arredondadas (`rounded-xl`)
+- Sombra suave (`shadow-xl`)
+- Largura fixa (`w-72`)
+- Padding interno (`p-3`)
+- Animação de entrada (`animate-in fade-in-0 slide-in-from-left-2`)
+
+### 2. Criar `src/components/layout/SidebarNavItem.tsx`
+
+Componente para cada ícone do sidebar com hover panel:
+
+```typescript
+interface SidebarNavItemProps {
+  icon: React.ElementType;
+  label: string;
+  isActive: boolean;
+  disabled?: boolean;
+  panel?: ReactNode;        // Painel flutuante a exibir
+  onClick?: () => void;
+}
+```
+
+Comportamento:
+- `onMouseEnter` → Mostrar painel
+- `onMouseLeave` → Ocultar painel (com delay de 100ms)
+- Painel posicionado à direita do sidebar (`left-full ml-2`)
+
+### 3. Atualizar `src/components/layout/MinimalSidebar.tsx`
+
+**Mudanças principais:**
+
+| Antes | Depois |
+|-------|--------|
+| Ícone `Hammer` | Ícone `PenTool` (ou `Edit3`) |
+| Tooltip simples | `HoverCard` com painel de ferramentas |
+| Click para navegar | Hover para expandir, click no item |
+
+**Nova estrutura de navegação:**
+
+```typescript
+// Ícone de Criação (PenTool) - Hover Panel com:
+const creationTools = [
   {
     id: 'one-click',
     icon: FileText,
-    name: 'Postagem de Blog com 1 Clique',
-    description: 'Crie o artigo perfeito usando apenas o título. Gere e publique com um clique.',
-    tag: { emoji: '⚡', text: 'Relâmpago' },
+    iconColor: 'bg-amber-100',
+    iconTextColor: 'text-amber-600',
+    title: 'Postagem de Blog com um clique',
+    subtitle: 'Crie e publique um artigo usando apenas um título.',
     path: '/client/create',
   },
   {
     id: 'bulk',
     icon: Layers,
-    name: 'Geração de Artigos em Massa',
-    description: 'Gere até 100 artigos automaticamente em lote.',
-    tag: { emoji: '😱', text: 'Poder que assusta' },
+    iconColor: 'bg-orange-100',
+    iconTextColor: 'text-orange-600',
+    title: 'Geração de artigos em massa',
+    subtitle: 'Gere e publique até 100 artigos automaticamente.',
     path: '/client/bulk-create',
     comingSoon: true,
   },
   {
     id: 'super-page',
     icon: LayoutTemplate,
-    name: 'Super Página',
-    description: 'Crie páginas de alta conversão baseadas na SERP.',
-    tag: { emoji: '🚀', text: 'Foguete de Conversão' },
+    iconColor: 'bg-green-100',
+    iconTextColor: 'text-green-600',
+    title: 'Super Página',
+    subtitle: 'Crie páginas CTA completas com base na SERP.',
     path: '/client/landing-pages/new',
   },
   {
     id: 'rewrite',
-    icon: RefreshCw,
-    name: 'Ferramenta de Reescrita',
-    description: 'Transforme textos em conteúdo pronto para SEO.',
-    tag: { emoji: '🆕', text: 'Novo' },
+    icon: Sparkles,
+    iconColor: 'bg-purple-100',
+    iconTextColor: 'text-purple-600',
+    title: 'Ferramenta de reescrita',
+    subtitle: 'Reescreva com insights da SERP para ranquear.',
     path: '/client/rewrite',
+    badge: 'Novo!',
     comingSoon: true,
+  },
+];
+
+// Ícone de Documentos (FileText) - Hover Panel com:
+const documentItems = [
+  {
+    id: 'articles',
+    icon: FileText,
+    iconColor: 'bg-blue-100',
+    iconTextColor: 'text-blue-600',
+    title: 'Meus Artigos',
+    subtitle: 'Visualize e gerencie todos os seus artigos.',
+    path: '/client/articles',
+  },
+  {
+    id: 'landing-pages',
+    icon: LayoutTemplate,
+    iconColor: 'bg-emerald-100',
+    iconTextColor: 'text-emerald-600',
+    title: 'Minhas Páginas',
+    subtitle: 'Gerencie suas Super Páginas.',
+    path: '/client/landing-pages',
   },
 ];
 ```
 
-### 3.2 RecentDocuments.tsx
+**Estrutura do JSX:**
 
-**Arquivo:** `src/components/dashboard/RecentDocuments.tsx`
-
-Lista combinada de artigos e super páginas com:
-- Título
-- Tipo (badge colorido)
-- Contagem de palavras
-- Data de criação
-- Score/Percentual baseado no status
-
-**Regra do percentual (MVP):**
-- Draft = 30%
-- Ready/Scheduled = 70%
-- Published = 100%
-
-### 3.3 PlanStatusCard.tsx
-
-**Arquivo:** `src/components/dashboard/PlanStatusCard.tsx`
-
-Card com:
-- Nome do plano atual
-- Status visual (badge)
-- Dias restantes (se trial)
-- Botão "Atualizar Plano"
-- Botão "Cancelar Conta"
-
----
-
-## Parte 4: Atualização do Sistema de Planos
-
-### useSubscription.ts
-
-**Arquivo:** `src/hooks/useSubscription.ts`
-
-Atualizar PLAN_DISPLAY_NAMES:
-
-```typescript
-const PLAN_DISPLAY_NAMES: Record<string, string> = {
-  trial: 'Trial',
-  starter: 'Starter',
-  growth: 'Growth',
-  scale: 'Scale',
-  internal: 'Interno',
-};
-
-const PLAN_PRICES: Record<string, string> = {
-  trial: '7 dias grátis',
-  starter: '$14.97/mês',
-  growth: '$39/mês',
-  scale: '$79/mês',
-};
+```tsx
+<div className="relative group">
+  {/* Ícone */}
+  <button className="...">
+    <PenTool className="h-5 w-5" />
+  </button>
+  
+  {/* Painel Flutuante - aparece no hover */}
+  <div className="absolute left-full top-0 ml-4 opacity-0 invisible 
+                  group-hover:opacity-100 group-hover:visible 
+                  transition-all duration-200">
+    <SidebarHoverPanel items={creationTools} onNavigate={navigate} />
+  </div>
+</div>
 ```
 
-### Novo hook: useRecentDocuments.ts
+### 4. Atualizar `src/components/ui/OmniseenLogo.tsx`
 
-**Arquivo:** `src/hooks/useRecentDocuments.ts`
-
-Hook para buscar últimos documentos combinados:
+Adicionar tamanho `sidebar` para identidade de marca:
 
 ```typescript
-interface RecentDocument {
-  id: string;
-  title: string;
-  type: 'article' | 'landing_page';
-  wordCount: number;
-  createdAt: Date;
-  status: string;
-  score: number; // Calculado: draft=30, ready=70, published=100
-}
-
-export function useRecentDocuments(blogId: string, limit = 5)
-```
-
-### Novo arquivo: metricsDefinitions.ts
-
-**Arquivo:** `src/lib/metricsDefinitions.ts`
-
-Centralizar definições de métricas:
-
-```typescript
-export const METRIC_DEFINITIONS = {
-  VISITS_TOTAL: {
-    label: 'Visitas Totais',
-    description: 'Pageviews de artigos + super páginas + portal público',
-    source: ['articles.view_count', 'landing_pages.view_count', 'portal_views'],
-  },
-  CTA_CLICKS: {
-    label: 'Cliques nos CTAs',
-    description: 'Cliques em botões de conversão (call, whatsapp, form)',
-    source: ['funnel_events.cta_click'],
-  },
-  REAL_LEADS: {
-    label: 'Leads Reais',
-    description: 'Criação efetiva de lead (form ou integração)',
-    source: ['real_leads'],
-  },
+const sizeClasses = {
+  sm: "h-8",
+  md: "h-10",
+  lg: "h-14",
+  sidebar: "h-12 max-w-[56px]",  // NOVO
 };
 ```
 
 ---
 
-## Parte 5: Redirecionamentos e Rotas
+## Especificações de Design
 
-### App.tsx
+### Painel Flutuante
 
-**Linha ~196:** Já existe o redirect `/client` → `/client/dashboard`
+| Propriedade | Valor |
+|-------------|-------|
+| Largura | `w-72` (288px) |
+| Fundo | `bg-white dark:bg-gray-900` |
+| Borda | `border border-border/50` |
+| Sombra | `shadow-xl` |
+| Bordas arredondadas | `rounded-xl` |
+| Padding | `p-3` |
+| Posição | `left-full ml-4 top-0` |
+| Z-index | `z-50` |
 
-Verificar e garantir que:
-- `/client` redireciona para `/client/dashboard`
-- Rotas não implementadas (`/client/bulk-create`, `/client/rewrite`) retornam "Em breve"
+### Item do Painel
 
-### Rotas "Em Breve"
+| Propriedade | Valor |
+|-------------|-------|
+| Padding | `px-3 py-3` |
+| Hover | `hover:bg-muted/50 rounded-lg` |
+| Ícone | `w-10 h-10 rounded-lg` com cor customizada |
+| Título | `text-sm font-medium text-foreground` |
+| Subtítulo | `text-xs text-muted-foreground` |
+| Badge | `bg-purple-100 text-purple-700 text-[10px]` |
 
-Criar componente genérico `ComingSoon.tsx` ou usar toast/modal quando rota não existe.
+### Transições
+
+| Elemento | Transição |
+|----------|-----------|
+| Painel | `transition-all duration-200` |
+| Visibilidade | `opacity-0 invisible → opacity-100 visible` |
+| Hover item | `transition-colors duration-150` |
 
 ---
-
-## Parte 6: Mobile Responsivo
-
-### MobileBottomNav.tsx
-
-**Arquivo:** `src/components/mobile/MobileBottomNav.tsx`
-
-O MVP_NAV_ITEMS atual está correto. Manter sem Dashboard no mobile (acessado pelo logo).
-
-### Responsividade do Dashboard
-
-- Grid de ferramentas: `grid-cols-1 sm:grid-cols-2`
-- Cards de status: `grid-cols-2 md:grid-cols-4`
-- Documentos recentes: Scroll horizontal em mobile ou cards empilhados
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `src/components/layout/SubAccountLayout.tsx` | Modificar | Remover Dashboard do sidebar, logo clicável |
-| `src/pages/client/ClientDashboardMvp.tsx` | Refatorar | 6 blocos estruturados |
-| `src/hooks/useSubscription.ts` | Modificar | Novos nomes de planos |
-| `src/components/dashboard/WelcomeHeader.tsx` | Modificar | Adicionar subdomínio |
 
 ## Arquivos a Criar
 
 | Arquivo | Descrição |
 |---------|-----------|
-| `src/components/dashboard/ToolsGrid.tsx` | Grid 2x2 de produtos |
-| `src/components/dashboard/ToolCard.tsx` | Card individual de produto |
-| `src/components/dashboard/RecentDocuments.tsx` | Lista de documentos recentes |
-| `src/components/dashboard/PlanStatusCard.tsx` | Card de status do plano |
-| `src/hooks/useRecentDocuments.ts` | Hook para buscar documentos |
-| `src/lib/metricsDefinitions.ts` | Definições centralizadas de métricas |
-| `src/components/shared/ComingSoonModal.tsx` | Modal "Em breve" |
+| `src/components/layout/SidebarHoverPanel.tsx` | Painel flutuante reutilizável |
+| `src/components/layout/SidebarNavItem.tsx` | Item de navegação com hover |
+
+## Arquivos a Modificar
+
+| Arquivo | Modificação |
+|---------|-------------|
+| `src/components/layout/MinimalSidebar.tsx` | Refatorar para usar painéis hover |
+| `src/components/ui/OmniseenLogo.tsx` | Adicionar tamanho `sidebar` |
+| `src/components/mobile/MobileBottomNav.tsx` | Trocar `Hammer` por `PenTool` |
 
 ---
 
-## Comportamentos Garantidos
+## Mapeamento de Ícones
 
-| Comportamento | Implementação |
-|---------------|---------------|
-| /client → /client/dashboard | Já existe em App.tsx linha 248 |
-| Logo leva ao Dashboard | Modificar SubAccountLayout |
-| Rotas não implementadas | Modal "Em breve" |
-| Empty states claros | Cada bloco terá fallback |
-| Mobile responsivo | Grids adaptativos |
-| Métricas reais | Hooks existentes + novo hook |
-| Identidade Omniseen | Reutilizar classes client-card, cores, hover |
+| Antes | Depois |
+|-------|--------|
+| `Hammer` (Construtor) | `PenTool` ou `Edit3` (Criação) |
+| `FileText` (Documentos) | `FileText` (mantido) |
+| `Users` (Leads) | `Users` (mantido) |
+| `Bell` (Notificações) | `Bell` (mantido) |
+| `HelpCircle` (Ajuda) | `HelpCircle` (mantido) |
 
 ---
 
-## Componentes Reutilizados
+## Comportamento Detalhado
 
-| Componente | Uso |
-|------------|-----|
-| `WelcomeHeader.tsx` | Bloco 1 - ajustar para mostrar subdomínio |
-| `MetricCardsRow.tsx` | Bloco 2 - já pronto |
-| `ValueProofDashboard.tsx` | Bloco 3 - já pronto |
-| `OmniseenLogo.tsx` | Sidebar - adicionar onClick |
+### Hover sobre "Criação" (PenTool)
+
+1. Mouse entra no ícone
+2. Painel flutuante aparece à direita (fora do sidebar)
+3. Painel contém 4 itens:
+   - Postagem de Blog com um clique
+   - Geração de artigos em massa (coming soon)
+   - Super Página
+   - Ferramenta de reescrita (coming soon + badge "Novo!")
+4. Mouse sai → painel fecha
+
+### Hover sobre "Documentos" (FileText)
+
+1. Mouse entra no ícone
+2. Painel flutuante aparece com 2 itens:
+   - Meus Artigos → `/client/articles`
+   - Minhas Páginas → `/client/landing-pages`
+3. Mouse sai → painel fecha
+
+### Ícones sem Hover Panel
+
+- **Leads** → Navegação direta
+- **Notificações** → Disabled (Em breve)
+- **Ajuda** → Abre FloatingSupportChat
 
 ---
 
-## Resultado Final
+## Resultado Visual Esperado
 
-O usuário verá um Dashboard premium onde em **5 segundos** entende:
+```text
+┌──────┐  ┌────────────────────────────────────────┐
+│      │  │                                        │
+│  🖊️  │──│ 📄 Postagem de Blog com um clique     │
+│      │  │    Crie e publique com um título       │
+│  📄  │  │                                        │
+│      │  │ 📚 Geração de artigos em massa        │
+│  👥  │  │    Até 100 artigos automaticamente     │
+│      │  │                                        │
+│  🔔  │  │ 🚀 Super Página                        │
+│      │  │    Páginas CTA baseadas na SERP        │
+│  ❓  │  │                                        │
+│      │  │ ✨ Ferramenta de reescrita     Novo!   │
+│      │  │    Reescreva com insights da SERP      │
+└──────┘  └────────────────────────────────────────┘
+```
 
-1. ✅ **O que pode criar** → Bloco Ferramentas (4 cards clicáveis)
-2. ✅ **O que já criou** → Bloco Status + Documentos Recentes
-3. ✅ **Qual valor está recebendo** → Bloco Prova de Valor
-4. ✅ **Qual é o plano dele** → Bloco Seu Plano
+---
 
-O sidebar será **estrutural, não catálogo**, guiando o fluxo em passos lógicos.
+## Critérios de Aceite
+
+| Critério | Validação |
+|----------|-----------|
+| Ícone de criação | PenTool (não mais Hammer) |
+| Hover abre painel | Sem clique necessário |
+| Painel fora do sidebar | Posicionado à direita |
+| 4 ferramentas de criação | Postagem, Massa, Super Página, Reescrita |
+| 2 itens em Documentos | Artigos e Páginas |
+| Estilo premium | Fundo branco, sombra, bordas arredondadas |
+| Hover elegante | Realce suave nos itens |
+| Fechar ao sair | Painel fecha quando mouse sai |
+| Coming soon | Badge para itens não disponíveis |
+
+---
+
+## Impacto na UX
+
+- **Antes**: Sidebar genérico com tooltips simples
+- **Depois**: Barra de comando premium com painéis informativos
+- **Percepção**: Plataforma profissional comparável ao SEOwriting.ai
+- **Fluidez**: Navegação por hover, sem fricção de cliques
