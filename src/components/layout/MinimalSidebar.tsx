@@ -1,22 +1,17 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Hammer, FileText, Users, Bell, HelpCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { 
+  PenTool, 
+  FileText, 
+  Users, 
+  Bell, 
+  HelpCircle,
+  Layers,
+  LayoutTemplate,
+  Sparkles
+} from 'lucide-react';
 import { OmniseenLogo } from '@/components/ui/OmniseenLogo';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
-
-interface MinimalNavItem {
-  id: string;
-  icon: React.ElementType;
-  label: string;
-  path: string;
-  disabled?: boolean;
-  tooltip?: string;
-  action?: () => void;
-}
+import { SidebarNavItem } from './SidebarNavItem';
+import { SidebarHoverPanel, PanelItem } from './SidebarHoverPanel';
 
 interface MinimalSidebarProps {
   onHelpClick: () => void;
@@ -26,108 +21,138 @@ export function MinimalSidebar({ onHelpClick }: MinimalSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const navItems: MinimalNavItem[] = [
+  // Creation tools panel items
+  const creationTools: PanelItem[] = [
     {
-      id: 'builder',
-      icon: Hammer,
-      label: 'Construtor',
-      path: '/client/dashboard',
-      tooltip: 'Voltar ao Painel',
-    },
-    {
-      id: 'documents',
+      id: 'one-click',
       icon: FileText,
-      label: 'Documentos',
-      path: '/client/articles',
-      tooltip: 'Artigos e Páginas',
+      iconColor: 'bg-amber-100 dark:bg-amber-900/30',
+      iconTextColor: 'text-amber-600 dark:text-amber-400',
+      title: 'Postagem de Blog com um clique',
+      subtitle: 'Crie e publique um artigo usando apenas um título.',
+      path: '/client/create',
     },
     {
-      id: 'leads',
-      icon: Users,
-      label: 'Leads',
-      path: '/client/leads',
-      tooltip: 'Leads Capturados',
+      id: 'bulk',
+      icon: Layers,
+      iconColor: 'bg-orange-100 dark:bg-orange-900/30',
+      iconTextColor: 'text-orange-600 dark:text-orange-400',
+      title: 'Geração de artigos em massa',
+      subtitle: 'Gere e publique até 100 artigos automaticamente.',
+      path: '/client/bulk-create',
+      comingSoon: true,
     },
     {
-      id: 'notifications',
-      icon: Bell,
-      label: 'Notificações',
-      path: '/client/notifications',
-      disabled: true,
-      tooltip: 'Em breve',
+      id: 'super-page',
+      icon: LayoutTemplate,
+      iconColor: 'bg-green-100 dark:bg-green-900/30',
+      iconTextColor: 'text-green-600 dark:text-green-400',
+      title: 'Super Página',
+      subtitle: 'Crie páginas CTA completas com base na SERP.',
+      path: '/client/landing-pages/new',
     },
     {
-      id: 'help',
-      icon: HelpCircle,
-      label: 'Ajuda',
-      path: '#help',
-      tooltip: 'Assistente IA',
-      action: onHelpClick,
+      id: 'rewrite',
+      icon: Sparkles,
+      iconColor: 'bg-purple-100 dark:bg-purple-900/30',
+      iconTextColor: 'text-purple-600 dark:text-purple-400',
+      title: 'Ferramenta de reescrita',
+      subtitle: 'Reescreva com insights da SERP para ranquear.',
+      path: '/client/rewrite',
+      badge: 'Novo!',
+      comingSoon: true,
     },
   ];
 
-  const isActive = (path: string) => {
-    if (path === '/client/dashboard') {
-      return location.pathname === '/client/dashboard';
-    }
-    if (path === '/client/articles') {
-      return location.pathname.startsWith('/client/articles') || 
-             location.pathname.startsWith('/client/landing-pages') ||
-             location.pathname.startsWith('/client/create');
-    }
-    return location.pathname.startsWith(path);
+  // Documents panel items
+  const documentItems: PanelItem[] = [
+    {
+      id: 'articles',
+      icon: FileText,
+      iconColor: 'bg-blue-100 dark:bg-blue-900/30',
+      iconTextColor: 'text-blue-600 dark:text-blue-400',
+      title: 'Meus Artigos',
+      subtitle: 'Visualize e gerencie todos os seus artigos.',
+      path: '/client/articles',
+    },
+    {
+      id: 'landing-pages',
+      icon: LayoutTemplate,
+      iconColor: 'bg-emerald-100 dark:bg-emerald-900/30',
+      iconTextColor: 'text-emerald-600 dark:text-emerald-400',
+      title: 'Minhas Páginas',
+      subtitle: 'Gerencie suas Super Páginas.',
+      path: '/client/landing-pages',
+    },
+  ];
+
+  const isCreationActive = () => {
+    return location.pathname.startsWith('/client/create') ||
+           location.pathname.startsWith('/client/bulk-create') ||
+           location.pathname.startsWith('/client/rewrite');
   };
 
-  const handleClick = (item: MinimalNavItem) => {
-    if (item.disabled) return;
-    if (item.action) {
-      item.action();
-      return;
-    }
-    navigate(item.path);
+  const isDocumentsActive = () => {
+    return location.pathname.startsWith('/client/articles') || 
+           location.pathname.startsWith('/client/landing-pages');
+  };
+
+  const isLeadsActive = () => {
+    return location.pathname.startsWith('/client/leads');
   };
 
   return (
     <div className="flex flex-col items-center h-full py-4">
-      {/* Logo */}
+      {/* Logo - Brand Anchor */}
       <button
         onClick={() => navigate('/client/dashboard')}
-        className="mb-8 p-2 rounded-xl hover:bg-primary/10 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/50"
+        className="min-h-[56px] flex items-center justify-center mb-6 px-2 py-3 rounded-xl hover:bg-primary/10 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/50"
         aria-label="Ir para Dashboard"
       >
-        <OmniseenLogo size="sm" />
+        <OmniseenLogo size="sidebar" />
       </button>
 
       {/* Navigation Icons */}
       <nav className="flex flex-col items-center gap-2 flex-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = isActive(item.path);
+        {/* Creation - with hover panel */}
+        <SidebarNavItem
+          icon={PenTool}
+          label="Criar"
+          isActive={isCreationActive()}
+          panel={<SidebarHoverPanel items={creationTools} onNavigate={navigate} />}
+        />
 
-          return (
-            <Tooltip key={item.id} delayDuration={0}>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => handleClick(item)}
-                  disabled={item.disabled}
-                  className={cn(
-                    'minimal-nav-item w-12 h-12 rounded-xl flex items-center justify-center',
-                    'transition-all duration-200 cursor-pointer',
-                    'text-muted-foreground hover:text-primary hover:bg-primary/10',
-                    active && 'text-primary bg-primary/15 shadow-[0_0_12px_hsla(277,76%,50%,0.2)]',
-                    item.disabled && 'opacity-40 cursor-not-allowed hover:bg-transparent hover:text-muted-foreground'
-                  )}
-                  aria-label={item.label}
-                >
-                  <Icon className="h-5 w-5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="font-medium">
-                {item.tooltip || item.label}
-              </TooltipContent>
-            </Tooltip>
-          );
-        })}
+        {/* Documents - with hover panel */}
+        <SidebarNavItem
+          icon={FileText}
+          label="Documentos"
+          isActive={isDocumentsActive()}
+          panel={<SidebarHoverPanel items={documentItems} onNavigate={navigate} />}
+        />
+
+        {/* Leads - direct navigation */}
+        <SidebarNavItem
+          icon={Users}
+          label="Leads"
+          isActive={isLeadsActive()}
+          onClick={() => navigate('/client/leads')}
+        />
+
+        {/* Notifications - disabled */}
+        <SidebarNavItem
+          icon={Bell}
+          label="Notificações"
+          isActive={false}
+          disabled
+        />
+
+        {/* Help - action */}
+        <SidebarNavItem
+          icon={HelpCircle}
+          label="Ajuda"
+          isActive={false}
+          onClick={onHelpClick}
+        />
       </nav>
     </div>
   );

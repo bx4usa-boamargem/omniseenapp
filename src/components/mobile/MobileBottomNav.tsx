@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
-  Hammer,
+  PenTool,
   FileText,
   Users,
   User,
@@ -20,7 +20,7 @@ interface MobileBottomNavProps {
 
 // Navegação simplificada para mobile - segue o mesmo modelo do sidebar minimalista
 const MOBILE_NAV_ITEMS: NavItem[] = [
-  { path: '/client/dashboard', icon: Hammer, label: 'Painel' },
+  { path: '/client/dashboard', icon: PenTool, label: 'Criar' },
   { path: '/client/articles', icon: FileText, label: 'Docs' },
   { path: '/client/leads', icon: Users, label: 'Leads' },
   { path: '/client/settings', icon: User, label: 'Conta' },
