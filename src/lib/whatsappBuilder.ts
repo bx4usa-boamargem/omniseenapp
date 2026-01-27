@@ -22,10 +22,13 @@ export interface WhatsAppContext {
   service?: string;        // Serviço principal
   city?: string;           // Cidade
   articleTitle?: string;   // Título do artigo (quando aplicável)
+  pageSlug?: string;       // Slug da página (para placeholder {{pagina}})
   // Campos territoriais
   neighborhood?: string;       // Bairro específico
   territoryName?: string;      // Nome oficial do território validado
   leadSource?: string;         // Origem: 'map' | 'article' | 'neighborhood' | 'search'
+  // Template customizado do tenant (override do global)
+  tenantTemplate?: string;     // Se definido, usa este template em vez do global
 }
 
 export interface GlobalCommConfig {
@@ -126,13 +129,25 @@ let cacheTimestamp: number = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutos
 
 /**
- * Configuração padrão (fallback) - COM PLACEHOLDERS TERRITORIAIS
+ * Configuração padrão (fallback) - SIMPLIFICADA E HUMANA
+ * Não usa template longo; o dono do negócio define sua própria mensagem
  */
 const DEFAULT_CONFIG: GlobalCommConfig = {
   whatsapp_base_url: 'https://wa.me/{phone}?text={message}',
-  message_template: 'Olá! Encontrei sua empresa ao buscar por {service} em {neighborhood}. Li o artigo "{article_title}" no blog da unidade {territory_name} e gostaria de falar com um especialista local.',
-  placeholders: ['phone', 'service', 'city', 'article_title', 'company_name', 'neighborhood', 'territory_name', 'lead_source']
+  message_template: 'Olá! Vi seu site e gostaria de saber mais sobre seus serviços.',
+  placeholders: ['phone', 'service', 'city', 'article_title', 'company_name', 'neighborhood', 'territory_name', 'lead_source', 'pagina']
 };
+
+/**
+ * Interpolação de template customizado do tenant
+ * Usa placeholders {{titulo}}, {{pagina}}, {{servico}}
+ */
+export function interpolateTenantTemplate(template: string, context: WhatsAppContext): string {
+  return template
+    .replace(/\{\{titulo\}\}/g, context.articleTitle || 'seu site')
+    .replace(/\{\{pagina\}\}/g, context.pageSlug || '')
+    .replace(/\{\{servico\}\}/g, context.service || 'seus serviços');
+}
 
 /**
  * Busca configuração global da conta-mãe
@@ -248,10 +263,19 @@ export function buildWhatsAppLinkSync(
     return '#';
   }
   
-  // Se tem override, usa ele; senão, interpola template global
-  const message = options?.messageOverride 
-    ? options.messageOverride
-    : interpolateMessage(config.message_template, { ...context, phone: cleanPhone });
+  // Prioridade de mensagem:
+  // 1. Override explícito (messageOverride)
+  // 2. Template customizado do tenant (tenantTemplate)
+  // 3. Template global (config.message_template)
+  let message: string;
+  
+  if (options?.messageOverride) {
+    message = options.messageOverride;
+  } else if (context.tenantTemplate) {
+    message = interpolateTenantTemplate(context.tenantTemplate, context);
+  } else {
+    message = interpolateMessage(config.message_template, { ...context, phone: cleanPhone });
+  }
   
   const url = config.whatsapp_base_url
     .replace('{phone}', cleanPhone)
