@@ -213,19 +213,18 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      {/* Logo */}
+      {/* Logo - Clicável, leva ao Dashboard */}
       <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-white/10">
-        <OmniseenLogo size="lg" />
+        <button
+          onClick={() => navigate('/client/dashboard')}
+          className="hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-lg"
+        >
+          <OmniseenLogo size="lg" />
+        </button>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto scrollbar-hide">
-        {/* Home/Dashboard - only for internal/admin */}
-        {showAdvancedNav && (
-          <div className="p-4 pb-0" data-tour="dashboard-menu">
-            <NavButton item={{ icon: LayoutDashboard, label: 'Dashboard', path: '/client/dashboard' }} />
-          </div>
-        )}
 
         {/* Seções */}
         {navSections.map((section) => (

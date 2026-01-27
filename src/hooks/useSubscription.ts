@@ -36,13 +36,17 @@ export interface UseSubscriptionReturn {
 
 // Map DB plan names to display names
 const PLAN_DISPLAY_NAMES: Record<string, string> = {
-  essential: 'Lite',
-  lite: 'Lite',
-  plus: 'Pro',
-  pro: 'Pro',
-  scale: 'Business',
-  business: 'Business',
-  free: 'Gratuito',
+  trial: 'Trial',
+  trialing: 'Trial',
+  essential: 'Starter',
+  lite: 'Starter',
+  starter: 'Starter',
+  plus: 'Growth',
+  pro: 'Growth',
+  growth: 'Growth',
+  scale: 'Scale',
+  business: 'Scale',
+  free: 'Trial',
   internal: 'Interno',
 };
 
