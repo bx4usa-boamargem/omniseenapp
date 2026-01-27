@@ -97,6 +97,12 @@ interface ArticleRequest {
   generation_mode?: GenerationMode;
   auto_publish?: boolean;
   territoryId?: string;
+  // GEO MODE FIELDS (V2.0)
+  geo_mode?: boolean;
+  internal_links?: Array<{url: string; anchor: string}>;
+  external_sources?: Array<{url: string; title: string}>;
+  whatsapp?: string;
+  google_place?: Record<string, unknown>;
 }
 
 interface TerritoryData {
@@ -492,7 +498,8 @@ async function persistArticleToDb(
   autoPublish: boolean = true,
   inferredCategory?: string,
   inferredTags?: string[],
-  nicheProfileId?: string | null  // V2.0: Niche profile linkage
+  nicheProfileId?: string | null,  // V2.0: Niche profile linkage
+  userId?: string | null  // User ID for RLS policy
 ): Promise<{ id: string; slug: string; status: string; title: string }> {
   console.log(`[PERSIST] Preparing to save article: "${articleData.title}" for blog ${blogId}`);
   
@@ -578,7 +585,7 @@ async function persistArticleToDb(
   // Preparar dados para inserção (no duplicate found)
   const insertData = {
     blog_id: blogId,
-    user_id: user_id || null, // CRITICAL FIX: Set user_id for RLS policy
+    user_id: userId || null, // CRITICAL FIX: Set user_id for RLS policy
     title: articleData.title || 'Artigo sem título',
     title_fingerprint: titleFingerprint, // NEW: For deduplication
     slug: uniqueSlug,
@@ -1218,6 +1225,15 @@ serve(async (req) => {
     
     // Client admin para persistência controlada
     const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    // LOVABLE AI API KEY - required for AI gateway calls
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!LOVABLE_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: 'Missing LOVABLE_API_KEY configuration' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const {
       theme, keywords = [], tone = 'friendly', category = 'general',
@@ -1662,13 +1678,23 @@ serve(async (req) => {
     
     console.log(`[${requestId}] Starting persistence: blog_id=${blog_id}, user_id=${user?.id}`);
     
+    // Helper function to generate slug from title
+    const generateSlug = (title: string): string => {
+      return title
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '') + '-' + Date.now().toString(36);
+    };
+
     let persistedArticle;
     try {
       const insertData = {
         blog_id: blog_id,
         user_id: user?.id, // Derivado do JWT
         title: article.title,
-        slug: article.slug, // assumindo slug já gerado ou gerar no persist
+        slug: generateSlug(article.title), // FIXED: Generate slug from title
         content: article.content,
         status: 'draft',
         // ... other fields

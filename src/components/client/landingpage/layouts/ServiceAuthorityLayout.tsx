@@ -6,6 +6,7 @@ import { EmergencyCTA } from "./EmergencyCTA";
 import { AuthorityContentBlock } from "./AuthorityContentBlock";
 import { FAQSection } from "./FAQSection";
 import { FooterCTA } from "./FooterCTA";
+import { ArticleContent } from "@/components/public/ArticleContent";
 
 interface ServiceAuthorityLayoutProps {
   pageData: any; // Using any temporarily to support the new schema

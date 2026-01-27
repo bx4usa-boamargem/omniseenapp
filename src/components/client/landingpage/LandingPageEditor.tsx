@@ -169,7 +169,8 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
       company_name: businessProfile?.company_name,
       niche: businessProfile?.niche,
       city: businessProfile?.city,
-      services: businessProfile?.services?.split(',')
+      services: businessProfile?.services?.split(','),
+      phone: businessProfile?.phone || ""
     });
 
     if (result) {

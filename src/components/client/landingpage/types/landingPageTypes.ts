@@ -5,6 +5,7 @@ export interface HeroSection {
   subtitle: string;
   cta_text: string;
   cta_phone: string;
+  phone?: string;
   background_image_url?: string;
   background_image_prompt?: string;
 }
@@ -115,6 +116,10 @@ export interface LandingPageData {
   faq: FAQItem[];
   contact: ContactInfo;
   cta_banner?: CTABanner;
+  
+  // New fields for service_authority_v1 template
+  template?: string;
+  authority_content?: string;
   
   // Meta
   meta?: {
