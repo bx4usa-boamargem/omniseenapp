@@ -1,220 +1,180 @@
 
-# Plano: Controle Editorial de WhatsApp + Correção de Artigos 404
+# Plano: Correção do Bug de Remoção de Blocos em Super Páginas
 
-## Análise Diagnóstica
+## Problema Identificado
 
-### Problema 1: Mensagem de WhatsApp Longa/Robótica
-**Causa raiz identificada:**
-- O sistema usa um template global (`global_comm_config`) com mensagem complexa:
-  ```
-  "Olá! Encontrei sua empresa ao buscar por {service} em {neighborhood}. 
-   Li o artigo "{article_title}" no blog da unidade {territory_name} 
-   e gostaria de falar com um especialista local."
-  ```
-- O dono do negócio (subconta) NÃO tem controle sobre essa mensagem
-- A mensagem é gerada automaticamente com placeholders que nem sempre fazem sentido
+Ao tentar remover blocos (FAQ, Contact, Services, etc.), a Super Página **não salva** porque:
 
-**Solução:**
-- Adicionar campo `whatsapp_lead_template` na tabela `business_profile` por tenant
-- Permitir edição em "Minha Empresa" com preview em tempo real
-- Usar template do tenant quando disponível, senão fallback para global simplificado
+1. O sistema atual apenas **oculta** blocos visualmente via `visibility` state
+2. O `visibility` **nunca é persistido** - não faz parte do `page_data`
+3. O TypeScript exige campos obrigatórios como `services`, `testimonials`, `faq`, `contact`
+4. Quando o usuário desmarca um bloco e salva, o `page_data` enviado continua com todos os campos
 
-### Problema 2: Artigos Retornando 404
-**Diagnóstico realizado:**
-- ✅ Edge Function `content-api` funciona corretamente (testada com sucesso)
-- ✅ Tabela `tenant_domains` tem domínios cadastrados no formato correto
-- ✅ RPC `resolve_domain` mapeia corretamente hostname → blog_id
-- ✅ Rotas em `BlogRoutes.tsx` estão configuradas: `/:articleSlug/*` → `CustomDomainArticle`
-- ✅ Hook `useBlogArticle` chama `content-api` com route `blog.article`
+## Solução Proposta
 
-**Possível causa:**
-O problema ocorre no ambiente de PREVIEW (lovable.app), não em produção. O `getCurrentHostname()` retorna `id-preview--xxx.lovable.app` que não está mapeado na `tenant_domains`.
+Implementar um sistema de **remoção real de blocos**, onde:
 
-**Solução:**
-- Melhorar a resolução de hostname no hook `useBlogArticle` para aceitar `blogId` como override
-- Garantir que `CustomDomainArticle` passe o `blogId` recebido via props para o hook
-- Adicionar fallback de resolução quando hostname não resolve via RPC
+1. Blocos desabilitados são **removidos** do JSON antes de salvar
+2. Os tipos TypeScript são **flexibilizados** para aceitar campos opcionais
+3. O `visibility` é **persistido** dentro do `page_data.meta`
+4. O sistema de preview continua funcionando normalmente
 
 ---
 
-## Implementação Técnica
+## Arquitetura da Solução
 
-### PARTE 1: Controle Editorial de WhatsApp
+### 1. Atualizar Tipos TypeScript
 
-#### 1.1 Migração de Banco
-```sql
-ALTER TABLE business_profile 
-ADD COLUMN IF NOT EXISTS whatsapp_lead_template TEXT;
+Modificar `landingPageTypes.ts` para tornar todos os blocos opcionais:
 
-COMMENT ON COLUMN business_profile.whatsapp_lead_template IS 
-'Template customizado para mensagens de WhatsApp. Suporta: {{titulo}}, {{pagina}}, {{servico}}';
-```
+| Campo | Antes | Depois |
+|-------|-------|--------|
+| `hero` | `HeroSection` (obrigatório) | `HeroSection?` (opcional) |
+| `services` | `ServiceCard[]` (obrigatório) | `ServiceCard[]?` (opcional) |
+| `service_details` | `ServiceDetail[]` (obrigatório) | `ServiceDetail[]?` (opcional) |
+| `testimonials` | `Testimonial[]` (obrigatório) | `Testimonial[]?` (opcional) |
+| `areas_served` | `AreasServed` (obrigatório) | `AreasServed?` (opcional) |
+| `faq` | `FAQItem[]` (obrigatório) | `FAQItem[]?` (opcional) |
+| `contact` | `ContactInfo` (obrigatório) | `ContactInfo?` (opcional) |
 
-#### 1.2 Atualizar Hook useGlobalWhatsApp
-Modificar para aceitar template override do tenant:
+### 2. Adicionar BlockVisibility ao Meta
+
+O `page_data.meta` passará a incluir o estado de visibilidade:
 
 ```typescript
-interface WhatsAppContext {
-  phone: string;
-  companyName?: string;
-  service?: string;
-  city?: string;
-  articleTitle?: string;
-  pageSlug?: string;           // NOVO: slug da página
-  tenantTemplate?: string;     // NOVO: template customizado do tenant
+interface LandingPageMeta {
+  primary_color?: string;
+  secondary_color?: string;
+  font_family?: string;
+  block_visibility?: BlockVisibility; // NOVO
 }
 ```
 
-Lógica de interpolação:
+### 3. Criar Função de Normalização
+
+Nova função `normalizePageDataForSave()` que:
+
 ```typescript
-function interpolateTenantTemplate(template: string, context: WhatsAppContext): string {
-  return template
-    .replace(/\{\{titulo\}\}/g, context.articleTitle || 'seu site')
-    .replace(/\{\{pagina\}\}/g, context.pageSlug || '')
-    .replace(/\{\{servico\}\}/g, context.service || 'seus serviços');
-}
-```
-
-#### 1.3 Atualizar ClientCompany.tsx
-Adicionar campo de template com preview:
-
-```tsx
-{/* Template de Mensagem WhatsApp */}
-<div className="space-y-2">
-  <Label>Mensagem automática de contato</Label>
-  <Textarea
-    placeholder="Olá! Vi seu site e gostaria de saber mais sobre seus serviços."
-    value={whatsappTemplate}
-    onChange={(e) => setWhatsappTemplate(e.target.value)}
-    className="min-h-[80px]"
-  />
-  <p className="text-xs text-muted-foreground">
-    Placeholders disponíveis: <code>{"{{titulo}}"}</code>, <code>{"{{pagina}}"}</code>, <code>{"{{servico}}"}</code>
-  </p>
+function normalizePageDataForSave(
+  pageData: LandingPageData, 
+  visibility: BlockVisibility
+): LandingPageData {
+  const normalized: LandingPageData = {
+    ...pageData,
+    meta: {
+      ...pageData.meta,
+      block_visibility: visibility
+    }
+  };
   
-  {/* Preview da mensagem */}
-  {whatsappTemplate && (
-    <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-      <p className="text-sm font-medium text-green-600 flex items-center gap-2">
-        <MessageCircle className="h-4 w-4" />
-        Preview:
-      </p>
-      <p className="text-sm text-muted-foreground italic">
-        "{interpolatePreview(whatsappTemplate)}"
-      </p>
-    </div>
-  )}
-</div>
+  // Remover blocos desabilitados
+  if (!visibility.services) delete normalized.services;
+  if (!visibility.service_details) delete normalized.service_details;
+  if (!visibility.emergency_banner) delete normalized.emergency_banner;
+  if (!visibility.materials) delete normalized.materials;
+  if (!visibility.process_steps) delete normalized.process_steps;
+  if (!visibility.why_choose_us) delete normalized.why_choose_us;
+  if (!visibility.testimonials) delete normalized.testimonials;
+  if (!visibility.areas_served) delete normalized.areas_served;
+  if (!visibility.faq) delete normalized.faq;
+  if (!visibility.contact) delete normalized.contact;
+  if (!visibility.cta_banner) delete normalized.cta_banner;
+  
+  // Limpar arrays vazios
+  Object.keys(normalized).forEach(key => {
+    const value = (normalized as any)[key];
+    if (Array.isArray(value) && value.length === 0) {
+      delete (normalized as any)[key];
+    }
+  });
+  
+  return normalized;
+}
 ```
 
-#### 1.4 Valor Default Humano
-Se o tenant não definir template, usar mensagem simples:
-```
-"Olá! Vi seu site e gostaria de saber mais sobre seus serviços."
-```
+### 4. Modificar LandingPageEditor
 
-#### 1.5 Atualizar Componentes de CTA
-Modificar `CTABanner.tsx`, `WhatsAppFloatButton.tsx`, e `CTABannerBlock.tsx`:
-- Buscar `whatsapp_lead_template` do `business_profile`
-- Usar template do tenant quando disponível
-- Fallback para default simples (não o template global longo)
-
----
-
-### PARTE 2: Correção de Artigos 404
-
-#### 2.1 Atualizar useBlogArticle Hook
-Permitir passar `blogId` diretamente para bypass da resolução por hostname:
+#### 4.1 Carregar Visibility do Page Data
+Quando carregar uma página, restaurar o `visibility` do `page_data.meta.block_visibility`:
 
 ```typescript
-// src/hooks/useContentApi.ts
+const loadPage = async () => {
+  // ...fetch page...
+  
+  // Restaurar visibility do meta
+  if (landingPage.page_data?.meta?.block_visibility) {
+    setVisibility(landingPage.page_data.meta.block_visibility);
+  } else {
+    // Inferir visibility baseado em quais campos existem
+    setVisibility(inferVisibilityFromPageData(landingPage.page_data));
+  }
+};
+```
 
-export function useBlogArticle(
-  slug: string | undefined,
-  options?: { blogId?: string }  // NOVO
-): UseBlogArticleResult {
+#### 4.2 Normalizar Antes de Salvar
+Modificar `handleSave` para normalizar:
+
+```typescript
+const handleSave = async () => {
+  if (!blog?.id || !pageData) return;
+
+  // Normalizar antes de enviar
+  const normalizedData = normalizePageDataForSave(pageData, visibility);
+
+  const result = await savePage({
+    blog_id: blog.id,
+    title: title || normalizedData.hero?.title || "Nova Super Página",
+    slug: slug || "super-pagina-" + Date.now(),
+    page_data: normalizedData,
+    status: 'draft'
+  });
+  // ...
+};
+```
+
+### 5. Atualizar updatePage no Hook
+
+Modificar a função `updatePage` para aceitar e normalizar o `page_data`:
+
+```typescript
+const updatePage = async (id: string, updates: Partial<LandingPage>): Promise<boolean> => {
   // ...
   
-  useEffect(() => {
-    const fetch = async () => {
-      // Se blogId foi passado, usar diretamente sem resolver hostname
-      if (options?.blogId) {
-        const result = await fetchContentApiByBlogId<BlogArticleData>(
-          "blog.article", 
-          options.blogId,
-          { slug }
-        );
-        // ...
-      } else {
-        // Comportamento atual: resolve por hostname
-        const result = await fetchContentApi<BlogArticleData>("blog.article", { slug });
-        // ...
+  if (updates.page_data !== undefined) {
+    // Garantir que page_data é um objeto limpo e válido
+    const cleanData = typeof updates.page_data === 'string' 
+      ? JSON.parse(updates.page_data) 
+      : JSON.parse(JSON.stringify(updates.page_data));
+    
+    // Remover campos undefined/null
+    Object.keys(cleanData).forEach(key => {
+      if (cleanData[key] === undefined || cleanData[key] === null) {
+        delete cleanData[key];
       }
-    };
-  }, [slug, options?.blogId]);
-}
-```
-
-#### 2.2 Nova Função fetchContentApiByBlogId
-```typescript
-export async function fetchContentApiByBlogId<T>(
-  route: ContentRoute,
-  blogId: string,
-  params: Record<string, unknown> = {}
-): Promise<ContentApiResponse<T> | null> {
-  try {
-    const { data, error } = await supabase.functions.invoke("content-api", {
-      body: { blog_id: blogId, route, params },  // Usa blog_id em vez de host
     });
-    // ...
+    
+    updateData.page_data = cleanData;
   }
-}
+  
+  // ...
+};
 ```
 
-#### 2.3 Atualizar content-api Edge Function
-Aceitar `blog_id` diretamente como alternativa a `host`:
+### 6. Atualizar Preview para Lidar com Campos Ausentes
+
+O `LandingPagePreview` já faz verificações como `pageData.services?.length > 0`, mas adicionar fallbacks mais robustos:
 
 ```typescript
-// supabase/functions/content-api/index.ts
-
-interface ContentRequest {
-  host?: string;        // Resolução por hostname (comportamento atual)
-  blog_id?: string;     // NOVO: bypass de resolução
-  route: ContentRoute;
-  params?: Record<string, unknown>;
+// Antes
+if (!pageData || !pageData.hero) {
+  return <div>Carregando...</div>;
 }
 
-// Na lógica principal:
-let tenant: TenantResolution | null = null;
-
-if (req.blog_id) {
-  // Bypass: usar blog_id diretamente
-  tenant = {
-    blog_id: req.blog_id,
-    tenant_id: null,
-    domain: 'direct',
-    domain_type: 'subdomain',
-    status: 'active'
-  };
-} else if (req.host) {
-  tenant = await resolveTenant(supabase, req.host);
+// Depois
+if (!pageData) {
+  return <div>Carregando...</div>;
 }
-```
-
-#### 2.4 Atualizar CustomDomainArticle
-Passar `blogId` recebido como prop para o hook:
-
-```typescript
-// src/pages/CustomDomainArticle.tsx
-
-export default function CustomDomainArticle({ blogId }: CustomDomainArticleProps) {
-  const { articleSlug } = useParams();
-  
-  // Passar blogId para o hook (bypass hostname resolution)
-  const { blog, article, related, loading, error } = useBlogArticle(articleSlug, { blogId });
-  
-  // ...resto do código
-}
+// Hero pode não existir se foi removido - renderizar fallback ou pular
 ```
 
 ---
@@ -223,61 +183,117 @@ export default function CustomDomainArticle({ blogId }: CustomDomainArticleProps
 
 | Arquivo | Mudança |
 |---------|---------|
-| `src/pages/client/ClientCompany.tsx` | Adicionar campo whatsapp_lead_template |
-| `src/lib/whatsappBuilder.ts` | Adicionar função interpolateTenantTemplate |
-| `src/hooks/useGlobalWhatsApp.ts` | Suportar tenantTemplate no contexto |
-| `src/components/public/CTABanner.tsx` | Usar template do tenant |
-| `src/components/public/WhatsAppFloatButton.tsx` | Usar template do tenant |
-| `src/components/client/landingpage/blocks/CTABannerBlock.tsx` | Usar template do tenant |
-| `src/hooks/useContentApi.ts` | Aceitar blogId override no useBlogArticle |
-| `supabase/functions/content-api/index.ts` | Aceitar blog_id como alternativa a host |
-| `src/pages/CustomDomainArticle.tsx` | Passar blogId para useBlogArticle |
+| `src/components/client/landingpage/types/landingPageTypes.ts` | Tornar todos os blocos opcionais no `LandingPageData` |
+| `src/components/client/landingpage/LandingPageEditor.tsx` | Adicionar `normalizePageDataForSave`, carregar visibility do meta |
+| `src/components/client/landingpage/hooks/useLandingPages.ts` | Validar e limpar `page_data` antes de salvar |
+| `src/components/client/landingpage/LandingPagePreview.tsx` | Melhorar fallbacks para campos ausentes |
+| `src/components/client/landingpage/layouts/ServiceAuthorityLayout.tsx` | Fallbacks para blocos opcionais |
+| `src/components/client/landingpage/layouts/InstitutionalLayout.tsx` | Fallbacks para blocos opcionais |
+| `src/components/client/landingpage/layouts/SpecialistAuthorityLayout.tsx` | Fallbacks para blocos opcionais |
 
 ---
 
-## Fluxo Final
+## Fluxo de Dados Corrigido
 
-### WhatsApp CTA
-```
-1. Usuário configura template em "Minha Empresa"
-   "Olá! Vi o artigo {{titulo}} e quero saber sobre {{servico}}."
+```text
+┌────────────────────────────────────────────────────────────────────┐
+│                     FLUXO ATUAL (QUEBRADO)                        │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  [Toggle "FAQ" para OFF]                                           │
+│         ↓                                                          │
+│  visibility.faq = false (apenas no state React)                    │
+│         ↓                                                          │
+│  [Usuário clica "Salvar"]                                          │
+│         ↓                                                          │
+│  pageData AINDA contém page_data.faq com dados                     │
+│         ↓                                                          │
+│  Supabase recebe JSON completo                                     │
+│         ↓                                                          │
+│  Ao recarregar: FAQ reaparece ❌                                   │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
 
-2. Ao clicar em CTA WhatsApp no artigo:
-   → Sistema busca business_profile.whatsapp_lead_template
-   → Interpola placeholders: "Olá! Vi o artigo 'Dedetização em Restaurantes' e quero saber sobre controle de pragas."
-   → Gera link: https://wa.me/5586988887777?text=...
-
-3. Se template não definido:
-   → Usa default: "Olá! Vi seu site e gostaria de saber mais sobre seus serviços."
-```
-
-### Resolução de Artigos
-```
-1. Usuário acessa: https://trulynolen.app.omniseen.app/dedetizacao-em-restaurantes
-
-2. BlogRoutes resolve blogId via useDomainResolution
-   → blogId: 781c9714-7459-4839-80b1-940489c6d5f8
-
-3. CustomDomainArticle recebe blogId como prop
-   → Passa para useBlogArticle({ blogId })
-
-4. useBlogArticle chama content-api com blog_id direto
-   → Bypass de resolução por hostname
-   → Artigo retornado corretamente
-
-5. Artigo renderizado com sucesso ✓
+┌────────────────────────────────────────────────────────────────────┐
+│                     FLUXO CORRIGIDO                               │
+├────────────────────────────────────────────────────────────────────┤
+│                                                                    │
+│  [Toggle "FAQ" para OFF]                                           │
+│         ↓                                                          │
+│  visibility.faq = false (state React)                              │
+│         ↓                                                          │
+│  [Usuário clica "Salvar"]                                          │
+│         ↓                                                          │
+│  normalizePageDataForSave() é chamado                              │
+│  → Remove page_data.faq                                            │
+│  → Persiste visibility em page_data.meta.block_visibility          │
+│         ↓                                                          │
+│  Supabase recebe JSON SEM faq                                      │
+│         ↓                                                          │
+│  Ao recarregar:                                                    │
+│  → visibility é restaurado do meta                                 │
+│  → FAQ não existe e não aparece ✓                                  │
+│                                                                    │
+└────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Definition of Done
+## Funcionalidades da Correção
 
-| Critério | Implementação |
-|----------|---------------|
-| Campo de template editável | "Minha Empresa" com textarea + preview |
-| Placeholders funcionais | {{titulo}}, {{pagina}}, {{servico}} |
-| Default humano | "Olá! Vi seu site..." quando vazio |
-| Preview em tempo real | Mostra mensagem interpolada ao digitar |
-| Artigos publicados acessíveis | Via blogId passado como prop |
-| content-api aceita blog_id | Alternativa a resolução por host |
-| Zero mensagens "inventadas" | Sistema nunca gera texto que o dono não aprovou |
+### O Que Muda
+
+| Comportamento | Antes | Depois |
+|---------------|-------|--------|
+| Toggle de bloco | Apenas esconde visualmente | Remove do JSON ao salvar |
+| Visibility state | Perdido ao recarregar | Persistido em `meta.block_visibility` |
+| Campos obrigatórios | TypeScript exige todos | Todos opcionais exceto estrutura base |
+| JSON salvo | Sempre completo | Apenas blocos ativos |
+| Validação | Nenhuma | Normalização antes de salvar |
+
+### Página Mínima Válida
+
+Uma Super Página válida poderá conter apenas:
+- `hero` (título e subtítulo)
+- `meta` (configurações e visibility)
+
+Todos os outros blocos são opcionais.
+
+---
+
+## Detalhes Técnicos
+
+### Nova Função: inferVisibilityFromPageData()
+
+Para páginas existentes sem `meta.block_visibility`, inferir o estado:
+
+```typescript
+function inferVisibilityFromPageData(pageData: LandingPageData): BlockVisibility {
+  return {
+    hero: !!pageData.hero,
+    services: !!pageData.services?.length,
+    service_details: !!pageData.service_details?.length,
+    emergency_banner: !!pageData.emergency_banner,
+    materials: !!pageData.materials,
+    process_steps: !!pageData.process_steps?.length,
+    why_choose_us: !!pageData.why_choose_us?.length,
+    testimonials: !!pageData.testimonials?.length,
+    areas_served: !!pageData.areas_served,
+    faq: !!pageData.faq?.length,
+    contact: !!pageData.contact,
+    cta_banner: !!pageData.cta_banner,
+  };
+}
+```
+
+---
+
+## Resultado Esperado
+
+Após a implementação:
+
+1. Usuário pode **remover qualquer bloco** sem erros de save
+2. A remoção é **persistida** no banco
+3. Ao recarregar, os blocos removidos **não reaparecem**
+4. O sistema aceita páginas **minimalistas** (apenas Hero)
+5. O JSON salvo é **limpo e compacto**
