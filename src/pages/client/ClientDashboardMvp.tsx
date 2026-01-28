@@ -7,7 +7,6 @@ import { StatusCardsRow } from "@/components/dashboard/StatusCardsRow";
 import { ValueProofSection } from "@/components/dashboard/ValueProofSection";
 import { ToolsGrid } from "@/components/dashboard/ToolsGrid";
 import { RecentDocuments } from "@/components/dashboard/RecentDocuments";
-import { PlanStatusCard } from "@/components/dashboard/PlanStatusCard";
 
 export default function ClientDashboardMvp() {
   const navigate = useNavigate();
@@ -52,9 +51,6 @@ export default function ClientDashboardMvp() {
 
       {/* BLOCO 5: ÚLTIMOS DOCUMENTOS */}
       <RecentDocuments blogId={blog?.id} />
-
-      {/* BLOCO 6: SEU PLANO */}
-      <PlanStatusCard />
     </div>
   );
 }

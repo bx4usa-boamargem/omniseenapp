@@ -79,7 +79,7 @@ export function RecentDocuments({ blogId }: RecentDocumentsProps) {
             <button
               key={doc.id}
               onClick={() => handleDocumentClick(doc)}
-              className="w-full flex items-center gap-4 p-4 hover:bg-accent/50 transition-colors text-left"
+              className="w-full flex items-center gap-4 p-4 hover:bg-accent/50 transition-colors text-left cursor-pointer"
             >
               {/* Icon */}
               <div
