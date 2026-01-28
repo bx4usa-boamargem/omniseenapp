@@ -125,48 +125,77 @@ serve(async (req) => {
     })) || [];
 
     // 5. Gerar conteúdo via generate-article-structured
-    // V2.0: SEMPRE usa geo_mode=true e generation_mode='deep'
+    // V2.0: Tenta com geo_mode=true primeiro, fallback para geo_mode=false se QA falhar
     console.log(`[CONVERT] Generating article content for: "${opportunity.suggested_title}" with geo_mode=true`);
 
-    const generateResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-article-structured`, {
+    const generatePayload = {
+      blog_id: blogId,
+      theme: opportunity.suggested_title,
+      keywords: opportunity.suggested_keywords || [],
+      word_count: 1500, // GEO mode requires 1200-3000 words
+      include_faq: true,
+      include_conclusion: true,
+      generation_mode: 'deep', // GEO mode ALWAYS uses deep
+      geo_mode: true, // V2.0: Try with GEO first
+      source: 'opportunity',
+      auto_publish: false, // SEMPRE draft
+      // Territorial data for GEO
+      territoryId: opportunity.territory_id || territory?.id,
+      google_place: territory ? {
+        official_name: territory.official_name,
+        lat: territory.lat,
+        lng: territory.lng,
+        neighborhood_tags: territory.neighborhood_tags || []
+      } : undefined,
+      // Links for GEO
+      internal_links: internalLinks,
+      whatsapp: profile?.whatsapp || null,
+      // Parâmetros de estrutura editorial
+      article_structure_type: structureType,
+      structure_prompt: template?.generation_prompt || null,
+      activity_slug: activitySlug,
+      // ROTAÇÃO EDITORIAL - Modelo de conteúdo
+      editorial_model: editorialModel,
+    };
+
+    let generateResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-article-structured`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        blog_id: blogId,
-        theme: opportunity.suggested_title,
-        keywords: opportunity.suggested_keywords || [],
-        word_count: 1500, // GEO mode requires 1200-3000 words
-        include_faq: true,
-        include_conclusion: true,
-        generation_mode: 'deep', // GEO mode ALWAYS uses deep
-        geo_mode: true, // V2.0: ALWAYS true
-        source: 'opportunity',
-        auto_publish: false, // SEMPRE draft
-        // Territorial data for GEO
-        territoryId: opportunity.territory_id || territory?.id,
-        google_place: territory ? {
-          official_name: territory.official_name,
-          lat: territory.lat,
-          lng: territory.lng,
-          neighborhood_tags: territory.neighborhood_tags || []
-        } : undefined,
-        // Links for GEO
-        internal_links: internalLinks,
-        whatsapp: profile?.whatsapp || null,
-        // Parâmetros de estrutura editorial
-        article_structure_type: structureType,
-        structure_prompt: template?.generation_prompt || null,
-        activity_slug: activitySlug,
-        // ROTAÇÃO EDITORIAL - Modelo de conteúdo
-        editorial_model: editorialModel,
-      }),
+      body: JSON.stringify(generatePayload),
     });
 
     // Parse response body as text first to debug
-    const responseText = await generateResponse.text();
+    let responseText = await generateResponse.text();
+    
+    // FALLBACK: If QA failed (422), retry without geo_mode
+    if (generateResponse.status === 422) {
+      console.warn("[CONVERT] GEO mode QA failed, retrying with geo_mode=false (fallback)...");
+      
+      const fallbackPayload = {
+        ...generatePayload,
+        geo_mode: false,
+        generation_mode: 'fast', // Use fast mode for fallback
+        word_count: 800, // Smaller for fast mode
+      };
+      
+      generateResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-article-structured`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(fallbackPayload),
+      });
+      
+      responseText = await generateResponse.text();
+      
+      if (generateResponse.ok) {
+        console.log("[CONVERT] Fallback generation succeeded");
+      }
+    }
     
     if (!generateResponse.ok) {
       console.error("[CONVERT] Article generation failed:", responseText);
@@ -174,9 +203,26 @@ serve(async (req) => {
       // Try to parse error for better messaging
       try {
         const errorData = JSON.parse(responseText);
-        throw new Error(`Article generation failed: ${errorData.message || errorData.error || generateResponse.status}`);
+        // Return 422 as-is (QA failure), other errors as 500
+        const statusCode = generateResponse.status === 422 ? 422 : 500;
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: errorData.error || "GENERATION_FAILED",
+            message: errorData.message || `Falha na geração do artigo (${generateResponse.status})`,
+            debug: errorData.debug || null,
+          }),
+          { status: statusCode, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       } catch {
-        throw new Error(`Article generation failed: ${generateResponse.status}`);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "GENERATION_FAILED",
+            message: `Falha na geração do artigo (${generateResponse.status})`,
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
     }
 
