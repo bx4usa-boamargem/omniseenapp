@@ -19,8 +19,7 @@ interface NavItemProps {
 }
 
 /**
- * Item de navegação - Sempre expandido (sem tooltip)
- * Versão simplificada para sidebar fixa de 280px
+ * Item de navegação com faixa lateral ativa (roxo → laranja)
  */
 export function NavItem({
   icon: Icon,
@@ -75,15 +74,15 @@ export function NavItem({
     );
   }
 
-  // Renderização padrão - sempre expandido
+  // Renderização padrão
   return (
     <button
       onClick={onClick}
       className={cn(
-        'w-full flex items-center gap-3 px-4 py-3 rounded-lg mx-2',
+        'w-full flex items-center gap-3 px-4 py-3 rounded-lg mx-2 relative',
         'transition-all duration-200',
 
-        // Item ativo (seção principal)
+        // Item ativo
         isActive && !isSecondary && [
           'bg-[#EDE9FE] text-[#7C3AED] font-semibold dark:bg-[#7C3AED]/20',
         ],
@@ -101,6 +100,16 @@ export function NavItem({
       )}
       aria-current={isActive ? 'page' : undefined}
     >
+      {/* Faixa lateral ativa (roxo → laranja) */}
+      {isActive && !isSecondary && (
+        <div 
+          className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full"
+          style={{ 
+            background: 'linear-gradient(to bottom, #7C3AED, #F97316)' 
+          }}
+        />
+      )}
+
       <Icon
         className={cn(
           'h-5 w-5 shrink-0 transition-colors',
