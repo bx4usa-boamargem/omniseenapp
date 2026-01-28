@@ -1,4 +1,4 @@
-import { LucideIcon, Star, Sun, Moon } from 'lucide-react';
+import { LucideIcon, Sun, Moon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
 
@@ -6,10 +6,8 @@ interface NavItemProps {
   id: string;
   icon: LucideIcon;
   label: string;
-  tooltip?: string;
   path?: string;
-  expanded: boolean;
-  isActive: boolean;
+  isActive?: boolean;
   isSecondary?: boolean;
   highlight?: boolean;
   badge?: string | number;
@@ -21,15 +19,12 @@ interface NavItemProps {
 }
 
 /**
- * Item de navegação individual
- * - Colapsado: Apenas ícone + tooltip com delay 300ms
- * - Expandido: Ícone + label + badges opcionais
+ * Item de navegação - Sempre expandido (sem tooltip)
+ * Versão simplificada para sidebar fixa de 280px
  */
 export function NavItem({
   icon: Icon,
   label,
-  tooltip,
-  expanded,
   isActive,
   isSecondary,
   highlight,
@@ -44,15 +39,14 @@ export function NavItem({
   const isDark = theme === 'dark';
 
   // Renderiza toggle de tema
-  if (isThemeToggle && expanded) {
+  if (isThemeToggle) {
     return (
       <button
         onClick={() => setTheme(isDark ? 'light' : 'dark')}
         className={cn(
-          'w-full flex items-center gap-3 rounded-lg mx-2',
+          'w-full flex items-center gap-3 px-4 py-3 rounded-lg mx-2',
           'transition-all duration-200',
-          'text-[#6B7280] hover:text-[#374151] hover:bg-[#F3F4F6] dark:hover:bg-gray-700',
-          isSecondary ? 'px-3.5 py-2.5' : 'px-4 py-3'
+          'text-[#6B7280] hover:text-[#374151] hover:bg-[#F3F4F6] dark:hover:bg-gray-700 dark:hover:text-white'
         )}
         aria-label="Alternar tema"
       >
@@ -81,61 +75,17 @@ export function NavItem({
     );
   }
 
-  // Estado colapsado: apenas ícone + tooltip
-  if (!expanded) {
-    return (
-      <div className="group relative">
-        <button
-          onClick={isThemeToggle ? () => setTheme(isDark ? 'light' : 'dark') : onClick}
-          className={cn(
-            'w-12 h-12 flex items-center justify-center rounded-[10px] mx-auto',
-            'transition-all duration-200',
-            isActive && !isSecondary && 'bg-[#EDE9FE] text-[#7C3AED] dark:bg-[#7C3AED]/20',
-            highlight && 'bg-gradient-to-r from-[#EDE9FE] to-[#DBEAFE] dark:from-[#7C3AED]/20 dark:to-[#3B82F6]/20',
-            !isActive && !highlight && 'text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6] dark:hover:bg-gray-700'
-          )}
-          aria-label={tooltip || label}
-          aria-current={isActive ? 'page' : undefined}
-        >
-          {isThemeToggle ? (
-            isDark ? <Moon className="h-[22px] w-[22px]" /> : <Sun className="h-[22px] w-[22px]" />
-          ) : (
-            <Icon className={cn('h-[22px] w-[22px]', highlight && 'text-[#7C3AED]')} />
-          )}
-        </button>
-
-        {/* Tooltip */}
-        <div
-          className={cn(
-            'absolute left-full top-1/2 -translate-y-1/2 ml-3 z-[100]',
-            'px-3 py-2 bg-[#111827] text-white text-[13px] font-medium rounded-lg',
-            'whitespace-nowrap shadow-lg',
-            'opacity-0 invisible translate-x-1',
-            'group-hover:opacity-100 group-hover:visible group-hover:translate-x-0',
-            'transition-all duration-150 delay-300',
-            'pointer-events-none'
-          )}
-        >
-          {tooltip || label}
-          {/* Seta apontando para esquerda */}
-          <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-[#111827]" />
-        </div>
-      </div>
-    );
-  }
-
-  // Estado expandido: ícone + label + badges
+  // Renderização padrão - sempre expandido
   return (
     <button
       onClick={onClick}
       className={cn(
-        'w-full flex items-center gap-3 rounded-[10px] mx-2',
+        'w-full flex items-center gap-3 px-4 py-3 rounded-lg mx-2',
         'transition-all duration-200',
 
         // Item ativo (seção principal)
         isActive && !isSecondary && [
           'bg-[#EDE9FE] text-[#7C3AED] font-semibold dark:bg-[#7C3AED]/20',
-          'border-l-[3px] border-[#7C3AED] -ml-0.5',
         ],
 
         // Item CTA especial (Gerar Artigo)
@@ -146,20 +96,16 @@ export function NavItem({
 
         // Normal
         !isActive && !highlight && [
-          'text-[#6B7280] hover:text-[#111827] hover:bg-[#F3F4F6] dark:hover:bg-gray-700 dark:hover:text-white',
-          !isSecondary && 'hover:scale-[1.02] hover:shadow-sm',
-        ],
-
-        // Padding diferente por seção
-        isSecondary ? 'px-3.5 py-2.5' : 'px-4 py-3'
+          'text-[#6B7280] hover:text-[#111827] hover:bg-[#F9FAFB] dark:hover:bg-gray-700 dark:hover:text-white',
+        ]
       )}
       aria-current={isActive ? 'page' : undefined}
     >
       <Icon
         className={cn(
-          'shrink-0 transition-colors',
-          highlight && 'text-[#7C3AED]',
-          isSecondary ? 'h-5 w-5' : 'h-[22px] w-[22px]'
+          'h-5 w-5 shrink-0 transition-colors',
+          isActive && 'text-[#7C3AED]',
+          highlight && 'text-[#7C3AED]'
         )}
       />
 
@@ -179,7 +125,7 @@ export function NavItem({
             'flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full',
             badgeType === 'default' && 'bg-[#F3F4F6] text-[#4B5563] dark:bg-gray-700 dark:text-gray-300',
             badgeType === 'success' && 'bg-[#DCFCE7] text-[#16A34A] dark:bg-green-900/30 dark:text-green-400',
-            badgeType === 'purple' && 'bg-[#EDE9FE] text-[#7C3AED] dark:bg-[#7C3AED]/20 badge-pulse'
+            badgeType === 'purple' && 'bg-[#EDE9FE] text-[#7C3AED] dark:bg-[#7C3AED]/20'
           )}
         >
           {/* Ícone Star para badge purple */}

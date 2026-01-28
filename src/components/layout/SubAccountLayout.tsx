@@ -52,14 +52,14 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
 
   return (
     <div className="min-h-screen client-bg flex">
-      {/* Premium Sidebar - Desktop (lg: 1024px+) */}
+      {/* Premium Sidebar - Desktop (lg: 1024px+) - Largura fixa 280px */}
       <PremiumSidebar 
         isPlatformAdmin={isPlatformAdmin}
         onHelpClick={handleHelpClick}
       />
 
-      {/* Main Content - Margin para sidebar colapsada (72px) */}
-      <main className="flex-1 lg:ml-[72px] transition-[margin] duration-300">
+      {/* Main Content - Margin fixo para sidebar de 280px */}
+      <main className="flex-1 lg:ml-[280px]">
         <div className={cn('min-h-screen', isMobile ? 'pb-20' : '')}>
           <div className="p-4 md:p-8 max-w-5xl mx-auto">{children}</div>
         </div>

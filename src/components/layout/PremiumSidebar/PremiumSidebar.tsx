@@ -28,18 +28,16 @@ interface PremiumSidebarProps {
 }
 
 /**
- * Premium Sidebar SaaS
- * - Colapsada (padrão): 72px
- * - Expandida (hover/PIN): 280px
- * - Duas seções distintas: PRINCIPAL e CONFIGURAÇÕES
+ * Premium Sidebar SaaS - Estilo SEOWriting.ai
+ * - Largura fixa: 280px (sempre visível)
+ * - Duas seções: PRINCIPAL e CONFIGURAÇÕES
+ * - Sem hover/colapsar/PIN
  */
 export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Estados
-  const [expanded, setExpanded] = useState(false);
-  const [pinned, setPinned] = useState(false);
+  // Estados simplificados (sem expanded/pinned)
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -64,18 +62,6 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
   useEffect(() => {
     setActiveItem(getActiveItem());
   }, [getActiveItem]);
-
-  // Sidebar está expandida se hover OU pinned
-  const isExpanded = expanded || pinned;
-
-  // Handlers de hover
-  const handleMouseEnter = () => {
-    if (!pinned) setExpanded(true);
-  };
-
-  const handleMouseLeave = () => {
-    if (!pinned) setExpanded(false);
-  };
 
   // Handler de navegação
   const handleNavigation = (id: string, path?: string) => {
@@ -102,14 +88,12 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
       icon: Home,
       label: 'Dashboard',
       path: '/client/dashboard',
-      tooltip: 'Visão geral e métricas',
     },
     {
       id: 'generate',
       icon: Sparkles,
       label: 'Gerar Artigo',
       path: '/client/articles/new',
-      tooltip: 'Criar novo conteúdo',
       highlight: true,
     },
     {
@@ -117,7 +101,6 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
       icon: FileText,
       label: 'Meus Artigos',
       path: '/client/articles',
-      tooltip: 'Gerenciar conteúdo',
       badge: 15,
       badgeType: 'default',
     },
@@ -126,14 +109,12 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
       icon: BarChart3,
       label: 'Analytics',
       path: '/client/analytics',
-      tooltip: 'Métricas e desempenho',
     },
     {
       id: 'publish',
       icon: Globe,
       label: 'Publicar',
       path: '/client/portal',
-      tooltip: 'Sites e integrações',
       badge: 3,
       badgeType: 'success',
       pulseDot: true,
@@ -143,7 +124,6 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
       icon: MessageSquare,
       label: 'Conversões',
       path: '/client/leads',
-      tooltip: 'Leads e chatbot',
     },
   ];
 
@@ -154,7 +134,6 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
       icon: CreditCard,
       label: 'Plano & Cobrança',
       path: '/client/settings?tab=billing',
-      tooltip: 'Assinatura e pagamentos',
       badge: 'Growth',
       badgeType: 'purple',
       badgeIcon: Star,
@@ -164,7 +143,6 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
       icon: Link2,
       label: 'Integrações',
       path: '/client/integrations',
-      tooltip: 'WordPress, APIs, webhooks',
       badge: 3,
       badgeType: 'default',
     },
@@ -173,20 +151,17 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
       icon: Settings,
       label: 'Configurações',
       path: '/client/settings',
-      tooltip: 'Preferências do sistema',
     },
     {
       id: 'help',
       icon: HelpCircle,
       label: 'Ajuda & Suporte',
       path: '/help',
-      tooltip: 'Documentação e tickets',
     },
     {
       id: 'theme',
       icon: Sun,
       label: 'Tema',
-      tooltip: 'Alternar claro/escuro',
       isThemeToggle: true,
     },
   ];
@@ -198,74 +173,56 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
       icon: Shield,
       label: 'Admin Panel',
       path: '/admin',
-      tooltip: 'Painel administrativo',
     });
   }
 
   return (
     <>
-      {/* Sidebar Desktop */}
+      {/* Sidebar Desktop - Sempre 280px visível */}
       <aside
         className={cn(
-          'hidden lg:flex fixed left-0 top-0 h-screen z-50',
-          'flex-col bg-white dark:bg-gray-900',
-          'border-r border-[#E5E7EB] dark:border-gray-700',
-          'transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]',
-          isExpanded ? 'w-[280px]' : 'w-[72px]'
+          'hidden lg:flex fixed left-0 top-0 h-screen z-40',
+          'w-[280px] flex-col bg-white dark:bg-gray-900',
+          'border-r border-[#E5E7EB] dark:border-gray-700'
         )}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
         role="navigation"
         aria-label="Sidebar principal"
       >
-        {/* Header com Logo + PIN */}
-        <SidebarHeader
-          expanded={isExpanded}
-          pinned={pinned}
-          onTogglePin={() => setPinned(!pinned)}
-        />
+        {/* Header com Logo */}
+        <SidebarHeader />
 
-        {/* SEÇÃO SUPERIOR - Scroll se necessário */}
+        {/* SEÇÃO PRINCIPAL - Scroll se necessário */}
         <div className="flex-1 overflow-y-auto scrollbar-custom">
           <NavSection
             title="PRINCIPAL"
             items={mainItems}
-            expanded={isExpanded}
             activeItem={activeItem}
             onItemClick={handleNavigation}
           />
         </div>
 
-        {/* Divisor Visual */}
-        {isExpanded && (
-          <div className="px-8 py-5">
-            <div className="h-px w-full bg-gradient-to-r from-transparent via-[#D1D5DB] to-transparent opacity-60 divider-breathing" />
-          </div>
-        )}
+        {/* Divisor Visual Simples */}
+        <div className="mx-4 my-4">
+          <div className="h-px w-full bg-[#E5E7EB] dark:bg-gray-700" />
+        </div>
 
-        {/* SEÇÃO INFERIOR - Fundo diferente */}
-        <div
-          className={cn(
-            'transition-colors duration-300',
-            isExpanded ? 'bg-[#FAFAFA] dark:bg-gray-800/50' : ''
-          )}
-        >
+        {/* SEÇÃO CONFIGURAÇÕES - Fundo diferente */}
+        <div className="bg-[#FAFAFA] dark:bg-gray-800/50">
           <NavSection
             title="CONFIGURAÇÕES"
             items={settingsItems}
-            expanded={isExpanded}
-            isSecondary
             onItemClick={handleNavigation}
+            isSecondary
           />
         </div>
 
         {/* Footer - Área do Usuário */}
-        <SidebarFooter expanded={isExpanded} onMenuToggle={() => setMenuOpen(!menuOpen)} />
+        <SidebarFooter onMenuToggle={() => setMenuOpen(!menuOpen)} />
       </aside>
 
       {/* Menu Flutuante do Usuário */}
       {menuOpen && (
-        <UserMenu onClose={() => setMenuOpen(false)} sidebarExpanded={isExpanded} />
+        <UserMenu onClose={() => setMenuOpen(false)} />
       )}
 
       {/* Mobile: Botão Hamburguer */}

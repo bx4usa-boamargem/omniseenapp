@@ -16,7 +16,7 @@ interface MobileDrawerProps {
 
 /**
  * Drawer mobile para navegação em telas < 1024px
- * - Sempre no estado expandido
+ * - Largura 320px
  * - Overlay escuro ao abrir
  * - Animação slide-in da esquerda
  */
@@ -60,15 +60,14 @@ export function MobileDrawer({
           <X className="h-6 w-6 text-[#6B7280]" />
         </button>
 
-        {/* Header - sempre expandido */}
-        <SidebarHeader expanded pinned={false} onTogglePin={() => {}} />
+        {/* Header */}
+        <SidebarHeader />
 
         {/* Seção Principal */}
         <div className="flex-1 overflow-y-auto scrollbar-custom">
           <NavSection
             title="PRINCIPAL"
             items={mainItems}
-            expanded
             activeItem={activeItem}
             onItemClick={(id, path) => {
               onItemClick(id, path);
@@ -78,15 +77,14 @@ export function MobileDrawer({
         </div>
 
         {/* Divisor */}
-        <div className="px-8 py-5">
-          <div className="h-px bg-gradient-to-r from-transparent via-[#D1D5DB] to-transparent" />
+        <div className="mx-4 my-4">
+          <div className="h-px bg-[#E5E7EB] dark:bg-gray-700" />
         </div>
 
         {/* Seção Configurações */}
         <NavSection
           title="CONFIGURAÇÕES"
           items={settingsItems}
-          expanded
           isSecondary
           onItemClick={(id, path) => {
             onItemClick(id, path);
@@ -95,7 +93,7 @@ export function MobileDrawer({
         />
 
         {/* Footer */}
-        <SidebarFooter expanded onMenuToggle={onMenuToggle} />
+        <SidebarFooter onMenuToggle={onMenuToggle} />
       </aside>
     </>
   );

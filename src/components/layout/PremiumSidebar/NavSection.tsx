@@ -7,7 +7,6 @@ export interface NavItemConfig {
   icon: LucideIcon;
   label: string;
   path?: string;
-  tooltip?: string;
   highlight?: boolean;
   badge?: string | number;
   badgeType?: 'default' | 'success' | 'purple';
@@ -19,7 +18,6 @@ export interface NavItemConfig {
 interface NavSectionProps {
   title: string;
   items: NavItemConfig[];
-  expanded: boolean;
   activeItem?: string;
   onItemClick?: (id: string, path?: string) => void;
   isSecondary?: boolean;
@@ -27,13 +25,13 @@ interface NavSectionProps {
 
 /**
  * Seção de navegação com label e grupo de itens
- * - PRINCIPAL: fundo branco, itens maiores
- * - CONFIGURAÇÕES: fundo #FAFAFA, itens compactos
+ * - PRINCIPAL: fundo branco
+ * - CONFIGURAÇÕES: fundo #FAFAFA
+ * Versão simplificada (sem animações de stagger)
  */
 export function NavSection({
   title,
   items,
-  expanded,
   activeItem,
   onItemClick,
   isSecondary,
@@ -41,35 +39,27 @@ export function NavSection({
   return (
     <div
       className={cn(
-        'py-2 transition-colors duration-300',
-        isSecondary && expanded && 'bg-[#FAFAFA] dark:bg-gray-800/50'
+        'py-2',
+        isSecondary && 'bg-[#FAFAFA] dark:bg-gray-800/50'
       )}
     >
-      {/* Label da seção - apenas quando expandido */}
-      {expanded && (
-        <div className="px-5 py-2 mt-2">
-          <span className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-[0.05em]">
-            {title}
-          </span>
-        </div>
-      )}
+      {/* Label da seção */}
+      <div className="px-5 py-2">
+        <span className="text-[10px] font-semibold text-[#9CA3AF] uppercase tracking-[0.05em]">
+          {title}
+        </span>
+      </div>
 
-      {/* Itens com stagger animation */}
-      <div className={cn('space-y-0.5', expanded ? 'px-2' : 'px-1')}>
-        {items.map((item, index) => (
-          <div
+      {/* Itens */}
+      <div className="space-y-0.5 px-2">
+        {items.map((item) => (
+          <NavItem
             key={item.id}
-            style={{ animationDelay: expanded ? `${index * 50}ms` : undefined }}
-            className={expanded ? 'animate-slide-in' : ''}
-          >
-            <NavItem
-              {...item}
-              expanded={expanded}
-              isActive={activeItem === item.id}
-              isSecondary={isSecondary}
-              onClick={() => onItemClick?.(item.id, item.path)}
-            />
-          </div>
+            {...item}
+            isActive={activeItem === item.id}
+            isSecondary={isSecondary}
+            onClick={() => onItemClick?.(item.id, item.path)}
+          />
         ))}
       </div>
     </div>

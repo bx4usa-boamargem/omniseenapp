@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 
 interface UserMenuProps {
   onClose: () => void;
-  sidebarExpanded: boolean;
 }
 
 const accountMenuItems = [
@@ -46,11 +45,10 @@ const accountMenuItems = [
 
 /**
  * Menu flutuante do usuário
- * - Posição dinâmica baseada no estado da sidebar
+ * - Posição fixa à direita da sidebar (left-[296px])
  * - Overlay com clique para fechar
- * - Animação de entrada zoom-in
  */
-export function UserMenu({ onClose, sidebarExpanded }: UserMenuProps) {
+export function UserMenu({ onClose }: UserMenuProps) {
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -68,27 +66,22 @@ export function UserMenu({ onClose, sidebarExpanded }: UserMenuProps) {
     onClose();
   };
 
-  // Posição se ajusta conforme sidebar está expandida ou não
-  const menuPosition = sidebarExpanded ? 'left-[296px]' : 'left-[88px]';
-
   return (
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 bg-black/25 z-50 animate-in fade-in duration-150 cursor-pointer"
+        className="fixed inset-0 bg-black/20 z-[49] animate-in fade-in duration-150 cursor-pointer"
         onClick={onClose}
         aria-hidden="true"
       />
 
-      {/* Menu Flutuante */}
+      {/* Menu Flutuante - Posição fixa */}
       <div
         className={cn(
-          'fixed bottom-[88px] z-[51] w-[280px] bg-white dark:bg-gray-900 rounded-xl',
+          'fixed bottom-[90px] left-[296px] z-50 w-[280px] bg-white dark:bg-gray-900 rounded-xl',
           'shadow-[0_10px_40px_rgba(0,0,0,0.15),0_0_1px_rgba(0,0,0,0.1)]',
           'border border-[#E5E7EB] dark:border-gray-700',
-          'animate-in zoom-in-95 fade-in duration-200',
-          'transition-[left] duration-300',
-          menuPosition
+          'animate-in zoom-in-95 fade-in duration-200'
         )}
         role="menu"
         aria-label="Menu da conta"
