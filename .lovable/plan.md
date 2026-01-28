@@ -1,97 +1,159 @@
 
-## Objetivo (o que você pediu)
-1) O menu flutuante do **ícone “Conteúdo” (lápis)** precisa mostrar os 5 cards (Radar, Gerar Artigo, Meus Artigos, Blog/Portal, Páginas SEO).
-2) Hoje, apesar de existir conteúdo no código, **na prática o usuário está vendo o menu vazio / sem nada aparecendo**.
+# Correção Completa - Rotas de Artigos (Published vs Preview)
 
-## Diagnóstico (varredura no código – o porquê de você “não estar vendo nada”)
-### 1) Os dados do menu “Conteúdo” já existem no projeto
-No arquivo:
-- `src/components/layout/PremiumSidebar/ContentHubPanel.tsx`
+## Resumo do Problema
+Ao clicar em "Editar" ou "Visualizar" artigos no ambiente **Published** (`omniseenapp.lovable.app`), a navegação resulta em **404**. Isso acontece porque:
 
-Existe exatamente a lista com:
-- Radar de Oportunidades → `/client/radar`
-- Gerar Artigo → `/client/articles/new` (com badge “IA”)
-- Meus Artigos → `/client/articles`
-- Blogs / Portais → `/client/portal`
-- Páginas SEO → `/client/landing-pages`
+1. **Rota inválida no menu "Conteúdo"**: `/client/articles/new` não existe (a rota correta é `/client/create`)
+2. **Detecção incorreta de ambiente**: O sistema não diferencia corretamente Preview vs Published
+3. **Navegação inconsistente**: Usa `navigate()` (SPA) em todos os ambientes, mas Published precisa de URLs absolutas (hard reload)
 
-Ou seja: **não falta “injetar dados”** nesse arquivo — eles já estão lá.
+---
 
-### 2) O “vazio” está acontecendo por problema de renderização/visibilidade (CSS/posicionamento)
-O `ContentHubPanel` é renderizado como `children` dentro do `HubMenuItem`:
-- `src/components/layout/PremiumSidebar/PremiumSidebar.tsx`
+## Estratégia de Solução
 
-O menu flutuante é desenhado assim:
-- `src/components/layout/PremiumSidebar/HubMenuItem.tsx`
+### Detecção Correta de Ambiente
+```
+┌────────────────────────────────────────────────────────────┐
+│  Ambiente                        │ Hostname               │
+├────────────────────────────────────────────────────────────┤
+│  Preview (SPA)                   │ id-preview--...        │
+│  Published (URL Absoluta)        │ omniseenapp.lovable.app│
+│  Desenvolvimento (SPA)           │ localhost              │
+└────────────────────────────────────────────────────────────┘
+```
 
-Ponto crítico:
-- O `<nav>` da sidebar usa `overflow-y-auto`.
-- O painel flutuante do HubMenuItem é `position: absolute` (classe `absolute left-full top-0`).
-- Em CSS, quando um ancestral tem `overflow` diferente de `visible`, **elementos posicionados/overflow podem ser “cortados” (clipped)**.
-- Resultado: o painel pode até “abrir”, mas **fica recortado/fora da área visível**, dando a impressão de “conteúdo vazio”.
+- **Preview**: `hostname.startsWith('id-preview--')` ou `localhost`
+- **Published**: Qualquer outro hostname → usar URL absoluta com hard reload
 
-Isso também explica porque você “abre” Conteúdo e não vê os cards: eles estão sendo renderizados, mas **não aparecem na tela**.
+---
 
-## Solução (abordagem correta e definitiva)
-### Estratégia recomendada: “Portal / painel em position: fixed”
-Em vez do painel flutuante ficar `absolute` dentro do `<nav>` (que tem overflow e pode cortar), vamos:
-1) Medir a posição do botão “Conteúdo” (`getBoundingClientRect()`).
-2) Renderizar o painel como `position: fixed` na tela (fora do fluxo do `<nav>`).
-3) Garantir z-index alto para ficar sempre acima do layout.
-4) Manter o comportamento: abre no hover e no click, fecha ao sair e ao clicar fora.
+## Arquivos a Modificar
 
-Essa abordagem elimina 100% os casos de “menu invisível” por overflow.
+### 1. `src/utils/platformUrls.ts`
+Adicionar funções helper:
+- `isLovablePreviewHost()` - detecta se está em Preview ou localhost
+- `toAbsoluteUrl(path)` - converte path relativo para URL absoluta
+- `getClientArticlesListPath()` - retorna `/client/articles`
+- `getClientArticleCreatePath()` - retorna `/client/create`
+- `getClientArticleEditPath(id)` - retorna `/client/articles/{id}/edit`
+- `smartNavigate(navigate, path)` - navega corretamente baseado no ambiente
 
-## Mudanças planejadas (arquivos e o que será feito)
+### 2. `src/components/layout/PremiumSidebar/ContentHubPanel.tsx`
+Corrigir rota do "Gerar Artigo":
+- **Antes**: `/client/articles/new` (404)
+- **Depois**: `/client/create` (correto)
 
-### 1) `src/components/layout/PremiumSidebar/HubMenuItem.tsx`
-**Objetivo:** fazer o painel flutuante sempre aparecer e sempre por cima.
+### 3. `src/pages/client/ClientArticles.tsx`
+Atualizar `handleEdit()` para usar `smartNavigate`
 
-Mudanças:
-- Trocar o container do painel de:
-  - `absolute left-full top-0 ...`
-  para:
-  - `fixed` com coordenadas calculadas via `containerRef.current.getBoundingClientRect()`
-- Guardar no state a posição do painel (top/left) ao abrir.
-- Aumentar z-index do overlay e do painel (ex.: overlay `z-[100]`, painel `z-[110]`).
-- Adicionar `max-h-[80vh] overflow-y-auto` no painel para não estourar altura.
-- (Opcional) adicionar uma borda/sombra consistente para “parecer card premium”.
+### 4. `src/components/mobile/MobileArticlesList.tsx`
+Atualizar `handleEdit()` para usar `smartNavigate`
 
-Resultado esperado:
-- Ao hover/click em “Conteúdo”, o menu aparece SEMPRE, com os cards.
+### 5. `src/lib/autoCreateArticle.ts`
+Atualizar navegação após conversão de oportunidade
 
-### 2) (Se necessário) `src/components/layout/PremiumSidebar/PremiumSidebar.tsx`
-**Objetivo:** evitar qualquer conflito de empilhamento (stacking context).
-- Ajustar `z-40` do `<aside>` se houver conflito com overlays globais.
-- Na maioria dos casos, com painel `fixed` + z-index alto, isso nem será necessário.
+### 6. `src/pages/client/ClientArticleEditor.tsx`
+Atualizar navegações internas (redirecionamento pós-criação)
 
-### 3) (Validação visual) `src/components/layout/PremiumSidebar/ContentHubPanel.tsx`
-**Objetivo:** garantir que o layout final bate exatamente com o que você descreveu.
-- Confirmar títulos/subtítulos e rotas:
-  - Radar → `/client/radar`
-  - Gerar Artigo → `/client/articles/new`
-  - Meus Artigos → `/client/articles`
-  - Blog / Portal Público → `/client/portal`
-  - Páginas SEO → `/client/landing-pages`
-- Confirmar que “Gerar Artigo” está destacado com badge “IA”.
+### 7. `src/components/client/MiniContentCalendar.tsx`
+Atualizar `handleArticleClick()` para usar `smartNavigate`
 
-Obs.: este arquivo já está correto; aqui é apenas validação e pequenos ajustes de texto se você quiser “Blog / Portal Público” exatamente.
+### 8. `src/components/content/FunnelModal.tsx`
+Atualizar navegação após criação de artigos
 
-## Critérios de aceite (o que você vai testar na tela)
-1) No Desktop:
-   - Passar o mouse em “Conteúdo” → aparece o painel flutuante com os 5 cards.
-   - Clicar em “Conteúdo” → painel também abre (sem ficar “vazio”).
-   - Clicar fora → fecha.
-   - Clicar em cada card → navega para a rota certa e fecha o painel.
+### 9. `src/components/client/automation/QueueTab.tsx`
+Atualizar `handleViewArticle()` para usar `smartNavigate`
 
-2) Em telas com scroll/overflow:
-   - Mesmo com o `<nav>` scrollável, o painel não some e não fica cortado.
+### 10. `src/pages/client/ClientQueue.tsx`
+Atualizar `handleViewArticle()` para usar `smartNavigate`
 
-## Plano de execução (ordem)
-1) Ajustar `HubMenuItem.tsx` para renderizar painel em `fixed` com posição calculada.
-2) Ajustar z-index/overlay e adicionar `max-h`/scroll interno.
-3) Validar textos/rotas no `ContentHubPanel.tsx` (se quiser ajustes de nomenclatura).
-4) Teste completo no /client/dashboard (desktop) e no mobile drawer (mobile já usa accordion e não depende do flutuante).
+### 11. `src/pages/client/ClientReviewCenter.tsx`
+Atualizar navegação para editor
 
-## Observação importante
-O mobile **não está vazio** pelo mesmo motivo, porque no mobile o “Conteúdo” é um accordion renderizado dentro do drawer (não é um painel flutuante absoluto). O problema está concentrado no **desktop** por causa de overflow/posicionamento do painel flutuante.
+### 12. `src/components/dashboard/GenerationHistoryCard.tsx`
+Atualizar `handleItemClick()` para usar `smartNavigate`
+
+### 13. `src/components/client/ArticlesWithoutImagesDrawer.tsx`
+Atualizar `handleOpenEditor()` para usar `smartNavigate`
+
+---
+
+## Detalhes Técnicos
+
+### Funções a Adicionar em `platformUrls.ts`
+
+```typescript
+// Detecta se está em Preview do Lovable
+export const isLovablePreviewHost = (): boolean => {
+  const hostname = window.location.hostname;
+  return hostname.startsWith('id-preview--') || hostname === 'localhost';
+};
+
+// Converte path relativo para URL absoluta
+export const toAbsoluteUrl = (path: string): string => {
+  return `${window.location.origin}${path}`;
+};
+
+// Helpers de path para artigos
+export const getClientArticlesListPath = (): string => '/client/articles';
+export const getClientArticleCreatePath = (): string => '/client/create';
+export const getClientArticleEditPath = (id: string): string => {
+  if (!id) return '/client/articles';
+  return `/client/articles/${id}/edit`;
+};
+
+// Navegação inteligente
+export const smartNavigate = (
+  navigate: (path: string) => void,
+  path: string
+): void => {
+  if (isLovablePreviewHost()) {
+    navigate(path);
+  } else {
+    window.location.assign(toAbsoluteUrl(path));
+  }
+};
+```
+
+### Padrão de Uso nos Componentes
+
+```typescript
+// ANTES (causa 404 em Published)
+const handleEdit = (id: string) => {
+  navigate(`/client/articles/${id}/edit`);
+};
+
+// DEPOIS (funciona em todos os ambientes)
+import { smartNavigate, getClientArticleEditPath } from '@/utils/platformUrls';
+
+const handleEdit = (id: string) => {
+  smartNavigate(navigate, getClientArticleEditPath(id));
+};
+```
+
+---
+
+## Testes de Validação
+
+### Published (`omniseenapp.lovable.app`)
+- Menu "Conteúdo" → "Gerar Artigo" → abre `/client/create` sem 404
+- Lista de artigos → "Editar" → abre `/client/articles/:id/edit` sem 404
+- Editor → "Voltar" → volta para `/client/articles` sem 404
+- Radar → "Converter para Artigo" → abre editor sem 404
+
+### Preview (`id-preview--...lovable.app`)
+- Mesmos fluxos funcionando
+- Navegação permanece SPA (sem reloads desnecessários)
+
+---
+
+## Ordem de Implementação
+1. Adicionar funções em `platformUrls.ts`
+2. Corrigir rota no `ContentHubPanel.tsx`
+3. Atualizar `ClientArticles.tsx`
+4. Atualizar `MobileArticlesList.tsx`
+5. Atualizar `autoCreateArticle.ts`
+6. Atualizar `ClientArticleEditor.tsx`
+7. Atualizar componentes secundários (Calendar, Queue, Review, etc.)
+8. Testar em ambos os ambientes
