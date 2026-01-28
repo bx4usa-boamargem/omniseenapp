@@ -1,4 +1,4 @@
-import { useState, useRef, ReactNode } from 'react';
+import { useState, useRef, useEffect, ReactNode } from 'react';
 import { LucideIcon, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -11,11 +11,17 @@ interface HubMenuItemProps {
   onClose?: () => void;
 }
 
+interface PanelPosition {
+  top: number;
+  left: number;
+}
+
 /**
  * Hub menu item com menu flutuante
  * - Abre ao hover ou click
  * - Fecha ao sair ou clicar fora
  * - Faixa lateral roxo→laranja quando ativo
+ * - Usa position: fixed para evitar clipping por overflow
  */
 export function HubMenuItem({ 
   id, 
@@ -26,8 +32,20 @@ export function HubMenuItem({
   onClose 
 }: HubMenuItemProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [panelPosition, setPanelPosition] = useState<PanelPosition>({ top: 0, left: 0 });
   const timeoutRef = useRef<NodeJS.Timeout>();
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Calcula posição do painel quando abre
+  useEffect(() => {
+    if (isOpen && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setPanelPosition({
+        top: rect.top,
+        left: rect.right + 12, // 12px de margem (ml-3)
+      });
+    }
+  }, [isOpen]);
 
   const handleMouseEnter = () => {
     if (timeoutRef.current) {
@@ -102,25 +120,30 @@ export function HubMenuItem({
         )} />
       </button>
 
-      {/* Menu Flutuante */}
+      {/* Menu Flutuante - Position Fixed */}
       {isOpen && (
         <>
           {/* Overlay invisível para detectar click fora */}
           <div 
-            className="fixed inset-0 z-40" 
+            className="fixed inset-0 z-[100]" 
             onClick={handleCloseMenu}
             aria-hidden="true"
           />
           
-          {/* Card flutuante */}
+          {/* Card flutuante com position fixed */}
           <div 
             className={cn(
-              'absolute left-full top-0 ml-3 z-50',
+              'fixed z-[110]',
               'w-80 bg-white dark:bg-gray-900 rounded-xl',
               'shadow-[0_10px_40px_rgba(0,0,0,0.15)]',
               'border border-[#E5E7EB] dark:border-gray-700',
-              'animate-in slide-in-from-left-2 duration-200'
+              'animate-in slide-in-from-left-2 duration-200',
+              'max-h-[80vh] overflow-y-auto'
             )}
+            style={{
+              top: panelPosition.top,
+              left: panelPosition.left,
+            }}
             role="menu"
             aria-label={`Menu ${label}`}
             onMouseEnter={handleMouseEnter}
