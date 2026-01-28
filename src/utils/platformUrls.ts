@@ -79,8 +79,27 @@ export const isPlatformHost = (): boolean => {
 export const isSubaccountHost = (): boolean => {
   if (typeof window === 'undefined') return false;
   const host = window.location.hostname;
-  // Must end with .app.omniseen.app but NOT be app.omniseen.app itself
-  return host.endsWith('.app.omniseen.app') && host !== 'app.omniseen.app';
+  
+  // Log para debug em produção
+  console.log('[platformUrls] isSubaccountHost check:', { 
+    host, 
+    endsWithSuffix: host.endsWith('.app.omniseen.app'),
+    isNotMain: host !== 'app.omniseen.app'
+  });
+  
+  // Padrão principal: subdomínio do app.omniseen.app
+  if (host.endsWith('.app.omniseen.app') && host !== 'app.omniseen.app') {
+    return true;
+  }
+  
+  // Fallback: verificar se há meta tag injetada pelo proxy
+  const tenantMeta = document.querySelector('meta[name="x-tenant-slug"]');
+  if (tenantMeta?.getAttribute('content')) {
+    console.log('[platformUrls] isSubaccountHost: found tenant meta tag');
+    return true;
+  }
+  
+  return false;
 };
 
 /**

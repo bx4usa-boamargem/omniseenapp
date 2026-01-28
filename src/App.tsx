@@ -365,19 +365,30 @@ const CustomDomainRouteDecider = () => {
  * - Lovable preview/localhost → PlatformRoutes (dev mode)
  */
 const AppRoutes = () => {
-  // Check host type
+  const host = typeof window !== 'undefined' ? window.location.hostname : 'ssr';
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '/';
+  
+  // Debug logging detalhado para troubleshooting de roteamento
+  console.log('[AppRoutes] Host detection:', {
+    hostname: host,
+    pathname,
+    isSubaccount: isSubaccountHost(),
+    isCustomDomain: isCustomDomainHost(),
+    isPlatform: isPlatformHost()
+  });
+
   if (isSubaccountHost()) {
-    console.log('[AppRoutes] Subaccount host detected, using SubaccountRouteDecider');
+    console.log('[AppRoutes] ✅ Subaccount host detected, using SubaccountRouteDecider');
     return <SubaccountRouteDecider />;
   }
   
   if (isCustomDomainHost()) {
-    console.log('[AppRoutes] Custom domain host detected, using CustomDomainRouteDecider');
+    console.log('[AppRoutes] ✅ Custom domain host detected, using CustomDomainRouteDecider');
     return <CustomDomainRouteDecider />;
   }
   
   // Platform host (app.omniseen.app) or dev/preview
-  console.log('[AppRoutes] Platform/dev host, using PlatformRoutes');
+  console.log('[AppRoutes] ⚠️ Platform/dev host, using PlatformRoutes');
   return <PlatformRoutes />;
 };
 
