@@ -328,22 +328,49 @@ const PlatformRoutes = () => (
 
 /**
  * SubaccountRouteDecider: Para subdomínios {slug}.app.omniseen.app
- * Decide se mostra o blog público ou as rotas de plataforma
+ * 
+ * ROTAS PRÓPRIAS DO SUBDOMÍNIO:
+ * - Paths públicos (/, /:slug, /p/:slug) → BlogRoutes (sem auth)
+ * - Paths /client/* → ClientRoutes diretamente (com SubAccountGuard)
+ * - Paths de auth (/login, /signup) → Redireciona para app.omniseen.app
+ * - Paths de admin (/admin) → Redireciona para app.omniseen.app/admin
  */
 const SubaccountRouteDecider = () => {
-  const location = useLocation();
-  const pathname = location.pathname;
+  const pathname = window.location.pathname;
   
-  // Paths que devem ir para a plataforma (mesmo em subdomínio)
-  const platformPaths = ['/login', '/signup', '/reset-password', '/client', '/app', '/admin', '/oauth', '/invite', '/blocked', '/access-denied'];
-  const isPlatformPath = platformPaths.some(p => pathname.startsWith(p));
+  console.log('[SubaccountRouteDecider] pathname:', pathname);
   
-  if (isPlatformPath) {
-    // Renderiza rotas de plataforma para paths admin/auth
-    return <PlatformRoutes />;
+  // ROTAS PROTEGIDAS (/client/*) - renderiza ClientRoutes diretamente
+  if (pathname.startsWith('/client')) {
+    console.log('[SubaccountRouteDecider] → ClientRoutes');
+    return <ClientRoutes />;
   }
   
-  // Rotas públicas do blog (/, /:articleSlug)
+  // ROTAS DE AUTH - redireciona para plataforma principal
+  const authPaths = ['/login', '/signup', '/reset-password', '/blocked', '/access-denied'];
+  if (authPaths.some(p => pathname.startsWith(p))) {
+    const targetUrl = `https://app.omniseen.app${pathname}`;
+    console.log('[SubaccountRouteDecider] → Redirect to platform:', targetUrl);
+    window.location.href = targetUrl;
+    return null;
+  }
+  
+  // ROTAS DE OAUTH/INVITE - redireciona para plataforma principal
+  if (pathname.startsWith('/oauth') || pathname.startsWith('/invite')) {
+    const targetUrl = `https://app.omniseen.app${pathname}${window.location.search}`;
+    console.log('[SubaccountRouteDecider] → Redirect to platform:', targetUrl);
+    window.location.href = targetUrl;
+    return null;
+  }
+  
+  // ROTAS DE ADMIN - redireciona para plataforma principal
+  if (pathname.startsWith('/admin') || pathname.startsWith('/app')) {
+    window.location.href = `https://app.omniseen.app${pathname}`;
+    return null;
+  }
+  
+  // ROTAS PÚBLICAS (/, /:articleSlug, /p/:pageSlug) - BlogRoutes
+  console.log('[SubaccountRouteDecider] → BlogRoutes (public)');
   return <BlogRoutes />;
 };
 
