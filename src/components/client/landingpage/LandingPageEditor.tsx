@@ -46,11 +46,13 @@ import { InstitutionalLayout } from "./layouts/InstitutionalLayout";
 import { SpecialistAuthorityLayout } from "./layouts/SpecialistAuthorityLayout";
 import { TemplateSelector, LandingPageTemplate } from "./TemplateSelector";
 import { LandingPageSEOPanel } from "./LandingPageSEOPanel";
+import { EditorErrorBoundary } from "./EditorErrorBoundary";
 import { LandingPageData, BlockVisibility, DEFAULT_BLOCK_VISIBILITY, TEMPLATE_DEFAULT_VISIBILITY, LandingPage, LandingPageTemplateType } from "./types/landingPageTypes";
 import { DEFAULT_PRO_VISIBILITY } from "./types/serviceAuthorityProTypes";
 import { normalizePageDataForSave, inferVisibilityFromPageData } from "./utils/pageDataNormalizer";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { getCanonicalBlogUrl } from "@/utils/blogUrl";
 
 interface LandingPageEditorProps {
@@ -371,16 +373,28 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
     setVisibility(prev => ({ ...prev, [block]: !prev[block] }));
   };
 
+  // OPTIMIZED SEO HANDLERS: Update state locally instead of full reload
+  // This prevents insertBefore errors by avoiding re-render of contentEditable blocks
   const handleReanalyze = async () => {
     if (!page?.id) return;
     setIsAnalyzingSEO(true);
     try {
       const result = await analyzeSEO(page.id);
       if (result?.success) {
-        // Reload page to get updated SEO data
-        await loadPage();
+        // Update SEO fields locally without full page reload
+        // This prevents DOM conflicts with contentEditable elements
+        setPage(prev => prev ? {
+          ...prev,
+          seo_score: result.score_total,
+          seo_metrics: result.breakdown ? { breakdown: result.breakdown, diagnostics: result.diagnostics } : prev.seo_metrics,
+          seo_recommendations: result.recommendations || prev.seo_recommendations,
+          seo_analyzed_at: new Date().toISOString()
+        } : null);
         toast.success("Análise SEO concluída!");
       }
+    } catch (error) {
+      console.error("[SEO] Reanalyze error:", error);
+      toast.error("Erro ao analisar SEO");
     } finally {
       setIsAnalyzingSEO(false);
     }
@@ -392,9 +406,29 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
     try {
       const result = await fixSEO(page.id, ["title", "meta", "content", "keywords"]);
       if (result?.success) {
-        // Reload page to get updated SEO data
-        await loadPage();
+        // Check if content was modified - only then do full reload
+        if (result.updates?.content_expanded || result.updates?.page_data) {
+          await loadPage();
+        } else {
+          // Update only SEO meta fields locally
+          setPage(prev => prev ? {
+            ...prev,
+            seo_title: result.updates?.seo_title || prev.seo_title,
+            seo_description: result.updates?.seo_description || prev.seo_description,
+            seo_keywords: result.updates?.seo_keywords || prev.seo_keywords,
+          } : null);
+          if (result.updates?.seo_title) setSeoTitle(result.updates.seo_title);
+          if (result.updates?.seo_description) setSeoDescription(result.updates.seo_description);
+          if (result.updates?.seo_keywords) setSeoKeywords(result.updates.seo_keywords);
+          
+          // Re-trigger analysis to update score
+          await handleReanalyze();
+        }
+        toast.success("Correções SEO aplicadas!");
       }
+    } catch (error) {
+      console.error("[SEO] AutoFix error:", error);
+      toast.error("Erro ao aplicar correções");
     } finally {
       setIsFixingSEO(false);
     }
@@ -406,9 +440,13 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
     try {
       const result = await regeneratePage(page.id);
       if (result) {
-        // Reload page to get updated content
+        // Full reload needed for regeneration since content changes completely
         await loadPage();
+        toast.success("Página regenerada!");
       }
+    } catch (error) {
+      console.error("[SEO] Regenerate error:", error);
+      toast.error("Erro ao regenerar página");
     } finally {
       setIsRegenerating(false);
     }
@@ -552,8 +590,11 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
 
       {/* Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Settings */}
-        <div className="w-80 border-r bg-card overflow-hidden flex flex-col">
+        {/* Left Panel - Settings with dynamic width for SEO tab */}
+        <div className={cn(
+          "border-r bg-card overflow-hidden flex flex-col transition-all duration-300 z-20 shrink-0",
+          activeTab === 'seo' ? "w-[380px]" : "w-80"
+        )}>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
             <TabsList className="w-full rounded-none border-b">
               <TabsTrigger value="preview" className="flex-1">
@@ -714,82 +755,84 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
           </Tabs>
         </div>
 
-        {/* Right Panel - Preview */}
-        <div className="flex-1 bg-muted/30 overflow-hidden relative">
-          {pageData ? (
-            <div className="absolute inset-0 overflow-y-auto">
-              <div className="max-w-[1200px] mx-auto shadow-2xl shadow-black/10 min-h-full">
-                {pageData.template === 'service_authority_pro_v1' ? (
-                  <ServiceAuthorityProLayout
-                    pageData={pageData as any}
-                    primaryColor={blog?.primary_color || "#8b5cf6"}
-                    visibility={visibility as any}
-                    isEditing={true}
-                    onEditBlock={handleEditBlock}
-                  />
-                ) : pageData.template === 'institutional_v1' ? (
-                  <InstitutionalLayout
-                    pageData={pageData}
-                    primaryColor={blog?.primary_color || "#475569"}
-                    visibility={visibility}
-                    isEditing={true}
-                    onEditBlock={handleEditBlock}
-                  />
-                ) : pageData.template === 'specialist_authority_v1' ? (
-                  <SpecialistAuthorityLayout
-                    pageData={pageData}
-                    primaryColor={blog?.primary_color || "#d97706"}
-                    visibility={visibility}
-                    isEditing={true}
-                    onEditBlock={handleEditBlock}
-                  />
-                ) : pageData.template === 'service_authority_v1' ? (
-                  <ServiceAuthorityLayout
-                    pageData={pageData}
-                    primaryColor={blog?.primary_color || "#2563eb"}
-                    visibility={visibility}
-                    isEditing={true}
-                    onEditBlock={handleEditBlock}
-                  />
-                ) : (
-                  <LandingPagePreview
-                    pageData={pageData}
-                    blogId={blog?.id || ""}
-                    primaryColor={blog?.primary_color}
-                    visibility={visibility}
-                    isEditing={false}
-                    onEditBlock={handleEditBlock}
-                  />
-                )}
+        {/* Right Panel - Preview with proper z-index to not overlap sidebar */}
+        <div className="flex-1 bg-muted/30 overflow-hidden flex flex-col z-10">
+          <EditorErrorBoundary>
+            {pageData ? (
+              <div className="flex-1 overflow-y-auto">
+                <div className="max-w-[1200px] mx-auto shadow-2xl shadow-black/10 min-h-full">
+                  {pageData.template === 'service_authority_pro_v1' ? (
+                    <ServiceAuthorityProLayout
+                      pageData={pageData as any}
+                      primaryColor={blog?.primary_color || "#8b5cf6"}
+                      visibility={visibility as any}
+                      isEditing={true}
+                      onEditBlock={handleEditBlock}
+                    />
+                  ) : pageData.template === 'institutional_v1' ? (
+                    <InstitutionalLayout
+                      pageData={pageData}
+                      primaryColor={blog?.primary_color || "#475569"}
+                      visibility={visibility}
+                      isEditing={true}
+                      onEditBlock={handleEditBlock}
+                    />
+                  ) : pageData.template === 'specialist_authority_v1' ? (
+                    <SpecialistAuthorityLayout
+                      pageData={pageData}
+                      primaryColor={blog?.primary_color || "#d97706"}
+                      visibility={visibility}
+                      isEditing={true}
+                      onEditBlock={handleEditBlock}
+                    />
+                  ) : pageData.template === 'service_authority_v1' ? (
+                    <ServiceAuthorityLayout
+                      pageData={pageData}
+                      primaryColor={blog?.primary_color || "#2563eb"}
+                      visibility={visibility}
+                      isEditing={true}
+                      onEditBlock={handleEditBlock}
+                    />
+                  ) : (
+                    <LandingPagePreview
+                      pageData={pageData}
+                      blogId={blog?.id || ""}
+                      primaryColor={blog?.primary_color}
+                      visibility={visibility}
+                      isEditing={false}
+                      onEditBlock={handleEditBlock}
+                    />
+                  )}
+                </div>
               </div>
-            </div>
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center text-center p-8">
-              <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6">
-                <Sparkles className="w-10 h-10 text-primary" />
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center p-8">
+                <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6">
+                  <Sparkles className="w-10 h-10 text-primary" />
+                </div>
+                <h2 className="text-2xl font-bold text-foreground mb-3">
+                  Crie sua Landing Page
+                </h2>
+                <p className="text-muted-foreground max-w-md mb-6">
+                  Clique em "Gerar com IA" para criar automaticamente uma landing page
+                  profissional baseada no perfil da sua empresa.
+                </p>
+                <Button size="lg" onClick={handleGenerate} disabled={generating}>
+                  {generating ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Gerando página...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5 mr-2" />
+                      Gerar Landing Page com IA
+                    </>
+                  )}
+                </Button>
               </div>
-              <h2 className="text-2xl font-bold text-foreground mb-3">
-                Crie sua Landing Page
-              </h2>
-              <p className="text-muted-foreground max-w-md mb-6">
-                Clique em "Gerar com IA" para criar automaticamente uma landing page
-                profissional baseada no perfil da sua empresa.
-              </p>
-              <Button size="lg" onClick={handleGenerate} disabled={generating}>
-                {generating ? (
-                  <>
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Gerando página...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-5 h-5 mr-2" />
-                    Gerar Landing Page com IA
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
+            )}
+          </EditorErrorBoundary>
         </div>
       </div>
     </div>

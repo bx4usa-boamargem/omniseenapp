@@ -23,25 +23,31 @@ export function InlineEditableText({
   multiline = false
 }: InlineEditableTextProps) {
   const [isEditing, setIsEditing] = useState(false);
-  const [localValue, setLocalValue] = useState(value);
   const elementRef = useRef<HTMLElement>(null);
+  const initialValueRef = useRef(value);
 
-  // Sync local value when prop changes externally
+  // Update initial value ref when prop changes (but only when not editing)
   useEffect(() => {
     if (!isEditing) {
-      setLocalValue(value);
+      initialValueRef.current = value;
+      // Also update the DOM content when value changes externally
+      if (elementRef.current && elementRef.current.textContent !== value) {
+        elementRef.current.textContent = value || placeholder;
+      }
     }
-  }, [value, isEditing]);
+  }, [value, isEditing, placeholder]);
 
   const handleFocus = () => {
     if (!canEdit) return;
     setIsEditing(true);
+    initialValueRef.current = value;
   };
 
   const handleBlur = () => {
     setIsEditing(false);
     const newValue = elementRef.current?.textContent || '';
-    if (newValue !== value) {
+    // Only trigger onChange if value actually changed
+    if (newValue !== value && newValue !== placeholder) {
       onChange(newValue);
     }
   };
@@ -54,9 +60,8 @@ export function InlineEditableText({
     }
     // Escape reverts
     if (e.key === 'Escape') {
-      setLocalValue(value);
       if (elementRef.current) {
-        elementRef.current.textContent = value;
+        elementRef.current.textContent = initialValueRef.current || placeholder;
       }
       elementRef.current?.blur();
     }
@@ -67,6 +72,8 @@ export function InlineEditableText({
     return createElement(Component, { className }, value || placeholder);
   }
 
+  // CRITICAL FIX: Use dangerouslySetInnerHTML to avoid React reconciliation conflicts
+  // with contentEditable. React shouldn't manage the children of contentEditable elements.
   return createElement(
     Component,
     {
@@ -76,7 +83,7 @@ export function InlineEditableText({
         "outline-none cursor-text transition-all duration-200",
         "focus:ring-2 focus:ring-primary/30 focus:ring-offset-2 focus:rounded-sm",
         isEditing && "bg-primary/5",
-        !localValue && !isEditing && "text-muted-foreground/50 italic"
+        !value && !isEditing && "text-muted-foreground/50 italic"
       ),
       contentEditable: true,
       suppressContentEditableWarning: true,
@@ -88,7 +95,10 @@ export function InlineEditableText({
         minWidth: '20px',
         minHeight: '1em',
       },
-    },
-    localValue || (isEditing ? '' : placeholder)
+      // Use dangerouslySetInnerHTML to prevent insertBefore errors
+      // React won't try to reconcile children, avoiding DOM conflicts
+      dangerouslySetInnerHTML: { __html: value || placeholder },
+    }
   );
 }
+
