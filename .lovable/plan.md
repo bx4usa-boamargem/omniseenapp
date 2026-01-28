@@ -1,216 +1,157 @@
 
-# Correção: Portal Público Exigindo Login Incorretamente
+# Correção: SubaccountRouteDecider com Rotas Próprias
 
-## Diagnóstico Completo
+## Resumo do Problema
+O `SubaccountRouteDecider` delega paths `/client/*` para `PlatformRoutes`, que não funciona corretamente em subdomínios porque:
+1. `PlatformRoutes` redireciona `/` para `/login`
+2. O `SubAccountGuard` redireciona usuários não autenticados para `/login` (path relativo)
+3. No subdomínio, `/login` não existe como rota válida
 
-### Problema Confirmado
-Ao acessar `https://trulynolen.app.omniseen.app/`, o sistema renderiza a **página de Login** ao invés do blog público.
-
-### Causa Raiz Identificada
-A página de login está sendo exibida porque o código em `AppRoutes` está entrando no branch de `PlatformRoutes` ao invés de `SubaccountRouteDecider`. Isso acontece porque:
-
-1. A função `isSubaccountHost()` verifica se o hostname termina com `.app.omniseen.app`
-2. Porém, o domínio `trulynolen.app.omniseen.app` pode estar configurado como **redirect** para `app.omniseen.app` no DNS/Cloudflare
-3. Ou o Lovable Cloud está servindo o app via um hostname diferente que não corresponde ao padrão esperado
-
-### Verificações Realizadas
-| Componente | Status |
-|------------|--------|
-| Edge Function `content-api` | ✅ Funciona - resolve tenant corretamente |
-| Tabela `tenant_domains` | ✅ Domínio cadastrado com status `active` |
-| Função RPC `resolve_domain` | ✅ Retorna blog_id correto |
-| Roteamento `App.tsx` | ❓ Não está entrando no branch correto |
+## Solução
+Refatorar o `SubaccountRouteDecider` para:
+1. **Paths públicos** (`/`, `/:slug`, `/p/:slug`) → `BlogRoutes` (sem auth)
+2. **Paths `/client/*`** → `ClientRoutes` diretamente (com `SubAccountGuard`)
+3. **Paths de auth** (`/login`, `/signup`) → Redirecionar para `app.omniseen.app` (plataforma principal)
+4. **Paths de admin** (`/admin`) → Redirecionar para `app.omniseen.app/admin`
 
 ---
 
-## Análise do Código de Roteamento
+## Arquivo a Modificar
 
-### Fluxo Esperado (que deveria funcionar)
+### `src/App.tsx` - SubaccountRouteDecider (linhas 333-348)
+
+**Código Atual:**
+```typescript
+const SubaccountRouteDecider = () => {
+  const location = useLocation();
+  const pathname = location.pathname;
+  
+  const platformPaths = ['/login', '/signup', '/reset-password', '/client', '/app', '/admin', '/oauth', '/invite', '/blocked', '/access-denied'];
+  const isPlatformPath = platformPaths.some(p => pathname.startsWith(p));
+  
+  if (isPlatformPath) {
+    return <PlatformRoutes />;  // ❌ PROBLEMA
+  }
+  
+  return <BlogRoutes />;
+};
 ```
-User acessa trulynolen.app.omniseen.app
+
+**Código Novo:**
+```typescript
+const SubaccountRouteDecider = () => {
+  const pathname = window.location.pathname;
+  
+  console.log('[SubaccountRouteDecider] pathname:', pathname);
+  
+  // ROTAS PROTEGIDAS (/client/*) - renderiza ClientRoutes diretamente
+  if (pathname.startsWith('/client')) {
+    console.log('[SubaccountRouteDecider] → ClientRoutes');
+    return <ClientRoutes />;
+  }
+  
+  // ROTAS DE AUTH - redireciona para plataforma principal
+  const authPaths = ['/login', '/signup', '/reset-password', '/blocked', '/access-denied'];
+  if (authPaths.some(p => pathname.startsWith(p))) {
+    const targetUrl = `https://app.omniseen.app${pathname}`;
+    console.log('[SubaccountRouteDecider] → Redirect to platform:', targetUrl);
+    window.location.href = targetUrl;
+    return null;
+  }
+  
+  // ROTAS DE OAUTH/INVITE - redireciona para plataforma principal
+  if (pathname.startsWith('/oauth') || pathname.startsWith('/invite')) {
+    const targetUrl = `https://app.omniseen.app${pathname}${window.location.search}`;
+    console.log('[SubaccountRouteDecider] → Redirect to platform:', targetUrl);
+    window.location.href = targetUrl;
+    return null;
+  }
+  
+  // ROTAS DE ADMIN - redireciona para plataforma principal
+  if (pathname.startsWith('/admin') || pathname.startsWith('/app')) {
+    window.location.href = `https://app.omniseen.app${pathname}`;
+    return null;
+  }
+  
+  // ROTAS PÚBLICAS (/, /:articleSlug, /p/:pageSlug) - BlogRoutes
+  console.log('[SubaccountRouteDecider] → BlogRoutes (public)');
+  return <BlogRoutes />;
+};
+```
+
+---
+
+## Lógica de Roteamento Final no Subdomínio
+
+| Path | Destino | Autenticação |
+|------|---------|--------------|
+| `/` | BlogRoutes → CustomDomainBlog | Não |
+| `/:articleSlug` | BlogRoutes → CustomDomainArticle | Não |
+| `/p/:pageSlug` | BlogRoutes → CustomDomainLandingPage | Não |
+| `/client/dashboard` | ClientRoutes → SubAccountGuard → Dashboard | Sim |
+| `/client/articles` | ClientRoutes → SubAccountGuard → Articles | Sim |
+| `/login` | Redirect → app.omniseen.app/login | - |
+| `/signup` | Redirect → app.omniseen.app/signup | - |
+| `/admin/*` | Redirect → app.omniseen.app/admin/* | - |
+
+---
+
+## Fluxo Correto Após Correção
+
+```
+Usuário acessa trulynolen.app.omniseen.app/
   ↓
-AppRoutes verifica isSubaccountHost()
-  ↓ TRUE (hostname = "trulynolen.app.omniseen.app")
+isSubaccountHost() → true
+  ↓
 SubaccountRouteDecider
-  ↓ pathname = "/" (não é platformPath)
-BlogRoutes
-  ↓
-usePublicDomainResolution → content-api
-  ↓
-CustomDomainBlog com blogId
-```
-
-### Fluxo Atual (com defeito)
-```
-User acessa trulynolen.app.omniseen.app
-  ↓ 
-[Infraestrutura] Redirect ou serving do app.omniseen.app
-  ↓
-AppRoutes verifica isSubaccountHost()
-  ↓ FALSE (hostname ≠ "*.app.omniseen.app")
-PlatformRoutes
   ↓ pathname = "/"
-Navigate to /login
+  ↓ Não começa com /client, /login, /admin, etc.
+BlogRoutes ✅
   ↓
-Login page
+usePublicDomainResolution() → content-api
+  ↓
+CustomDomainBlog renderiza artigos ✅
+```
+
+```
+Usuário acessa trulynolen.app.omniseen.app/client/dashboard
+  ↓
+isSubaccountHost() → true
+  ↓
+SubaccountRouteDecider
+  ↓ pathname.startsWith('/client') = true
+ClientRoutes → SubAccountGuard
+  ↓ Se não logado:
+Navigate to /login
+  ↓ SubaccountRouteDecider pega /login
+Redirect → app.omniseen.app/login ✅
 ```
 
 ---
 
-## Solução em Duas Frentes
+## Observação Importante
 
-### 1. Infraestrutura (Configuração do Lovable Cloud)
+O `SubAccountGuard` redireciona para `/login` (path relativo). Com a nova lógica do `SubaccountRouteDecider`, quando o usuário não está autenticado:
 
-O domínio `trulynolen.app.omniseen.app` (e qualquer outro subdomínio de cliente) precisa estar:
+1. `SubAccountGuard` → `Navigate to="/login"`
+2. Browser vai para `trulynolen.app.omniseen.app/login`
+3. `SubaccountRouteDecider` captura `/login`
+4. Executa `window.location.href = 'https://app.omniseen.app/login'`
+5. Usuário é redirecionado para a plataforma principal para fazer login
 
-- **Configurado como domínio customizado** no projeto Lovable Cloud
-- **DNS apontando** para o IP do Lovable (A record para 185.158.133.1)
-- **Modo "Active"** (não "Redirect")
-
-### 2. Código (Fallback Robusto)
-
-Mesmo que a infraestrutura esteja correta, vamos adicionar um **fallback mais robusto** no código para:
-
-1. Verificar o hostname de forma mais abrangente
-2. Detectar subdomínios mesmo quando há proxying
-3. Logar informações de debug para troubleshooting
-
----
-
-## Alterações no Código
-
-### Arquivo: `src/utils/platformUrls.ts`
-
-Melhorar a função `isSubaccountHost()` para ser mais resiliente:
-
-```typescript
-// ANTES
-export const isSubaccountHost = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  const host = window.location.hostname;
-  return host.endsWith('.app.omniseen.app') && host !== 'app.omniseen.app';
-};
-
-// DEPOIS (com debug e fallback)
-export const isSubaccountHost = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  const host = window.location.hostname;
-  
-  // Log para debug em produção
-  console.log('[platformUrls] isSubaccountHost check:', { 
-    host, 
-    endsWithSuffix: host.endsWith('.app.omniseen.app'),
-    isNotMain: host !== 'app.omniseen.app'
-  });
-  
-  // Padrão principal: subdomínio do app.omniseen.app
-  if (host.endsWith('.app.omniseen.app') && host !== 'app.omniseen.app') {
-    return true;
-  }
-  
-  // Fallback: verificar se há meta tag injetada pelo proxy
-  const tenantMeta = document.querySelector('meta[name="x-tenant-slug"]');
-  if (tenantMeta?.getAttribute('content')) {
-    console.log('[platformUrls] isSubaccountHost: found tenant meta tag');
-    return true;
-  }
-  
-  return false;
-};
-```
-
-### Arquivo: `src/App.tsx`
-
-Adicionar mais logging no `AppRoutes` para facilitar debug:
-
-```typescript
-const AppRoutes = () => {
-  const host = typeof window !== 'undefined' ? window.location.hostname : 'ssr';
-  
-  // Debug logging para troubleshooting de roteamento
-  console.log('[AppRoutes] Host detection:', {
-    hostname: host,
-    isSubaccount: isSubaccountHost(),
-    isCustomDomain: isCustomDomainHost(),
-    isPlatform: isPlatformHost(),
-    pathname: typeof window !== 'undefined' ? window.location.pathname : '/'
-  });
-
-  if (isSubaccountHost()) {
-    console.log('[AppRoutes] Subaccount host detected, using SubaccountRouteDecider');
-    return <SubaccountRouteDecider />;
-  }
-  
-  if (isCustomDomainHost()) {
-    console.log('[AppRoutes] Custom domain host detected, using CustomDomainRouteDecider');
-    return <CustomDomainRouteDecider />;
-  }
-  
-  console.log('[AppRoutes] Platform/dev host, using PlatformRoutes');
-  return <PlatformRoutes />;
-};
-```
-
----
-
-## Ação Imediata Necessária
-
-### Verificar Configuração de Domínios no Lovable Cloud
-
-O usuário (ou administrador) precisa:
-
-1. **Acessar o Lovable Cloud Dashboard** do projeto
-2. **Verificar a seção "Domains"** (Domínios)
-3. **Confirmar que `trulynolen.app.omniseen.app` está listado** como domínio ativo
-4. Se não estiver, **adicionar como domínio customizado**
-
-### Verificar DNS
-
-O domínio `trulynolen.app.omniseen.app` deve ter:
-- **A record** apontando para `185.158.133.1` (IP do Lovable)
-- **Sem redirect** para outro domínio
-
----
-
-## Ordem de Implementação
-
-1. **Adicionar logging detalhado** em `isSubaccountHost()` e `AppRoutes`
-2. **Publicar e testar** em produção
-3. **Analisar os logs** no console do browser ao acessar `trulynolen.app.omniseen.app`
-4. Se o hostname estiver correto mas ainda falhar:
-   - Verificar se há cache/service worker interferindo
-   - Verificar configuração de domínio no Lovable Cloud
-5. Se o hostname estiver errado (mostrando outro domínio):
-   - O problema é de infraestrutura/DNS
-   - Corrigir configuração de domínio
+Este fluxo garante que:
+- Subdomínios não precisam de telas de login próprias
+- Autenticação é centralizada em `app.omniseen.app`
+- Após login, o usuário pode voltar ao subdomínio
 
 ---
 
 ## Testes de Validação
 
-### Após correção, confirmar:
-
 | Cenário | URL | Resultado Esperado |
 |---------|-----|-------------------|
-| Portal público | `https://trulynolen.app.omniseen.app/` | Blog público (sem login) |
-| Artigo público | `https://trulynolen.app.omniseen.app/dedetizacao-profissional` | Artigo público (sem login) |
-| Login do subdomínio | `https://trulynolen.app.omniseen.app/login` | Página de login |
-| Dashboard | `https://trulynolen.app.omniseen.app/client/dashboard` | Redireciona para login se não logado |
-
----
-
-## Arquivos a Modificar
-
-1. `src/utils/platformUrls.ts` - Melhorar `isSubaccountHost()` com logging
-2. `src/App.tsx` - Adicionar logging detalhado em `AppRoutes`
-
----
-
-## Nota Importante
-
-Se o logging mostrar que o `window.location.hostname` está retornando `app.omniseen.app` ou outro domínio (não `trulynolen.app.omniseen.app`), o problema é **100% de infraestrutura**:
-
-- O DNS está configurado com redirect ao invés de proxy/CNAME
-- Ou o Lovable Cloud está servindo o app de forma incorreta para esse domínio
-
-Nesse caso, a solução é **configurar corretamente o domínio no Lovable Cloud e no DNS**.
+| Blog público | `trulynolen.app.omniseen.app/` | Lista de artigos (sem login) |
+| Artigo público | `trulynolen.app.omniseen.app/dedetizacao` | Artigo (sem login) |
+| Super página | `trulynolen.app.omniseen.app/p/servicos` | Landing page (sem login) |
+| Dashboard | `trulynolen.app.omniseen.app/client/dashboard` | Redireciona para app.omniseen.app/login se não logado |
+| Login direto | `trulynolen.app.omniseen.app/login` | Redireciona para app.omniseen.app/login |
