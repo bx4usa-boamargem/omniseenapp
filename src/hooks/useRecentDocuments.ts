@@ -67,7 +67,7 @@ export function useRecentDocuments(blogId: string | undefined, limit = 5): UseRe
         createdAt: new Date(article.created_at),
         status: article.status || 'draft',
         score: calculateDocumentScore(article.status || 'draft'),
-        path: `/client/articles/${article.id}`,
+        path: `/client/articles`,
       }));
 
       // Transform landing pages
@@ -88,7 +88,7 @@ export function useRecentDocuments(blogId: string | undefined, limit = 5): UseRe
           createdAt: new Date(lp.created_at),
           status: lp.status || 'draft',
           score: calculateDocumentScore(lp.status || 'draft'),
-          path: `/client/landing-pages/${lp.id}`,
+          path: `/client/landing-pages`,
         };
       });
 
