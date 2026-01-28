@@ -1,150 +1,166 @@
 
-# Plano: Corrigir Acesso ao Blog Público em Ambiente Dev/Preview
+# Plano: Ajustar Menu 100% por Hover (Sem Fixação por Clique)
 
-## Problema Diagnosticado
+## Diagnóstico
 
-As páginas `PublicArticle.tsx` e `PublicLandingPage.tsx` foram refatoradas para usar hooks `useBlogArticle` e `useLandingPage`. Esses hooks dependem de `getCurrentHostname()` para resolver o blog via edge function `content-api`.
+### Componentes Analisados
 
-**No ambiente Lovable preview** (`d1ade89c-....lovableproject.com`):
-- O hostname não está registrado em `tenant_domains`
-- A edge function não encontra o blog
-- Retorna "Tenant not found" → "Falha ao carregar artigo/página"
+| Componente | Estado Atual | Ação Necessária |
+|------------|--------------|-----------------|
+| `SidebarNavItem.tsx` | ✅ Já usa hover puro | Nenhuma |
+| `SidebarHoverPanel.tsx` | ✅ Controlado por parent | Nenhuma |
+| `MinimalSidebar.tsx` | ✅ Logo navega sem menu | Nenhuma |
+| `AccountBlock.tsx` | ❌ Usa Popover com clique | **Converter para hover** |
 
-**O que está disponível mas não utilizado:**
-- As rotas `/blog/:blogSlug/:articleSlug` e `/blog/:blogSlug/p/:pageSlug` fornecem o `blogSlug` via `useParams()`
-- A edge function já suporta `blog_id` direto, mas não `blog_slug`
+### Problema Identificado
+
+O `AccountBlock.tsx` (linhas 96-207) usa o componente Radix `Popover`, que por design abre e fecha com **clique**, mantendo um estado `isOpen` persistente:
+
+```typescript
+// Estado que persiste por clique
+const [isOpen, setIsOpen] = useState(false);
+
+// Popover que só fecha ao clicar fora
+<Popover open={isOpen} onOpenChange={setIsOpen}>
+  <PopoverTrigger asChild>
+    <button>...</button>  // Clique abre/fecha
+  </PopoverTrigger>
+  <PopoverContent>...</PopoverContent>
+</Popover>
+```
 
 ---
 
 ## Solução Proposta
 
-### Fase 1: Estender Edge Function `content-api`
+Converter `AccountBlock.tsx` de **Popover (clique)** para **HoverCard (hover puro)**:
 
-Adicionar suporte para resolver tenant via `blog_slug` (além de `host` e `blog_id`):
+### Mudanças Técnicas
 
-**Arquivo:** `supabase/functions/content-api/index.ts`
+1. **Substituir Popover por HoverCard**
+   - De: `@radix-ui/react-popover`
+   - Para: `@radix-ui/react-hover-card` (já instalado no projeto)
 
+2. **Remover estado `isOpen` controlado**
+   - O HoverCard gerencia automaticamente por eventos de mouse
+
+3. **Adicionar delays para evitar flicker**
+   - `openDelay={100}` - espera 100ms antes de abrir
+   - `closeDelay={150}` - espera 150ms antes de fechar
+
+4. **Manter clique no trigger para navegação direta**
+   - Clique no avatar → navega para `/client/settings`
+   - Hover no avatar → abre painel de opções
+
+---
+
+## Arquivo a Modificar
+
+### `src/components/layout/AccountBlock.tsx`
+
+**Antes (Popover com clique):**
 ```typescript
-interface ContentRequest {
-  host?: string;           // Hostname for resolution
-  blog_id?: string;        // Direct blog_id (bypasses hostname resolution)
-  blog_slug?: string;      // NEW: Blog slug for resolution
-  route: ContentRoute;
-  params?: Record<string, unknown>;
-}
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+
+const [isOpen, setIsOpen] = useState(false);
+
+<Popover open={isOpen} onOpenChange={setIsOpen}>
+  <PopoverTrigger asChild>
+    <button>...</button>
+  </PopoverTrigger>
+  <PopoverContent>...</PopoverContent>
+</Popover>
 ```
 
-**Nova lógica de resolução:**
-```text
-1. Se blog_id fornecido → usar diretamente
-2. Se blog_slug fornecido → buscar blog por slug
-3. Se host fornecido → resolver via tenant_domains
+**Depois (HoverCard com hover puro):**
+```typescript
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
+
+// Sem estado isOpen!
+
+<HoverCard openDelay={100} closeDelay={150}>
+  <HoverCardTrigger asChild>
+    <button onClick={() => navigate('/client/settings')}>
+      {/* Avatar e info - clique navega para settings */}
+    </button>
+  </HoverCardTrigger>
+  <HoverCardContent side="top" align="start" sideOffset={8}>
+    {/* Menu items */}
+  </HoverCardContent>
+</HoverCard>
 ```
 
 ---
 
-### Fase 2: Estender Hooks `useContentApi`
+## Detalhes da Implementação
 
-**2.1 - Adicionar `fetchContentApiByBlogSlug`:**
+### Comportamento Final
 
-```typescript
-export async function fetchContentApiByBlogSlug<T>(
-  route: ContentRoute,
-  blogSlug: string,
-  params: Record<string, unknown> = {}
-): Promise<ContentApiResponse<T> | null> {
-  const { data, error } = await supabase.functions.invoke("content-api", {
-    body: { blog_slug: blogSlug, route, params },
-  });
-  // ...
-}
-```
+| Interação | Resultado |
+|-----------|-----------|
+| Hover no avatar | Menu aparece após 100ms |
+| Mouse sai do avatar/menu | Menu fecha após 150ms |
+| Clique no avatar | Navega para `/client/settings` (sem fixar menu) |
+| Clique em item do menu | Navega para a rota específica |
 
-**2.2 - Estender `useBlogArticle`:**
+### Ajustes de Estilo
 
-```typescript
-interface UseBlogArticleOptions {
-  blogId?: string;    // Bypass com ID
-  blogSlug?: string;  // NEW: Bypass com slug
-}
-```
-
-**2.3 - Estender `useLandingPage`:**
-
-```typescript
-interface UseLandingPageOptions {
-  blogId?: string;
-  blogSlug?: string;
-}
-
-export function useLandingPage(
-  slug: string | undefined, 
-  options?: UseLandingPageOptions
-): UseLandingPageResult
-```
+O `HoverCardContent` precisa herdar os estilos do `PopoverContent`:
+- Mesma largura (`w-64`)
+- Mesmo padding (`p-2`)
+- Mesmo offset (`sideOffset={8}`)
+- Mesma posição (`side="top"`, `align="start"`)
 
 ---
 
-### Fase 3: Atualizar Páginas Públicas
-
-**3.1 - `PublicArticle.tsx`:**
+## Código da Solução
 
 ```typescript
-const { blogSlug, articleSlug } = useParams<{ blogSlug: string; articleSlug: string }>();
+// AccountBlock.tsx - Nova versão
 
-// Usar blogSlug para bypass de hostname
-const { blog, article, related, loading, error } = useBlogArticle(articleSlug, { 
-  blogSlug: blogSlug 
-});
+import { useNavigate } from 'react-router-dom';
+import { 
+  User, Link2, CreditCard, BarChart3, Bell, LogOut, Sparkles 
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card';
+import { useAuth } from '@/hooks/useAuth';
+import { useBlog } from '@/hooks/useBlog';
+
+// Remover: const [isOpen, setIsOpen] = useState(false);
+
+// Remover: setIsOpen(false) das funções de navegação
+
+<HoverCard openDelay={100} closeDelay={150}>
+  <HoverCardTrigger asChild>
+    <button
+      onClick={() => navigate('/client/settings')}
+      className={cn(
+        'account-block w-full p-3 rounded-xl cursor-pointer',
+        'transition-all duration-200 hover:bg-primary/5',
+        'flex items-center gap-3 text-left',
+        'focus:outline-none focus:ring-2 focus:ring-primary/50'
+      )}
+    >
+      {/* Avatar content - igual ao atual */}
+    </button>
+  </HoverCardTrigger>
+
+  <HoverCardContent 
+    side="top" 
+    align="start" 
+    className="w-64 p-2"
+    sideOffset={8}
+  >
+    {/* Menu items - igual ao atual */}
+  </HoverCardContent>
+</HoverCard>
 ```
-
-**3.2 - `PublicLandingPage.tsx`:**
-
-```typescript
-const { blogSlug, pageSlug } = useParams<{ blogSlug?: string; pageSlug: string }>();
-
-// Usar blogSlug quando disponível
-const { blog, page, loading, error } = useLandingPage(pageSlug, {
-  blogSlug: blogSlug
-});
-```
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Modificação |
-|---------|-------------|
-| `supabase/functions/content-api/index.ts` | Adicionar suporte a `blog_slug` |
-| `src/hooks/useContentApi.ts` | Adicionar `fetchContentApiByBlogSlug` e estender hooks |
-| `src/pages/PublicArticle.tsx` | Passar `blogSlug` para o hook |
-| `src/pages/PublicLandingPage.tsx` | Passar `blogSlug` para o hook |
-
----
-
-## Detalhes Técnicos
-
-### Fluxo de Resolução Atualizado
-
-```text
-┌──────────────────────────────────────────────────────┐
-│                   content-api                        │
-├──────────────────────────────────────────────────────┤
-│  Request: { blog_slug, route, params }               │
-│                                                      │
-│  1. blog_id fornecido? → usar diretamente            │
-│  2. blog_slug fornecido? → SELECT FROM blogs         │
-│     WHERE slug = blog_slug                           │
-│  3. host fornecido? → resolveTenant(host)            │
-│  4. Nenhum? → erro 400                               │
-└──────────────────────────────────────────────────────┘
-```
-
-### Prioridade de Resolução
-
-1. `blog_id` (mais rápido, sem query adicional)
-2. `blog_slug` (query simples por slug)
-3. `host` (resolve via `tenant_domains` + fallbacks)
 
 ---
 
@@ -152,17 +168,27 @@ const { blog, page, loading, error } = useLandingPage(pageSlug, {
 
 | Critério | Validação |
 |----------|-----------|
-| `/blog/bioneteste/artigo-x` funciona no preview | Testar no Lovable |
-| `/blog/bioneteste/p/pagina-y` funciona no preview | Testar no Lovable |
-| Produção (subdomínios) continua funcionando | Testar em `*.app.omniseen.app` |
-| Console não mostra "Tenant not found" | DevTools |
-| Network mostra `content-api` com `blog_slug` | DevTools |
+| Hover no avatar abre menu | Testar interação |
+| Mouse sai → menu fecha automaticamente | Testar interação |
+| Clique no avatar navega para /client/settings | Testar clique |
+| Menu não fica "travado" após clique | Testar comportamento |
+| Delay de 100-150ms evita flicker | Movimentar mouse rapidamente |
+| Transição suave (200ms) | Visual |
+| Funciona igual em collapsed mode | Testar sidebar compacto |
 
 ---
 
 ## Impacto
 
-- **Zero breaking changes** - hostname resolution continua funcionando
-- **Resolve** erro "Falha ao carregar" em ambiente dev/preview
-- **Mantém** todas as funcionalidades existentes
-- **Compatível** com rotas legacy `/blog/:blogSlug/*`
+- **Zero breaking changes** - apenas muda o método de controle do menu
+- **UX Premium** - comportamento fluido estilo Linear/Notion
+- **Consistência** - todos os menus agora funcionam 100% por hover
+- **Zero fricção** - usuário nunca precisa "destravar" menus
+
+---
+
+## Resumo de Arquivos
+
+| Arquivo | Ação |
+|---------|------|
+| `src/components/layout/AccountBlock.tsx` | Substituir Popover por HoverCard, remover estado `isOpen` |
