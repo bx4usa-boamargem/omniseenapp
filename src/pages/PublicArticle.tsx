@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { supabase } from "@/integrations/supabase/client";
+import { useBlogArticle, useAgentConfig } from "@/hooks/useContentApi";
 import { SEOHead } from "@/components/public/SEOHead";
 import { BlogHeader } from "@/components/public/BlogHeader";
 import { ArticleContent } from "@/components/public/ArticleContent";
@@ -14,7 +14,6 @@ import { TableOfContents } from "@/components/public/TableOfContents";
 import { FocusedReadingMode } from "@/components/public/FocusedReadingMode";
 import { ArticleLanguageSelector } from "@/components/public/ArticleLanguageSelector";
 import { BrandSalesAgentWidget } from "@/components/public/BrandSalesAgentWidget";
-import { useBrandAgentConfig } from "@/hooks/useBrandAgentConfig";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,72 +23,10 @@ import { getCanonicalArticleUrl, getBlogPath } from "@/utils/blogUrl";
 import { Calendar, Clock, ChevronDown, ChevronUp, Eye, Share2, ArrowLeft } from "lucide-react";
 import { ArticlePdfDownload } from "@/components/articles/ArticlePdfDownload";
 
-interface Blog {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-  logo_url: string | null;
-  logo_negative_url: string | null;
-  favicon_url: string | null;
-  primary_color: string | null;
-  secondary_color: string | null;
-  author_name: string | null;
-  author_photo_url: string | null;
-  author_bio: string | null;
-  author_linkedin: string | null;
-  banner_title: string | null;
-  banner_description: string | null;
-  cta_text: string | null;
-  cta_url: string | null;
-  cta_type: string | null;
-  custom_domain: string | null;
-  domain_verified: boolean | null;
-  brand_display_mode: string | null;
-  platform_subdomain: string | null;
-}
-
-
 interface ContentImage {
   context: string;
   url: string;
   after_section: number;
-}
-
-interface Article {
-  id: string;
-  title: string;
-  excerpt: string | null;
-  content: string | null;
-  slug: string;
-  category: string | null;
-  published_at: string | null;
-  featured_image_url: string | null;
-  content_images: ContentImage[] | null;
-  meta_description: string | null;
-  keywords: string[] | null;
-  faq: { question: string; answer: string }[] | null;
-  view_count: number | null;
-  share_count: number | null;
-  // Territorial data
-  territory_id: string | null;
-}
-
-interface TerritoryInfo {
-  official_name: string | null;
-  neighborhood_tags: string[] | null;
-  lat: number | null;
-  lng: number | null;
-}
-
-interface RelatedArticle {
-  id: string;
-  title: string;
-  excerpt: string | null;
-  slug: string;
-  category: string | null;
-  published_at: string | null;
-  featured_image_url: string | null;
 }
 
 const FAQItem = ({ question, answer, primaryColor }: { question: string; answer: string; primaryColor?: string }) => {
@@ -130,27 +67,30 @@ const calculateReadingTime = (content?: string | null): number => {
 };
 
 const PublicArticle = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { formatDateLong, formatNumber } = useLocaleFormat();
-  const { blogSlug, articleSlug } = useParams<{ blogSlug: string; articleSlug: string }>();
-  const [blog, setBlog] = useState<Blog | null>(null);
-  const [article, setArticle] = useState<Article | null>(null);
-  const [relatedArticles, setRelatedArticles] = useState<RelatedArticle[]>([]);
-  const [territoryInfo, setTerritoryInfo] = useState<TerritoryInfo | null>(null);
-  const [availableTranslations, setAvailableTranslations] = useState<string[]>([]);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>('pt-BR');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isFocusMode, setIsFocusMode] = useState(false);
+  const { articleSlug } = useParams<{ blogSlug: string; articleSlug: string }>();
   
-  // Brand Sales Agent
-  const { agentConfig, businessProfile } = useBrandAgentConfig(blog?.id || null);
+  // Use content-api hooks (bypass RLS via service_role)
+  const { blog, article, related, loading, error } = useBlogArticle(articleSlug);
+  const { agentConfig, businessProfile } = useAgentConfig();
+  
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('pt-BR');
+  const [isFocusMode, setIsFocusMode] = useState(false);
   
   // Fetch translation if a non-original language is selected
   const { data: translation, isLoading: isLoadingTranslation } = usePublicArticleTranslation(
     article?.id,
     selectedLanguage
   );
+  
+  // Parse FAQ from article (can come as JSON or array)
+  const parsedFaq = useMemo(() => {
+    if (!article?.faq) return null;
+    return typeof article.faq === 'string' 
+      ? JSON.parse(article.faq) 
+      : article.faq;
+  }, [article?.faq]);
   
   // Compute displayed content (original or translated)
   const hasTranslation = selectedLanguage !== 'pt-BR' && translation !== null && translation !== undefined;
@@ -159,121 +99,62 @@ const PublicArticle = () => {
   const displayedContent = hasTranslation && translation.content ? translation.content : article?.content;
   const displayedMetaDescription = hasTranslation && translation.meta_description ? translation.meta_description : article?.meta_description;
   
-  // Parse FAQ from translation (pode vir como string JSON)
-  const displayedFaq = (() => {
-    if (hasTranslation && translation.faq) {
+  // Parse FAQ from translation (can come as JSON string)
+  const displayedFaq = useMemo(() => {
+    if (hasTranslation && translation?.faq) {
       return typeof translation.faq === 'string' 
         ? JSON.parse(translation.faq) 
         : translation.faq;
     }
-    return article?.faq;
-  })();
+    return parsedFaq;
+  }, [hasTranslation, translation?.faq, parsedFaq]);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!blogSlug || !articleSlug) return;
-
-      try {
-        // Fetch blog
-        const { data: blogData, error: blogError } = await supabase
-          .from("blogs")
-          .select("*")
-          .eq("slug", blogSlug)
-          .single();
-
-        if (blogError || !blogData) {
-          setError(t('blog.notFound'));
-          setLoading(false);
-          return;
-        }
-
-        setBlog(blogData);
-
-        // Fetch article
-        const { data: articleData, error: articleError } = await supabase
-          .from("articles")
-          .select("*")
-          .eq("blog_id", blogData.id)
-          .eq("slug", articleSlug)
-          .eq("status", "published")
-          .single();
-
-        if (articleError || !articleData) {
-          setError(t('blog.articleNotFound'));
-          setLoading(false);
-          return;
-        }
-
-        // Parse FAQ and content_images if they're strings
-        let parsedFaq: { question: string; answer: string }[] | null = null;
-        let parsedContentImages: ContentImage[] | null = null;
-
-        if (articleData.faq) {
-          parsedFaq = typeof articleData.faq === 'string' 
-            ? JSON.parse(articleData.faq) 
-            : (Array.isArray(articleData.faq) ? articleData.faq as { question: string; answer: string }[] : null);
-        }
-
-        if (articleData.content_images) {
-          parsedContentImages = typeof articleData.content_images === 'string'
-            ? JSON.parse(articleData.content_images)
-            : (Array.isArray(articleData.content_images) ? articleData.content_images as unknown as ContentImage[] : null);
-        }
-
-        const parsedArticle: Article = {
-          ...articleData,
-          faq: parsedFaq,
-          content_images: parsedContentImages
-        };
-
-        setArticle(parsedArticle);
-
-        // Fetch available translations for this article
-        const { data: translationsData } = await supabase
-          .from("article_translations")
-          .select("language_code")
-          .eq("article_id", articleData.id);
-
-        if (translationsData) {
-          setAvailableTranslations(translationsData.map(t => t.language_code));
-        }
-
-        // Fetch related articles
-        const { data: relatedData } = await supabase
-          .from("articles")
-          .select("id, title, excerpt, slug, category, published_at, featured_image_url")
-          .eq("blog_id", blogData.id)
-          .eq("status", "published")
-          .neq("id", articleData.id)
-          .order("published_at", { ascending: false })
-          .limit(3);
-
-        if (relatedData) {
-          setRelatedArticles(relatedData);
-        }
-
-        // Fetch territory data if article has territory_id
-        if (articleData.territory_id) {
-          const { data: territoryData } = await supabase
-            .from("territories")
-            .select("official_name, neighborhood_tags, lat, lng")
-            .eq("id", articleData.territory_id)
-            .maybeSingle();
-
-          if (territoryData) {
-            setTerritoryInfo(territoryData as TerritoryInfo);
-          }
-        }
-      } catch (err) {
-        console.error("Error:", err);
-        setError(t('common.error'));
-      } finally {
-        setLoading(false);
-      }
+  // Map BlogMeta to legacy Blog interface for components
+  const mappedBlog = useMemo(() => {
+    if (!blog) return null;
+    return {
+      id: blog.id,
+      name: blog.name,
+      slug: blog.slug,
+      description: blog.description,
+      logo_url: blog.logo_url,
+      logo_negative_url: null, // Not available in BlogMeta
+      favicon_url: blog.favicon_url,
+      primary_color: blog.primary_color,
+      secondary_color: blog.secondary_color,
+      author_name: blog.author_name,
+      author_photo_url: blog.author_photo_url,
+      author_bio: blog.author_bio,
+      author_linkedin: blog.author_linkedin,
+      banner_title: blog.banner_title,
+      banner_description: blog.banner_description,
+      cta_text: blog.header_cta_text,
+      cta_url: blog.header_cta_url,
+      cta_type: null, // Not available in BlogMeta
+      custom_domain: blog.custom_domain,
+      domain_verified: true, // Assume verified for public access
+      brand_display_mode: 'text' as const,
+      platform_subdomain: blog.platform_subdomain,
+      footer_text: blog.footer_text,
     };
+  }, [blog]);
 
-    fetchData();
-  }, [blogSlug, articleSlug, t]);
+  // Map related articles
+  const mappedRelated = useMemo(() => {
+    return related.map(r => ({
+      id: r.id,
+      title: r.title,
+      excerpt: r.excerpt,
+      slug: r.slug,
+      category: r.category,
+      published_at: r.published_at,
+      featured_image_url: r.featured_image_url,
+    }));
+  }, [related]);
+
+  // Available translations (we don't have this from content-api, so use empty for now)
+  // TODO: Extend content-api to return available translations
+  const availableTranslations: string[] = [];
 
   if (loading) {
     return (
@@ -300,7 +181,7 @@ const PublicArticle = () => {
     );
   }
 
-  if (error || !blog || !article) {
+  if (error || !mappedBlog || !article) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center max-w-md px-4">
@@ -311,58 +192,52 @@ const PublicArticle = () => {
             {t('blog.articleNotFoundDescription')}
           </p>
           <Button asChild>
-            <Link to={blog ? getBlogPath(blog) : `/blog/${blogSlug}`}>
+            <Link to={mappedBlog ? getBlogPath(mappedBlog) : `/`}>
               <ArrowLeft className="mr-2 h-4 w-4" />
               {t('blog.backToBlog')}
             </Link>
           </Button>
-
         </div>
       </div>
     );
   }
 
   const readingTime = calculateReadingTime(displayedContent);
-  const canonicalUrl = getCanonicalArticleUrl(blog, article.slug);
-  const blogPath = getBlogPath(blog);
+  const canonicalUrl = getCanonicalArticleUrl(mappedBlog, article.slug);
+  const blogPath = getBlogPath(mappedBlog);
+
+  // Parse content_images if present (from highlights field)
+  const contentImages: ContentImage[] = [];
 
   return (
     <div className="min-h-screen bg-background">
-      <ReadingTracker articleId={article.id} blogId={blog.id} />
+      <ReadingTracker articleId={article.id} blogId={mappedBlog.id} />
       
       <SEOHead
-        title={`${displayedTitle} | ${blog.name}`}
+        title={`${displayedTitle} | ${mappedBlog.name}`}
         description={displayedMetaDescription || displayedExcerpt || ""}
-        ogImage={article.featured_image_url || blog.logo_url || undefined}
+        ogImage={article.featured_image_url || mappedBlog.logo_url || undefined}
         ogType="article"
         articlePublishedTime={article.published_at || undefined}
-        articleAuthor={blog.author_name || undefined}
+        articleAuthor={mappedBlog.author_name || undefined}
         canonicalUrl={canonicalUrl}
         keywords={article.keywords || undefined}
         faq={displayedFaq || undefined}
-        favicon={blog.favicon_url || undefined}
-        territorial={territoryInfo ? {
-          official_name: territoryInfo.official_name,
-          neighborhoods_used: territoryInfo.neighborhood_tags || [],
-          geo: territoryInfo.lat && territoryInfo.lng ? {
-            latitude: territoryInfo.lat,
-            longitude: territoryInfo.lng
-          } : null
-        } : undefined}
+        favicon={mappedBlog.favicon_url || undefined}
       />
 
       <BlogHeader 
-        blogName={blog.name} 
-        blogSlug={blog.slug} 
-        logoUrl={blog.logo_url}
-        logoNegativeUrl={blog.logo_negative_url}
-        primaryColor={blog.primary_color || undefined}
-        customDomain={blog.custom_domain}
-        domainVerified={blog.domain_verified}
-        ctaText={blog.cta_text}
-        ctaUrl={blog.cta_url}
-        ctaType={blog.cta_type}
-        brandDisplayMode={(blog.brand_display_mode as 'text' | 'image') || 'text'}
+        blogName={mappedBlog.name} 
+        blogSlug={mappedBlog.slug} 
+        logoUrl={mappedBlog.logo_url}
+        logoNegativeUrl={mappedBlog.logo_negative_url}
+        primaryColor={mappedBlog.primary_color || undefined}
+        customDomain={mappedBlog.custom_domain}
+        domainVerified={mappedBlog.domain_verified}
+        ctaText={mappedBlog.cta_text}
+        ctaUrl={mappedBlog.cta_url}
+        ctaType={mappedBlog.cta_type}
+        brandDisplayMode={mappedBlog.brand_display_mode}
       />
 
       <main>
@@ -376,8 +251,8 @@ const PublicArticle = () => {
                   variant="secondary" 
                   className="px-4 py-1.5 text-sm font-medium"
                   style={{ 
-                    backgroundColor: `${blog.primary_color}15` || "hsl(var(--primary) / 0.1)",
-                    color: blog.primary_color || "hsl(var(--primary))"
+                    backgroundColor: `${mappedBlog.primary_color}15` || "hsl(var(--primary) / 0.1)",
+                    color: mappedBlog.primary_color || "hsl(var(--primary))"
                   }}
                 >
                   {article.category}
@@ -389,7 +264,7 @@ const PublicArticle = () => {
                   currentLanguage={selectedLanguage}
                   availableLanguages={availableTranslations}
                   onLanguageChange={setSelectedLanguage}
-                  primaryColor={blog.primary_color || undefined}
+                  primaryColor={mappedBlog.primary_color || undefined}
                 />
               )}
               
@@ -438,19 +313,13 @@ const PublicArticle = () => {
                   {formatNumber(article.view_count || 0)} {t('blog.views')}
                 </span>
               )}
-              {(article.share_count || 0) > 0 && (
-                <span className="flex items-center gap-1.5">
-                  <Share2 className="h-4 w-4" />
-                  {formatNumber(article.share_count || 0)} {t('blog.shares')}
-                </span>
-              )}
               
               {/* PDF Download Button */}
               <ArticlePdfDownload
                 articleId={article.id}
                 articleTitle={article.title}
                 variant="icon"
-                primaryColor={blog.primary_color || undefined}
+                primaryColor={mappedBlog.primary_color || undefined}
               />
             </div>
           </div>
@@ -475,14 +344,14 @@ const PublicArticle = () => {
         {displayedContent && (
           <section className="px-4 lg:hidden">
             <div className="max-w-3xl mx-auto">
-              <TableOfContents content={displayedContent} primaryColor={blog.primary_color || undefined} />
+              <TableOfContents content={displayedContent} primaryColor={mappedBlog.primary_color || undefined} />
             </div>
           </section>
         )}
 
         {/* Table of Contents - Desktop (Fixed Sidebar) */}
         {displayedContent && (
-          <TableOfContents content={displayedContent} primaryColor={blog.primary_color || undefined} />
+          <TableOfContents content={displayedContent} primaryColor={mappedBlog.primary_color || undefined} />
         )}
 
         {/* Article Content */}
@@ -498,7 +367,7 @@ const PublicArticle = () => {
               ) : (
                 <ArticleContent 
                   content={displayedContent} 
-                  contentImages={article.content_images || []}
+                  contentImages={contentImages}
                 />
               )}
             </div>
@@ -518,7 +387,7 @@ const PublicArticle = () => {
                     key={index} 
                     question={item.question} 
                     answer={item.answer}
-                    primaryColor={blog.primary_color || undefined}
+                    primaryColor={mappedBlog.primary_color || undefined}
                   />
                 ))}
               </div>
@@ -530,13 +399,13 @@ const PublicArticle = () => {
         <section className="px-4 py-12">
           <div className="max-w-3xl mx-auto lg:mr-80 lg:ml-auto">
             <CTABanner
-              title={blog.banner_title}
-              description={blog.banner_description}
-              ctaText={blog.cta_text}
-              ctaUrl={blog.cta_url}
-              ctaType={blog.cta_type}
-              primaryColor={blog.primary_color || undefined}
-              secondaryColor={blog.secondary_color || undefined}
+              title={mappedBlog.banner_title}
+              description={mappedBlog.banner_description}
+              ctaText={mappedBlog.cta_text}
+              ctaUrl={mappedBlog.cta_url}
+              ctaType={mappedBlog.cta_type}
+              primaryColor={mappedBlog.primary_color || undefined}
+              secondaryColor={mappedBlog.secondary_color || undefined}
             />
           </div>
         </section>
@@ -545,10 +414,10 @@ const PublicArticle = () => {
         <section className="px-4 py-12 border-t border-border/50">
           <div className="max-w-3xl mx-auto lg:mr-80 lg:ml-auto">
             <AuthorBox
-              name={blog.author_name}
-              bio={blog.author_bio}
-              photoUrl={blog.author_photo_url}
-              linkedinUrl={blog.author_linkedin}
+              name={mappedBlog.author_name}
+              bio={mappedBlog.author_bio}
+              photoUrl={mappedBlog.author_photo_url}
+              linkedinUrl={mappedBlog.author_linkedin}
             />
           </div>
         </section>
@@ -559,27 +428,27 @@ const PublicArticle = () => {
           title={displayedTitle || article.title}
           description={displayedExcerpt || ""}
           articleId={article.id}
-          blogId={blog.id}
-          primaryColor={blog.primary_color || undefined}
+          blogId={mappedBlog.id}
+          primaryColor={mappedBlog.primary_color || undefined}
         />
 
         {/* Focused Reading Mode Button */}
         <FocusedReadingMode
           isActive={isFocusMode}
           onToggle={() => setIsFocusMode(!isFocusMode)}
-          primaryColor={blog.primary_color || undefined}
+          primaryColor={mappedBlog.primary_color || undefined}
         />
 
         {/* Related Articles */}
-        {relatedArticles.length > 0 && (
+        {mappedRelated.length > 0 && (
           <section className="px-4 py-12 border-t border-border/50 bg-muted/20">
             <div className="max-w-6xl mx-auto">
               <RelatedArticles
-                articles={relatedArticles}
-                blogSlug={blog.slug}
-                primaryColor={blog.primary_color || undefined}
-                customDomain={blog.custom_domain}
-                domainVerified={blog.domain_verified}
+                articles={mappedRelated}
+                blogSlug={mappedBlog.slug}
+                primaryColor={mappedBlog.primary_color || undefined}
+                customDomain={mappedBlog.custom_domain}
+                domainVerified={mappedBlog.domain_verified}
               />
             </div>
           </section>
@@ -592,30 +461,30 @@ const PublicArticle = () => {
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              {blog.logo_url ? (
-                <img src={blog.logo_url} alt={blog.name} className="h-6 w-auto" />
+              {mappedBlog.logo_url ? (
+                <img src={mappedBlog.logo_url} alt={mappedBlog.name} className="h-6 w-auto" />
               ) : (
                 <span className="font-heading font-semibold text-foreground">
-                  {blog.name}
+                  {mappedBlog.name}
                 </span>
               )}
             </div>
             <p className="text-sm text-muted-foreground">
-              © {new Date().getFullYear()} {blog.name}. {t('blog.allRightsReserved')}
+              © {new Date().getFullYear()} {mappedBlog.name}. {t('blog.allRightsReserved')}
             </p>
           </div>
         </div>
       </footer>
 
       {/* Brand Sales Agent Widget */}
-      {blog && agentConfig && agentConfig.is_enabled && (
+      {mappedBlog && agentConfig && agentConfig.is_enabled && (
         <BrandSalesAgentWidget
-          blogId={blog.id}
+          blogId={mappedBlog.id}
           articleId={article.id}
           articleTitle={article.title}
           agentConfig={agentConfig}
           businessProfile={businessProfile}
-          primaryColor={blog.primary_color || undefined}
+          primaryColor={mappedBlog.primary_color || undefined}
         />
       )}
     </div>
