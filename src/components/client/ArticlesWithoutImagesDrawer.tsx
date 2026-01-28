@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { smartNavigate, getClientArticleEditPath } from '@/utils/platformUrls';
 import { supabase } from '@/integrations/supabase/client';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -131,7 +132,7 @@ export function ArticlesWithoutImagesDrawer({
 
   const handleOpenEditor = (articleId: string) => {
     onOpenChange(false);
-    navigate(`/client/articles/${articleId}/edit`);
+    smartNavigate(navigate, getClientArticleEditPath(articleId));
   };
 
   return (

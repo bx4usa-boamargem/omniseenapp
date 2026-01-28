@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { smartNavigate, getClientArticleEditPath } from '@/utils/platformUrls';
 import { useBlog } from '@/hooks/useBlog';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -457,7 +458,7 @@ export default function ClientReviewCenter() {
 
               <Button
                 variant="outline"
-                onClick={() => navigate(`/client/articles/${article.id}/edit`)}
+                onClick={() => smartNavigate(navigate, getClientArticleEditPath(article.id))}
                 disabled={saving}
                 className="w-full gap-2"
               >

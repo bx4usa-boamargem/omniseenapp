@@ -155,3 +155,66 @@ export const resolveCurrentTenantSlug = (): string | null => {
   // Prioridade 2: Parsing do hostname
   return extractSubdomainSlug();
 };
+
+// ============ Detecção de Ambiente Lovable ============
+
+/**
+ * Detecta se está em Preview do Lovable (ambiente de desenvolvimento)
+ * Preview: id-preview--...lovable.app
+ * Published: omniseenapp.lovable.app (NÃO é preview)
+ * Dev: localhost
+ */
+export const isLovablePreviewHost = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const hostname = window.location.hostname;
+  return hostname.startsWith('id-preview--') || hostname === 'localhost' || hostname === '127.0.0.1';
+};
+
+/**
+ * Converte path relativo para URL absoluta usando origin atual
+ */
+export const toAbsoluteUrl = (path: string): string => {
+  if (typeof window === 'undefined') return path;
+  return `${window.location.origin}${path}`;
+};
+
+// ============ Helpers de Navegação de Artigos ============
+
+/**
+ * Retorna path para lista de artigos
+ */
+export const getClientArticlesListPath = (): string => '/client/articles';
+
+/**
+ * Retorna path para criar novo artigo
+ */
+export const getClientArticleCreatePath = (): string => '/client/create';
+
+/**
+ * Retorna path para editar artigo
+ */
+export const getClientArticleEditPath = (articleId: string): string => {
+  if (!articleId) {
+    console.error('[getClientArticleEditPath] articleId is required');
+    return '/client/articles';
+  }
+  return `/client/articles/${articleId}/edit`;
+};
+
+// ============ Navegação Inteligente ============
+
+/**
+ * Navega de forma inteligente baseado no ambiente:
+ * - Preview/localhost: usa navigate() (SPA, sem reload)
+ * - Published: usa window.location.assign() (hard reload, evita estado corrompido)
+ */
+export const smartNavigate = (
+  navigate: (path: string) => void,
+  path: string
+): void => {
+  if (isLovablePreviewHost()) {
+    navigate(path);
+  } else {
+    window.location.assign(toAbsoluteUrl(path));
+  }
+};

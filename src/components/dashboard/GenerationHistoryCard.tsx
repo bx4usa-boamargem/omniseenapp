@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { smartNavigate, getClientArticleEditPath } from '@/utils/platformUrls';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -246,7 +247,7 @@ export function GenerationHistoryCard({ blogId, className }: GenerationHistoryCa
 
   const handleItemClick = (item: GenerationItem) => {
     if (item.articleId) {
-      navigate(`/client/articles/${item.articleId}/edit`);
+      smartNavigate(navigate, getClientArticleEditPath(item.articleId));
     }
   };
 

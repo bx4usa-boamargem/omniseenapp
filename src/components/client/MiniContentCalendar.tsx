@@ -17,6 +17,7 @@ import {
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { smartNavigate, getClientArticleEditPath } from '@/utils/platformUrls';
 import {
   Dialog,
   DialogContent,
@@ -156,7 +157,7 @@ export function MiniContentCalendar({ blogId, onDayClick }: MiniContentCalendarP
 
   const handleArticleClick = (articleId: string) => {
     setSelectedDay(null);
-    navigate(`/client/articles/${articleId}/edit`);
+    smartNavigate(navigate, getClientArticleEditPath(articleId));
   };
 
   return (

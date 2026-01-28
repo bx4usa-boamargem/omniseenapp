@@ -21,7 +21,7 @@ const contentItems = [
     iconBg: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
     title: 'Gerar Artigo',
     subtitle: 'Crie conteúdo otimizado com IA',
-    path: '/client/articles/new',
+    path: '/client/create',
     highlight: true,
   },
   {
