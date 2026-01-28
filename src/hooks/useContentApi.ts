@@ -210,7 +210,14 @@ interface UseBlogHomeResult {
   refetch: () => Promise<void>;
 }
 
-export function useBlogHome(limit = 12, offset = 0): UseBlogHomeResult {
+interface UseBlogHomeOptions {
+  blogId?: string;   // If provided, bypasses hostname resolution
+  limit?: number;    // Default: 12
+  offset?: number;   // Default: 0
+}
+
+export function useBlogHome(options: UseBlogHomeOptions = {}): UseBlogHomeResult {
+  const { blogId, limit = 12, offset = 0 } = options;
   const [blog, setBlog] = useState<BlogMeta | null>(null);
   const [articles, setArticles] = useState<ArticleSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -221,7 +228,14 @@ export function useBlogHome(limit = 12, offset = 0): UseBlogHomeResult {
     setLoading(true);
     setError(null);
 
-    const result = await fetchContentApi<BlogHomeData>("blog.home", { limit, offset });
+    // Priority: blogId > hostname
+    let result: ContentApiResponse<BlogHomeData> | null = null;
+    
+    if (blogId) {
+      result = await fetchContentApiByBlogId<BlogHomeData>("blog.home", blogId, { limit, offset });
+    } else {
+      result = await fetchContentApi<BlogHomeData>("blog.home", { limit, offset });
+    }
 
     if (!result) {
       setError("Falha ao carregar blog");
@@ -233,7 +247,7 @@ export function useBlogHome(limit = 12, offset = 0): UseBlogHomeResult {
     setArticles(result.data.articles || []);
     setTotal(result.data.total || 0);
     setLoading(false);
-  }, [limit, offset]);
+  }, [blogId, limit, offset]);
 
   useEffect(() => {
     fetch();
