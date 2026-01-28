@@ -1,10 +1,9 @@
 import { useNavigate } from 'react-router-dom';
 import { 
   User, 
-  Link2, 
+  Building2,
+  Compass,
   CreditCard, 
-  BarChart3, 
-  Bell,
   LogOut,
   Sparkles
 } from 'lucide-react';
@@ -53,28 +52,23 @@ export function AccountBlock({ collapsed }: AccountBlockProps) {
   const menuItems: AccountMenuItem[] = [
     {
       icon: User,
-      label: 'Configurações de perfil',
-      action: () => navigateTo('/client/settings?tab=profile'),
+      label: 'Minha Conta',
+      action: () => navigateTo('/client/account'),
     },
     {
-      icon: Link2,
-      label: 'Integrações',
-      action: () => navigateTo('/client/settings?tab=integrations'),
+      icon: Building2,
+      label: 'Minha Empresa',
+      action: () => navigateTo('/client/company'),
+    },
+    {
+      icon: Compass,
+      label: 'Estratégia',
+      action: () => navigateTo('/client/radar'),
     },
     {
       icon: CreditCard,
-      label: 'Cobrança',
+      label: 'Plano & Cobrança',
       action: () => navigateTo('/client/settings?tab=billing'),
-    },
-    {
-      icon: BarChart3,
-      label: 'Uso',
-      action: () => navigateTo('/client/settings?tab=usage'),
-    },
-    {
-      icon: Bell,
-      label: 'Notificações',
-      action: () => navigateTo('/client/settings?tab=notifications'),
     },
   ];
 
@@ -91,17 +85,17 @@ export function AccountBlock({ collapsed }: AccountBlockProps) {
     <HoverCard openDelay={100} closeDelay={150}>
       <HoverCardTrigger asChild>
         <button
-          onClick={() => navigate('/client/settings')}
+          onClick={() => navigate('/client/account')}
           className={cn(
-            'account-block w-full p-3 rounded-xl cursor-pointer',
-            'transition-all duration-200 hover:bg-primary/5',
-            'flex items-center gap-3 text-left',
-            'focus:outline-none focus:ring-2 focus:ring-primary/50'
+            'account-block w-full p-2 rounded-xl cursor-pointer',
+            'transition-all duration-200 hover:bg-orange-500/5',
+            'flex items-center gap-2 text-left',
+            'focus:outline-none focus:ring-2 focus:ring-orange-500/50'
           )}
         >
-          <Avatar className="h-10 w-10 border-2 border-primary/20">
+          <Avatar className="h-8 w-8 border-2 border-orange-500/20">
             <AvatarImage src={blog?.logo_url || undefined} alt={blogName} />
-            <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
+            <AvatarFallback className="bg-orange-500/10 text-orange-600 font-semibold text-xs">
               {initials}
             </AvatarFallback>
           </Avatar>
@@ -137,13 +131,13 @@ export function AccountBlock({ collapsed }: AccountBlockProps) {
                   'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left',
                   'transition-all duration-150',
                   'text-foreground hover:bg-muted',
-                  item.highlight && 'bg-primary/5 hover:bg-primary/10',
+                  item.highlight && 'bg-orange-500/5 hover:bg-orange-500/10',
                   item.destructive && 'text-destructive hover:bg-destructive/10'
                 )}
               >
                 <Icon className={cn(
                   'h-4 w-4',
-                  item.highlight && 'text-primary',
+                  item.highlight && 'text-orange-500',
                   item.destructive && 'text-destructive'
                 )} />
                 <div className="flex-1">
@@ -166,13 +160,13 @@ export function AccountBlock({ collapsed }: AccountBlockProps) {
           className={cn(
             'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left',
             'transition-all duration-150',
-            'bg-gradient-to-r from-primary/10 to-purple-500/10',
-            'hover:from-primary/20 hover:to-purple-500/20'
+            'bg-gradient-to-r from-orange-500/10 to-amber-500/10',
+            'hover:from-orange-500/20 hover:to-amber-500/20'
           )}
         >
-          <Sparkles className="h-4 w-4 text-primary" />
+          <Sparkles className="h-4 w-4 text-orange-500" />
           <div className="flex-1">
-            <span className="text-sm font-medium text-primary">Desbloqueie recursos!</span>
+            <span className="text-sm font-medium text-orange-600 dark:text-orange-400">Desbloqueie recursos!</span>
             <p className="text-xs text-muted-foreground">Mais potência, melhor SEO</p>
           </div>
         </button>

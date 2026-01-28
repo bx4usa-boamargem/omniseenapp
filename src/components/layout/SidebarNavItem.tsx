@@ -47,10 +47,15 @@ export function SidebarNavItem({
         onClick={onClick}
         disabled={disabled}
         className={cn(
-          'w-12 h-12 rounded-xl flex items-center justify-center',
+          'relative w-10 h-10 rounded-xl flex items-center justify-center',
           'transition-all duration-200 cursor-pointer',
-          'text-muted-foreground hover:text-primary hover:bg-primary/10',
-          isActive && 'text-primary bg-primary/15 shadow-[0_0_12px_hsla(277,76%,50%,0.2)]',
+          'text-muted-foreground hover:text-orange-500 hover:bg-orange-500/10',
+          isActive && [
+            'text-orange-500',
+            'bg-orange-500/15',
+            'before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2',
+            'before:w-[3px] before:h-6 before:bg-orange-500 before:rounded-r-full'
+          ],
           disabled && 'opacity-40 cursor-not-allowed hover:bg-transparent hover:text-muted-foreground'
         )}
         aria-label={label}
@@ -62,7 +67,7 @@ export function SidebarNavItem({
       {panel && (
         <div
           className={cn(
-            'absolute left-full top-0 ml-4 z-50',
+            'absolute left-full top-0 ml-3 z-50',
             'transition-all duration-200',
             isHovered
               ? 'opacity-100 visible translate-x-0'

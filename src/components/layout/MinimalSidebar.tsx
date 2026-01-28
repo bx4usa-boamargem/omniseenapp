@@ -1,18 +1,21 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
-  PenTool, 
+  Radar, 
   FileText, 
+  LayoutTemplate, 
+  Globe, 
   Users, 
-  Bell, 
+  Settings,
   HelpCircle,
-  Layers,
-  LayoutTemplate,
-  Sparkles,
-  Radar
+  User,
+  Building2,
+  Compass,
+  CreditCard
 } from 'lucide-react';
 import { OmniseenLogo } from '@/components/ui/OmniseenLogo';
 import { SidebarNavItem } from './SidebarNavItem';
 import { SidebarHoverPanel, PanelItem } from './SidebarHoverPanel';
+import { cn } from '@/lib/utils';
 
 interface MinimalSidebarProps {
   onHelpClick: () => void;
@@ -22,88 +25,51 @@ export function MinimalSidebar({ onHelpClick }: MinimalSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Creation tools panel items
-  const creationTools: PanelItem[] = [
+  // Account panel items for hover menu
+  const accountPanelItems: PanelItem[] = [
     {
-      id: 'one-click',
-      icon: FileText,
-      iconColor: 'bg-amber-100 dark:bg-amber-900/30',
-      iconTextColor: 'text-amber-600 dark:text-amber-400',
-      title: 'Postagem de Blog com um clique',
-      subtitle: 'Crie e publique um artigo usando apenas um título.',
-      path: '/client/create',
-    },
-    {
-      id: 'bulk',
-      icon: Layers,
-      iconColor: 'bg-orange-100 dark:bg-orange-900/30',
-      iconTextColor: 'text-orange-600 dark:text-orange-400',
-      title: 'Geração de artigos em massa',
-      subtitle: 'Gere e publique até 100 artigos automaticamente.',
-      path: '/client/bulk-create',
-      comingSoon: true,
-    },
-    {
-      id: 'super-page',
-      icon: LayoutTemplate,
-      iconColor: 'bg-green-100 dark:bg-green-900/30',
-      iconTextColor: 'text-green-600 dark:text-green-400',
-      title: 'Super Página',
-      subtitle: 'Crie páginas CTA completas com base na SERP.',
-      path: '/client/landing-pages/new',
-    },
-    {
-      id: 'rewrite',
-      icon: Sparkles,
-      iconColor: 'bg-purple-100 dark:bg-purple-900/30',
-      iconTextColor: 'text-purple-600 dark:text-purple-400',
-      title: 'Ferramenta de reescrita',
-      subtitle: 'Reescreva com insights da SERP para ranquear.',
-      path: '/client/rewrite',
-      badge: 'Novo!',
-      comingSoon: true,
-    },
-  ];
-
-  // Documents panel items
-  const documentItems: PanelItem[] = [
-    {
-      id: 'articles',
-      icon: FileText,
+      id: 'my-account',
+      icon: User,
       iconColor: 'bg-blue-100 dark:bg-blue-900/30',
       iconTextColor: 'text-blue-600 dark:text-blue-400',
-      title: 'Meus Artigos',
-      subtitle: 'Visualize e gerencie todos os seus artigos.',
-      path: '/client/articles',
+      title: 'Minha Conta',
+      subtitle: 'Gerencie seu perfil e preferências.',
+      path: '/client/account',
     },
     {
-      id: 'landing-pages',
-      icon: LayoutTemplate,
+      id: 'my-company',
+      icon: Building2,
       iconColor: 'bg-emerald-100 dark:bg-emerald-900/30',
       iconTextColor: 'text-emerald-600 dark:text-emerald-400',
-      title: 'Minhas Páginas',
-      subtitle: 'Gerencie suas Super Páginas.',
-      path: '/client/landing-pages',
+      title: 'Minha Empresa',
+      subtitle: 'Configure informações do negócio.',
+      path: '/client/company',
+    },
+    {
+      id: 'strategy',
+      icon: Compass,
+      iconColor: 'bg-purple-100 dark:bg-purple-900/30',
+      iconTextColor: 'text-purple-600 dark:text-purple-400',
+      title: 'Estratégia',
+      subtitle: 'Defina sua estratégia de conteúdo.',
+      path: '/client/radar',
+    },
+    {
+      id: 'billing',
+      icon: CreditCard,
+      iconColor: 'bg-amber-100 dark:bg-amber-900/30',
+      iconTextColor: 'text-amber-600 dark:text-amber-400',
+      title: 'Plano & Cobrança',
+      subtitle: 'Gerencie sua assinatura e faturas.',
+      path: '/client/settings?tab=billing',
     },
   ];
 
-  const isCreationActive = () => {
-    return location.pathname.startsWith('/client/create') ||
-           location.pathname.startsWith('/client/bulk-create') ||
-           location.pathname.startsWith('/client/rewrite');
-  };
-
-  const isDocumentsActive = () => {
-    return location.pathname.startsWith('/client/articles') || 
-           location.pathname.startsWith('/client/landing-pages');
-  };
-
-  const isLeadsActive = () => {
-    return location.pathname.startsWith('/client/leads');
-  };
-
-  const isRadarActive = () => {
-    return location.pathname.startsWith('/client/radar');
+  const isActive = (path: string) => {
+    if (path.includes('?')) {
+      return location.pathname + location.search === path;
+    }
+    return location.pathname.startsWith(path);
   };
 
   return (
@@ -111,63 +77,104 @@ export function MinimalSidebar({ onHelpClick }: MinimalSidebarProps) {
       {/* Logo - Brand Anchor */}
       <button
         onClick={() => navigate('/client/dashboard')}
-        className="min-h-[56px] flex items-center justify-center mb-6 px-2 py-3 rounded-xl hover:bg-primary/10 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/50"
+        className="min-h-[48px] flex items-center justify-center mb-4 px-2 py-2 rounded-xl hover:bg-orange-500/10 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500/50"
         aria-label="Ir para Dashboard"
       >
         <OmniseenLogo size="sidebar" />
       </button>
 
-      {/* Navigation Icons */}
-      <nav className="flex flex-col items-center gap-2 flex-1">
-        {/* Creation - with hover panel */}
-        <SidebarNavItem
-          icon={PenTool}
-          label="Criar"
-          isActive={isCreationActive()}
-          onClick={() => navigate('/client/create')}
-          panel={<SidebarHoverPanel items={creationTools} onNavigate={navigate} />}
-        />
+      {/* Navigation Sections */}
+      <nav className="flex flex-col items-center gap-1 flex-1 w-full px-2">
+        {/* OPORTUNIDADES */}
+        <div className="w-full mb-2">
+          <span className="text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-2">
+            Oportunidades
+          </span>
+          <div className="mt-1 flex flex-col items-center">
+            <SidebarNavItem
+              icon={Radar}
+              label="Radar"
+              isActive={isActive('/client/radar')}
+              onClick={() => navigate('/client/radar')}
+            />
+          </div>
+        </div>
 
-        {/* Documents - with hover panel */}
-        <SidebarNavItem
-          icon={FileText}
-          label="Documentos"
-          isActive={isDocumentsActive()}
-          onClick={() => navigate('/client/articles')}
-          panel={<SidebarHoverPanel items={documentItems} onNavigate={navigate} />}
-        />
+        {/* CRIAR */}
+        <div className="w-full mb-2">
+          <span className="text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-2">
+            Criar
+          </span>
+          <div className="mt-1 flex flex-col items-center gap-1">
+            <SidebarNavItem
+              icon={FileText}
+              label="Artigos"
+              isActive={isActive('/client/articles')}
+              onClick={() => navigate('/client/articles')}
+            />
+            <SidebarNavItem
+              icon={LayoutTemplate}
+              label="Páginas SEO"
+              isActive={isActive('/client/landing-pages')}
+              onClick={() => navigate('/client/landing-pages')}
+            />
+          </div>
+        </div>
 
-        {/* Leads - direct navigation */}
-        <SidebarNavItem
-          icon={Users}
-          label="Leads"
-          isActive={isLeadsActive()}
-          onClick={() => navigate('/client/leads')}
-        />
+        {/* PÚBLICO */}
+        <div className="w-full mb-2">
+          <span className="text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-2">
+            Público
+          </span>
+          <div className="mt-1 flex flex-col items-center">
+            <SidebarNavItem
+              icon={Globe}
+              label="Portal"
+              isActive={isActive('/client/portal')}
+              onClick={() => navigate('/client/portal')}
+            />
+          </div>
+        </div>
 
-        {/* Radar - primary navigation */}
-        <SidebarNavItem
-          icon={Radar}
-          label="Radar"
-          isActive={isRadarActive()}
-          onClick={() => navigate('/client/radar')}
-        />
+        {/* CONVERSÕES */}
+        <div className="w-full mb-2">
+          <span className="text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-2">
+            Conversões
+          </span>
+          <div className="mt-1 flex flex-col items-center">
+            <SidebarNavItem
+              icon={Users}
+              label="Leads"
+              isActive={isActive('/client/leads')}
+              onClick={() => navigate('/client/leads')}
+            />
+          </div>
+        </div>
 
-        {/* Notifications - disabled */}
-        <SidebarNavItem
-          icon={Bell}
-          label="Notificações"
-          isActive={false}
-          disabled
-        />
+        {/* Spacer */}
+        <div className="flex-1" />
 
-        {/* Help - action */}
-        <SidebarNavItem
-          icon={HelpCircle}
-          label="Ajuda"
-          isActive={false}
-          onClick={onHelpClick}
-        />
+        {/* CONTA */}
+        <div className="w-full">
+          <span className="text-[9px] font-semibold text-muted-foreground/60 uppercase tracking-wider px-2">
+            Conta
+          </span>
+          <div className="mt-1 flex flex-col items-center gap-1">
+            <SidebarNavItem
+              icon={Settings}
+              label="Conta"
+              isActive={isActive('/client/account') || isActive('/client/company') || isActive('/client/settings')}
+              onClick={() => navigate('/client/account')}
+              panel={<SidebarHoverPanel items={accountPanelItems} onNavigate={navigate} />}
+            />
+            <SidebarNavItem
+              icon={HelpCircle}
+              label="Ajuda"
+              isActive={false}
+              onClick={onHelpClick}
+            />
+          </div>
+        </div>
       </nav>
     </div>
   );

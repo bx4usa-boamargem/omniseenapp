@@ -56,7 +56,7 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
   return (
     <div className="min-h-screen client-bg flex">
       {/* Desktop Minimal Sidebar - visible on md (768px+) */}
-      <aside className="hidden md:flex w-20 client-sidebar flex-col fixed h-full z-40 border-r border-border/50">
+      <aside className="hidden md:flex w-16 client-sidebar flex-col fixed h-full z-40 border-r border-border/50">
         <div className="flex flex-col h-full">
           {/* Top: Logo + Navigation Icons */}
           <div className="flex-1">
@@ -93,7 +93,7 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 md:ml-20">
+      <main className="flex-1 md:ml-16">
         <div className={cn('min-h-screen', isMobile ? 'pb-20' : '')}>
           <div className="p-4 md:p-8 max-w-5xl mx-auto">{children}</div>
         </div>
