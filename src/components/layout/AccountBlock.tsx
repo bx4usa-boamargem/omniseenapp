@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   User, 
@@ -7,16 +6,15 @@ import {
   BarChart3, 
   Bell,
   LogOut,
-  ChevronUp,
   Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card';
 import { useAuth } from '@/hooks/useAuth';
 import { useBlog } from '@/hooks/useBlog';
 
@@ -25,7 +23,6 @@ interface AccountMenuItem {
   label: string;
   sublabel?: string;
   action: () => void;
-  divider?: boolean;
   highlight?: boolean;
   destructive?: boolean;
 }
@@ -38,7 +35,6 @@ export function AccountBlock({ collapsed }: AccountBlockProps) {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { blog } = useBlog();
-  const [isOpen, setIsOpen] = useState(false);
 
   const handleSignOut = async () => {
     try {
@@ -52,7 +48,6 @@ export function AccountBlock({ collapsed }: AccountBlockProps) {
 
   const navigateTo = (path: string) => {
     navigate(path);
-    setIsOpen(false);
   };
 
   const menuItems: AccountMenuItem[] = [
@@ -93,9 +88,10 @@ export function AccountBlock({ collapsed }: AccountBlockProps) {
     .toUpperCase();
 
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
+    <HoverCard openDelay={100} closeDelay={150}>
+      <HoverCardTrigger asChild>
         <button
+          onClick={() => navigate('/client/settings')}
           className={cn(
             'account-block w-full p-3 rounded-xl cursor-pointer',
             'transition-all duration-200 hover:bg-primary/5',
@@ -120,17 +116,10 @@ export function AccountBlock({ collapsed }: AccountBlockProps) {
               </p>
             </div>
           )}
-          
-          {!collapsed && (
-            <ChevronUp className={cn(
-              'h-4 w-4 text-muted-foreground transition-transform duration-200',
-              isOpen && 'rotate-180'
-            )} />
-          )}
         </button>
-      </PopoverTrigger>
+      </HoverCardTrigger>
 
-      <PopoverContent 
+      <HoverCardContent 
         side="top" 
         align="start" 
         className="w-64 p-2"
@@ -203,7 +192,7 @@ export function AccountBlock({ collapsed }: AccountBlockProps) {
           <LogOut className="h-4 w-4" />
           <span className="text-sm font-medium">Sair</span>
         </button>
-      </PopoverContent>
-    </Popover>
+      </HoverCardContent>
+    </HoverCard>
   );
 }
