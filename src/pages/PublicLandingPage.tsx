@@ -12,10 +12,10 @@ import { SpecialistAuthorityLayout } from "@/components/client/landingpage/layou
 import { inferVisibilityFromPageData } from "@/components/client/landingpage/utils/pageDataNormalizer";
 
 export default function PublicLandingPage() {
-  const { pageSlug } = useParams();
+  const { blogSlug, pageSlug } = useParams<{ blogSlug?: string; pageSlug: string }>();
 
-  // Use content-api hooks (bypass RLS via service_role)
-  const { blog, page, loading, error } = useLandingPage(pageSlug);
+  // Use content-api hooks with blogSlug for preview environment support
+  const { blog, page, loading, error } = useLandingPage(pageSlug, { blogSlug });
   const { agentConfig, businessProfile } = useAgentConfig();
 
   const primaryColor = useMemo(() => blog?.primary_color || "#6366f1", [blog?.primary_color]);

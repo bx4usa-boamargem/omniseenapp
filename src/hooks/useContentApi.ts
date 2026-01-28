@@ -164,6 +164,32 @@ export async function fetchContentApiByBlogId<T>(
   }
 }
 
+/**
+ * Fetch content-api with blog_slug (bypasses hostname resolution)
+ * Useful for routes like /blog/:blogSlug/:articleSlug
+ */
+export async function fetchContentApiByBlogSlug<T>(
+  route: ContentRoute,
+  blogSlug: string,
+  params: Record<string, unknown> = {}
+): Promise<ContentApiResponse<T> | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke("content-api", {
+      body: { blog_slug: blogSlug, route, params },
+    });
+
+    if (error) {
+      console.error("[useContentApi] Edge function error (by blog_slug):", error);
+      return null;
+    }
+
+    return data as ContentApiResponse<T>;
+  } catch (err) {
+    console.error("[useContentApi] Fetch error (by blog_slug):", err);
+    return null;
+  }
+}
+
 // ============================================================
 // HOOK: useBlogHome - Fetch blog home with articles
 // ============================================================
@@ -235,7 +261,8 @@ interface UseBlogArticleResult {
 }
 
 interface UseBlogArticleOptions {
-  blogId?: string; // If provided, bypasses hostname resolution
+  blogId?: string;   // If provided, bypasses hostname resolution
+  blogSlug?: string; // If provided, resolves by blog slug
 }
 
 export function useBlogArticle(
@@ -259,10 +286,16 @@ export function useBlogArticle(
       setLoading(true);
       setError(null);
 
-      // If blogId is provided, bypass hostname resolution
-      const result = options?.blogId
-        ? await fetchContentApiByBlogId<BlogArticleData>("blog.article", options.blogId, { slug })
-        : await fetchContentApi<BlogArticleData>("blog.article", { slug });
+      // Priority: blogId > blogSlug > hostname
+      let result: ContentApiResponse<BlogArticleData> | null = null;
+      
+      if (options?.blogId) {
+        result = await fetchContentApiByBlogId<BlogArticleData>("blog.article", options.blogId, { slug });
+      } else if (options?.blogSlug) {
+        result = await fetchContentApiByBlogSlug<BlogArticleData>("blog.article", options.blogSlug, { slug });
+      } else {
+        result = await fetchContentApi<BlogArticleData>("blog.article", { slug });
+      }
 
       if (!result) {
         setError("Falha ao carregar artigo");
@@ -283,7 +316,7 @@ export function useBlogArticle(
     };
 
     fetch();
-  }, [slug, options?.blogId]);
+  }, [slug, options?.blogId, options?.blogSlug]);
 
   return { blog, article, related, loading, error };
 }
@@ -304,7 +337,15 @@ interface UseLandingPageResult {
   error: string | null;
 }
 
-export function useLandingPage(slug: string | undefined): UseLandingPageResult {
+interface UseLandingPageOptions {
+  blogId?: string;   // If provided, bypasses hostname resolution
+  blogSlug?: string; // If provided, resolves by blog slug
+}
+
+export function useLandingPage(
+  slug: string | undefined,
+  options?: UseLandingPageOptions
+): UseLandingPageResult {
   const [blog, setBlog] = useState<BlogMeta | null>(null);
   const [page, setPage] = useState<LandingPage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -321,7 +362,16 @@ export function useLandingPage(slug: string | undefined): UseLandingPageResult {
       setLoading(true);
       setError(null);
 
-      const result = await fetchContentApi<LandingPageData>("page.landing", { slug });
+      // Priority: blogId > blogSlug > hostname
+      let result: ContentApiResponse<LandingPageData> | null = null;
+      
+      if (options?.blogId) {
+        result = await fetchContentApiByBlogId<LandingPageData>("page.landing", options.blogId, { slug });
+      } else if (options?.blogSlug) {
+        result = await fetchContentApiByBlogSlug<LandingPageData>("page.landing", options.blogSlug, { slug });
+      } else {
+        result = await fetchContentApi<LandingPageData>("page.landing", { slug });
+      }
 
       if (!result) {
         setError("Falha ao carregar página");
@@ -341,7 +391,7 @@ export function useLandingPage(slug: string | undefined): UseLandingPageResult {
     };
 
     fetch();
-  }, [slug]);
+  }, [slug, options?.blogId, options?.blogSlug]);
 
   return { blog, page, loading, error };
 }

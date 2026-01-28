@@ -69,10 +69,10 @@ const calculateReadingTime = (content?: string | null): number => {
 const PublicArticle = () => {
   const { t } = useTranslation();
   const { formatDateLong, formatNumber } = useLocaleFormat();
-  const { articleSlug } = useParams<{ blogSlug: string; articleSlug: string }>();
+  const { blogSlug, articleSlug } = useParams<{ blogSlug: string; articleSlug: string }>();
   
-  // Use content-api hooks (bypass RLS via service_role)
-  const { blog, article, related, loading, error } = useBlogArticle(articleSlug);
+  // Use content-api hooks with blogSlug for preview environment support
+  const { blog, article, related, loading, error } = useBlogArticle(articleSlug, { blogSlug });
   const { agentConfig, businessProfile } = useAgentConfig();
   
   const [selectedLanguage, setSelectedLanguage] = useState<string>('pt-BR');

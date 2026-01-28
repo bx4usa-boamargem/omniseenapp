@@ -19,6 +19,7 @@ type ContentRoute =
 interface ContentRequest {
   host?: string;              // Hostname for resolution
   blog_id?: string;           // Direct blog_id (bypasses hostname resolution)
+  blog_slug?: string;         // Blog slug for resolution (NEW)
   route: ContentRoute;
   params?: Record<string, unknown>;
 }
@@ -63,24 +64,24 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { host, blog_id, route, params = {} } = await req.json() as ContentRequest;
+    const { host, blog_id, blog_slug, route, params = {} } = await req.json() as ContentRequest;
 
-    // Must have either host or blog_id
-    if (!route || (!host && !blog_id)) {
+    // Must have either host, blog_id, or blog_slug
+    if (!route || (!host && !blog_id && !blog_slug)) {
       return new Response(
-        JSON.stringify({ error: "Missing required fields: route and (host or blog_id)" }),
+        JSON.stringify({ error: "Missing required fields: route and (host or blog_id or blog_slug)" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`[content-api] Request: host=${host}, blog_id=${blog_id}, route=${route}, params=${JSON.stringify(params)}`);
+    console.log(`[content-api] Request: host=${host}, blog_id=${blog_id}, blog_slug=${blog_slug}, route=${route}, params=${JSON.stringify(params)}`);
 
     // Create Supabase client with service role (bypasses RLS)
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase: SupabaseClientAny = createClient(supabaseUrl, serviceRoleKey);
 
-    // Step 1: Resolve tenant - either by direct blog_id or by host
+    // Step 1: Resolve tenant - priority: blog_id > blog_slug > host
     let tenant: TenantResolution | null = null;
     
     if (blog_id) {
@@ -93,14 +94,32 @@ Deno.serve(async (req) => {
         domain_type: "subdomain",
         status: "active",
       };
+    } else if (blog_slug) {
+      // Resolve by blog slug
+      console.log(`[content-api] Resolving by blog_slug: ${blog_slug}`);
+      const { data: blogBySlug } = await supabase
+        .from("blogs")
+        .select("id, tenant_id")
+        .eq("slug", blog_slug)
+        .maybeSingle();
+      
+      if (blogBySlug?.id) {
+        tenant = {
+          blog_id: String(blogBySlug.id),
+          tenant_id: blogBySlug.tenant_id ? String(blogBySlug.tenant_id) : null,
+          domain: `${blog_slug}.app.omniseen.app`,
+          domain_type: "subdomain",
+          status: "active",
+        };
+      }
     } else if (host) {
       tenant = await resolveTenant(supabase, host);
     }
     
     if (!tenant) {
-      console.log(`[content-api] Tenant not found for host: ${host}, blog_id: ${blog_id}`);
+      console.log(`[content-api] Tenant not found for host: ${host}, blog_id: ${blog_id}, blog_slug: ${blog_slug}`);
       return new Response(
-        JSON.stringify({ error: "Tenant not found", host, blog_id }),
+        JSON.stringify({ error: "Tenant not found", host, blog_id, blog_slug }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
