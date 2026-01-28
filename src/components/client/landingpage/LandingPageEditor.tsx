@@ -1,6 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useRef } from "react";
 import { 
   Sparkles, 
   Save, 
@@ -13,6 +12,7 @@ import {
   Trash2,
   BarChart3
 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -67,7 +67,21 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
     return () => { isMounted.current = false; };
   }, []);
 
-  const { generatePage, savePage, updatePage, deletePage, publishPage, unpublishPage, generating, saving, analyzeSEO, fixSEO, regeneratePage } = useLandingPages();
+  const { 
+    generatePage, 
+    createPagePlaceholder, 
+    generatePageContent, 
+    savePage, 
+    updatePage, 
+    deletePage, 
+    publishPage, 
+    unpublishPage, 
+    generating, 
+    saving, 
+    analyzeSEO, 
+    fixSEO, 
+    regeneratePage 
+  } = useLandingPages();
 
   const publicBaseUrl = blog ? getCanonicalBlogUrl(blog) : "";
 
@@ -86,6 +100,11 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
   const [isFixingSEO, setIsFixingSEO] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [seoKeywords, setSeoKeywords] = useState<string[]>([]);
+  
+  // Early Redirect Pattern: Generation progress state
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [generationStage, setGenerationStage] = useState<string | null>(null);
+  const generationTriggeredRef = useRef(false);
 
   // Fetch business profile for generation context
   const [businessProfile, setBusinessProfile] = useState<any>(null);
@@ -162,6 +181,56 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
     }
   };
 
+  // ============================================================
+  // EARLY REDIRECT PATTERN: Detect status "generating" and start generation
+  // ============================================================
+  useEffect(() => {
+    const runGeneration = async () => {
+      const pageStatus = page?.status as string;
+      if (
+        pageStatus === "generating" && 
+        !generating && 
+        blog?.id && 
+        !generationTriggeredRef.current
+      ) {
+        generationTriggeredRef.current = true;
+        console.log("[EarlyRedirect] Detected generating status, starting content generation");
+        
+        setGenerationStage("Gerando estrutura...");
+        setGenerationProgress(10);
+        
+        const progressInterval = setInterval(() => {
+          setGenerationProgress(prev => Math.min(prev + 5, 85));
+        }, 2000);
+        
+        const success = await generatePageContent(page.id, {
+          blog_id: blog.id,
+          company_name: businessProfile?.company_name,
+          niche: businessProfile?.niche,
+          city: businessProfile?.city,
+          services: businessProfile?.services?.split(','),
+          phone: businessProfile?.phone || "",
+          template_type: (page.page_data as any)?.template || 'service_authority_v1'
+        });
+        
+        clearInterval(progressInterval);
+        setGenerationProgress(100);
+        
+        if (success) {
+          setGenerationStage(null);
+          generationTriggeredRef.current = false;
+          // Reload page with final data
+          await loadPage();
+        } else {
+          setGenerationStage("Erro na geração");
+          generationTriggeredRef.current = false;
+        }
+      }
+    };
+    
+    runGeneration();
+  }, [page?.status, generating, blog?.id, businessProfile, generatePageContent]);
+
   const handleSave = async (dataToSave?: any) => {
     const finalData = dataToSave || pageData;
     if (!blog?.id || !finalData) {
@@ -194,30 +263,20 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
     }
   };
 
+  // ============================================================
+  // EARLY REDIRECT PATTERN: Create placeholder and navigate immediately
+  // ============================================================
   const handleGenerate = async () => {
     if (!blog?.id) return;
 
-    // Reset state completely before generation to avoid DOM conflicts
-    setPageData(null);
-    setPage(null);
-    setTitle("");
-    setSlug("");
+    // 1. Create placeholder IMMEDIATELY
+    const placeholder = await createPagePlaceholder(blog.id, selectedTemplate);
+    if (!placeholder) return;
 
-    const result = await generatePage({
-      blog_id: blog.id,
-      company_name: businessProfile?.company_name,
-      niche: businessProfile?.niche,
-      city: businessProfile?.city,
-      services: businessProfile?.services?.split(','),
-      phone: businessProfile?.phone || "",
-      template_type: selectedTemplate
-    });
-
-    if (result && isMounted.current) {
-      // Navigate to the new page instead of forcing reload
-      // This prevents DOM conflicts with React's virtual DOM
-      navigate(`/client/landing-pages/${result.id}`, { replace: true });
-    }
+    console.log("[handleGenerate] Placeholder created, navigating to:", placeholder.id);
+    
+    // 2. Navigate IMMEDIATELY to the editor
+    navigate(`/client/landing-pages/${placeholder.id}`, { replace: true });
   };
 
   const handlePublish = async () => {
@@ -344,6 +403,32 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
     return (
       <div className="flex items-center justify-center h-96">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // ============================================================
+  // EARLY REDIRECT PATTERN: Show generation progress UI
+  // ============================================================
+  const pageStatus = page?.status as string;
+  if (pageStatus === "generating" || (generating && !pageData)) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Card className="p-8 max-w-md w-full">
+          <div className="space-y-6 text-center">
+            <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
+            <div>
+              <h3 className="font-semibold text-lg">Gerando sua Super Página...</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                {generationStage || "Preparando conteúdo..."}
+              </p>
+            </div>
+            <Progress value={generationProgress} className="h-2" />
+            <p className="text-xs text-muted-foreground">
+              Isso pode levar alguns minutos para páginas com muitas imagens.
+            </p>
+          </div>
+        </Card>
       </div>
     );
   }

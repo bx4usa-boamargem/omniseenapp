@@ -7,7 +7,8 @@ import {
   HelpCircle,
   Layers,
   LayoutTemplate,
-  Sparkles
+  Sparkles,
+  Radar
 } from 'lucide-react';
 import { OmniseenLogo } from '@/components/ui/OmniseenLogo';
 import { SidebarNavItem } from './SidebarNavItem';
@@ -101,6 +102,10 @@ export function MinimalSidebar({ onHelpClick }: MinimalSidebarProps) {
     return location.pathname.startsWith('/client/leads');
   };
 
+  const isRadarActive = () => {
+    return location.pathname.startsWith('/client/radar');
+  };
+
   return (
     <div className="flex flex-col items-center h-full py-4">
       {/* Logo - Brand Anchor */}
@@ -136,6 +141,14 @@ export function MinimalSidebar({ onHelpClick }: MinimalSidebarProps) {
           label="Leads"
           isActive={isLeadsActive()}
           onClick={() => navigate('/client/leads')}
+        />
+
+        {/* Radar - primary navigation */}
+        <SidebarNavItem
+          icon={Radar}
+          label="Radar"
+          isActive={isRadarActive()}
+          onClick={() => navigate('/client/radar')}
         />
 
         {/* Notifications - disabled */}

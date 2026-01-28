@@ -11,7 +11,7 @@ const sizeClasses = {
   sm: "h-8",
   md: "h-10",
   lg: "h-14",
-  sidebar: "h-12 max-w-[56px]",
+  sidebar: "h-14 max-w-[80px]",
 };
 
 export function OmniseenLogo({ size = 'md', variant = 'light', className }: OmniseenLogoProps) {

@@ -11,6 +11,8 @@ interface UseLandingPagesReturn {
   saving: boolean;
   fetchPages: (blogId: string) => Promise<void>;
   generatePage: (request: GenerateLandingPageRequest) => Promise<LandingPage | null>;
+  createPagePlaceholder: (blogId: string, templateType: string) => Promise<{ id: string } | null>;
+  generatePageContent: (pageId: string, request: GenerateLandingPageRequest) => Promise<boolean>;
   savePage: (page: Partial<LandingPage> & { blog_id: string }) => Promise<LandingPage | null>;
   updatePage: (id: string, updates: Partial<LandingPage>) => Promise<boolean>;
   deletePage: (id: string) => Promise<boolean>;
@@ -229,6 +231,128 @@ export function useLandingPages(): UseLandingPagesReturn {
       toast.error("Erro ao carregar landing pages");
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  // ============================================================
+  // EARLY REDIRECT PATTERN: Create placeholder with status "generating"
+  // ============================================================
+  const createPagePlaceholder = useCallback(async (
+    blogId: string, 
+    templateType: string
+  ): Promise<{ id: string } | null> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+      
+      const timestamp = Date.now();
+      const { data, error } = await supabase
+        .from("landing_pages")
+        .insert({
+          blog_id: blogId,
+          user_id: user.id,
+          title: "Nova Super Página",
+          slug: `super-pagina-${timestamp}`,
+          status: "generating",
+          page_data: { template: templateType },
+          template_type: templateType,
+          generation_source: 'ai',
+        })
+        .select("id")
+        .single();
+      
+      if (error) throw error;
+      console.log("[createPagePlaceholder] Created placeholder with id:", data.id);
+      return data;
+    } catch (err) {
+      console.error("[createPagePlaceholder] Error:", err);
+      toast.error("Erro ao criar página");
+      return null;
+    }
+  }, []);
+
+  // ============================================================
+  // EARLY REDIRECT PATTERN: Generate content for existing placeholder
+  // ============================================================
+  const generatePageContent = useCallback(async (
+    pageId: string,
+    request: GenerateLandingPageRequest
+  ): Promise<boolean> => {
+    setGenerating(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+      
+      toast.info("Gerando estrutura da página...");
+      
+      // 1. Generate structure via Edge Function
+      const { data, error } = await supabase.functions.invoke("generate-landing-page", {
+        body: request,
+      });
+
+      if (error || !data.success) {
+        throw new Error(data?.error || "IA generation failed");
+      }
+      
+      let pageData = data.page_data;
+      const isPro = pageData.template === 'service_authority_pro_v1';
+      
+      // 2. Image resolution
+      if (isPro) {
+        toast.info("Gerando 15+ imagens fotográficas profissionais...");
+        const imageResult = await resolveAllProImages(pageData, request.blog_id, user.id);
+        pageData = imageResult.data;
+      } else {
+        if (pageData.hero?.image_prompt) {
+          const heroUrl = await generateImageWithRetry(
+            pageData.hero.image_prompt, 'hero', request.blog_id, user.id
+          );
+          pageData.hero.image_url = heroUrl;
+        }
+        if (Array.isArray(pageData.services)) {
+          for (let i = 0; i < pageData.services.length; i++) {
+            if (pageData.services[i].image_prompt) {
+              const svcUrl = await generateImageWithRetry(
+                pageData.services[i].image_prompt, `service_${i}`, request.blog_id, user.id
+              );
+              pageData.services[i].image_url = svcUrl;
+            }
+          }
+        }
+      }
+
+      // 3. Update placeholder with complete content
+      const { error: updateError } = await supabase
+        .from("landing_pages")
+        .update({
+          title: data.seo_title || pageData.hero?.headline || "Nova Super Página",
+          page_data: pageData,
+          template_type: pageData.template || request.template_type || 'service_authority_v1',
+          status: 'published',
+          published_at: new Date().toISOString(),
+          seo_title: data.seo_title || pageData.hero?.headline || "Nova Super Página",
+          seo_description: data.seo_description || pageData.hero?.subheadline || "",
+          seo_keywords: data.seo_keywords || [],
+        })
+        .eq("id", pageId);
+
+      if (updateError) throw updateError;
+
+      toast.success(isPro ? "🎉 Super Página PRO criada!" : "Super Página gerada!");
+      return true;
+    } catch (err: any) {
+      console.error("[generatePageContent] Error:", err);
+      
+      // Mark as draft on failure
+      await supabase
+        .from("landing_pages")
+        .update({ status: 'draft' })
+        .eq("id", pageId);
+      
+      toast.error(err.message || "Falha na geração");
+      return false;
+    } finally {
+      setGenerating(false);
     }
   }, []);
 
@@ -714,6 +838,8 @@ export function useLandingPages(): UseLandingPagesReturn {
     saving,
     fetchPages,
     generatePage,
+    createPagePlaceholder,
+    generatePageContent,
     savePage,
     updatePage,
     deletePage,

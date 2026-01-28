@@ -309,7 +309,103 @@ export default function ClientArticleEditor() {
         return;
       }
 
-      // Populate state from existing article
+      // ============================================================
+      // EARLY REDIRECT PATTERN: Detect status "generating" and start stream
+      // ============================================================
+      const articleStatus = data.status as string;
+      if (articleStatus === "generating") {
+        console.log("[loadExistingArticle] Detected generating status, starting stream");
+        setExistingArticleId(data.id);
+        setTitle(data.title || '');
+        setPhase('generating');
+        setIsGenerating(true);
+        setGenerationStage('analyzing');
+        setGenerationProgress(0);
+        
+        // Retrieve stored form data from localStorage
+        let storedFormData: {
+          theme?: string;
+          generationMode?: 'fast' | 'deep';
+          generateImages?: boolean;
+          scheduleMode?: string;
+          scheduledDate?: string;
+          scheduledTime?: string;
+        } = {};
+        
+        try {
+          const stored = localStorage.getItem('pendingArticleGeneration');
+          if (stored) {
+            storedFormData = JSON.parse(stored);
+            localStorage.removeItem('pendingArticleGeneration');
+          }
+        } catch (e) {
+          console.warn('[loadExistingArticle] Could not parse stored form data');
+        }
+        
+        const shouldGenerateImages = storedFormData.generateImages !== false;
+        const generationMode = storedFormData.generationMode || 'fast';
+        
+        await streamArticle({
+          theme: data.title,
+          blogId: blog?.id || data.blog_id,
+          generationMode,
+          tone: 'friendly',
+          autoPublish: true,
+          onStage: (stage) => setGenerationStage(stage),
+          onProgress: (percent) => setGenerationProgress(percent),
+          onDelta: (text) => setStreamingText((prev) => prev + text),
+          onDone: async (result) => {
+            setIsGenerating(false);
+            setGenerationStage(null);
+            generationLockRef.current = false;
+
+            if (result) {
+              // Update state
+              setTitle(result.title);
+              setContent(result.content);
+              setExcerpt(result.excerpt);
+              setMetaDescription(result.meta_description);
+              setFaq(result.faq || []);
+              
+              // Update placeholder with generated content
+              await supabase
+                .from('articles')
+                .update({
+                  title: result.title,
+                  content: result.content,
+                  excerpt: result.excerpt,
+                  meta_description: result.meta_description,
+                  faq: result.faq || [],
+                  status: 'published',
+                  published_at: new Date().toISOString(),
+                })
+                .eq('id', data.id);
+
+              setPhase('editing');
+              toast.success('Artigo gerado!');
+              
+              // Generate images if enabled
+              if (shouldGenerateImages) {
+                toast.info('Gerando imagens...');
+                await generateImagesWithArticleId(result, data.id);
+              }
+            }
+          },
+          onError: (error) => {
+            setIsGenerating(false);
+            setGenerationStage(null);
+            generationLockRef.current = false;
+            toast.error(error || 'Erro ao gerar artigo');
+            
+            // Mark as draft on error
+            supabase.from('articles').update({ status: 'draft' }).eq('id', data.id);
+            setPhase('form');
+          },
+        });
+        return; // Early return - generation in progress
+      }
+
+      // Normal flow for existing articles
       setExistingArticleId(data.id);
       setExistingArticleSlug(data.slug || null);
       setTitle(data.title || '');
@@ -378,6 +474,44 @@ export default function ClientArticleEditor() {
       }
     : null;
 
+  // ============================================================
+  // EARLY REDIRECT PATTERN: Create placeholder and navigate immediately
+  // ============================================================
+  const createArticlePlaceholder = async (blogId: string, theme: string): Promise<string | null> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("User not authenticated");
+      
+      const slug = theme
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)/g, "")
+        .substring(0, 60) + `-${Date.now()}`;
+      
+      const { data, error } = await supabase
+        .from("articles")
+        .insert({
+          blog_id: blogId,
+          title: theme,
+          slug,
+          status: "generating",
+          generation_source: "form",
+        })
+        .select("id")
+        .single();
+      
+      if (error) throw error;
+      console.log("[createArticlePlaceholder] Created placeholder:", data.id);
+      return data.id;
+    } catch (err) {
+      console.error("[createArticlePlaceholder] Error:", err);
+      toast.error("Erro ao criar artigo");
+      return null;
+    }
+  };
+
   const handleGenerate = async (formData: SimpleFormData) => {
     if (!blog?.id) {
       toast.error('Blog não encontrado. Recarregue a página.');
@@ -391,6 +525,7 @@ export default function ClientArticleEditor() {
     generationLockRef.current = true;
 
     try {
+      // Check for duplicates
       const flowResult = await ensureSingleArticle(blog.id, formData.theme);
 
       if (flowResult.action === 'update' && flowResult.articleId) {
@@ -400,119 +535,34 @@ export default function ClientArticleEditor() {
         navigate(`/client/articles/${flowResult.articleId}/edit`);
         return;
       }
-    } catch (guardError) {
-      console.error('[GUARD] Error checking for duplicates:', guardError);
+
+      // 1. Create placeholder IMMEDIATELY
+      const placeholderId = await createArticlePlaceholder(blog.id, formData.theme);
+      if (!placeholderId) {
+        generationLockRef.current = false;
+        return;
+      }
+
+      // Store form data for generation inside editor
+      localStorage.setItem('pendingArticleGeneration', JSON.stringify({
+        theme: formData.theme,
+        generationMode: formData.generationMode,
+        generateImages: formData.generateImages,
+        scheduleMode: formData.scheduleMode,
+        scheduledDate: formData.scheduledDate?.toISOString(),
+        scheduledTime: formData.scheduledTime,
+      }));
+
+      console.log("[handleGenerate] Navigating to:", placeholderId);
+      
+      // 2. Navigate IMMEDIATELY to the editor
+      navigate(`/client/articles/${placeholderId}/edit`, { replace: true });
+      
+    } catch (err) {
+      console.error("[handleGenerate] Error:", err);
+      generationLockRef.current = false;
+      toast.error("Erro ao iniciar geração");
     }
-
-    // Reset state
-    setPhase('generating');
-    setIsGenerating(true);
-    setStreamingText('');
-    setTitle('');
-    setContent('');
-    setExcerpt('');
-    setMetaDescription('');
-    setFaq([]);
-    setFeaturedImage(null);
-    setContentImages([]);
-    setGenerationStage('analyzing');
-    setGenerationProgress(0);
-
-    const shouldAutoPublish = formData.scheduleMode === 'now';
-    const shouldGenerateImages = formData.generateImages;
-
-    await streamArticle({
-      theme: formData.theme,
-      blogId: blog.id,
-      generationMode: formData.generationMode,
-      tone: 'friendly',
-      autoPublish: shouldAutoPublish,
-      onStage: (stage) => setGenerationStage(stage),
-      onProgress: (percent) => setGenerationProgress(percent),
-      onDelta: (text) => {
-        setStreamingText((prev) => prev + text);
-      },
-      onDone: async (result) => {
-        setIsGenerating(false);
-        setGenerationStage(null);
-        generationLockRef.current = false;
-
-        if (result) {
-          setTitle(result.title);
-          setContent(result.content);
-          setExcerpt(result.excerpt);
-          setMetaDescription(result.meta_description);
-          setFaq(result.faq || []);
-
-          const backendArticleId = (result as ArticleData & { id?: string }).id;
-
-          if (backendArticleId) {
-            setExistingArticleId(backendArticleId);
-            console.log(
-              `[BACKEND PERSISTED] Using backend article id=${backendArticleId} - NO frontend INSERT`
-            );
-
-            if (quickMode) {
-              toast.success('Artigo criado! Redirecionando...');
-
-              if (shouldGenerateImages) {
-                generateImagesWithArticleId(result, backendArticleId).catch(console.error);
-              }
-
-              navigate(`/client/articles/${backendArticleId}/edit`, { replace: true });
-              return;
-            }
-
-            if (formData.scheduleMode === 'scheduled' && formData.scheduledDate) {
-              try {
-                const [hours, minutes] = (formData.scheduledTime || '09:00').split(':').map(Number);
-                const scheduledAt = new Date(formData.scheduledDate);
-                scheduledAt.setHours(hours, minutes, 0, 0);
-
-                await supabase
-                  .from('articles')
-                  .update({
-                    status: 'scheduled',
-                    scheduled_at: scheduledAt.toISOString(),
-                    published_at: null,
-                  })
-                  .eq('id', backendArticleId);
-
-                console.log(`[SCHEDULED] Article scheduled for ${scheduledAt.toISOString()}`);
-                toast.success(
-                  `Artigo agendado para ${scheduledAt.toLocaleDateString('pt-BR')} às ${formData.scheduledTime}!`
-                );
-              } catch (scheduleError) {
-                console.error('[SCHEDULE ERROR]', scheduleError);
-                toast.error('Erro ao agendar artigo');
-              }
-            } else {
-              toast.success(shouldAutoPublish ? 'Artigo publicado!' : 'Artigo gerado!');
-            }
-
-            setPhase('editing');
-
-            if (shouldGenerateImages) {
-              toast.info('Gerando imagens...');
-              await generateImagesWithArticleId(result, backendArticleId);
-            } else {
-              console.log('[SKIP IMAGES] User disabled image generation');
-            }
-          } else {
-            console.warn('[FALLBACK] Backend did not return article id');
-            setPhase('editing');
-            toast.warning('Artigo gerado, mas imagens serão salvas apenas ao publicar');
-          }
-        }
-      },
-      onError: (error) => {
-        setIsGenerating(false);
-        setGenerationStage(null);
-        setPhase('form');
-        generationLockRef.current = false;
-        toast.error(error || 'Erro ao gerar artigo');
-      },
-    });
   };
 
   // Dedicated function for generating images with a known article_id
