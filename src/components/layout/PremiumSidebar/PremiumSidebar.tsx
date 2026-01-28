@@ -1,22 +1,14 @@
 import { useCallback, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import {
-  Home,
-  FileText,
-  BarChart3,
-  MessageSquare,
-  Settings,
-} from 'lucide-react';
+import { Home, Pencil, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { SidebarHeader } from './SidebarHeader';
 import { NavItem } from './NavItem';
 import { HubMenuItem } from './HubMenuItem';
 import { ContentHubPanel } from './ContentHubPanel';
-import { AccountHubPanel } from './AccountHubPanel';
-import { SidebarFooter } from './SidebarFooter';
+import { AccountFooter } from './AccountFooter';
 import { MobileDrawer, MobileMenuButton } from './MobileDrawer';
-import { UserMenu } from './UserMenu';
 
 interface PremiumSidebarProps {
   isPlatformAdmin?: boolean;
@@ -25,50 +17,39 @@ interface PremiumSidebarProps {
 
 /**
  * Premium Sidebar - Design Limpo com Hubs Flutuantes
- * 
- * Estrutura:
+ *
+ * Estrutura simplificada:
  * - Logo OmniSeen oficial no topo
- * - 5 itens principais (Dashboard, Conteúdo HUB, Analytics, Conversões, Conta HUB)
- * - Hubs abrem menus flutuantes ao hover/click
- * - Footer com seletor de workspace
+ * - 3 itens principais (Dashboard, Conteúdo HUB, Conversões)
+ * - Footer com AccountFooter (HUB da conta)
  */
 export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { signOut } = useAuth();
-  
-  const [menuOpen, setMenuOpen] = useState(false);
+
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Determinar hub/item ativo baseado na rota
   const getActiveHub = useCallback(() => {
     const path = location.pathname;
-    
+
     // Dashboard
     if (path.includes('/dashboard')) return 'dashboard';
-    
+
     // Hub: Conteúdo (agrupa várias rotas)
     if (
-      path.includes('/articles') || 
-      path.includes('/radar') || 
-      path.includes('/portal') || 
+      path.includes('/articles') ||
+      path.includes('/radar') ||
+      path.includes('/portal') ||
       path.includes('/landing-pages')
-    ) return 'content';
-    
-    // Analytics
-    if (path.includes('/analytics')) return 'analytics';
-    
+    )
+      return 'content';
+
     // Conversões
     if (path.includes('/leads')) return 'conversions';
-    
-    // Hub: Conta & Sistema
-    if (
-      path.includes('/account') || 
-      path.includes('/company') || 
-      path.includes('/settings') || 
-      path.includes('/help')
-    ) return 'account';
-    
+
+    // Rotas de conta são tratadas no footer, não marcam item ativo no corpo
     return 'dashboard';
   }, [location.pathname]);
 
@@ -79,10 +60,13 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
   }, [getActiveHub]);
 
   // Handler de navegação
-  const handleNavigate = useCallback((path: string) => {
-    setMobileOpen(false);
-    navigate(path);
-  }, [navigate]);
+  const handleNavigate = useCallback(
+    (path: string) => {
+      setMobileOpen(false);
+      navigate(path);
+    },
+    [navigate]
+  );
 
   // Handler de logout
   const handleLogout = useCallback(async () => {
@@ -105,10 +89,10 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
         {/* Header com Logo Oficial */}
         <SidebarHeader />
 
-        {/* Navegação Principal */}
+        {/* Navegação Principal - Apenas 3 itens */}
         <nav className="flex-1 py-4 overflow-y-auto scrollbar-custom">
           {/* Dashboard - Link direto */}
-          <NavItem 
+          <NavItem
             id="dashboard"
             icon={Home}
             label="Dashboard"
@@ -116,63 +100,36 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
             onClick={() => handleNavigate('/client/dashboard')}
           />
 
-          {/* Conteúdo - HUB */}
+          {/* Conteúdo - HUB com ícone de lápis */}
           <HubMenuItem
             id="content"
-            icon={FileText}
+            icon={Pencil}
             label="Conteúdo"
             isActive={activeHub === 'content'}
           >
-            <ContentHubPanel 
-              onNavigate={handleNavigate} 
+            <ContentHubPanel
+              onNavigate={handleNavigate}
               currentPath={location.pathname}
             />
           </HubMenuItem>
 
-          {/* Analytics - Link direto */}
-          <NavItem 
-            id="analytics"
-            icon={BarChart3}
-            label="Analytics"
-            isActive={activeHub === 'analytics'}
-            onClick={() => handleNavigate('/client/analytics')}
-          />
-
           {/* Conversões - Link direto */}
-          <NavItem 
+          <NavItem
             id="conversions"
             icon={MessageSquare}
             label="Conversões"
             isActive={activeHub === 'conversions'}
             onClick={() => handleNavigate('/client/leads')}
           />
-
-          {/* Separador */}
-          <div className="mx-4 my-4 h-px bg-[#E5E7EB] dark:bg-gray-700" />
-
-          {/* Conta & Sistema - HUB */}
-          <HubMenuItem
-            id="account"
-            icon={Settings}
-            label="Conta & Sistema"
-            isActive={activeHub === 'account'}
-          >
-            <AccountHubPanel 
-              onNavigate={handleNavigate}
-              onLogout={handleLogout}
-              currentPath={location.pathname}
-            />
-          </HubMenuItem>
         </nav>
 
-        {/* Footer - Seletor de Workspace */}
-        <SidebarFooter onMenuToggle={() => setMenuOpen(!menuOpen)} />
+        {/* Footer - HUB da Conta (abre para cima) */}
+        <AccountFooter
+          onNavigate={handleNavigate}
+          onLogout={handleLogout}
+          currentPath={location.pathname}
+        />
       </aside>
-
-      {/* Menu Flutuante do Usuário (footer click) */}
-      {menuOpen && (
-        <UserMenu onClose={() => setMenuOpen(false)} />
-      )}
 
       {/* ========== MOBILE ========== */}
       <MobileMenuButton onClick={() => setMobileOpen(true)} />

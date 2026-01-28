@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { X, Menu, Home, FileText, BarChart3, MessageSquare, Settings, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Menu, Home, Pencil, MessageSquare, User, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { SidebarHeader } from './SidebarHeader';
-import { SidebarFooter } from './SidebarFooter';
 import { ContentHubPanel } from './ContentHubPanel';
 import { AccountHubPanel } from './AccountHubPanel';
 
@@ -18,7 +17,7 @@ interface MobileDrawerProps {
  * Drawer mobile para navegação em telas < 1024px
  * - Largura 320px
  * - Overlay escuro ao abrir
- * - Hubs expandem como accordion inline
+ * - Estrutura simplificada: Dashboard, Conteúdo (accordion), Conversões, Minha Conta (accordion)
  */
 export function MobileDrawer({
   open,
@@ -32,37 +31,46 @@ export function MobileDrawer({
 
   if (!open) return null;
 
-  // Determinar hub ativo
-  const getActiveHub = () => {
+  // Determinar item ativo
+  const getActiveItem = () => {
     if (!currentPath) return 'dashboard';
     if (currentPath.includes('/dashboard')) return 'dashboard';
-    if (currentPath.includes('/articles') || currentPath.includes('/radar') || 
-        currentPath.includes('/portal') || currentPath.includes('/landing-pages')) return 'content';
-    if (currentPath.includes('/analytics')) return 'analytics';
+    if (
+      currentPath.includes('/articles') ||
+      currentPath.includes('/radar') ||
+      currentPath.includes('/portal') ||
+      currentPath.includes('/landing-pages')
+    )
+      return 'content';
     if (currentPath.includes('/leads')) return 'conversions';
-    if (currentPath.includes('/account') || currentPath.includes('/company') || 
-        currentPath.includes('/settings') || currentPath.includes('/help')) return 'account';
+    if (
+      currentPath.includes('/account') ||
+      currentPath.includes('/company') ||
+      currentPath.includes('/settings') ||
+      currentPath.includes('/help')
+    )
+      return 'account';
     return 'dashboard';
   };
 
-  const activeHub = getActiveHub();
+  const activeItem = getActiveItem();
 
   const handleNavigate = (path: string) => {
     onNavigate(path);
     onClose();
   };
 
-  const NavButton = ({ 
-    icon: Icon, 
-    label, 
-    isActive, 
+  const NavButton = ({
+    icon: Icon,
+    label,
+    isActive,
     onClick,
     isHub,
-    isExpanded
-  }: { 
-    icon: React.ElementType; 
-    label: string; 
-    isActive?: boolean; 
+    isExpanded,
+  }: {
+    icon: React.ElementType;
+    label: string;
+    isActive?: boolean;
     onClick: () => void;
     isHub?: boolean;
     isExpanded?: boolean;
@@ -84,18 +92,19 @@ export function MobileDrawer({
       )}
     >
       {isActive && (
-        <div 
+        <div
           className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full"
           style={{ background: 'linear-gradient(to bottom, #7C3AED, #F97316)' }}
         />
       )}
       <Icon className={cn('h-5 w-5 shrink-0', isActive && 'text-[#7C3AED]')} />
       <span className="flex-1 text-left text-sm font-medium">{label}</span>
-      {isHub && (
-        isExpanded 
-          ? <ChevronUp className="h-4 w-4 text-[#9CA3AF]" />
-          : <ChevronDown className="h-4 w-4 text-[#9CA3AF]" />
-      )}
+      {isHub &&
+        (isExpanded ? (
+          <ChevronUp className="h-4 w-4 text-[#9CA3AF]" />
+        ) : (
+          <ChevronDown className="h-4 w-4 text-[#9CA3AF]" />
+        ))}
     </button>
   );
 
@@ -137,59 +146,48 @@ export function MobileDrawer({
           <NavButton
             icon={Home}
             label="Dashboard"
-            isActive={activeHub === 'dashboard'}
+            isActive={activeItem === 'dashboard'}
             onClick={() => handleNavigate('/client/dashboard')}
           />
 
           {/* Conteúdo - Accordion */}
           <NavButton
-            icon={FileText}
+            icon={Pencil}
             label="Conteúdo"
-            isActive={activeHub === 'content'}
+            isActive={activeItem === 'content'}
             onClick={() => setContentExpanded(!contentExpanded)}
             isHub
             isExpanded={contentExpanded}
           />
           {contentExpanded && (
             <div className="ml-4 border-l-2 border-[#E5E7EB] dark:border-gray-700">
-              <ContentHubPanel 
-                onNavigate={handleNavigate}
-                currentPath={currentPath}
-              />
+              <ContentHubPanel onNavigate={handleNavigate} currentPath={currentPath} />
             </div>
           )}
-
-          {/* Analytics */}
-          <NavButton
-            icon={BarChart3}
-            label="Analytics"
-            isActive={activeHub === 'analytics'}
-            onClick={() => handleNavigate('/client/analytics')}
-          />
 
           {/* Conversões */}
           <NavButton
             icon={MessageSquare}
             label="Conversões"
-            isActive={activeHub === 'conversions'}
+            isActive={activeItem === 'conversions'}
             onClick={() => handleNavigate('/client/leads')}
           />
 
           {/* Separador */}
           <div className="mx-4 my-4 h-px bg-[#E5E7EB] dark:bg-gray-700" />
 
-          {/* Conta & Sistema - Accordion */}
+          {/* Minha Conta - Accordion */}
           <NavButton
-            icon={Settings}
-            label="Conta & Sistema"
-            isActive={activeHub === 'account'}
+            icon={User}
+            label="Minha Conta"
+            isActive={activeItem === 'account'}
             onClick={() => setAccountExpanded(!accountExpanded)}
             isHub
             isExpanded={accountExpanded}
           />
           {accountExpanded && (
             <div className="ml-4 border-l-2 border-[#E5E7EB] dark:border-gray-700">
-              <AccountHubPanel 
+              <AccountHubPanel
                 onNavigate={handleNavigate}
                 onLogout={onLogout}
                 currentPath={currentPath}
@@ -197,9 +195,6 @@ export function MobileDrawer({
             </div>
           )}
         </div>
-
-        {/* Footer */}
-        <SidebarFooter onMenuToggle={() => {}} />
       </aside>
     </>
   );
