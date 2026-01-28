@@ -1,164 +1,97 @@
 
-# Plano: Ajustes no Dashboard - Mover "Seu Plano" e Corrigir Navegação dos Documentos
+## Objetivo (o que você pediu)
+1) O menu flutuante do **ícone “Conteúdo” (lápis)** precisa mostrar os 5 cards (Radar, Gerar Artigo, Meus Artigos, Blog/Portal, Páginas SEO).
+2) Hoje, apesar de existir conteúdo no código, **na prática o usuário está vendo o menu vazio / sem nada aparecendo**.
 
-## Problemas Identificados
+## Diagnóstico (varredura no código – o porquê de você “não estar vendo nada”)
+### 1) Os dados do menu “Conteúdo” já existem no projeto
+No arquivo:
+- `src/components/layout/PremiumSidebar/ContentHubPanel.tsx`
 
-### 1. Card "Seu Plano" no Dashboard
-O card `PlanStatusCard` aparece no dashboard, mas essa informação pertence às **Configurações de Conta**, não ao dashboard principal.
+Existe exatamente a lista com:
+- Radar de Oportunidades → `/client/radar`
+- Gerar Artigo → `/client/articles/new` (com badge “IA”)
+- Meus Artigos → `/client/articles`
+- Blogs / Portais → `/client/portal`
+- Páginas SEO → `/client/landing-pages`
 
-**Status atual:**
-- Dashboard mostra: Boas-vindas, Status, Prova de Valor, Ferramentas, Documentos Recentes, **Seu Plano** ← ERRADO
+Ou seja: **não falta “injetar dados”** nesse arquivo — eles já estão lá.
 
-**Status esperado:**
-- Dashboard mostra: Boas-vindas, Status, Prova de Valor, Ferramentas, Documentos Recentes
-- "Seu Plano" fica apenas em `/client/settings?tab=billing`
+### 2) O “vazio” está acontecendo por problema de renderização/visibilidade (CSS/posicionamento)
+O `ContentHubPanel` é renderizado como `children` dentro do `HubMenuItem`:
+- `src/components/layout/PremiumSidebar/PremiumSidebar.tsx`
 
-### 2. Navegação dos "Últimos Documentos"
-Atualmente, clicar em um documento leva para o **editor individual**:
-- Artigo → `/client/articles/{id}` (editor)
-- Super Página → `/client/landing-pages/{id}` (editor)
+O menu flutuante é desenhado assim:
+- `src/components/layout/PremiumSidebar/HubMenuItem.tsx`
 
-O usuário quer que navegue para a **lista em cards**:
-- Artigo → `/client/articles` (lista de artigos)
-- Super Página → `/client/landing-pages` (lista de super páginas)
+Ponto crítico:
+- O `<nav>` da sidebar usa `overflow-y-auto`.
+- O painel flutuante do HubMenuItem é `position: absolute` (classe `absolute left-full top-0`).
+- Em CSS, quando um ancestral tem `overflow` diferente de `visible`, **elementos posicionados/overflow podem ser “cortados” (clipped)**.
+- Resultado: o painel pode até “abrir”, mas **fica recortado/fora da área visível**, dando a impressão de “conteúdo vazio”.
 
----
+Isso também explica porque você “abre” Conteúdo e não vê os cards: eles estão sendo renderizados, mas **não aparecem na tela**.
 
-## Arquivos a Modificar
+## Solução (abordagem correta e definitiva)
+### Estratégia recomendada: “Portal / painel em position: fixed”
+Em vez do painel flutuante ficar `absolute` dentro do `<nav>` (que tem overflow e pode cortar), vamos:
+1) Medir a posição do botão “Conteúdo” (`getBoundingClientRect()`).
+2) Renderizar o painel como `position: fixed` na tela (fora do fluxo do `<nav>`).
+3) Garantir z-index alto para ficar sempre acima do layout.
+4) Manter o comportamento: abre no hover e no click, fecha ao sair e ao clicar fora.
 
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `ClientDashboardMvp.tsx` | **MODIFICAR** | Remover o componente `PlanStatusCard` |
-| `RecentDocuments.tsx` | **MODIFICAR** | Mudar navegação para listas ao invés de editores |
-| `useRecentDocuments.ts` | **MODIFICAR** | Ajustar o campo `path` para apontar para as listas |
+Essa abordagem elimina 100% os casos de “menu invisível” por overflow.
 
----
+## Mudanças planejadas (arquivos e o que será feito)
 
-## Detalhamento Técnico
+### 1) `src/components/layout/PremiumSidebar/HubMenuItem.tsx`
+**Objetivo:** fazer o painel flutuante sempre aparecer e sempre por cima.
 
-### 1. ClientDashboardMvp.tsx - Remover "Seu Plano"
+Mudanças:
+- Trocar o container do painel de:
+  - `absolute left-full top-0 ...`
+  para:
+  - `fixed` com coordenadas calculadas via `containerRef.current.getBoundingClientRect()`
+- Guardar no state a posição do painel (top/left) ao abrir.
+- Aumentar z-index do overlay e do painel (ex.: overlay `z-[100]`, painel `z-[110]`).
+- Adicionar `max-h-[80vh] overflow-y-auto` no painel para não estourar altura.
+- (Opcional) adicionar uma borda/sombra consistente para “parecer card premium”.
 
-**Mudanças:**
-- Remover import do `PlanStatusCard`
-- Remover a renderização do componente (linha 57)
+Resultado esperado:
+- Ao hover/click em “Conteúdo”, o menu aparece SEMPRE, com os cards.
 
-```tsx
-// ANTES (linha 10):
-import { PlanStatusCard } from "@/components/dashboard/PlanStatusCard";
+### 2) (Se necessário) `src/components/layout/PremiumSidebar/PremiumSidebar.tsx`
+**Objetivo:** evitar qualquer conflito de empilhamento (stacking context).
+- Ajustar `z-40` do `<aside>` se houver conflito com overlays globais.
+- Na maioria dos casos, com painel `fixed` + z-index alto, isso nem será necessário.
 
-// DEPOIS:
-// Remover esta linha
+### 3) (Validação visual) `src/components/layout/PremiumSidebar/ContentHubPanel.tsx`
+**Objetivo:** garantir que o layout final bate exatamente com o que você descreveu.
+- Confirmar títulos/subtítulos e rotas:
+  - Radar → `/client/radar`
+  - Gerar Artigo → `/client/articles/new`
+  - Meus Artigos → `/client/articles`
+  - Blog / Portal Público → `/client/portal`
+  - Páginas SEO → `/client/landing-pages`
+- Confirmar que “Gerar Artigo” está destacado com badge “IA”.
 
-// ANTES (linha 57):
-<PlanStatusCard />
+Obs.: este arquivo já está correto; aqui é apenas validação e pequenos ajustes de texto se você quiser “Blog / Portal Público” exatamente.
 
-// DEPOIS:
-// Remover esta linha
-```
+## Critérios de aceite (o que você vai testar na tela)
+1) No Desktop:
+   - Passar o mouse em “Conteúdo” → aparece o painel flutuante com os 5 cards.
+   - Clicar em “Conteúdo” → painel também abre (sem ficar “vazio”).
+   - Clicar fora → fecha.
+   - Clicar em cada card → navega para a rota certa e fecha o painel.
 
-**Resultado:** Dashboard termina em "Últimos Documentos", sem o card de plano.
+2) Em telas com scroll/overflow:
+   - Mesmo com o `<nav>` scrollável, o painel não some e não fica cortado.
 
-### 2. useRecentDocuments.ts - Corrigir Paths
+## Plano de execução (ordem)
+1) Ajustar `HubMenuItem.tsx` para renderizar painel em `fixed` com posição calculada.
+2) Ajustar z-index/overlay e adicionar `max-h`/scroll interno.
+3) Validar textos/rotas no `ContentHubPanel.tsx` (se quiser ajustes de nomenclatura).
+4) Teste completo no /client/dashboard (desktop) e no mobile drawer (mobile já usa accordion e não depende do flutuante).
 
-O hook já define o `path` para cada documento. Precisamos mudar para apontar para as listas:
-
-```tsx
-// ANTES (linha 70-71):
-path: `/client/articles/${article.id}`,
-
-// DEPOIS:
-path: `/client/articles`,
-
-// ANTES (linha 92):
-path: `/client/landing-pages/${lp.id}`,
-
-// DEPOIS:
-path: `/client/landing-pages`,
-```
-
-### 3. RecentDocuments.tsx - Garantir Navegação Correta
-
-O componente já usa `navigate(doc.path)`, então a mudança no hook automaticamente corrige a navegação.
-
-**Opcional:** Adicionar feedback visual de que é clicável (cursor pointer, hover state):
-
-```tsx
-// Já existente na linha 82:
-className="w-full flex items-center gap-4 p-4 hover:bg-accent/50 transition-colors text-left"
-
-// Pode adicionar "cursor-pointer" para reforçar:
-className="w-full flex items-center gap-4 p-4 hover:bg-accent/50 transition-colors text-left cursor-pointer"
-```
-
----
-
-## Comportamento Após Correção
-
-### Dashboard Simplificado
-```
-┌─────────────────────────────────────────┐
-│  Bem-vindo, João! 👋                    │
-│  truenolen.omniseen.com                 │
-├─────────────────────────────────────────┤
-│  [Cards de Status]                      │
-├─────────────────────────────────────────┤
-│  [Prova de Valor - 7 dias]             │
-├─────────────────────────────────────────┤
-│  [Grid de Ferramentas]                  │
-├─────────────────────────────────────────┤
-│  Últimos Documentos                     │
-│  • Super Página → click → /client/landing-pages
-│  • Artigo → click → /client/articles    │
-└─────────────────────────────────────────┘
-
-❌ NÃO TEM MAIS: Card "Seu Plano"
-```
-
-### Navegação dos Documentos
-| Tipo | Click | Destino |
-|------|-------|---------|
-| Super Página | Click | `/client/landing-pages` (lista em cards) |
-| Artigo | Click | `/client/articles` (lista em cards) |
-
----
-
-## Onde "Seu Plano" Continua Existindo
-
-O card de plano permanece acessível em:
-
-1. **Configurações > Cobrança** (`/client/settings?tab=billing`)
-   - Componente: `BillingTab.tsx`
-   - Mostra: plano atual, status, opções de upgrade, cancelamento
-
-2. **Minha Conta** (`/client/account`)
-   - Componente: `ClientAccount.tsx`
-   - Mostra: card simples com nome do plano e status
-
-3. **Menu da Conta (AccountHubPanel)**
-   - Link: "Plano & Cobrança" → `/client/settings?tab=billing`
-
----
-
-## Ordem de Implementação
-
-1. **PASSO 1:** Modificar `ClientDashboardMvp.tsx` - remover `PlanStatusCard`
-2. **PASSO 2:** Modificar `useRecentDocuments.ts` - mudar paths para listas
-3. **PASSO 3:** Modificar `RecentDocuments.tsx` - adicionar `cursor-pointer` (opcional)
-4. **PASSO 4:** Testar navegação no dashboard
-
----
-
-## Critérios de Aceite
-
-### Dashboard
-- [ ] Card "Seu Plano" NÃO aparece mais no dashboard
-- [ ] Dashboard termina em "Últimos Documentos"
-
-### Navegação de Documentos
-- [ ] Click em "Artigo" → navega para `/client/articles` (lista)
-- [ ] Click em "Super Página" → navega para `/client/landing-pages` (lista)
-- [ ] Hover mostra que é clicável
-
-### Plano Acessível
-- [ ] Plano acessível via menu "Conta" → "Plano & Cobrança"
-- [ ] Plano acessível em `/client/settings?tab=billing`
+## Observação importante
+O mobile **não está vazio** pelo mesmo motivo, porque no mobile o “Conteúdo” é um accordion renderizado dentro do drawer (não é um painel flutuante absoluto). O problema está concentrado no **desktop** por causa de overflow/posicionamento do painel flutuante.
