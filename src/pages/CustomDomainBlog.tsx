@@ -14,7 +14,7 @@ interface CustomDomainBlogProps {
 }
 
 export default function CustomDomainBlog({ blogId, blogSlug }: CustomDomainBlogProps) {
-  const { blog, articles, loading, error } = useBlogHome(50); // Fetch up to 50 articles
+  const { blog, articles, loading, error } = useBlogHome({ blogId: blogId || undefined, limit: 50 });
   const { agentConfig, businessProfile } = useAgentConfig();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 

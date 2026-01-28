@@ -19,7 +19,7 @@ interface CustomDomainLandingPageProps {
 
 export default function CustomDomainLandingPage({ blogId }: CustomDomainLandingPageProps) {
   const { pageSlug } = useParams();
-  const { blog, page, loading, error } = useLandingPage(pageSlug);
+  const { blog, page, loading, error } = useLandingPage(pageSlug, { blogId });
   const { agentConfig, businessProfile } = useAgentConfig();
 
   const primaryColor = useMemo(() => blog?.primary_color || "#6366f1", [blog?.primary_color]);
