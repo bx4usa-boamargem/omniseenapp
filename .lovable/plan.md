@@ -1,236 +1,218 @@
 
+# Plano: Refatoração Definitiva do Sidebar – Arquitetura de Produto OmniSeen
 
-# Plano: Refatoração Premium do Sidebar com Hubs Flutuantes
+## Diagnóstico do Estado Atual
 
-## Objetivo
+### Estrutura Atual (Problemas Identificados)
+1. **5 itens no corpo do sidebar** (Dashboard, Conteúdo, Analytics, Conversões, Conta & Sistema)
+2. **Analytics como item separado** - NÃO deveria existir
+3. **"Conta & Sistema" no corpo do sidebar** - deveria estar no rodapé
+4. **SidebarFooter abre UserMenu separado** - duplicação de lógica
+5. **Dois componentes de menu de conta** (UserMenu + AccountHubPanel) - redundante
 
-Transformar o sidebar atual (muitos itens individuais) em um design **limpo e estratégico** com poucos botões principais que funcionam como **HUBS**, cada um abrindo um menu flutuante estilo card. Restaurar a logomarca oficial da OmniSeen.
-
----
-
-## Comparativo: Antes vs Depois
-
-| Aspecto | ANTES (Atual) | DEPOIS (Premium) |
-|---------|--------------|------------------|
-| Itens visíveis | 11 itens em 2 seções | **5 itens principais** |
-| Navegação | Cada item é um link direto | Hubs abrem menus flutuantes |
-| Logomarca | Letra "O" em círculo | **Logo OmniSeen oficial** |
-| Organização | PRINCIPAL + CONFIGURAÇÕES | Dashboard, Conteúdo (HUB), Analytics, Conversões, Conta (HUB) |
-| Experiência | Painel administrativo | **Plataforma de crescimento** |
-
----
-
-## Estrutura Final do Sidebar
-
-```text
-┌─────────────────────────────────────────┐
-│  [LOGO OMNISEEN]    OmniSeen            │  ← Clique → Dashboard
-├─────────────────────────────────────────┤
-│                                         │
-│  🏠 Dashboard                           │  ← Navegação direta
-│  📄 Conteúdo                      ▸     │  ← HUB (abre menu flutuante)
-│  📊 Analytics                           │  ← Navegação direta
-│  💬 Conversões                          │  ← Navegação direta
-│                                         │
-│  ─────────────────────────────────────  │  ← Separador
-│                                         │
-│  ⚙️ Conta & Sistema                ▸    │  ← HUB (abre menu flutuante)
-│                                         │
-├─────────────────────────────────────────┤
-│  [Avatar] Truly Nolen               ▼   │  ← Seletor de workspace
-└─────────────────────────────────────────┘
+### Estrutura Desejada
+```
+┌──────────────────────────────┐
+│ 🟣 OmniSeen                  │  ← Logo no topo
+├──────────────────────────────┤
+│                              │
+│ ▸ Dashboard                  │  → Navegação direta
+│                              │
+│ ▸ Conteúdo ✎                 │  ← HUB (hover/click abre painel)
+│                              │
+│ ▸ Conversões                 │  → Navegação direta
+│                              │
+│ ───────────────────────────  │
+│                              │
+│ [🟣 TN] Truly Nolen     ▼    │  ← HUB da conta (rodapé)
+│        Plano Growth          │
+└──────────────────────────────┘
 ```
 
----
-
-## Menu Flutuante: CONTEÚDO
-
-Abre ao **hover ou click** em "Conteúdo":
-
-```text
-┌──────────────────────────────────────────────────────────┐
-│                                                          │
-│  📡 Radar de Oportunidades                               │
-│     Descubra o que sua cidade procura                    │
-│     → /client/radar                                      │
-│                                                          │
-│  ✨ Gerar Artigo                                         │
-│     Crie conteúdo otimizado com IA                       │
-│     → /client/articles/new                               │
-│                                                          │
-│  📄 Meus Artigos                                         │
-│     Gerencie seus posts e rascunhos                      │
-│     → /client/articles                                   │
-│                                                          │
-│  🌐 Blogs / Portais                                      │
-│     Seus sites e mini-sites                              │
-│     → /client/portal                                     │
-│                                                          │
-│  🧱 Páginas SEO                                          │
-│     Crie páginas locais de conversão                     │
-│     → /client/landing-pages                              │
-│                                                          │
-└──────────────────────────────────────────────────────────┘
-```
+**REMOVIDO do corpo:**
+- ❌ Analytics
+- ❌ Conta & Sistema
 
 ---
 
-## Menu Flutuante: CONTA & SISTEMA
-
-Abre ao **hover ou click** em "Conta & Sistema":
-
-```text
-┌──────────────────────────────────────────────────────────┐
-│                                                          │
-│  👤 Perfil                                               │
-│     Dados pessoais e preferências                        │
-│     → /client/account                                    │
-│                                                          │
-│  🏢 Empresa                                              │
-│     Informações do negócio                               │
-│     → /client/company                                    │
-│                                                          │
-│  🎯 Estratégia SEO                                       │
-│     Palavras-chave e metas                               │
-│     → /client/radar                                      │
-│                                                          │
-│  💳 Plano & Cobrança                                     │
-│     Gerencie sua assinatura                              │
-│     → /client/settings?tab=billing                       │
-│                                                          │
-│  🔌 Integrações                                          │
-│     Conecte suas ferramentas                             │
-│     → /client/settings?tab=integrations                  │
-│                                                          │
-│  🔔 Notificações                                         │
-│     E-mails e alertas                                    │
-│     → /client/settings?tab=notifications                 │
-│                                                          │
-│  ❓ Ajuda & Suporte                                      │
-│     Central de ajuda                                     │
-│     → /client/help                                       │
-│                                                          │
-│  🌗 Tema                         [Toggle claro/escuro]   │
-│                                                          │
-│  ─────────────────────────────────────                   │
-│                                                          │
-│  🚪 Sair                                   (vermelho)    │
-│                                                          │
-└──────────────────────────────────────────────────────────┘
-```
-
----
-
-## Arquivos a Modificar/Criar
+## Arquivos a Modificar/Criar/Remover
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| `SidebarHeader.tsx` | **MODIFICAR** | Usar `OmniseenLogo` oficial |
-| `PremiumSidebar.tsx` | **MODIFICAR** | Reduzir para 5 itens principais com hubs |
-| `HubMenuItem.tsx` | **CRIAR** | Novo componente para botão que abre menu flutuante |
-| `ContentHubPanel.tsx` | **CRIAR** | Menu flutuante do hub "Conteúdo" |
-| `AccountHubPanel.tsx` | **CRIAR** | Menu flutuante do hub "Conta & Sistema" |
-| `NavItem.tsx` | **MODIFICAR** | Adicionar suporte a indicador "▸" para hubs |
-| `MobileDrawer.tsx` | **MODIFICAR** | Adaptar estrutura para mobile |
+| `PremiumSidebar.tsx` | **MODIFICAR** | Remover Analytics + Remover HubMenuItem "Conta & Sistema" + Usar Pencil icon |
+| `SidebarFooter.tsx` | **REESCREVER** | Transformar em AccountFooter que abre menu flutuante para CIMA |
+| `AccountHubPanel.tsx` | **MODIFICAR** | Reorganizar: adicionar "Configurações", expandir "Integrações" com sub-itens |
+| `ContentHubPanel.tsx` | **MANTER** | Já está correto |
+| `HubMenuItem.tsx` | **MODIFICAR** | Suporte a ícone decorativo (Pencil) |
+| `MobileDrawer.tsx` | **MODIFICAR** | Remover Analytics, adaptar estrutura simplificada |
+| `UserMenu.tsx` | **REMOVER** | Substituído pelo novo AccountFooter |
+| `index.ts` | **MODIFICAR** | Remover export do UserMenu |
 
 ---
 
 ## Detalhamento Técnico
 
-### 1. SidebarHeader.tsx - Logo Oficial
+### 1. PremiumSidebar.tsx – Estrutura Simplificada
+
+**Mudanças:**
+- Remover import de `BarChart3` (Analytics icon)
+- Remover NavItem de Analytics (linhas 132-139)
+- Remover HubMenuItem "Conta & Sistema" (linhas 153-165)
+- Substituir `FileText` por `Pencil` para o hub Conteúdo
+- Remover estado `menuOpen` e o componente `UserMenu`
+- Modificar getActiveHub para remover 'analytics'
 
 ```tsx
-import { useNavigate } from 'react-router-dom';
-import { OmniseenLogo } from '@/components/ui/OmniseenLogo';
+// ANTES: 5 itens + HubMenuItem "Conta & Sistema"
+// DEPOIS: 3 itens (Dashboard, Conteúdo HUB, Conversões)
 
-export function SidebarHeader() {
-  const navigate = useNavigate();
+import { Home, Pencil, MessageSquare } from 'lucide-react';
 
-  return (
-    <div className="h-20 flex items-center px-4 gap-3 border-b border-[#E5E7EB] dark:border-gray-700">
-      <button
-        onClick={() => navigate('/client/dashboard')}
-        className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-        aria-label="Ir para Dashboard"
-      >
-        <OmniseenLogo size="sidebar" />
-        <span className="text-lg font-semibold text-[#111827] dark:text-white">
-          OmniSeen
-        </span>
-      </button>
-    </div>
-  );
-}
+// Remover Analytics do getActiveHub
+const getActiveHub = useCallback(() => {
+  const path = location.pathname;
+  if (path.includes('/dashboard')) return 'dashboard';
+  if (path.includes('/articles') || path.includes('/radar') || 
+      path.includes('/portal') || path.includes('/landing-pages')) return 'content';
+  if (path.includes('/leads')) return 'conversions';
+  // Rotas de conta agora são tratadas no footer
+  return 'dashboard';
+}, [location.pathname]);
+
+// Na nav:
+<nav className="flex-1 py-4 overflow-y-auto">
+  <NavItem id="dashboard" icon={Home} label="Dashboard" ... />
+  
+  <HubMenuItem id="content" icon={Pencil} label="Conteúdo" ... >
+    <ContentHubPanel ... />
+  </HubMenuItem>
+  
+  <NavItem id="conversions" icon={MessageSquare} label="Conversões" ... />
+  
+  {/* REMOVIDO: Analytics */}
+  {/* REMOVIDO: Separador + Conta & Sistema */}
+</nav>
+
+{/* Separador antes do footer */}
+<div className="mx-4 h-px bg-[#E5E7EB] dark:bg-gray-700" />
+
+{/* Footer - Agora é um HUB completo */}
+<AccountFooter 
+  onNavigate={handleNavigate}
+  onLogout={handleLogout}
+  currentPath={location.pathname}
+/>
+
+{/* REMOVIDO: UserMenu e menuOpen state */}
 ```
 
-### 2. HubMenuItem.tsx - Botão com Menu Flutuante
+### 2. SidebarFooter.tsx → AccountFooter (Reescrita Completa)
+
+Transformar o footer em um HUB que abre menu flutuante **para CIMA**:
 
 ```tsx
-interface HubMenuItemProps {
-  id: string;
-  icon: LucideIcon;
-  label: string;
-  isActive?: boolean;
-  children: React.ReactNode; // Menu flutuante
+import { useState } from 'react';
+import { ChevronUp } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { useBlog } from '@/hooks/useBlog';
+import { cn } from '@/lib/utils';
+import { AccountHubPanel } from './AccountHubPanel';
+
+interface AccountFooterProps {
+  onNavigate: (path: string) => void;
+  onLogout: () => void;
+  currentPath?: string;
 }
 
-export function HubMenuItem({ id, icon: Icon, label, isActive, children }: HubMenuItemProps) {
+export function AccountFooter({ onNavigate, onLogout, currentPath }: AccountFooterProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const { user } = useAuth();
+  const { blog } = useBlog();
 
-  const handleMouseEnter = () => {
-    clearTimeout(timeoutRef.current);
-    setIsOpen(true);
+  const displayName = blog?.name || user?.email?.split('@')[0] || 'Workspace';
+  const initials = displayName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
+
+  const handleNavigateAndClose = (path: string) => {
+    onNavigate(path);
+    setIsOpen(false);
   };
 
-  const handleMouseLeave = () => {
-    timeoutRef.current = setTimeout(() => setIsOpen(false), 150);
+  const handleLogoutAndClose = () => {
+    setIsOpen(false);
+    onLogout();
   };
 
   return (
-    <div 
-      className="relative"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-    >
-      {/* Botão Principal */}
+    <div className="relative border-t border-[#E5E7EB] dark:border-gray-700 p-4">
+      {/* Botão do Workspace */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'w-full flex items-center gap-3 px-4 py-3 rounded-lg mx-2',
-          'transition-all duration-200',
-          isActive && 'bg-[#EDE9FE] text-[#7C3AED] font-semibold',
-          !isActive && 'text-[#6B7280] hover:text-[#111827] hover:bg-[#F9FAFB]'
+          'w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all',
+          'hover:bg-[#F9FAFB] dark:hover:bg-gray-800',
+          isOpen && 'bg-[#F9FAFB] dark:bg-gray-800'
         )}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
       >
-        {/* Faixa lateral ativa (roxo → laranja) */}
-        {isActive && (
-          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-gradient-to-b from-[#7C3AED] to-[#F97316] rounded-r-full" />
-        )}
-        
-        <Icon className={cn('h-5 w-5 shrink-0', isActive && 'text-[#7C3AED]')} />
-        <span className="flex-1 text-left text-sm font-medium">{label}</span>
-        <ChevronRight className="h-4 w-4 text-[#9CA3AF]" />
+        {/* Avatar gradient */}
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#3B82F6] to-[#7C3AED] flex items-center justify-center shrink-0">
+          <span className="text-white font-semibold text-sm">{initials}</span>
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 text-left min-w-0">
+          <p className="text-sm font-semibold text-[#111827] dark:text-white truncate">
+            {displayName}
+          </p>
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-pulse" />
+            <span className="text-xs text-[#6B7280]">Plano Growth</span>
+          </div>
+        </div>
+
+        {/* Chevron - rota para cima quando aberto */}
+        <ChevronUp className={cn(
+          'h-4 w-4 text-[#9CA3AF] transition-transform duration-200',
+          !isOpen && 'rotate-180'
+        )} />
       </button>
 
-      {/* Menu Flutuante */}
+      {/* Menu Flutuante - Abre para CIMA */}
       {isOpen && (
         <>
-          {/* Overlay invisível para detectar saída */}
+          {/* Overlay */}
           <div 
             className="fixed inset-0 z-40" 
             onClick={() => setIsOpen(false)}
+            aria-hidden="true"
           />
           
-          {/* Card flutuante */}
-          <div className={cn(
-            'absolute left-full top-0 ml-2 z-50',
-            'w-80 bg-white dark:bg-gray-900 rounded-xl',
-            'shadow-[0_10px_40px_rgba(0,0,0,0.15)]',
-            'border border-[#E5E7EB] dark:border-gray-700',
-            'animate-in slide-in-from-left-2 duration-200'
-          )}>
-            {children}
+          {/* Card flutuante - posicionado ACIMA do botão */}
+          <div 
+            className={cn(
+              'absolute bottom-full left-0 right-0 mb-2 z-50',
+              'bg-white dark:bg-gray-900 rounded-xl',
+              'shadow-[0_-10px_40px_rgba(0,0,0,0.15)]',
+              'border border-[#E5E7EB] dark:border-gray-700',
+              'animate-in slide-in-from-bottom-2 duration-200',
+              'max-h-[70vh] overflow-y-auto'
+            )}
+            role="menu"
+            aria-label="Menu da conta"
+          >
+            {/* Header */}
+            <div className="sticky top-0 bg-white dark:bg-gray-900 px-4 py-3 border-b border-[#E5E7EB] dark:border-gray-700">
+              <h3 className="text-sm font-semibold text-[#111827] dark:text-white">
+                Minha Conta
+              </h3>
+            </div>
+            
+            <AccountHubPanel 
+              onNavigate={handleNavigateAndClose}
+              onLogout={handleLogoutAndClose}
+              currentPath={currentPath}
+            />
           </div>
         </>
       )}
@@ -239,276 +221,262 @@ export function HubMenuItem({ id, icon: Icon, label, isActive, children }: HubMe
 }
 ```
 
-### 3. ContentHubPanel.tsx - Menu Flutuante de Conteúdo
+### 3. AccountHubPanel.tsx – Reorganização com "Configurações" e Integrações Expandidas
 
 ```tsx
-const contentItems = [
+const accountItems = [
   {
-    id: 'radar',
-    icon: Radar,
-    iconBg: 'bg-blue-100 text-blue-600',
-    title: 'Radar de Oportunidades',
-    subtitle: 'Descubra o que sua cidade procura',
+    id: 'profile',
+    icon: User,
+    iconBg: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+    title: 'Perfil',
+    subtitle: 'Dados pessoais',
+    path: '/client/account',
+  },
+  {
+    id: 'company',
+    icon: Building2,
+    iconBg: 'bg-slate-100 dark:bg-slate-900/30 text-slate-600 dark:text-slate-400',
+    title: 'Empresa',
+    subtitle: 'Informações do negócio',
+    path: '/client/company',
+  },
+  {
+    id: 'strategy',
+    icon: Target,
+    iconBg: 'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
+    title: 'Estratégia SEO',
+    subtitle: 'Palavras-chave e posicionamento',
     path: '/client/radar',
-  },
-  {
-    id: 'generate',
-    icon: Sparkles,
-    iconBg: 'bg-purple-100 text-purple-600',
-    title: 'Gerar Artigo',
-    subtitle: 'Crie conteúdo otimizado com IA',
-    path: '/client/articles/new',
-    highlight: true, // Destaque especial
-  },
-  {
-    id: 'articles',
-    icon: FileText,
-    iconBg: 'bg-emerald-100 text-emerald-600',
-    title: 'Meus Artigos',
-    subtitle: 'Gerencie seus posts e rascunhos',
-    path: '/client/articles',
-  },
-  {
-    id: 'portal',
-    icon: Globe,
-    iconBg: 'bg-amber-100 text-amber-600',
-    title: 'Blogs / Portais',
-    subtitle: 'Seus sites e mini-sites',
-    path: '/client/portal',
-  },
-  {
-    id: 'landing-pages',
-    icon: LayoutTemplate,
-    iconBg: 'bg-rose-100 text-rose-600',
-    title: 'Páginas SEO',
-    subtitle: 'Crie páginas locais de conversão',
-    path: '/client/landing-pages',
   },
 ];
 
-export function ContentHubPanel({ onNavigate }: { onNavigate: (path: string) => void }) {
-  return (
-    <div className="p-3 space-y-1">
-      {contentItems.map((item) => (
-        <button
-          key={item.id}
-          onClick={() => onNavigate(item.path)}
-          className={cn(
-            'w-full flex items-start gap-3 px-3 py-3 rounded-lg',
-            'hover:bg-[#F9FAFB] dark:hover:bg-gray-800 transition-colors',
-            item.highlight && 'ring-2 ring-purple-200 dark:ring-purple-800'
-          )}
-        >
-          <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center shrink-0', item.iconBg)}>
-            <item.icon className="h-5 w-5" />
-          </div>
-          <div className="flex-1 text-left">
-            <span className="text-sm font-medium text-[#111827] dark:text-white">
-              {item.title}
-            </span>
-            <p className="text-xs text-[#6B7280] mt-0.5">{item.subtitle}</p>
-          </div>
-        </button>
-      ))}
-    </div>
-  );
-}
+const settingsItems = [
+  {
+    id: 'settings',
+    icon: Settings, // NOVO
+    iconBg: 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400',
+    title: 'Configurações',
+    subtitle: 'Preferências do sistema',
+    path: '/client/settings',
+  },
+  {
+    id: 'billing',
+    icon: CreditCard,
+    iconBg: 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
+    title: 'Plano & Cobrança',
+    subtitle: 'Assinatura e pagamentos',
+    path: '/client/settings?tab=billing',
+  },
+  {
+    id: 'notifications',
+    icon: Bell,
+    iconBg: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400',
+    title: 'Notificações',
+    subtitle: 'E-mails e alertas',
+    path: '/client/settings?tab=notifications',
+  },
+  {
+    id: 'help',
+    icon: HelpCircle,
+    iconBg: 'bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400',
+    title: 'Ajuda & Suporte',
+    subtitle: 'Central de ajuda',
+    path: '/client/help',
+  },
+];
+
+// Integrações com sub-itens
+const integrationItems = [
+  { id: 'wordpress', title: 'WordPress', path: '/client/integrations/wordpress', available: true },
+  { id: 'wix', title: 'Wix', path: '/client/integrations/wix', available: true },
+  { id: 'gmail', title: 'Gmail', path: '/client/integrations/gmail', available: false, badge: 'Em breve' },
+  { id: 'calendar', title: 'Google Calendar', path: '/client/integrations/calendar', available: false, badge: 'Em breve' },
+];
 ```
 
-### 4. AccountHubPanel.tsx - Menu Flutuante de Conta
-
-Similar ao `ContentHubPanel`, mas incluindo:
-- Perfil, Empresa, Estratégia SEO
-- Plano & Cobrança, Integrações, Notificações
-- Ajuda & Suporte
-- Toggle de Tema (dentro do painel)
-- Separador + Botão Sair (vermelho)
-
-### 5. PremiumSidebar.tsx - Estrutura Simplificada
+### 4. HubMenuItem.tsx – Adicionar Suporte a Ícone Decorativo
 
 ```tsx
-export function PremiumSidebar() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  
-  const [contentHubOpen, setContentHubOpen] = useState(false);
-  const [accountHubOpen, setAccountHubOpen] = useState(false);
-
-  // Determinar item ativo (incluindo sub-rotas dos hubs)
-  const getActiveHub = () => {
-    const path = location.pathname;
-    if (path.includes('/dashboard')) return 'dashboard';
-    if (path.includes('/articles') || path.includes('/radar') || 
-        path.includes('/portal') || path.includes('/landing-pages')) return 'content';
-    if (path.includes('/analytics')) return 'analytics';
-    if (path.includes('/leads')) return 'conversions';
-    if (path.includes('/account') || path.includes('/company') || 
-        path.includes('/settings') || path.includes('/help')) return 'account';
-    return 'dashboard';
-  };
-
-  const activeHub = getActiveHub();
-
-  return (
-    <aside className="hidden lg:flex fixed left-0 top-0 h-screen z-40 w-[280px] flex-col bg-white dark:bg-gray-900 border-r border-[#E5E7EB]">
-      
-      {/* Header com Logo Oficial */}
-      <SidebarHeader />
-
-      {/* Navegação Principal */}
-      <nav className="flex-1 py-4">
-        {/* Dashboard - Link direto */}
-        <NavItem 
-          id="dashboard"
-          icon={Home}
-          label="Dashboard"
-          isActive={activeHub === 'dashboard'}
-          onClick={() => navigate('/client/dashboard')}
-        />
-
-        {/* Conteúdo - HUB */}
-        <HubMenuItem
-          id="content"
-          icon={FileText}
-          label="Conteúdo"
-          isActive={activeHub === 'content'}
-        >
-          <ContentHubPanel onNavigate={navigate} />
-        </HubMenuItem>
-
-        {/* Analytics - Link direto */}
-        <NavItem 
-          id="analytics"
-          icon={BarChart3}
-          label="Analytics"
-          isActive={activeHub === 'analytics'}
-          onClick={() => navigate('/client/analytics')}
-        />
-
-        {/* Conversões - Link direto */}
-        <NavItem 
-          id="conversions"
-          icon={MessageSquare}
-          label="Conversões"
-          isActive={activeHub === 'conversions'}
-          onClick={() => navigate('/client/leads')}
-        />
-
-        {/* Separador */}
-        <div className="mx-4 my-4 h-px bg-[#E5E7EB] dark:bg-gray-700" />
-
-        {/* Conta & Sistema - HUB */}
-        <HubMenuItem
-          id="account"
-          icon={Settings}
-          label="Conta & Sistema"
-          isActive={activeHub === 'account'}
-        >
-          <AccountHubPanel onNavigate={navigate} />
-        </HubMenuItem>
-      </nav>
-
-      {/* Footer - Seletor de Workspace */}
-      <SidebarFooter onMenuToggle={() => {}} />
-    </aside>
-  );
+interface HubMenuItemProps {
+  id: string;
+  icon: LucideIcon;
+  label: string;
+  isActive?: boolean;
+  children: ReactNode;
+  decoratorIcon?: LucideIcon; // NOVO: ícone decorativo (ex: Pencil)
 }
+
+// No render, após o label:
+<span className="flex-1 text-left text-sm font-medium">
+  {label}
+</span>
+
+{/* Ícone decorativo opcional (ex: lápis) */}
+{decoratorIcon && (
+  <decoratorIcon className="h-3.5 w-3.5 text-[#9CA3AF] mr-1" />
+)}
+
+<ChevronRight className={cn(...)} />
 ```
+
+Ou simplesmente usar o ícone `Pencil` como ícone principal do HubMenuItem "Conteúdo".
+
+### 5. MobileDrawer.tsx – Estrutura Simplificada
+
+**Mudanças:**
+- Remover import de `BarChart3`
+- Remover NavButton de Analytics (linhas 162-168)
+- Renomear "Conta & Sistema" para "Minha Conta"
+- Usar `Pencil` para Conteúdo
+
+```tsx
+import { X, Menu, Home, Pencil, MessageSquare, User } from 'lucide-react';
+
+// Na navegação:
+<NavButton icon={Home} label="Dashboard" ... />
+
+<NavButton icon={Pencil} label="Conteúdo" isHub ... />
+{contentExpanded && <ContentHubPanel ... />}
+
+<NavButton icon={MessageSquare} label="Conversões" ... />
+
+{/* REMOVIDO: Analytics */}
+
+<div className="separator" />
+
+{/* Conta - Accordion (não mais "Conta & Sistema") */}
+<NavButton icon={User} label="Minha Conta" isHub ... />
+{accountExpanded && <AccountHubPanel ... />}
+```
+
+### 6. index.ts – Remover UserMenu
+
+```tsx
+// REMOVER esta linha:
+export { UserMenu } from './UserMenu';
+
+// Adicionar (se renomear):
+export { AccountFooter } from './AccountFooter';
+```
+
+### 7. UserMenu.tsx – DELETAR
+
+Este arquivo será removido pois sua funcionalidade foi absorvida pelo novo `AccountFooter`.
 
 ---
 
-## Estilo Visual dos Menus Flutuantes
+## Comportamento Final
 
-```css
-/* Card flutuante premium */
-.hub-panel {
-  background: white;
-  border-radius: 16px;
-  box-shadow: 
-    0 10px 40px rgba(0, 0, 0, 0.12),
-    0 0 1px rgba(0, 0, 0, 0.1);
-  border: 1px solid #E5E7EB;
-}
+| Elemento | Hover | Click |
+|----------|-------|-------|
+| **Dashboard** | Highlight suave | Navega para `/client/dashboard` |
+| **Conteúdo ✎** | Abre menu flutuante | Abre menu flutuante |
+| **Conversões** | Highlight suave | Navega para `/client/leads` |
+| **Truly Nolen ▼** | Highlight suave | Abre menu flutuante para CIMA |
+| **Itens dentro dos menus** | Highlight | Navega e fecha menu |
 
-/* Item do menu */
-.hub-panel-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 8px;
-  transition: background 150ms;
-}
+### Regras de Interação (Obrigatório)
 
-.hub-panel-item:hover {
-  background: #F9FAFB;
-}
+```tsx
+// CORRETO - Hover apenas para UI
+<div
+  onMouseEnter={() => setIsHovered(true)}
+  onMouseLeave={() => setIsHovered(false)}
+>
 
-/* Ícone colorido */
-.hub-panel-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+// CORRETO - Click navega
+<button onClick={() => navigate('/rota')}>
 
-/* Faixa lateral ativa (roxo → laranja) */
-.active-indicator {
-  position: absolute;
-  left: 0;
-  width: 4px;
-  height: 32px;
-  background: linear-gradient(to bottom, #7C3AED, #F97316);
-  border-radius: 0 4px 4px 0;
-}
+// PROIBIDO
+onClick={(e) => { e.preventDefault(); ... }}  // ❌
+onClick={(e) => { e.stopPropagation(); ... }} // ❌
 ```
-
----
-
-## Comportamento
-
-| Ação | Comportamento |
-|------|---------------|
-| **Hover em Dashboard/Analytics/Conversões** | Highlight suave (fundo cinza claro) |
-| **Click em Dashboard/Analytics/Conversões** | Navega e marca como ativo |
-| **Hover em Conteúdo/Conta** | Abre menu flutuante após 50ms |
-| **Sair do Hover** | Fecha menu após 150ms (debounce) |
-| **Click em item do menu flutuante** | Navega e fecha menu |
-| **Click fora** | Fecha menu flutuante |
-| **Item ativo** | Faixa lateral com gradiente roxo→laranja |
 
 ---
 
 ## Critérios de Aceite
 
 ### Visual
-- [ ] Logo oficial OmniSeen no topo (não letra "O")
-- [ ] Apenas 5 botões principais visíveis
-- [ ] Indicador "▸" nos hubs que têm menu
-- [ ] Faixa lateral roxo→laranja em item ativo
-- [ ] Menus flutuantes com sombra e cantos arredondados
+- [ ] Apenas 3 itens no corpo do sidebar (Dashboard, Conteúdo, Conversões)
+- [ ] ❌ Analytics NÃO aparece mais
+- [ ] ❌ "Conta & Sistema" NÃO aparece no corpo do menu
+- [ ] Botão do workspace no rodapé com avatar + nome + chevron
+- [ ] Menu da conta abre para CIMA (não para o lado)
+- [ ] Ícone ✎ (lápis) ao lado de "Conteúdo"
+
+### Menu Conteúdo
+- [ ] Radar de Oportunidades
+- [ ] Gerar Artigo (com badge IA)
+- [ ] Meus Artigos
+- [ ] Blog / Portal Público
+- [ ] Páginas SEO
+
+### Menu Conta (rodapé)
+- [ ] Perfil, Empresa, Estratégia SEO
+- [ ] Configurações
+- [ ] Plano & Cobrança
+- [ ] Integrações (com sub-itens: WordPress, Wix, Gmail, Calendar)
+- [ ] Notificações
+- [ ] Ajuda & Suporte
+- [ ] Toggle de Tema
+- [ ] Sair (vermelho)
 
 ### Comportamento
 - [ ] Hover em hub abre menu flutuante
-- [ ] Click em hub também abre menu
-- [ ] Menu fecha ao sair ou clicar fora
-- [ ] Navegação funciona em todos os itens
-- [ ] Toggle de tema funciona dentro do hub "Conta"
+- [ ] Click em item do menu navega E fecha menu
+- [ ] Menu fecha ao clicar fora
+- [ ] Toggle de tema funciona
+- [ ] Logout funciona
 
-### Responsivo
-- [ ] Mobile: drawer mantém mesma estrutura
-- [ ] Mobile: hubs expandem inline (accordion)
+### Mobile
+- [ ] Estrutura simplificada no drawer
+- [ ] Analytics removido
+- [ ] Conta expande como accordion
+
+---
+
+## Ordem de Implementação
+
+1. **PASSO 1:** Reescrever `SidebarFooter.tsx` → `AccountFooter.tsx`
+2. **PASSO 2:** Modificar `AccountHubPanel.tsx` (adicionar Configurações, expandir Integrações)
+3. **PASSO 3:** Modificar `PremiumSidebar.tsx` (remover Analytics, remover HubMenuItem Conta, usar Pencil)
+4. **PASSO 4:** Modificar `MobileDrawer.tsx` (remover Analytics, adaptar)
+5. **PASSO 5:** Modificar `index.ts` (remover UserMenu, adicionar AccountFooter)
+6. **PASSO 6:** Deletar `UserMenu.tsx`
+7. **PASSO 7:** Testar todos os fluxos
+
+---
+
+## Resultado Visual Final
+
+```
+┌──────────────────────────────┐
+│ 🟣 OmniSeen                  │
+├──────────────────────────────┤
+│                              │
+│ ▸ Dashboard                  │  
+│                              │
+│ ▸ Conteúdo ✎                 │  ← hover abre painel flutuante
+│                              │
+│ ▸ Conversões                 │
+│                              │
+│ ───────────────────────────  │
+│                              │
+│ [🟣 TN] Truly Nolen     ▼    │  ← click abre painel para CIMA
+│        Plano Growth          │
+└──────────────────────────────┘
+```
+
+**3 itens no corpo + 1 botão de conta no rodapé = LIMPO**
 
 ---
 
 ## Impacto
 
-| Aspecto | Impacto |
-|---------|---------|
-| **UX** | Sidebar 60% mais limpo, menos overwhelm visual |
-| **Branding** | Logo oficial restaurada, identidade forte |
-| **Navegação** | Power users encontram tudo nos hubs |
-| **Percepção** | De "painel admin" para "plataforma de crescimento" |
-
+| Antes | Depois |
+|-------|--------|
+| 5 itens + HubMenuItem "Conta" | **3 itens + AccountFooter** |
+| Analytics separado | **Removido** |
+| Menus duplicados (UserMenu + AccountHubPanel) | **Um só lugar para conta** |
+| Painel administrativo | **Plataforma de crescimento** |
