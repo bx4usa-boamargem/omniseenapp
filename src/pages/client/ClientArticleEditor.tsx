@@ -478,10 +478,43 @@ export default function ClientArticleEditor() {
   // EARLY REDIRECT PATTERN: Create placeholder and navigate immediately
   // ============================================================
   const createArticlePlaceholder = async (blogId: string, theme: string): Promise<string | null> => {
+    console.log("[CLICK][GEN_ARTICLE] createArticlePlaceholder iniciado", {
+      timestamp: new Date().toISOString(),
+      blogId,
+      theme,
+    });
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
       
+      console.log("[AUTH][GEN_ARTICLE]", {
+        userId: user?.id,
+        email: user?.email,
+        expiresAt: session?.expires_at,
+        authError: authError?.message,
+      });
+
+      if (!user) {
+        console.error("[AUTH][GEN_ARTICLE] User null - sessão expirada");
+        toast.error("Sessão expirada. Faça login novamente.");
+        return null;
+      }
+
+      // Validate blog ownership
+      const { data: blogData, error: blogError } = await supabase
+        .from('blogs')
+        .select('user_id')
+        .eq('id', blogId)
+        .single();
+
+      console.log("[BLOG][GEN_ARTICLE]", {
+        blogOwnerId: blogData?.user_id,
+        currentUserId: user.id,
+        match: blogData?.user_id === user.id,
+        blogError: blogError?.message,
+      });
+
       const slug = theme
         .toLowerCase()
         .normalize("NFD")
@@ -489,7 +522,9 @@ export default function ClientArticleEditor() {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/(^-|-$)/g, "")
         .substring(0, 60) + `-${Date.now()}`;
-      
+
+      console.log("[INSERT][GEN_ARTICLE] Attempting insert...", { blogId, slug, status: "generating" });
+
       const { data, error } = await supabase
         .from("articles")
         .insert({
@@ -501,19 +536,38 @@ export default function ClientArticleEditor() {
         })
         .select("id")
         .single();
-      
-      if (error) throw error;
-      console.log("[createArticlePlaceholder] Created placeholder:", data.id);
+
+      if (error) {
+        console.error("[INSERT-ERROR][GEN_ARTICLE]", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+        toast.error(`Erro ao criar artigo: ${error.message}`);
+        return null;
+      }
+
+      console.log("[INSERT-SUCCESS][GEN_ARTICLE]", { articleId: data.id });
       return data.id;
-    } catch (err) {
-      console.error("[createArticlePlaceholder] Error:", err);
-      toast.error("Erro ao criar artigo");
+    } catch (err: any) {
+      console.error("[EXCEPTION][GEN_ARTICLE]", err);
+      toast.error(err.message || "Erro inesperado ao criar artigo");
       return null;
     }
   };
 
   const handleGenerate = async (formData: SimpleFormData) => {
+    console.log("[ENTER][GEN_ARTICLE][handleGenerate]", {
+      timestamp: new Date().toISOString(),
+      route: location.pathname,
+      blogId: blog?.id,
+      blogLoading,
+      theme: formData.theme,
+    });
+
     if (!blog?.id) {
+      console.error("[BLOG-NULL][GEN_ARTICLE] blog.id não existe", { blog });
       toast.error('Blog não encontrado. Recarregue a página.');
       return;
     }
@@ -553,15 +607,15 @@ export default function ClientArticleEditor() {
         scheduledTime: formData.scheduledTime,
       }));
 
-      console.log("[handleGenerate] Navigating to:", placeholderId);
+      console.log("[NAVIGATING][GEN_ARTICLE]", { placeholderId });
       
       // 2. Navigate IMMEDIATELY to the editor
       navigate(`/client/articles/${placeholderId}/edit`, { replace: true });
       
-    } catch (err) {
-      console.error("[handleGenerate] Error:", err);
+    } catch (err: any) {
+      console.error("[EXCEPTION][handleGenerate]", err);
       generationLockRef.current = false;
-      toast.error("Erro ao iniciar geração");
+      toast.error(err.message || "Erro ao iniciar geração");
     }
   };
 

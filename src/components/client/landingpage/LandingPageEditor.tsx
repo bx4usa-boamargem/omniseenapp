@@ -267,13 +267,28 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
   // EARLY REDIRECT PATTERN: Create placeholder and navigate immediately
   // ============================================================
   const handleGenerate = async () => {
-    if (!blog?.id) return;
+    console.log("[ENTER][GEN_PAGE][handleGenerate]", {
+      timestamp: new Date().toISOString(),
+      route: location.pathname,
+      blogId: blog?.id,
+      blogLoading,
+      selectedTemplate,
+    });
+
+    if (!blog?.id) {
+      console.error("[BLOG-NULL][GEN_PAGE] blog.id não existe", { blog });
+      toast.error('Blog não encontrado. Recarregue a página.');
+      return;
+    }
 
     // 1. Create placeholder IMMEDIATELY
     const placeholder = await createPagePlaceholder(blog.id, selectedTemplate);
+    
+    console.log("[PLACEHOLDER-RESULT][GEN_PAGE]", { placeholder });
+    
     if (!placeholder) return;
 
-    console.log("[handleGenerate] Placeholder created, navigating to:", placeholder.id);
+    console.log("[NAVIGATING][GEN_PAGE]", { pageId: placeholder.id });
     
     // 2. Navigate IMMEDIATELY to the editor
     navigate(`/client/landing-pages/${placeholder.id}`, { replace: true });
