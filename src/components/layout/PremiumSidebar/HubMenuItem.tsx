@@ -1,0 +1,135 @@
+import { useState, useRef, ReactNode } from 'react';
+import { LucideIcon, ChevronRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+interface HubMenuItemProps {
+  id: string;
+  icon: LucideIcon;
+  label: string;
+  isActive?: boolean;
+  children: ReactNode;
+  onClose?: () => void;
+}
+
+/**
+ * Hub menu item com menu flutuante
+ * - Abre ao hover ou click
+ * - Fecha ao sair ou clicar fora
+ * - Faixa lateral roxo→laranja quando ativo
+ */
+export function HubMenuItem({ 
+  id, 
+  icon: Icon, 
+  label, 
+  isActive, 
+  children,
+  onClose 
+}: HubMenuItemProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const timeoutRef = useRef<NodeJS.Timeout>();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    setIsOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    timeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 150);
+  };
+
+  const handleClick = () => {
+    setIsOpen(!isOpen);
+  };
+
+  const handleCloseMenu = () => {
+    setIsOpen(false);
+    onClose?.();
+  };
+
+  return (
+    <div 
+      ref={containerRef}
+      className="relative px-2"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* Botão Principal */}
+      <button
+        onClick={handleClick}
+        className={cn(
+          'w-full flex items-center gap-3 px-4 py-3 rounded-lg relative',
+          'transition-all duration-200',
+          isActive && [
+            'bg-[#EDE9FE] dark:bg-[#7C3AED]/20',
+            'text-[#7C3AED] font-semibold',
+          ],
+          !isActive && [
+            'text-[#6B7280] dark:text-gray-400',
+            'hover:text-[#111827] dark:hover:text-white',
+            'hover:bg-[#F9FAFB] dark:hover:bg-gray-800',
+          ]
+        )}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+      >
+        {/* Faixa lateral ativa (roxo → laranja) */}
+        {isActive && (
+          <div 
+            className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full"
+            style={{ 
+              background: 'linear-gradient(to bottom, #7C3AED, #F97316)' 
+            }}
+          />
+        )}
+        
+        <Icon className={cn(
+          'h-5 w-5 shrink-0 transition-colors',
+          isActive && 'text-[#7C3AED]'
+        )} />
+        
+        <span className="flex-1 text-left text-sm font-medium">
+          {label}
+        </span>
+        
+        <ChevronRight className={cn(
+          'h-4 w-4 text-[#9CA3AF] transition-transform duration-200',
+          isOpen && 'rotate-90'
+        )} />
+      </button>
+
+      {/* Menu Flutuante */}
+      {isOpen && (
+        <>
+          {/* Overlay invisível para detectar click fora */}
+          <div 
+            className="fixed inset-0 z-40" 
+            onClick={handleCloseMenu}
+            aria-hidden="true"
+          />
+          
+          {/* Card flutuante */}
+          <div 
+            className={cn(
+              'absolute left-full top-0 ml-3 z-50',
+              'w-80 bg-white dark:bg-gray-900 rounded-xl',
+              'shadow-[0_10px_40px_rgba(0,0,0,0.15)]',
+              'border border-[#E5E7EB] dark:border-gray-700',
+              'animate-in slide-in-from-left-2 duration-200'
+            )}
+            role="menu"
+            aria-label={`Menu ${label}`}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+          >
+            {children}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

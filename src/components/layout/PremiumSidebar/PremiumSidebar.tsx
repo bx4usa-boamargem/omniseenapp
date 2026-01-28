@@ -1,26 +1,22 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Home,
-  Sparkles,
   FileText,
   BarChart3,
-  Globe,
   MessageSquare,
-  CreditCard,
-  Link2,
   Settings,
-  HelpCircle,
-  Sun,
-  Star,
-  Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 import { SidebarHeader } from './SidebarHeader';
-import { NavSection, NavItemConfig } from './NavSection';
+import { NavItem } from './NavItem';
+import { HubMenuItem } from './HubMenuItem';
+import { ContentHubPanel } from './ContentHubPanel';
+import { AccountHubPanel } from './AccountHubPanel';
 import { SidebarFooter } from './SidebarFooter';
-import { UserMenu } from './UserMenu';
 import { MobileDrawer, MobileMenuButton } from './MobileDrawer';
+import { UserMenu } from './UserMenu';
 
 interface PremiumSidebarProps {
   isPlatformAdmin?: boolean;
@@ -28,157 +24,75 @@ interface PremiumSidebarProps {
 }
 
 /**
- * Premium Sidebar SaaS - Estilo SEOWriting.ai
- * - Largura fixa: 280px (sempre visível)
- * - Duas seções: PRINCIPAL e CONFIGURAÇÕES
- * - Sem hover/colapsar/PIN
+ * Premium Sidebar - Design Limpo com Hubs Flutuantes
+ * 
+ * Estrutura:
+ * - Logo OmniSeen oficial no topo
+ * - 5 itens principais (Dashboard, Conteúdo HUB, Analytics, Conversões, Conta HUB)
+ * - Hubs abrem menus flutuantes ao hover/click
+ * - Footer com seletor de workspace
  */
 export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { signOut } = useAuth();
   
-  // Estados simplificados (sem expanded/pinned)
   const [menuOpen, setMenuOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Determinar item ativo baseado na rota atual
-  const getActiveItem = useCallback(() => {
+  // Determinar hub/item ativo baseado na rota
+  const getActiveHub = useCallback(() => {
     const path = location.pathname;
+    
+    // Dashboard
     if (path.includes('/dashboard')) return 'dashboard';
-    if (path.includes('/articles/new')) return 'generate';
-    if (path.includes('/articles')) return 'articles';
+    
+    // Hub: Conteúdo (agrupa várias rotas)
+    if (
+      path.includes('/articles') || 
+      path.includes('/radar') || 
+      path.includes('/portal') || 
+      path.includes('/landing-pages')
+    ) return 'content';
+    
+    // Analytics
     if (path.includes('/analytics')) return 'analytics';
-    if (path.includes('/portal')) return 'publish';
-    if (path.includes('/leads')) return 'leads';
-    if (path.includes('/settings')) return 'settings';
-    if (path.includes('/integrations')) return 'integrations';
-    if (path.includes('/help')) return 'help';
+    
+    // Conversões
+    if (path.includes('/leads')) return 'conversions';
+    
+    // Hub: Conta & Sistema
+    if (
+      path.includes('/account') || 
+      path.includes('/company') || 
+      path.includes('/settings') || 
+      path.includes('/help')
+    ) return 'account';
+    
     return 'dashboard';
   }, [location.pathname]);
 
-  const [activeItem, setActiveItem] = useState(getActiveItem);
+  const [activeHub, setActiveHub] = useState(getActiveHub);
 
-  // Atualizar item ativo quando a rota mudar
   useEffect(() => {
-    setActiveItem(getActiveItem());
-  }, [getActiveItem]);
+    setActiveHub(getActiveHub());
+  }, [getActiveHub]);
 
   // Handler de navegação
-  const handleNavigation = (id: string, path?: string) => {
-    setActiveItem(id);
-    
-    // Fechar menu mobile ao navegar
+  const handleNavigate = useCallback((path: string) => {
     setMobileOpen(false);
-    
-    // Handler especial para ajuda
-    if (id === 'help' && onHelpClick) {
-      onHelpClick();
-      return;
-    }
-    
-    if (path) {
-      navigate(path);
-    }
-  };
+    navigate(path);
+  }, [navigate]);
 
-  // Itens da seção PRINCIPAL
-  const mainItems: NavItemConfig[] = [
-    {
-      id: 'dashboard',
-      icon: Home,
-      label: 'Dashboard',
-      path: '/client/dashboard',
-    },
-    {
-      id: 'generate',
-      icon: Sparkles,
-      label: 'Gerar Artigo',
-      path: '/client/articles/new',
-      highlight: true,
-    },
-    {
-      id: 'articles',
-      icon: FileText,
-      label: 'Meus Artigos',
-      path: '/client/articles',
-      badge: 15,
-      badgeType: 'default',
-    },
-    {
-      id: 'analytics',
-      icon: BarChart3,
-      label: 'Analytics',
-      path: '/client/analytics',
-    },
-    {
-      id: 'publish',
-      icon: Globe,
-      label: 'Publicar',
-      path: '/client/portal',
-      badge: 3,
-      badgeType: 'success',
-      pulseDot: true,
-    },
-    {
-      id: 'leads',
-      icon: MessageSquare,
-      label: 'Conversões',
-      path: '/client/leads',
-    },
-  ];
-
-  // Itens da seção CONFIGURAÇÕES
-  const settingsItems: NavItemConfig[] = [
-    {
-      id: 'billing',
-      icon: CreditCard,
-      label: 'Plano & Cobrança',
-      path: '/client/settings?tab=billing',
-      badge: 'Growth',
-      badgeType: 'purple',
-      badgeIcon: Star,
-    },
-    {
-      id: 'integrations',
-      icon: Link2,
-      label: 'Integrações',
-      path: '/client/integrations',
-      badge: 3,
-      badgeType: 'default',
-    },
-    {
-      id: 'settings',
-      icon: Settings,
-      label: 'Configurações',
-      path: '/client/settings',
-    },
-    {
-      id: 'help',
-      icon: HelpCircle,
-      label: 'Ajuda & Suporte',
-      path: '/help',
-    },
-    {
-      id: 'theme',
-      icon: Sun,
-      label: 'Tema',
-      isThemeToggle: true,
-    },
-  ];
-
-  // Adicionar item Admin se for platform admin
-  if (isPlatformAdmin) {
-    settingsItems.push({
-      id: 'admin',
-      icon: Shield,
-      label: 'Admin Panel',
-      path: '/admin',
-    });
-  }
+  // Handler de logout
+  const handleLogout = useCallback(async () => {
+    await signOut();
+    navigate('/');
+  }, [signOut, navigate]);
 
   return (
     <>
-      {/* Sidebar Desktop - Sempre 280px visível */}
+      {/* ========== SIDEBAR DESKTOP ========== */}
       <aside
         className={cn(
           'hidden lg:flex fixed left-0 top-0 h-screen z-40',
@@ -188,55 +102,87 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
         role="navigation"
         aria-label="Sidebar principal"
       >
-        {/* Header com Logo */}
+        {/* Header com Logo Oficial */}
         <SidebarHeader />
 
-        {/* SEÇÃO PRINCIPAL - Scroll se necessário */}
-        <div className="flex-1 overflow-y-auto scrollbar-custom">
-          <NavSection
-            title="PRINCIPAL"
-            items={mainItems}
-            activeItem={activeItem}
-            onItemClick={handleNavigation}
+        {/* Navegação Principal */}
+        <nav className="flex-1 py-4 overflow-y-auto scrollbar-custom">
+          {/* Dashboard - Link direto */}
+          <NavItem 
+            id="dashboard"
+            icon={Home}
+            label="Dashboard"
+            isActive={activeHub === 'dashboard'}
+            onClick={() => handleNavigate('/client/dashboard')}
           />
-        </div>
 
-        {/* Divisor Visual Simples */}
-        <div className="mx-4 my-4">
-          <div className="h-px w-full bg-[#E5E7EB] dark:bg-gray-700" />
-        </div>
+          {/* Conteúdo - HUB */}
+          <HubMenuItem
+            id="content"
+            icon={FileText}
+            label="Conteúdo"
+            isActive={activeHub === 'content'}
+          >
+            <ContentHubPanel 
+              onNavigate={handleNavigate} 
+              currentPath={location.pathname}
+            />
+          </HubMenuItem>
 
-        {/* SEÇÃO CONFIGURAÇÕES - Fundo diferente */}
-        <div className="bg-[#FAFAFA] dark:bg-gray-800/50">
-          <NavSection
-            title="CONFIGURAÇÕES"
-            items={settingsItems}
-            onItemClick={handleNavigation}
-            isSecondary
+          {/* Analytics - Link direto */}
+          <NavItem 
+            id="analytics"
+            icon={BarChart3}
+            label="Analytics"
+            isActive={activeHub === 'analytics'}
+            onClick={() => handleNavigate('/client/analytics')}
           />
-        </div>
 
-        {/* Footer - Área do Usuário */}
+          {/* Conversões - Link direto */}
+          <NavItem 
+            id="conversions"
+            icon={MessageSquare}
+            label="Conversões"
+            isActive={activeHub === 'conversions'}
+            onClick={() => handleNavigate('/client/leads')}
+          />
+
+          {/* Separador */}
+          <div className="mx-4 my-4 h-px bg-[#E5E7EB] dark:bg-gray-700" />
+
+          {/* Conta & Sistema - HUB */}
+          <HubMenuItem
+            id="account"
+            icon={Settings}
+            label="Conta & Sistema"
+            isActive={activeHub === 'account'}
+          >
+            <AccountHubPanel 
+              onNavigate={handleNavigate}
+              onLogout={handleLogout}
+              currentPath={location.pathname}
+            />
+          </HubMenuItem>
+        </nav>
+
+        {/* Footer - Seletor de Workspace */}
         <SidebarFooter onMenuToggle={() => setMenuOpen(!menuOpen)} />
       </aside>
 
-      {/* Menu Flutuante do Usuário */}
+      {/* Menu Flutuante do Usuário (footer click) */}
       {menuOpen && (
         <UserMenu onClose={() => setMenuOpen(false)} />
       )}
 
-      {/* Mobile: Botão Hamburguer */}
+      {/* ========== MOBILE ========== */}
       <MobileMenuButton onClick={() => setMobileOpen(true)} />
 
-      {/* Mobile: Drawer */}
       <MobileDrawer
         open={mobileOpen}
         onClose={() => setMobileOpen(false)}
-        mainItems={mainItems}
-        settingsItems={settingsItems}
-        activeItem={activeItem}
-        onItemClick={handleNavigation}
-        onMenuToggle={() => setMenuOpen(!menuOpen)}
+        onNavigate={handleNavigate}
+        onLogout={handleLogout}
+        currentPath={location.pathname}
       />
     </>
   );
