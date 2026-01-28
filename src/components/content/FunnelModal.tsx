@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { smartNavigate, getClientArticleEditPath } from '@/utils/platformUrls';
 import {
   Dialog,
   DialogContent,
@@ -169,7 +170,7 @@ export function FunnelModal({ open, onOpenChange, blogId, onContinue, isClientCo
         onOpenChange(false);
 
         // Redirecionar para o primeiro artigo criado
-        navigate(`/client/articles/${createdArticles[0]}/edit`);
+        smartNavigate(navigate, getClientArticleEditPath(createdArticles[0]));
       } else {
         toast({
           variant: "destructive",

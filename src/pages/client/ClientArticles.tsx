@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useBlog } from '@/hooks/useBlog';
 import { supabase } from '@/integrations/supabase/client';
 import { getArticleUrl } from '@/utils/blogUrl';
+import { smartNavigate, getClientArticleEditPath, getClientArticleCreatePath } from '@/utils/platformUrls';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -126,7 +127,7 @@ export default function ClientArticles() {
 
   // Action handlers
   const handleEdit = (id: string) => {
-    navigate(`/client/articles/${id}/edit`);
+    smartNavigate(navigate, getClientArticleEditPath(id));
   };
 
   const handleView = (article: Article) => {
@@ -321,7 +322,7 @@ export default function ClientArticles() {
           </p>
         </div>
         <Button 
-          onClick={() => navigate('/client/create')}
+          onClick={() => smartNavigate(navigate, getClientArticleCreatePath())}
           className="gap-2 w-full sm:w-auto"
         >
           <Plus className="h-4 w-4" />
@@ -375,7 +376,7 @@ export default function ClientArticles() {
           <p className="text-muted-foreground mb-2">Nenhum artigo encontrado</p>
           <Button 
             variant="link" 
-            onClick={() => navigate('/client/create')}
+            onClick={() => smartNavigate(navigate, getClientArticleCreatePath())}
           >
             Criar seu primeiro artigo
           </Button>

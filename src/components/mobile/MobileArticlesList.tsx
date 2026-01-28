@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { getArticleUrl } from '@/utils/blogUrl';
+import { smartNavigate, getClientArticleEditPath, getClientArticleCreatePath } from '@/utils/platformUrls';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -93,7 +94,7 @@ export function MobileArticlesList({ blog }: MobileArticlesListProps) {
   };
 
   const handleEdit = (id: string) => {
-    navigate(`/client/articles/${id}/edit`);
+    smartNavigate(navigate, getClientArticleEditPath(id));
   };
 
   const getStatusBadge = (status: string | null) => {
@@ -136,7 +137,7 @@ export function MobileArticlesList({ blog }: MobileArticlesListProps) {
         </h1>
         <Button 
           size="sm"
-          onClick={() => navigate('/client/create')}
+          onClick={() => smartNavigate(navigate, getClientArticleCreatePath())}
           className="gap-1.5 client-btn-primary"
         >
           <Plus className="h-4 w-4" />
@@ -165,7 +166,7 @@ export function MobileArticlesList({ blog }: MobileArticlesListProps) {
           <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
           <p className="text-muted-foreground">Nenhum artigo encontrado</p>
           <Button 
-            onClick={() => navigate('/client/create')}
+            onClick={() => smartNavigate(navigate, getClientArticleCreatePath())}
             className="mt-4 gap-2"
           >
             <Plus className="h-4 w-4" />

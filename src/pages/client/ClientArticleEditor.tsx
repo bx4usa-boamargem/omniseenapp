@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useBlog } from '@/hooks/useBlog';
+import { smartNavigate, getClientArticlesListPath, getClientArticleEditPath } from '@/utils/platformUrls';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -211,7 +212,7 @@ export default function ClientArticleEditor() {
       console.log('[ConvertOpportunity] Success, redirecting to article:', data.article_id);
 
       // Redirect to the real editor with the created article
-      navigate(`/client/articles/${data.article_id}/edit`, { replace: true });
+      smartNavigate(navigate, getClientArticleEditPath(data.article_id));
     } catch (err) {
       console.error('[ConvertOpportunity] Error:', err);
       toast.error('Erro ao criar artigo. Tente novamente.');
@@ -305,7 +306,7 @@ export default function ClientArticleEditor() {
 
       if (error || !data) {
         toast.error('Artigo não encontrado');
-        navigate('/client/articles');
+        smartNavigate(navigate, getClientArticlesListPath());
         return;
       }
 

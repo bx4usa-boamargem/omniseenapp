@@ -1,6 +1,7 @@
 import { NavigateFunction } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { smartNavigate, getClientArticleEditPath } from '@/utils/platformUrls';
 
 export interface QuickArticleConfig {
   blogId: string;
@@ -57,7 +58,7 @@ export async function startFromOpportunity(
     }
 
     toast.success('Artigo criado!');
-    navigate(`/client/articles/${data.article_id}/edit`);
+    smartNavigate(navigate, getClientArticleEditPath(data.article_id));
     return true;
   } catch (err) {
     console.error('[startFromOpportunity] Unexpected error:', err);

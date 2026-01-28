@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { smartNavigate, getClientArticleEditPath } from '@/utils/platformUrls';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -339,7 +340,7 @@ export function QueueTab({ blogId }: QueueTabProps) {
 
   const handleViewArticle = (item: QueueItem) => {
     if (item.article_id) {
-      navigate(`/client/articles/${item.article_id}/edit`);
+      smartNavigate(navigate, getClientArticleEditPath(item.article_id));
     }
   };
 

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { smartNavigate, getClientArticleEditPath } from '@/utils/platformUrls';
 import { useBlog } from '@/hooks/useBlog';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -378,7 +379,7 @@ export default function ClientQueue() {
 
   const handleViewArticle = (item: QueueItem) => {
     if (item.article_id) {
-      navigate(`/client/articles/${item.article_id}/edit`);
+      smartNavigate(navigate, getClientArticleEditPath(item.article_id));
     }
   };
 
