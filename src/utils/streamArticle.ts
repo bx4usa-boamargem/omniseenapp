@@ -1,7 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
 
-const GENERATE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-article-structured`;
-
 export interface ImagePrompt {
   context: 'problem' | 'solution' | 'result' | 'section_1' | 'section_2' | 'section_3' | 'section_4';
   prompt: string;
@@ -164,14 +162,11 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
     // Get current user for cost tracking
     const { data: { user } } = await supabase.auth.getUser();
 
-    // Use structured endpoint (non-streaming but returns complete article with image prompts)
-    const response = await fetch(GENERATE_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-      },
-      body: JSON.stringify({ 
+    // Use structured endpoint via supabase.functions.invoke (sends user JWT automatically)
+    console.log("[streamArticle] Calling generate-article-structured via invoke...", { theme, blogId });
+    
+    const { data, error: invokeError } = await supabase.functions.invoke('generate-article-structured', {
+      body: { 
         theme, 
         keywords, 
         tone, 
@@ -192,28 +187,29 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
         editorial_model: editorialModel || 'traditional',
         generation_mode: resolvedGenerationMode, // NUNCA undefined - fast ou deep
         auto_publish: options.autoPublish !== false // Default true
-      }),
+      },
     });
 
     // Stage 3: Generating (response received, processing)
     onStage?.('generating');
     onProgress?.(30);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      if (response.status === 429) {
+    if (invokeError) {
+      console.error("[streamArticle] Edge function error:", invokeError);
+      const errorMsg = invokeError.message || '';
+      if (errorMsg.includes('429')) {
         onError('Limite de requisições excedido. Aguarde alguns minutos e tente novamente.');
         return;
       }
-      if (response.status === 402) {
+      if (errorMsg.includes('402')) {
         onError('Créditos insuficientes. Adicione créditos à sua conta.');
         return;
       }
-      onError(errorData.message || errorData.error || 'Erro ao gerar artigo');
+      onError(invokeError.message || 'Erro ao gerar artigo');
       return;
     }
 
-    const data = await response.json();
+    console.log("[streamArticle] Response received:", { success: data?.success, hasArticle: !!data?.article });
     
     if (!data.success || !data.article) {
       onError(data.message || 'Erro ao processar resposta da IA');

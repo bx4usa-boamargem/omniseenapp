@@ -241,11 +241,53 @@ export function useLandingPages(): UseLandingPagesReturn {
     blogId: string, 
     templateType: string
   ): Promise<{ id: string } | null> => {
+    console.log("[CLICK][GEN_PAGE] createPagePlaceholder iniciado", {
+      timestamp: new Date().toISOString(),
+      blogId,
+      templateType,
+    });
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("User not authenticated");
-      
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      const { data: { session } } = await supabase.auth.getSession();
+
+      console.log("[AUTH][GEN_PAGE]", {
+        userId: user?.id,
+        email: user?.email,
+        expiresAt: session?.expires_at,
+        authError: authError?.message,
+      });
+
+      if (!user) {
+        console.error("[AUTH][GEN_PAGE] User null - sessão expirada");
+        toast.error("Sessão expirada. Faça login novamente.");
+        return null;
+      }
+
+      // Validate blog ownership
+      const { data: blogData, error: blogError } = await supabase
+        .from('blogs')
+        .select('user_id')
+        .eq('id', blogId)
+        .single();
+
+      console.log("[BLOG][GEN_PAGE]", {
+        blogOwnerId: blogData?.user_id,
+        currentUserId: user.id,
+        match: blogData?.user_id === user.id,
+        blogError: blogError?.message,
+      });
+
       const timestamp = Date.now();
+
+      console.log("[INSERT][GEN_PAGE] Attempting insert...", { 
+        blogId, 
+        userId: user.id, 
+        templateType,
+        slug: `super-pagina-${timestamp}`,
+        status: "generating",
+      });
+
       const { data, error } = await supabase
         .from("landing_pages")
         .insert({
@@ -260,13 +302,23 @@ export function useLandingPages(): UseLandingPagesReturn {
         })
         .select("id")
         .single();
-      
-      if (error) throw error;
-      console.log("[createPagePlaceholder] Created placeholder with id:", data.id);
+
+      if (error) {
+        console.error("[INSERT-ERROR][GEN_PAGE]", {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+        toast.error(`Erro ao criar página: ${error.message}`);
+        return null;
+      }
+
+      console.log("[INSERT-SUCCESS][GEN_PAGE]", { pageId: data.id });
       return data;
-    } catch (err) {
-      console.error("[createPagePlaceholder] Error:", err);
-      toast.error("Erro ao criar página");
+    } catch (err: any) {
+      console.error("[EXCEPTION][GEN_PAGE]", err);
+      toast.error(err.message || "Erro inesperado ao criar página");
       return null;
     }
   }, []);
