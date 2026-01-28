@@ -1,166 +1,99 @@
 
-# Plano: Ajustar Menu 100% por Hover (Sem Fixação por Clique)
+# Plano: Corrigir Navegação do Sidebar (Separar Hover de Click)
 
-## Diagnóstico
+## Problema Identificado
 
-### Componentes Analisados
+Os itens "Criar" e "Documentos" no `MinimalSidebar.tsx` **não passam prop `onClick`** para `SidebarNavItem`:
 
-| Componente | Estado Atual | Ação Necessária |
-|------------|--------------|-----------------|
-| `SidebarNavItem.tsx` | ✅ Já usa hover puro | Nenhuma |
-| `SidebarHoverPanel.tsx` | ✅ Controlado por parent | Nenhuma |
-| `MinimalSidebar.tsx` | ✅ Logo navega sem menu | Nenhuma |
-| `AccountBlock.tsx` | ❌ Usa Popover com clique | **Converter para hover** |
-
-### Problema Identificado
-
-O `AccountBlock.tsx` (linhas 96-207) usa o componente Radix `Popover`, que por design abre e fecha com **clique**, mantendo um estado `isOpen` persistente:
-
-```typescript
-// Estado que persiste por clique
-const [isOpen, setIsOpen] = useState(false);
-
-// Popover que só fecha ao clicar fora
-<Popover open={isOpen} onOpenChange={setIsOpen}>
-  <PopoverTrigger asChild>
-    <button>...</button>  // Clique abre/fecha
-  </PopoverTrigger>
-  <PopoverContent>...</PopoverContent>
-</Popover>
+```tsx
+// ANTES - SEM onClick (não navega no clique)
+<SidebarNavItem
+  icon={PenTool}
+  label="Criar"
+  isActive={isCreationActive()}
+  panel={<SidebarHoverPanel items={creationTools} onNavigate={navigate} />}
+/>
 ```
+
+Quando o usuário clica no ícone:
+- O `button` no `SidebarNavItem` executa `onClick={onClick}` (linha 47)
+- Como `onClick` é `undefined`, nada acontece
+- A navegação só funciona ao clicar nos itens DO PAINEL (que usam `onNavigate`)
 
 ---
 
-## Solução Proposta
+## Solução
 
-Converter `AccountBlock.tsx` de **Popover (clique)** para **HoverCard (hover puro)**:
+### 1. Adicionar `onClick` aos itens com painel
 
-### Mudanças Técnicas
+Cada item que tem um painel flutuante deve **também ter uma rota padrão** para navegação direta:
 
-1. **Substituir Popover por HoverCard**
-   - De: `@radix-ui/react-popover`
-   - Para: `@radix-ui/react-hover-card` (já instalado no projeto)
+```tsx
+// DEPOIS - COM onClick (navega para rota principal)
+<SidebarNavItem
+  icon={PenTool}
+  label="Criar"
+  isActive={isCreationActive()}
+  onClick={() => navigate('/client/create')}  // ← Rota padrão
+  panel={<SidebarHoverPanel items={creationTools} onNavigate={navigate} />}
+/>
 
-2. **Remover estado `isOpen` controlado**
-   - O HoverCard gerencia automaticamente por eventos de mouse
+<SidebarNavItem
+  icon={FileText}
+  label="Documentos"
+  isActive={isDocumentsActive()}
+  onClick={() => navigate('/client/articles')}  // ← Rota padrão
+  panel={<SidebarHoverPanel items={documentItems} onNavigate={navigate} />}
+/>
+```
 
-3. **Adicionar delays para evitar flicker**
-   - `openDelay={100}` - espera 100ms antes de abrir
-   - `closeDelay={150}` - espera 150ms antes de fechar
+### 2. Comportamento Final
 
-4. **Manter clique no trigger para navegação direta**
-   - Clique no avatar → navega para `/client/settings`
-   - Hover no avatar → abre painel de opções
+| Interação | Resultado |
+|-----------|-----------|
+| **Hover** no ícone | Painel flutuante aparece (apenas visual) |
+| **Click** no ícone | Navega para rota padrão do item |
+| **Click** em item do painel | Navega para rota específica |
+| **Mouse sai** | Painel fecha automaticamente |
 
 ---
 
 ## Arquivo a Modificar
 
-### `src/components/layout/AccountBlock.tsx`
+### `src/components/layout/MinimalSidebar.tsx`
 
-**Antes (Popover com clique):**
-```typescript
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-
-const [isOpen, setIsOpen] = useState(false);
-
-<Popover open={isOpen} onOpenChange={setIsOpen}>
-  <PopoverTrigger asChild>
-    <button>...</button>
-  </PopoverTrigger>
-  <PopoverContent>...</PopoverContent>
-</Popover>
+**Mudança 1 - Item "Criar":**
+```tsx
+<SidebarNavItem
+  icon={PenTool}
+  label="Criar"
+  isActive={isCreationActive()}
+  onClick={() => navigate('/client/create')}  // ADICIONAR
+  panel={<SidebarHoverPanel items={creationTools} onNavigate={navigate} />}
+/>
 ```
 
-**Depois (HoverCard com hover puro):**
-```typescript
-import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
-
-// Sem estado isOpen!
-
-<HoverCard openDelay={100} closeDelay={150}>
-  <HoverCardTrigger asChild>
-    <button onClick={() => navigate('/client/settings')}>
-      {/* Avatar e info - clique navega para settings */}
-    </button>
-  </HoverCardTrigger>
-  <HoverCardContent side="top" align="start" sideOffset={8}>
-    {/* Menu items */}
-  </HoverCardContent>
-</HoverCard>
+**Mudança 2 - Item "Documentos":**
+```tsx
+<SidebarNavItem
+  icon={FileText}
+  label="Documentos"
+  isActive={isDocumentsActive()}
+  onClick={() => navigate('/client/articles')}  // ADICIONAR
+  panel={<SidebarHoverPanel items={documentItems} onNavigate={navigate} />}
+/>
 ```
 
 ---
 
-## Detalhes da Implementação
+## Validação da Arquitetura
 
-### Comportamento Final
+O `SidebarNavItem.tsx` já está **corretamente implementado**:
+- Hover controlado por `onMouseEnter` / `onMouseLeave` (estado `isHovered`)
+- Click delega para `onClick` prop
+- Separação completa entre visual (hover) e ação (click)
 
-| Interação | Resultado |
-|-----------|-----------|
-| Hover no avatar | Menu aparece após 100ms |
-| Mouse sai do avatar/menu | Menu fecha após 150ms |
-| Clique no avatar | Navega para `/client/settings` (sem fixar menu) |
-| Clique em item do menu | Navega para a rota específica |
-
-### Ajustes de Estilo
-
-O `HoverCardContent` precisa herdar os estilos do `PopoverContent`:
-- Mesma largura (`w-64`)
-- Mesmo padding (`p-2`)
-- Mesmo offset (`sideOffset={8}`)
-- Mesma posição (`side="top"`, `align="start"`)
-
----
-
-## Código da Solução
-
-```typescript
-// AccountBlock.tsx - Nova versão
-
-import { useNavigate } from 'react-router-dom';
-import { 
-  User, Link2, CreditCard, BarChart3, Bell, LogOut, Sparkles 
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from '@/components/ui/hover-card';
-import { useAuth } from '@/hooks/useAuth';
-import { useBlog } from '@/hooks/useBlog';
-
-// Remover: const [isOpen, setIsOpen] = useState(false);
-
-// Remover: setIsOpen(false) das funções de navegação
-
-<HoverCard openDelay={100} closeDelay={150}>
-  <HoverCardTrigger asChild>
-    <button
-      onClick={() => navigate('/client/settings')}
-      className={cn(
-        'account-block w-full p-3 rounded-xl cursor-pointer',
-        'transition-all duration-200 hover:bg-primary/5',
-        'flex items-center gap-3 text-left',
-        'focus:outline-none focus:ring-2 focus:ring-primary/50'
-      )}
-    >
-      {/* Avatar content - igual ao atual */}
-    </button>
-  </HoverCardTrigger>
-
-  <HoverCardContent 
-    side="top" 
-    align="start" 
-    className="w-64 p-2"
-    sideOffset={8}
-  >
-    {/* Menu items - igual ao atual */}
-  </HoverCardContent>
-</HoverCard>
-```
+O problema era apenas **não passar a prop `onClick`** no componente pai.
 
 ---
 
@@ -168,27 +101,17 @@ import { useBlog } from '@/hooks/useBlog';
 
 | Critério | Validação |
 |----------|-----------|
-| Hover no avatar abre menu | Testar interação |
-| Mouse sai → menu fecha automaticamente | Testar interação |
-| Clique no avatar navega para /client/settings | Testar clique |
-| Menu não fica "travado" após clique | Testar comportamento |
-| Delay de 100-150ms evita flicker | Movimentar mouse rapidamente |
-| Transição suave (200ms) | Visual |
-| Funciona igual em collapsed mode | Testar sidebar compacto |
+| Click em "Criar" navega para `/client/create` | Testar clique |
+| Click em "Documentos" navega para `/client/articles` | Testar clique |
+| Hover em "Criar" ainda abre painel flutuante | Testar hover |
+| Hover em "Documentos" ainda abre painel flutuante | Testar hover |
+| Leads, Radar, Ajuda continuam funcionando | Testar clique |
+| Painel fecha ao tirar o mouse | Testar hover out |
 
 ---
 
 ## Impacto
 
-- **Zero breaking changes** - apenas muda o método de controle do menu
-- **UX Premium** - comportamento fluido estilo Linear/Notion
-- **Consistência** - todos os menus agora funcionam 100% por hover
-- **Zero fricção** - usuário nunca precisa "destravar" menus
-
----
-
-## Resumo de Arquivos
-
-| Arquivo | Ação |
-|---------|------|
-| `src/components/layout/AccountBlock.tsx` | Substituir Popover por HoverCard, remover estado `isOpen` |
+- **Fix simples**: Apenas 2 linhas adicionadas
+- **Zero breaking changes**: Comportamento de hover não é afetado
+- **Navegação funcional**: Todos os itens agora respondem ao clique
