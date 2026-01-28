@@ -10,7 +10,7 @@ interface UseLandingPagesReturn {
   generating: boolean;
   saving: boolean;
   fetchPages: (blogId: string) => Promise<void>;
-  generatePage: (request: GenerateLandingPageRequest) => Promise<LandingPageData | null>;
+  generatePage: (request: GenerateLandingPageRequest) => Promise<LandingPage | null>;
   savePage: (page: Partial<LandingPage> & { blog_id: string }) => Promise<LandingPage | null>;
   updatePage: (id: string, updates: Partial<LandingPage>) => Promise<boolean>;
   deletePage: (id: string) => Promise<boolean>;
@@ -232,7 +232,7 @@ export function useLandingPages(): UseLandingPagesReturn {
     }
   }, []);
 
-  const generatePage = useCallback(async (request: GenerateLandingPageRequest): Promise<LandingPageData | null> => {
+  const generatePage = useCallback(async (request: GenerateLandingPageRequest): Promise<LandingPage | null> => {
     setGenerating(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -338,7 +338,7 @@ export function useLandingPages(): UseLandingPagesReturn {
         : "Super Página gerada e publicada!"
       );
       
-      return pageData;
+      return savedPage as unknown as LandingPage;
     } catch (err: any) {
       console.error("[useLandingPages] CRITICAL FAILURE:", err);
       toast.error(err.message || "Falha na criação da Super Página");

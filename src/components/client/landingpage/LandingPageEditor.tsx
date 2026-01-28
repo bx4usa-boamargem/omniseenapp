@@ -197,9 +197,11 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
   const handleGenerate = async () => {
     if (!blog?.id) return;
 
-    // Reset state to avoid DOM conflicts during new generation
+    // Reset state completely before generation to avoid DOM conflicts
     setPageData(null);
     setPage(null);
+    setTitle("");
+    setSlug("");
 
     const result = await generatePage({
       blog_id: blog.id,
@@ -208,13 +210,13 @@ export function LandingPageEditor({ pageId }: LandingPageEditorProps) {
       city: businessProfile?.city,
       services: businessProfile?.services?.split(','),
       phone: businessProfile?.phone || "",
-      template_type: selectedTemplate // Pass selected template
+      template_type: selectedTemplate
     });
 
-    if (result) {
-      // O result já vem persistido do hook useLandingPages
-      // Precisamos apenas recarregar a lista ou a página atual
-      window.location.reload(); // Forçar recarregamento para estabilizar a árvore React com os novos dados do DB
+    if (result && isMounted.current) {
+      // Navigate to the new page instead of forcing reload
+      // This prevents DOM conflicts with React's virtual DOM
+      navigate(`/client/landing-pages/${result.id}`, { replace: true });
     }
   };
 
