@@ -217,8 +217,28 @@ export default function ArticleGenerator() {
         body: payload
       });
       
-      if (error) {
-        throw new Error(error.message || 'Erro ao gerar artigo');
+      // Handle QUALITY_GATE_FAILED errors specifically
+      if (error || data?.error === 'QUALITY_GATE_FAILED') {
+        const errorCode = data?.code || '';
+        const errorMap: Record<string, string> = {
+          'missing_city': 'Cidade é obrigatória para gerar o artigo',
+          'missing_niche': 'Nicho é obrigatório para gerar o artigo',
+          'invalid_json': 'Erro ao processar resposta da IA. Tente novamente.',
+          'missing_title': 'Artigo gerado sem título. Tente novamente.',
+          'insufficient_sections': data?.details || 'Artigo com estrutura incompleta (H2s insuficientes)',
+          'invalid_sections': data?.details || 'Artigo contém seções vazias',
+          'insufficient_faq': data?.details || 'FAQ insuficiente no artigo',
+          'insufficient_images': data?.details || 'Imagens insuficientes no artigo',
+          'missing_hero_image': 'Hero image obrigatória não foi gerada',
+          'insufficient_word_count': data?.details || 'Artigo muito curto',
+          'missing_introduction': 'Artigo sem introdução adequada',
+          'missing_conclusion': 'Artigo sem conclusão'
+        };
+        
+        const errorMessage = errorMap[errorCode] || data?.message || error?.message || 'Erro na geração do artigo';
+        clearAllTimers();
+        toast.error(errorMessage);
+        return;
       }
       
       // Edge function returns { success: true, article: { id, slug, ... } }
@@ -232,7 +252,14 @@ export default function ArticleGenerator() {
       clearAllTimers();
       setGenerationStage('done');
       setGenerationProgress(100);
-      toast.success('Artigo gerado com sucesso!');
+      
+      // Show metrics if available
+      const metrics = data?.article?.metrics || data?.metrics;
+      if (metrics) {
+        toast.success(`Artigo gerado! ${metrics.wordCount || 0} palavras, ${metrics.h2Count || 0} seções`);
+      } else {
+        toast.success('Artigo gerado com sucesso!');
+      }
       
       // Navigate to preview
       navigate(`/client/articles/${articleId}/preview`);
