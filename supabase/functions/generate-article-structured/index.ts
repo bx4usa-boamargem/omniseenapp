@@ -343,41 +343,91 @@ async function callLovableJsonTool(params: {
   toolName: string;
   toolSchema: Record<string, unknown>;
   temperature?: number;
+  maxRetries?: number;
 }): Promise<{ arguments: Record<string, unknown>; usage?: { total_tokens?: number; prompt_tokens?: number; completion_tokens?: number } }> {
-  const { url, apiKey, model, system, user, toolName, toolSchema, temperature = 0.4 } = params;
+  const { url, apiKey, model, system, user, toolName, toolSchema, temperature = 0.4, maxRetries = 2 } = params;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-      tools: [toolSchema],
-      tool_choice: { type: 'function', function: { name: toolName } },
-      temperature,
-    }),
-  });
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[AI] callLovableJsonTool attempt ${attempt + 1}/${maxRetries + 1} for tool: ${toolName}`);
+      
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+          tools: [toolSchema],
+          tool_choice: { type: 'function', function: { name: toolName } },
+          temperature: temperature + (attempt * 0.1), // Slightly increase temperature on retry
+        }),
+      });
 
-  if (!res.ok) {
-    const t = await res.text().catch(() => '');
-    throw new Error(`AI_GATEWAY_ERROR: ${res.status} ${t.substring(0, 300)}`);
+      if (!res.ok) {
+        const t = await res.text().catch(() => '');
+        throw new Error(`AI_GATEWAY_ERROR: ${res.status} ${t.substring(0, 300)}`);
+      }
+
+      const rawText = await res.text();
+      const data = safeJsonParse<any>(rawText);
+      
+      // Primary path: tool call response
+      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+      if (toolCall?.function?.arguments) {
+        console.log(`[AI] Tool call received successfully on attempt ${attempt + 1}`);
+        const parsedArgs = parseArticleJSON(toolCall.function.arguments);
+        return { arguments: parsedArgs, usage: data.usage };
+      }
+      
+      // Fallback: Check if AI responded with content instead of tool call
+      const messageContent = data.choices?.[0]?.message?.content;
+      if (messageContent) {
+        console.log(`[AI] Received content instead of tool call, attempting to extract JSON...`);
+        
+        // Try to extract JSON from the content
+        const jsonMatch = messageContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        const jsonStr = jsonMatch ? jsonMatch[1] : messageContent;
+        
+        try {
+          const extracted = parseArticleJSON(jsonStr);
+          if (extracted && typeof extracted === 'object' && Object.keys(extracted).length > 0) {
+            console.log(`[AI] Successfully extracted JSON from content fallback`);
+            return { arguments: extracted, usage: data.usage };
+          }
+        } catch (parseErr) {
+          console.warn(`[AI] Failed to parse content as JSON: ${parseErr}`);
+        }
+      }
+      
+      // If we reach here, the response format was unexpected
+      console.warn(`[AI] Unexpected response format on attempt ${attempt + 1}:`, JSON.stringify(data).substring(0, 500));
+      lastError = new Error('AI_OUTPUT_INVALID: missing tool call arguments');
+      
+      // Wait before retry
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
+      
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      console.error(`[AI] Attempt ${attempt + 1} failed:`, lastError.message);
+      
+      // Wait before retry
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+      }
+    }
   }
-
-  const rawText = await res.text();
-  const data = safeJsonParse<any>(rawText);
-  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (!toolCall?.function?.arguments) {
-    throw new Error('AI_OUTPUT_INVALID: missing tool call arguments');
-  }
-
-  const parsedArgs = parseArticleJSON(toolCall.function.arguments);
-  return { arguments: parsedArgs, usage: data.usage };
+  
+  throw lastError || new Error('AI_OUTPUT_INVALID: all retry attempts failed');
 }
 
 async function callLovableQa(params: {
