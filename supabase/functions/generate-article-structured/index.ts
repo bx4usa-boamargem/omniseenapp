@@ -1609,10 +1609,11 @@ ${buildMasterPrompt(editorial_template || null, theme, keywords, tone)}
 
 Prazo de entrega: Data de referência é Janeiro de 2026. Todos os dados, tendências e referências devem ser contextualizados para esta data.`;
 
-    // V2.2: image_count dinâmico por modo - Authority permite até 10
+    // V2.2: image_count dinâmico por modo - Authority permite 6-10 imagens
     const maxImagesByMode = mode === 'authority' ? 10 : 5;
-    const targetImageCount = Math.min(Math.max(image_count, 1), maxImagesByMode);
-    console.log(`[IMAGES] Mode: ${mode}, requested: ${image_count}, target: ${targetImageCount} (max: ${maxImagesByMode})`);
+    const minImagesByMode = mode === 'authority' ? 6 : 3;  // Mínimo garantido
+    const targetImageCount = Math.min(Math.max(image_count || (mode === 'authority' ? 8 : 3), minImagesByMode), maxImagesByMode);
+    console.log(`[IMAGES] Mode: ${mode}, requested: ${image_count}, target: ${targetImageCount} (min: ${minImagesByMode}, max: ${maxImagesByMode})`);
 
     const createArticleTool = {
       type: 'function' as const,

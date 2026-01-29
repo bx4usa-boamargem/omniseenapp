@@ -204,7 +204,8 @@ export default function ArticleGenerator() {
         useEat: formData.eatInjection,
         contextualAlt: formData.imageAlt,
         // V2.2: Article Engine parameters based on mode
-        image_count: formData.mode === 'authority' ? 6 : 3,
+        // Authority mode: 8 images (min 6, max 10), Entry mode: 3 images
+        image_count: formData.mode === 'authority' ? 8 : 3,
         word_count: formData.mode === 'authority' ? 2400 : 1000,
         generation_mode: formData.mode === 'authority' ? 'deep' : 'fast',
       };
