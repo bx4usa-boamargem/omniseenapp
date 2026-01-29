@@ -134,9 +134,16 @@ export function ContentScorePanel({
   };
 
   const handleRunTo100 = () => {
-    setShowOptimizeDialog(true);
     optimizer.runTo100();
   };
+
+  // Só abrir o modal quando a otimização realmente estiver rodando.
+  // (Se o modo estiver temporariamente desabilitado, evita modal "travado".)
+  useEffect(() => {
+    if (optimizer.isRunning) {
+      setShowOptimizeDialog(true);
+    }
+  }, [optimizer.isRunning]);
 
   // Handle individual area fixes
   const handleFixArea = async (area: 'words' | 'h2' | 'paragraphs' | 'images') => {

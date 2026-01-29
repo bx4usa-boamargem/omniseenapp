@@ -53,6 +53,11 @@ export function useContentOptimizer({
   onContentUpdate,
   onScoreUpdate
 }: UseContentOptimizerProps): UseContentOptimizerReturn {
+  // URGENTE: Desabilitar temporariamente o QA automático ("Levar a 100")
+  // Motivo: fluxo pode travar por tempo indeterminado dependendo do backend/LLM.
+  // Reativaremos quando o motor estiver estável.
+  const RUN_TO_100_DISABLED = true;
+
   const [steps, setSteps] = useState<OptimizationStep[]>(
     OPTIMIZATION_STEPS.map(s => ({ ...s, status: 'pending' }))
   );
@@ -256,6 +261,15 @@ export function useContentOptimizer({
 
   // Run to 100 - sequential optimization with REGRESSION PROTECTION
   const runTo100 = useCallback(async () => {
+    if (RUN_TO_100_DISABLED) {
+      toast({
+        title: 'QA automático desativado',
+        description: 'O modo “Levar a 100” foi desabilitado temporariamente para evitar travamentos.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     setIsRunning(true);
     cancelledRef.current = false;
     setProgress(0);
