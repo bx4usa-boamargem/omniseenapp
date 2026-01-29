@@ -586,6 +586,19 @@ async function persistArticleToDb(
     console.log(`[PERSIST] ⚠️ Duplicate detected! Existing article id=${existingArticle.id}, updating instead of inserting`);
     
     // UPDATE existing article instead of creating duplicate
+    // Convert image_prompts to content_images format for persistence
+    const contentImages = (articleData.image_prompts || []).map((prompt: any, index: number) => ({
+      context: prompt.context || `Imagem ${index + 1}`,
+      prompt: prompt.prompt || '',
+      alt: prompt.alt || prompt.context || `Imagem do artigo`,
+      title: prompt.title || '',
+      caption: prompt.caption || '',
+      after_section: prompt.after_section || index + 1,
+      url: null // URL será preenchido quando imagem for gerada
+    }));
+    
+    console.log(`[PERSIST] Saving ${contentImages.length} content_images for article update`);
+    
     const updateData = {
       content: articleData.content || '',
       excerpt: articleData.excerpt || articleData.meta_description || '',
@@ -601,6 +614,8 @@ async function persistArticleToDb(
       // V2.1: Article Engine metadata
       article_structure_type: articleStructureType || null,
       source_payload: sourcePayload || null,
+      // V2.2: Content images (from image_prompts)
+      content_images: contentImages.length > 0 ? contentImages : null,
     };
     
     const { error: updateError } = await supabaseClient
@@ -621,6 +636,19 @@ async function persistArticleToDb(
       title: articleData.title || 'Artigo sem título'
     };
   }
+  
+  // Convert image_prompts to content_images format for persistence
+  const contentImagesForInsert = (articleData.image_prompts || []).map((prompt: any, index: number) => ({
+    context: prompt.context || `Imagem ${index + 1}`,
+    prompt: prompt.prompt || '',
+    alt: prompt.alt || prompt.context || `Imagem do artigo`,
+    title: prompt.title || '',
+    caption: prompt.caption || '',
+    after_section: prompt.after_section || index + 1,
+    url: null // URL será preenchido quando imagem for gerada
+  }));
+  
+  console.log(`[PERSIST] Saving ${contentImagesForInsert.length} content_images for new article`);
   
   // Preparar dados para inserção (no duplicate found)
   const insertData = {
@@ -648,6 +676,8 @@ async function persistArticleToDb(
     // V2.1: Article Engine metadata
     article_structure_type: articleStructureType || null,
     source_payload: sourcePayload || null,
+    // V2.2: Content images (from image_prompts)
+    content_images: contentImagesForInsert.length > 0 ? contentImagesForInsert : null,
   };
   
   console.log(`[PERSIST] Inserting article with slug: ${uniqueSlug}, status: ${insertData.status}, blog_id: ${blogId}`);
@@ -1849,6 +1879,10 @@ REGRAS CRÍTICAS:
     // ============================================================================
 
     let processedImagePrompts = Array.isArray(writerOut.image_prompts) ? writerOut.image_prompts : [];
+    console.log(`[Images] Writer returned ${processedImagePrompts.length} image_prompts`);
+    if (processedImagePrompts.length > 0) {
+      console.log('[Images] Prompts:', processedImagePrompts.map((p: any) => ({ context: p.context, after_section: p.after_section })));
+    }
     let featuredImageAlt: string | null = null;
 
     if (contextualAlt && niche) {
