@@ -19,7 +19,7 @@ export const AI_CONFIG = {
     },
     fallback: {
       provider: 'google' as const,
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       endpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
       temperature: 0.4,
       maxOutputTokens: 8192
@@ -36,7 +36,7 @@ export const AI_CONFIG = {
     },
     fallback: {
       provider: 'google' as const,
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       endpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
       useGrounding: true,
       groundingSource: 'google_search'
@@ -46,7 +46,7 @@ export const AI_CONFIG = {
   qa: {
     primary: {
       provider: 'google' as const,
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       endpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
       temperature: 0.1,
       responseFormat: 'json'
