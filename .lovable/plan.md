@@ -1,275 +1,229 @@
 
 
-# Plano: Reativar Pesquisa Web com Fallback Robusto
+# Plano: Implementar Timeouts na Pesquisa Perplexity/Firecrawl
 
 ## Resumo Executivo
 
-A pesquisa web (Perplexity + Firecrawl) está **desabilitada temporariamente** via código hardcoded. Este plano implementa um sistema de fallback robusto em 2 níveis, garantindo que artigos sempre tenham pesquisa competitiva ou falhem de forma transparente.
+Implementar AbortController com timeout em 3 pontos críticos para evitar que o sistema trave indefinidamente quando a API Perplexity/Firecrawl não responde.
 
 ---
 
-## Diagnóstico Atual
+## Correção 1: analyze-serp/index.ts - Timeout 30s no Perplexity (CRÍTICA)
 
-### Localização do Problema
-**Arquivo:** `supabase/functions/generate-article-structured/index.ts`  
-**Linhas:** 1493-1536
+**Localização:** Linhas 398-416 (função `discoverTopURLsWithPerplexity`)
 
-### Estado Atual (Problemático)
-```typescript
-// Linha 1500
-console.log('[TEMPORARY] Web research DISABLED - using empty package immediately');
-
-researchPackage = {
-  geo: { facts: [], trends: [], sources: [], ... },
-  serp: { commonTerms: [], topTitles: [], ... },
-  sources: [],
-  ...
-};
-```
-
-O código original (correto) está comentado nas linhas 1521-1536.
-
----
-
-## Arquitetura de Fallback Proposta
-
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                     STAGE 1: RESEARCH                           │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌──────────────────┐     ┌───────────────────┐                │
-│  │  runResearchStage │────►│ Perplexity Sonar  │                │
-│  │  (função local)   │     │ + analyze-serp    │                │
-│  └────────┬─────────┘     └─────────┬─────────┘                │
-│           │                         │                           │
-│           │                         ▼                           │
-│           │                    ┌────────┐                       │
-│           │                    │ SUCESSO│──► Continua geração   │
-│           │                    └────────┘                       │
-│           │                         │                           │
-│           ▼                         ▼                           │
-│      ┌────────┐              ┌─────────────┐                   │
-│      │ FALHA  │─────────────►│ callResearch│                   │
-│      └────────┘              │ (aiProviders)│                   │
-│                              └──────┬──────┘                   │
-│                                     │                           │
-│                              ┌──────┴──────┐                   │
-│                              ▼             ▼                   │
-│                         ┌────────┐   ┌────────┐                │
-│                         │ SUCESSO│   │ FALHA  │                │
-│                         │(Gemini)│   │(ABORTA)│                │
-│                         └───┬────┘   └───┬────┘                │
-│                             │            │                      │
-│                             ▼            ▼                      │
-│                     Continua com    Return 500                  │
-│                     provider mark   RESEARCH_FAILED             │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Alterações Necessárias
-
-### Etapa 1: Atualizar Interface ResearchPackage
-
-**Arquivo:** `supabase/functions/generate-article-structured/index.ts`  
-**Linhas:** 223-228
-
-Adicionar campo opcional `provider` para rastrear qual sistema gerou a pesquisa:
+**Alteração:** Envolver o `fetch` com AbortController de 30 segundos
 
 ```typescript
-interface ResearchPackage {
-  geo: GeoResearchData;
-  serp: SerpMatrixLite;
-  sources: string[];
-  generatedAt: string;
-  provider?: 'perplexity' | 'gemini_fallback';  // NOVO
-}
-```
+// ANTES (linhas 398-416):
+const response = await fetch("https://api.perplexity.ai/chat/completions", {
+  method: "POST",
+  headers: {...},
+  body: JSON.stringify({...}),
+});
 
----
+// DEPOIS:
+// Timeout de 30 segundos para descoberta de URLs
+const controller = new AbortController();
+const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-### Etapa 2: Substituir Bloco Stage 1 (Research)
-
-**Arquivo:** `supabase/functions/generate-article-structured/index.ts`  
-**Linhas:** 1493-1536
-
-Remover todo o bloco temporário desabilitado e substituir por:
-
-```typescript
-// ============================================================================
-// STAGE 1 (RESEARCH) - Perplexity Primary → Gemini Fallback → Abort
-// ============================================================================
-let researchPackage: ResearchPackage;
-
-// Diagnóstico de configuração
-console.log('[Research] Starting web research stage...');
-console.log('[Research] PERPLEXITY_API_KEY exists:', !!Deno.env.get('PERPLEXITY_API_KEY'));
-console.log('[Research] Theme:', theme);
-console.log('[Research] Primary keyword:', primaryKeyword);
-console.log('[Research] Territory:', territoryData?.official_name || 'N/A');
-
+let response: Response;
 try {
-  // NÍVEL 1: Tentar runResearchStage (Perplexity + Firecrawl)
-  researchPackage = await runResearchStage({
-    supabase,
-    blogId: blog_id!,
-    theme,
-    primaryKeyword,
-    territoryName: territoryData?.official_name || null,
-    territoryData: (territoryData as unknown as GeoTerritoryData) || null,
-  });
-  researchPackage.provider = 'perplexity';
-  console.log('[Research] ✅ SUCCESS (Perplexity) - Sources:', researchPackage.sources.length);
-
-} catch (e) {
-  const msg = e instanceof Error ? e.message : String(e);
-  console.error(`[Research] ❌ Perplexity FAILED: ${msg}`);
-  
-  await logStage(supabase, blog_id, 'research', 'perplexity', 'research-package', false, 0, { error: msg }, 0, 0, msg);
-  
-  // NÍVEL 2: Fallback para callResearch (Gemini com grounding)
-  console.log('[Research] Attempting Gemini fallback with grounding...');
-  
-  try {
-    const geminiResult = await callResearch({
-      query: `${theme} ${primaryKeyword} ${territoryData?.official_name || ''}`.trim(),
-      systemPrompt: `Pesquise informações factuais e atualizadas sobre: ${theme}. Foco em ${primaryKeyword}. Retorne fatos, tendências e fontes confiáveis.`,
-      maxTokens: 2048,
-    });
-    
-    if (!geminiResult.success || !geminiResult.data) {
-      throw new Error(geminiResult.fallbackReason || 'Gemini returned no data');
-    }
-    
-    researchPackage = {
-      geo: {
-        facts: geminiResult.data.facts || [],
-        trends: geminiResult.data.trends || [],
-        sources: geminiResult.data.sources || [],
-        rawQuery: primaryKeyword,
-        fetchedAt: new Date().toISOString(),
-      },
-      serp: { commonTerms: [], topTitles: [], contentGaps: [], averages: {} },
-      sources: geminiResult.data.sources || geminiResult.data.citations || [],
-      generatedAt: new Date().toISOString(),
-      provider: 'gemini_fallback',
-    };
-    
-    console.log('[Research] ✅ SUCCESS (Gemini fallback) - Sources:', researchPackage.sources.length);
-    
-    await logStage(supabase, blog_id, 'research', 'gemini', 'research-package', true, geminiResult.durationMs, { 
-      fallback: true,
-      perplexity_error: msg,
-      sources_count: researchPackage.sources.length,
-    });
-    
-  } catch (geminiError) {
-    // NÍVEL 3: Ambos falharam → ABORTAR geração
-    const geminiMsg = geminiError instanceof Error ? geminiError.message : String(geminiError);
-    console.error('[Research] ❌ ALL RESEARCH FAILED - Aborting generation');
-    console.error('[Research] Perplexity error:', msg);
-    console.error('[Research] Gemini error:', geminiMsg);
-    
-    await logStage(supabase, blog_id, 'research', 'all', 'research-package', false, 0, { 
-      perplexity_error: msg,
-      gemini_error: geminiMsg,
-      action: 'ABORTED',
-    });
-    
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: 'RESEARCH_FAILED',
-        message: 'Pesquisa web falhou (Perplexity e Gemini). Tente novamente em alguns minutos.',
-        debug: {
-          perplexity_error: msg,
-          gemini_error: geminiMsg,
-          timestamp: new Date().toISOString(),
+  response = await fetch("https://api.perplexity.ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "sonar-pro",
+      messages: [
+        {
+          role: "system",
+          content: "You are an SEO analyst. Return ONLY valid JSON without any markdown formatting or code blocks."
         },
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+        { role: "user", content: serpPrompt }
+      ],
+      temperature: 0.1,
+      max_tokens: 4000
+    }),
+    signal: controller.signal
+  });
+} catch (error) {
+  clearTimeout(timeoutId);
+  if (error instanceof Error && error.name === 'AbortError') {
+    console.error('[SERP] ⏱️ Perplexity TIMEOUT (30s) - aborting URL discovery');
+    throw new Error('PERPLEXITY_TIMEOUT: URL discovery exceeded 30 seconds');
   }
+  throw error;
 }
+clearTimeout(timeoutId);
 ```
 
 ---
 
-### Etapa 3: Adicionar Import
+## Correção 2: analyze-serp/index.ts - Timeout 15s no Firecrawl (Alta)
 
-**Arquivo:** `supabase/functions/generate-article-structured/index.ts`  
-**Localização:** Seção de imports (topo do arquivo)
+**Localização:** Linhas 211-227 (função `scrapeWithFirecrawl`)
 
-Verificar se `callResearch` está importado de `aiProviders.ts`:
+**Alteração:** Envolver o `fetch` com AbortController de 15 segundos
 
 ```typescript
-import { callResearch } from '../_shared/aiProviders.ts';
+// ANTES (linhas 215-227):
+const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+  method: 'POST',
+  headers: {...},
+  body: JSON.stringify({...}),
+});
+
+// DEPOIS:
+// Timeout de 15 segundos por URL
+const controller = new AbortController();
+const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+let response: Response;
+try {
+  response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      url,
+      formats: ['markdown', 'html'],
+      onlyMainContent: true,
+      waitFor: 2000
+    }),
+    signal: controller.signal
+  });
+} catch (error) {
+  clearTimeout(timeoutId);
+  if (error instanceof Error && error.name === 'AbortError') {
+    console.warn(`[SCRAPE] ⏱️ Timeout (15s) scraping ${url}`);
+    return null;
+  }
+  throw error;
+}
+clearTimeout(timeoutId);
 ```
 
 ---
 
-### Etapa 4: Deploy
+## Correção 3: generate-article-structured/index.ts - Timeout 45s na Chamada analyze-serp (Alta)
 
-Fazer deploy da edge function atualizada.
+**Localização:** Linhas 255-268 (dentro de `runResearchStage`)
 
----
+**Alteração:** Envolver a chamada inter-função com AbortController de 45 segundos
 
-## Fluxo de Decisão
+```typescript
+// ANTES (linhas 255-268):
+const serpRes = await fetch(`${SUPABASE_URL}/functions/v1/analyze-serp`, {
+  method: 'POST',
+  headers: {...},
+  body: JSON.stringify({...}),
+});
 
-| Cenário | Perplexity | Gemini | Resultado |
-|---------|------------|--------|-----------|
-| 1 | ✅ Success | N/A | Artigo com research completo |
-| 2 | ❌ Fail | ✅ Success | Artigo com research parcial (marcado) |
-| 3 | ❌ Fail | ❌ Fail | **ABORTA** - Retorna erro 500 |
+// DEPOIS:
+// Timeout de 45 segundos para análise SERP completa
+const serpController = new AbortController();
+const serpTimeoutId = setTimeout(() => serpController.abort(), 45000);
 
----
-
-## Validação Pós-Deploy
-
-### Logs Esperados (Sucesso Perplexity)
+let serpRes: Response;
+try {
+  serpRes = await fetch(`${SUPABASE_URL}/functions/v1/analyze-serp`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      keyword: primaryKeyword,
+      territory: territoryName,
+      blogId,
+      forceRefresh: false,
+      useFirecrawl: true,
+    }),
+    signal: serpController.signal
+  });
+} catch (error) {
+  clearTimeout(serpTimeoutId);
+  if (error instanceof Error && error.name === 'AbortError') {
+    console.error('[Research] ⏱️ analyze-serp TIMEOUT (45s) - continuing with empty SERP');
+    // Continuar com SERP vazia em vez de travar
+    return {
+      serpMatrix: {},
+      serpDuration: 45000,
+      geoResearch: await fetchGeoResearchData(theme, territoryData, PERPLEXITY_API_KEY, undefined, supabase, blogId, undefined),
+      geoDuration: 0,
+    };
+  }
+  throw error;
+}
+clearTimeout(serpTimeoutId);
 ```
-[Research] Starting web research stage...
-[Research] PERPLEXITY_API_KEY exists: true
-[Research] Theme: Como escolher o melhor advogado
-[Research] ✅ SUCCESS (Perplexity) - Sources: 8
-```
-
-### Logs Esperados (Fallback Gemini)
-```
-[Research] Starting web research stage...
-[Research] PERPLEXITY_API_KEY exists: true
-[Research] ❌ Perplexity FAILED: API rate limit exceeded
-[Research] Attempting Gemini fallback with grounding...
-[Research] ✅ SUCCESS (Gemini fallback) - Sources: 3
-```
-
-### Logs Esperados (Aborto)
-```
-[Research] ❌ Perplexity FAILED: API key invalid
-[Research] Attempting Gemini fallback with grounding...
-[Research] ❌ ALL RESEARCH FAILED - Aborting generation
-```
-
----
-
-## Justificativa da Abordagem
-
-1. **Qualidade Garantida**: Super Page sem research = artigo básico. Melhor abortar do que entregar qualidade inferior.
-
-2. **Transparência**: O campo `provider` permite rastrear qual sistema gerou a pesquisa, facilitando debugging e métricas.
-
-3. **Fail-Fast**: Se ambos os providers falharem, o erro é retornado imediatamente com detalhes úteis para debugging.
-
-4. **Compatibilidade**: O fallback usa a função `callResearch` já existente em `aiProviders.ts`, que já tem lógica de Perplexity→Gemini.
 
 ---
 
 ## Arquivos a Modificar
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `supabase/functions/generate-article-structured/index.ts` | Linhas 223-228 (interface) e 1493-1536 (Stage 1) |
+| Arquivo | Linhas | Timeout | Ação no Timeout |
+|---------|--------|---------|-----------------|
+| `analyze-serp/index.ts` | 398-416 | 30s | throw PERPLEXITY_TIMEOUT |
+| `analyze-serp/index.ts` | 215-227 | 15s | return null (pula URL) |
+| `generate-article-structured/index.ts` | 255-268 | 45s | continua com SERP vazia |
+
+---
+
+## Fluxo Após Correção
+
+```text
+runResearchStage
+    │
+    ├─ analyze-serp (timeout 45s) ✅
+    │   ├─ discoverTopURLsWithPerplexity (timeout 30s) ✅
+    │   │   └─ Se timeout → throw "PERPLEXITY_TIMEOUT"
+    │   │
+    │   └─ scrapeWithFirecrawl (timeout 15s por URL) ✅
+    │       └─ Se timeout → return null (ignora URL)
+    │
+    └─ fetchGeoResearchData (timeout 45s via aiProviders) ✅
+        └─ Se Perplexity falhar → fallback Gemini
+```
+
+---
+
+## Logs Esperados
+
+**Caso Normal:**
+```
+[SERP] Discovering URLs with Perplexity...
+[SERP] Found 10 competitor URLs
+[SCRAPE] Scraping URL 1/10...
+[Research] ✅ SERP analysis complete
+```
+
+**Caso Timeout Perplexity:**
+```
+[SERP] ⏱️ Perplexity TIMEOUT (30s) - aborting URL discovery
+[Research] ⚠️ Continuing with empty SERP matrix
+[GEO RESEARCH] Fetching via Perplexity...
+```
+
+**Caso Timeout URL Individual:**
+```
+[SCRAPE] ⏱️ Timeout (15s) scraping https://example.com
+[SCRAPE] Scraping URL 2/10... (continua)
+```
+
+---
+
+## Validação Pós-Deploy
+
+1. Aguardar deploy das edge functions
+2. Converter oportunidade "Dedetização em Recife"
+3. Verificar nos logs:
+   - Tempo máximo de espera: 45s (não mais infinito)
+   - Se houver timeout, log claro indicando onde ocorreu
+   - Geração continua mesmo com SERP vazia
 
