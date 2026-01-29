@@ -13,7 +13,7 @@ import { streamArticle, type ArticleData, type GenerationStage } from '@/utils/s
 import { SimpleArticleForm, type SimpleFormData } from '@/components/client/SimpleArticleForm';
 import { ArticlePreview } from '@/components/ArticlePreview';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
-import { GenerationProgress } from '@/components/seo/GenerationProgress';
+import { ArticleGenerationProgress } from '@/components/client/ArticleGenerationProgress';
 import { ImproveArticleDialog } from '@/components/editor/ImproveArticleDialog';
 import { CTAPreview } from '@/components/editor/CTAPreview';
 import { ContentScorePanel } from '@/components/editor/ContentScorePanel';
@@ -124,7 +124,58 @@ export default function ClientArticleEditor() {
   const [generationStage, setGenerationStage] = useState<GenerationStage>(null);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const generationLockRef = useRef(false); // Prevent double-submission
+  const timeoutWarningRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Map local stages to Article Engine stages
+  const mapStageToArticleEngine = (stage: GenerationStage): string | null => {
+    if (!stage) return null;
+    const mapping: Record<string, string> = {
+      'analyzing': 'validating',
+      'structuring': 'researching',
+      'generating': 'writing',
+      'finalizing': 'optimizing'
+    };
+    return mapping[stage] || stage;
+  };
+
+  // Handle cancel generation
+  const handleCancelGeneration = () => {
+    generationLockRef.current = false;
+    setIsGenerating(false);
+    setPhase('form');
+    setGenerationStage(null);
+    setGenerationProgress(0);
+    setShowTimeoutWarning(false);
+    setStreamingText('');
+    if (timeoutWarningRef.current) {
+      clearTimeout(timeoutWarningRef.current);
+    }
+    toast.info('Geração cancelada');
+  };
+
+  // Timeout warning effect
+  useEffect(() => {
+    if (isGenerating) {
+      timeoutWarningRef.current = setTimeout(() => {
+        setShowTimeoutWarning(true);
+        toast.warning(
+          'A geração está demorando mais que o esperado. Aguarde mais um momento...',
+          { duration: 8000 }
+        );
+      }, 120000); // 2 minutes
+      
+      return () => {
+        if (timeoutWarningRef.current) {
+          clearTimeout(timeoutWarningRef.current);
+          setShowTimeoutWarning(false);
+        }
+      };
+    } else {
+      setShowTimeoutWarning(false);
+    }
+  }, [isGenerating]);
 
   // Save state
   const [isSaving, setIsSaving] = useState(false);
@@ -1235,20 +1286,26 @@ export default function ClientArticleEditor() {
         )}
 
         {phase === 'generating' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full">
-            <Card className="h-full flex flex-col">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  Gerando Artigo...
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex-1 flex flex-col justify-center">
-                <GenerationProgress stage={generationStage} progress={generationProgress} isActive={isGenerating} />
-              </CardContent>
-            </Card>
-            <ArticlePreview article={null} streamingText={streamingText} isStreaming={isGenerating} />
-          </div>
+          <>
+            {/* Overlay com progresso detalhado */}
+            <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur-sm flex items-center justify-center p-6">
+              <div className="w-full max-w-lg">
+                <ArticleGenerationProgress
+                  currentStage={mapStageToArticleEngine(generationStage)}
+                  progress={generationProgress}
+                  showTimeoutWarning={showTimeoutWarning}
+                  keyword={title || themeParam || 'Artigo'}
+                  onCancel={handleCancelGeneration}
+                />
+              </div>
+            </div>
+            
+            {/* Preview em background (visual apenas) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-full opacity-30 pointer-events-none">
+              <Card className="h-full" />
+              <ArticlePreview article={null} streamingText={streamingText} isStreaming={isGenerating} />
+            </div>
+          </>
         )}
 
         {phase === 'editing' && (
