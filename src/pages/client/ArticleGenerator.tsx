@@ -96,7 +96,7 @@ export default function ArticleGenerator() {
     keyword: '',
     city: businessProfile?.city || '',
     state: 'SP',
-    niche: (businessProfile?.niche as NicheType) || 'plumbing',
+    niche: (businessProfile?.niche as NicheType) || 'pest_control',
     mode: 'authority',
     template: 'auto',
     webResearch: true,
@@ -221,7 +221,10 @@ export default function ArticleGenerator() {
         throw new Error(error.message || 'Erro ao gerar artigo');
       }
       
-      if (!data?.articleId) {
+      // Edge function returns { success: true, article: { id, slug, ... } }
+      const articleId = data?.article?.id || data?.articleId;
+      if (!articleId) {
+        console.error('Response structure:', data);
         throw new Error('Artigo não foi criado corretamente');
       }
       
@@ -232,7 +235,7 @@ export default function ArticleGenerator() {
       toast.success('Artigo gerado com sucesso!');
       
       // Navigate to preview
-      navigate(`/client/articles/${data.articleId}/preview`);
+      navigate(`/client/articles/${articleId}/preview`);
       
     } catch (err: any) {
       console.error('Generation error:', err);
