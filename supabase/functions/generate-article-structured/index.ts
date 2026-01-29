@@ -152,6 +152,7 @@ interface ArticleRequest {
   mode?: 'entry' | 'authority';        // Article depth mode
   businessName?: string;               // Business name (for ALT/E-E-A-T)
   businessWhatsapp?: string;           // WhatsApp number (for CTA)
+  city?: string;                       // City name for local authority
 }
 
 interface TerritoryData {
@@ -1374,7 +1375,8 @@ serve(async (req) => {
       niche = 'default',
       mode = 'authority',
       businessName,
-      businessWhatsapp
+      businessWhatsapp,
+      city: requestCity
     }: ArticleRequest & { funnel_mode?: FunnelMode; article_goal?: ArticleGoal | null; auto_publish?: boolean } = await req.json();
 
     // ============================================================================
@@ -1410,9 +1412,8 @@ serve(async (req) => {
     // ============================================================================
     console.log('[QualityGate] Step 1: Validating request context...');
 
-    // Extract city from request body or territory
-    const requestBody = await req.clone().json().catch(() => ({}));
-    let city = requestBody.city || territoryData?.official_name || '';
+    // Extract city from request body (already parsed) or territory
+    let city = requestCity || territoryData?.official_name || '';
     
     // HARD GATE: City is mandatory for local authority articles
     if (!city || city.trim() === '') {
