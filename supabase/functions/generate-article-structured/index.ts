@@ -67,6 +67,7 @@ import { QUALITY_GATE_CONFIG, ERROR_CODES, ERROR_MESSAGES, type ArticleMode } fr
 import { 
   callWriter, 
   callQA, 
+  callResearch,
   generateArticleImagesViaProvider,
   type WriterRequest,
   type QARequest
@@ -225,6 +226,7 @@ interface ResearchPackage {
   serp: SerpMatrixLite;
   sources: string[]; // unified list for governance
   generatedAt: string;
+  provider?: 'perplexity' | 'gemini_fallback'; // Track which provider generated the research
 }
 
 async function runResearchStage(params: {
@@ -1491,49 +1493,100 @@ serve(async (req) => {
     }
 
     // ============================================================================
-    // STAGE 1 (RESEARCH - TEMPORARIAMENTE DESABILITADO)
-    // ⚠️ TEMPORÁRIO: Web research desabilitado para evitar timeouts do Perplexity
-    // TODO: Reativar quando Perplexity estiver estável
+    // STAGE 1 (RESEARCH) - Perplexity Primary → Gemini Fallback → Abort
     // ============================================================================
     let researchPackage: ResearchPackage;
 
-    console.log('[TEMPORARY] Web research DISABLED - using empty package immediately');
-    
-    researchPackage = {
-      geo: { 
-        facts: [], 
-        trends: [],
-        sources: [], 
-        rawQuery: primaryKeyword,
-        fetchedAt: new Date().toISOString()
-      },
-      serp: { commonTerms: [], topTitles: [], contentGaps: [], averages: {} },
-      sources: [],
-      generatedAt: new Date().toISOString(),
-    };
+    // Diagnostic logging
+    console.log('[Research] Starting web research stage...');
+    console.log('[Research] PERPLEXITY_API_KEY exists:', !!Deno.env.get('PERPLEXITY_API_KEY'));
+    console.log('[Research] Theme:', theme);
+    console.log('[Research] Primary keyword:', primaryKeyword);
+    console.log('[Research] Territory:', territoryData?.official_name || 'N/A');
 
-    await logStage(supabase, blog_id, 'research', 'skipped', 'empty-package', true, 0, { 
-      reason: 'TEMPORARY_DISABLED' 
-    });
+    try {
+      // LEVEL 1: Try runResearchStage (Perplexity + Firecrawl)
+      researchPackage = await runResearchStage({
+        supabase,
+        blogId: blog_id!,
+        theme,
+        primaryKeyword,
+        territoryName: territoryData?.official_name || null,
+        territoryData: (territoryData as unknown as GeoTerritoryData) || null,
+      });
+      researchPackage.provider = 'perplexity';
+      console.log('[Research] ✅ SUCCESS (Perplexity) - Sources:', researchPackage.sources.length);
 
-    console.log('[TEMPORARY] Proceeding with empty research package');
-
-    // CÓDIGO ORIGINAL COMENTADO (Reativar quando Perplexity estiver estável):
-    // try {
-    //   researchPackage = await runResearchStage({
-    //     supabase,
-    //     blogId: blog_id!,
-    //     theme,
-    //     primaryKeyword,
-    //     territoryName: territoryData?.official_name || null,
-    //     territoryData: (territoryData as unknown as GeoTerritoryData) || null,
-    //   });
-    // } catch (e) {
-    //   const msg = e instanceof Error ? e.message : String(e);
-    //   console.warn(`[RESEARCH] Fallback mode - no web research: ${msg}`);
-    //   await logStage(supabase, blog_id, 'research', 'perplexity', 'research-package', false, 0, { fallback: true }, 0, 0, msg);
-    //   researchPackage = { geo: { facts: [], trends: [], sources: [], rawQuery: primaryKeyword, fetchedAt: new Date().toISOString() }, serp: {}, sources: [], generatedAt: new Date().toISOString() };
-    // }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`[Research] ❌ Perplexity FAILED: ${msg}`);
+      
+      await logStage(supabase, blog_id, 'research', 'perplexity', 'research-package', false, 0, { error: msg }, 0, 0, msg);
+      
+      // LEVEL 2: Fallback to callResearch (Gemini with grounding via aiProviders)
+      console.log('[Research] Attempting Gemini fallback with grounding...');
+      
+      try {
+        const geminiResult = await callResearch({
+          query: `${theme} ${primaryKeyword} ${territoryData?.official_name || ''}`.trim(),
+          systemPrompt: `Pesquise informações factuais e atualizadas sobre: ${theme}. Foco em ${primaryKeyword}. Retorne fatos, tendências e fontes confiáveis.`,
+          maxTokens: 2048,
+        });
+        
+        if (!geminiResult.success || !geminiResult.data) {
+          throw new Error(geminiResult.fallbackReason || 'Gemini returned no data');
+        }
+        
+        researchPackage = {
+          geo: {
+            facts: geminiResult.data.facts || [],
+            trends: geminiResult.data.trends || [],
+            sources: geminiResult.data.sources || [],
+            rawQuery: primaryKeyword,
+            fetchedAt: new Date().toISOString(),
+          },
+          serp: { commonTerms: [], topTitles: [], contentGaps: [], averages: {} },
+          sources: geminiResult.data.sources || geminiResult.data.citations || [],
+          generatedAt: new Date().toISOString(),
+          provider: 'gemini_fallback',
+        };
+        
+        console.log('[Research] ✅ SUCCESS (Gemini fallback) - Sources:', researchPackage.sources.length);
+        
+        await logStage(supabase, blog_id, 'research', 'gemini', 'research-package', true, geminiResult.durationMs || 0, { 
+          fallback: true,
+          perplexity_error: msg,
+          sources_count: researchPackage.sources.length,
+        });
+        
+      } catch (geminiError) {
+        // LEVEL 3: Both failed → ABORT generation
+        const geminiMsg = geminiError instanceof Error ? geminiError.message : String(geminiError);
+        console.error('[Research] ❌ ALL RESEARCH FAILED - Aborting generation');
+        console.error('[Research] Perplexity error:', msg);
+        console.error('[Research] Gemini error:', geminiMsg);
+        
+        await logStage(supabase, blog_id, 'research', 'all', 'research-package', false, 0, { 
+          perplexity_error: msg,
+          gemini_error: geminiMsg,
+          action: 'ABORTED',
+        });
+        
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'RESEARCH_FAILED',
+            message: 'Pesquisa web falhou (Perplexity e Gemini). Tente novamente em alguns minutos.',
+            debug: {
+              perplexity_error: msg,
+              gemini_error: geminiMsg,
+              timestamp: new Date().toISOString(),
+            },
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     // ============================================================================
     // (Existing) RATE LIMIT + DEDUP can remain
