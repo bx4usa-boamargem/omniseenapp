@@ -97,6 +97,8 @@ import ClientEbooks from "./pages/client/ClientEbooks";
 import ClientEbookEditor from "./pages/client/ClientEbookEditor";
 import ClientDomains from "./pages/client/ClientDomains";
 import ClientSettings from "./pages/client/ClientSettings";
+import ArticleGenerator from "./pages/client/ArticleGenerator";
+import ArticleAdvancedPreview from "./pages/client/ArticleAdvancedPreview";
 import WordPressCallback from "./pages/cms/WordPressCallback";
 
 const queryClient = new QueryClient();
@@ -206,6 +208,8 @@ const ClientRoutes = () => (
           
           {/* Conteúdo */}
           <Route path="articles" element={<ClientArticles />} />
+          <Route path="articles/generate" element={<ArticleGenerator />} />
+          <Route path="articles/:id/preview" element={<ArticleAdvancedPreview />} />
           <Route path="portal" element={<ClientSite />} />
           <Route path="landing-pages" element={<ClientLandingPages />} />
           <Route 
