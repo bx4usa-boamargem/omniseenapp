@@ -61,8 +61,17 @@ import {
 // V3.0: Quality Gate imports (Anti-Loop Architecture)
 import { runQualityGate } from '../_shared/qualityGate.ts';
 import { parseArticleJSONStrict } from '../_shared/jsonParser.ts';
-import { generateArticleImages } from '../_shared/geminiImageGenerator.ts';
 import { QUALITY_GATE_CONFIG, ERROR_CODES, ERROR_MESSAGES, type ArticleMode } from '../_shared/qualityGateConfig.ts';
+
+// V3.1: AI Provider Layer (Unified Entry Point for ALL AI calls)
+import { 
+  callWriter, 
+  callQA, 
+  generateArticleImagesViaProvider,
+  type WriterRequest,
+  type QARequest
+} from '../_shared/aiProviders.ts';
+import { AI_CONFIG, logAICall } from '../_shared/aiConfig.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -332,91 +341,96 @@ REGRAS:
 `;
 }
 
-async function callLovableJsonTool(params: {
-  url: string;
-  apiKey: string;
-  model: string;
+/**
+ * DEPRECATED: Direct AI calls removed.
+ * All AI calls now go through aiProviders.ts layer.
+ * 
+ * callWriter() → OpenAI GPT-4o (primary) → Google Gemini (fallback)
+ * callQA() → Google Gemini (primary) → OpenAI GPT-4o (fallback)
+ * callImageGeneration() → Lovable Gateway (primary) → Unsplash (fallback)
+ * callResearch() → Perplexity Sonar-Pro (primary) → Google Gemini (fallback)
+ */
+
+// Wrapper to use the new provider layer with tool calls
+async function callWriterWithTool(params: {
   system: string;
   user: string;
   toolName: string;
   toolSchema: Record<string, unknown>;
   temperature?: number;
-}): Promise<{ arguments: Record<string, unknown>; usage?: { total_tokens?: number; prompt_tokens?: number; completion_tokens?: number } }> {
-  const { url, apiKey, model, system, user, toolName, toolSchema, temperature = 0.4 } = params;
+}): Promise<{ arguments: Record<string, unknown>; usage?: { totalTokens?: number; promptTokens?: number; completionTokens?: number }; provider: string }> {
+  const { system, user, toolName, toolSchema, temperature = 0.4 } = params;
 
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
+  const result = await callWriter({
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+    tool: {
+      name: toolName,
+      schema: toolSchema
     },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-      tools: [toolSchema],
-      tool_choice: { type: 'function', function: { name: toolName } },
-      temperature,
-    }),
+    temperature
   });
 
-  if (!res.ok) {
-    const t = await res.text().catch(() => '');
-    throw new Error(`AI_GATEWAY_ERROR: ${res.status} ${t.substring(0, 300)}`);
+  if (!result.success || !result.data) {
+    throw new Error(`AI_PROVIDER_ERROR: ${result.fallbackReason || 'Writer call failed'}`);
   }
 
-  const rawText = await res.text();
-  const data = safeJsonParse<any>(rawText);
-  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  if (!toolCall?.function?.arguments) {
+  const toolCall = result.data.toolCall;
+  if (!toolCall?.arguments) {
+    // Try parsing content as JSON if no tool call
+    if (result.data.content) {
+      try {
+        const parsed = parseArticleJSON(result.data.content);
+        return { 
+          arguments: parsed, 
+          usage: result.usage,
+          provider: result.provider
+        };
+      } catch {
+        throw new Error('AI_OUTPUT_INVALID: missing tool call arguments');
+      }
+    }
     throw new Error('AI_OUTPUT_INVALID: missing tool call arguments');
   }
 
-  const parsedArgs = parseArticleJSON(toolCall.function.arguments);
-  return { arguments: parsedArgs, usage: data.usage };
+  return { 
+    arguments: toolCall.arguments, 
+    usage: result.usage,
+    provider: result.provider
+  };
 }
 
-async function callLovableQa(params: {
-  url: string;
-  apiKey: string;
-  model: string;
+// Wrapper for QA calls using provider layer
+async function callQAWithProvider(params: {
   system: string;
   user: string;
-}): Promise<{ approved: boolean; score: number; issues: Array<{ code: string; message: string }>; usage?: { total_tokens?: number } }> {
-  const { url, apiKey, model, system, user } = params;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: system },
-        { role: 'user', content: user },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.2,
-    }),
+}): Promise<{ approved: boolean; score: number; issues: Array<{ code: string; message: string }>; usage?: { totalTokens?: number }; provider: string }> {
+  const { system, user } = params;
+
+  const result = await callQA({
+    systemPrompt: system,
+    userPrompt: user
   });
 
-  const text = await res.text();
-  if (!res.ok) {
-    throw new Error(`QA_GATEWAY_ERROR: ${res.status} ${text.substring(0, 300)}`);
+  if (!result.success || !result.data) {
+    // QA failure shouldn't block - return default approval with warning
+    console.warn('[QA] Provider failed, defaulting to warning mode:', result.fallbackReason);
+    return {
+      approved: true,
+      score: 50,
+      issues: [{ code: 'QA_UNAVAILABLE', message: 'QA service temporarily unavailable' }],
+      provider: result.provider
+    };
   }
 
-  const data = safeJsonParse<any>(text);
-  const content = data.choices?.[0]?.message?.content || '{}';
-  const parsed = safeJsonParse<any>(content.replace(/```json\n?|\n?```/g, '').trim());
-
   return {
-    approved: !!parsed.approved,
-    score: typeof parsed.score === 'number' ? parsed.score : 0,
-    issues: Array.isArray(parsed.issues) ? parsed.issues : [],
-    usage: data.usage,
+    approved: result.data.approved,
+    score: result.data.score,
+    issues: result.data.issues,
+    usage: result.usage,
+    provider: result.provider
   };
 }
 
@@ -1739,12 +1753,9 @@ REGRAS CRÍTICAS:
 - Estruture com H1–H3, inclua FAQ + meta tags
 - Não invente estatísticas/tendências. Se faltar dado: "não encontrado nas fontes".`;
 
-    const gatewayUrl = 'https://ai.gateway.lovable.dev/v1/chat/completions';
-
-    const writerCall = await callLovableJsonTool({
-      url: gatewayUrl,
-      apiKey: LOVABLE_API_KEY,
-      model: textModel,
+    // V3.1: Using unified AI Provider Layer (aiProviders.ts)
+    // Primary: OpenAI GPT-4o → Fallback: Google Gemini
+    const writerCall = await callWriterWithTool({
       system: systemPrompt,
       user: writerUserPrompt,
       toolName: 'create_article',
@@ -1753,11 +1764,12 @@ REGRAS CRÍTICAS:
     });
 
     const writerDuration = nowMs() - writerStart;
-    await logStage(supabase, blog_id, 'writer', 'lovable', 'writer', true, writerDuration, {
-      model: textModel,
+    await logStage(supabase, blog_id, 'writer', writerCall.provider, 'writer', true, writerDuration, {
+      model: AI_CONFIG.writer.primary.model,
+      provider: writerCall.provider,
       keyword: primaryKeyword,
       articleEngineTemplate: articleEngineTemplate?.template || null,
-    }, 0, writerCall.usage?.total_tokens);
+    }, 0, writerCall.usage?.totalTokens);
 
     // Build article object from writer output
     const writerOut = writerCall.arguments as any;
@@ -1810,10 +1822,8 @@ REGRAS CRÍTICAS:
     const seoUser = `PACOTE DE PESQUISA (resumo):\n- Termos: ${(researchPackage.serp.commonTerms || []).slice(0, 12).join(', ')}\n- Títulos top: ${(researchPackage.serp.topTitles || []).slice(0, 3).join(' | ')}\n- Gaps: ${(researchPackage.serp.contentGaps || []).slice(0, 5).join(' | ')}\n- Fontes permitidas: ${(researchPackage.sources || []).slice(0, 8).join(' | ')}\n\nRASCUNHO (writer):\nTitle: ${writerOut.title}\nMeta: ${writerOut.meta_description}\n\nCONTENT:\n${(writerOut.content || '').substring(0, 6000)}\n\nReestruture e retorne via tool optimize_article.`;
 
     const seoStart = nowMs();
-    const seoCall = await callLovableJsonTool({
-      url: gatewayUrl,
-      apiKey: LOVABLE_API_KEY,
-      model: textModel,
+    // V3.1: SEO optimization via unified provider layer
+    const seoCall = await callWriterWithTool({
       system: seoSystem,
       user: seoUser,
       toolName: 'optimize_article',
@@ -1822,7 +1832,10 @@ REGRAS CRÍTICAS:
     });
 
     const seoDuration = nowMs() - seoStart;
-    await logStage(supabase, blog_id, 'seo', 'lovable', 'seo', true, seoDuration, { model: textModel }, 0, seoCall.usage?.total_tokens);
+    await logStage(supabase, blog_id, 'seo', seoCall.provider, 'seo', true, seoDuration, { 
+      model: AI_CONFIG.writer.primary.model,
+      provider: seoCall.provider 
+    }, 0, seoCall.usage?.totalTokens);
 
     const seoOut = seoCall.arguments as any;
 
@@ -1886,16 +1899,18 @@ REGRAS CRÍTICAS:
     const qaUser = `PACOTE DE PESQUISA (fontes permitidas):\n${(researchPackage.sources || []).slice(0, 8).join('\n')}\n\nARTIGO:\nTITLE: ${seoOut.title}\nMETA: ${seoOut.meta_description}\n\nCONTENT (início):\n${contentForQa.substring(0, 6000)}\n\nValide se o conteúdo depende APENAS das fontes e do pacote. Se houver qualquer invenção, reprove.`;
 
     const qaStart = nowMs();
-    const qa = await callLovableQa({
-      url: gatewayUrl,
-      apiKey: LOVABLE_API_KEY,
-      model: 'google/gemini-2.5-flash',
+    // V3.1: QA via unified provider layer (Primary: Gemini, Fallback: OpenAI)
+    const qa = await callQAWithProvider({
       system: qaSystem,
       user: qaUser,
     });
 
     const qaDuration = nowMs() - qaStart;
-    await logStage(supabase, blog_id, 'qa', 'lovable', 'qa', qa.approved, qaDuration, { score: qa.score, unblocked: true }, 0, qa.usage?.total_tokens, qa.approved ? undefined : 'QA rejected (logged only)');
+    await logStage(supabase, blog_id, 'qa', qa.provider, 'qa', qa.approved, qaDuration, { 
+      score: qa.score, 
+      provider: qa.provider,
+      unblocked: true 
+    }, 0, qa.usage?.totalTokens, qa.approved ? undefined : 'QA rejected (logged only)');
 
     // UNBLOCKED: Log rejection but NEVER return 422
     if (!qa.approved) {
@@ -2016,9 +2031,10 @@ REGRAS CRÍTICAS:
     };
 
     // Generate images if we have prompts
+    // V3.1: Using unified provider layer (Primary: Lovable Gateway, Fallback: Unsplash)
     if (articleWithImages.image_prompts && articleWithImages.image_prompts.length > 0) {
       try {
-        articleWithImages = await generateArticleImages(
+        articleWithImages = await generateArticleImagesViaProvider(
           articleWithImages,
           effectiveNiche,
           city

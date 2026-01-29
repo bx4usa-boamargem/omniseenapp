@@ -266,13 +266,17 @@ export interface GeoValidationResult {
   };
 }
 
-// Função para buscar dados de pesquisa via Perplexity com fallback para Lovable AI (Gemini)
-// Agora aceita supabase client e blogId para logging de consumo
+// V3.1: Refactored to use AI Provider Layer
+// REGRA: Todas as chamadas de IA passam pelo aiProviders.ts
+import { callResearch } from './aiProviders.ts';
+
+// Função para buscar dados de pesquisa via Provider Layer
+// Primary: Perplexity Sonar-Pro → Fallback: Google Gemini with Grounding
 export async function fetchGeoResearchData(
   theme: string,
   territory: TerritoryData | null,
-  PERPLEXITY_API_KEY: string,
-  LOVABLE_API_KEY?: string,
+  _PERPLEXITY_API_KEY: string,  // Deprecated: now uses aiProviders internally
+  _LOVABLE_API_KEY?: string,     // Deprecated: now uses aiProviders internally
   supabaseClient?: any,  // Cliente Supabase para logging
   blogId?: string,       // Blog ID para correlação
   articleId?: string     // Article ID para correlação direta
@@ -297,167 +301,64 @@ Regras:
 - Fontes devem ser URLs ou nomes de instituições citadas
 - Máximo 5 itens por categoria`;
 
-  const userPrompt = `Pesquise dados factuais sobre: ${query}`;
+  console.log(`[GEO RESEARCH] Fetching research data for theme: "${theme}" via AI Provider Layer`);
 
-  // Tentar Perplexity primeiro
-  if (PERPLEXITY_API_KEY) {
-    try {
-      console.log(`[GEO RESEARCH] Fetching research data for theme: "${theme}" via Perplexity`);
-      
-      const response = await fetch('https://api.perplexity.ai/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${PERPLEXITY_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'sonar-pro',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ],
-          temperature: 0.3,
-          max_tokens: 1000
-        }),
-      });
+  // V3.1: Use unified provider layer (Primary: Perplexity, Fallback: Gemini)
+  const result = await callResearch({
+    query: `Pesquise dados factuais sobre: ${query}`,
+    systemPrompt,
+    maxTokens: 1000
+  });
 
-      if (response.ok) {
-        const data = await response.json();
-        const content = data.choices?.[0]?.message?.content || '';
-        
-        // Parse JSON from response
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          
-          console.log('[GEO RESEARCH] Perplexity research data parsed successfully');
-          
-          // Log consumo da Perplexity para rastreabilidade completa
-          if (supabaseClient && blogId) {
-            try {
-              await supabaseClient.from('ai_usage_logs').insert({
-                blog_id: blogId,
-                provider: 'perplexity',
-                endpoint: 'geo-research',
-                cost_usd: 0.015,
-                tokens_used: 1000,
-                success: true,
-                metadata: {
-                  phase: 'geo_research',
-                  model: 'perplexity/sonar-pro',
-                  source: 'PromptPy',
-                  theme,
-                  territory: territory?.official_name || null,
-                  article_id: articleId || null,
-                  facts_count: (parsed.facts || []).length,
-                  trends_count: (parsed.trends || []).length
-                }
-              });
-              console.log('[GEO RESEARCH] Usage logged to ai_usage_logs');
-            } catch (logError) {
-              console.error('[GEO RESEARCH] Failed to log usage:', logError);
-            }
-          }
-          
-          return {
-            facts: parsed.facts || [],
-            trends: parsed.trends || [],
-            sources: parsed.sources || [],
-            rawQuery: query,
-            fetchedAt: new Date().toISOString()
-          };
-        }
-        
-        console.warn('[GEO RESEARCH] No valid JSON in Perplexity response, trying fallback...');
-      } else {
-        console.warn(`[GEO RESEARCH] Perplexity API error: ${response.status}, trying fallback...`);
-      }
-    } catch (perplexityError) {
-      console.error('[GEO RESEARCH] Perplexity error:', perplexityError);
-      console.log('[GEO RESEARCH] Trying Lovable AI (Gemini) fallback...');
-    }
+  if (!result.success || !result.data) {
+    console.warn('[GEO RESEARCH] Provider layer returned no data');
+    return null;
   }
 
-  // Fallback para Lovable AI (Gemini)
-  if (LOVABLE_API_KEY) {
-    try {
-      console.log(`[GEO RESEARCH] Using Lovable AI (Gemini) fallback for theme: "${theme}"`);
-      
-      const fallbackResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ],
-          temperature: 0.3,
-          max_tokens: 1000
-        }),
-      });
+  const { data, provider, usedFallback, fallbackReason } = result;
 
-      if (fallbackResponse.ok) {
-        const fallbackData = await fallbackResponse.json();
-        const fallbackContent = fallbackData.choices?.[0]?.message?.content || '';
-        
-        // Parse JSON from fallback response
-        const jsonMatch = fallbackContent.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          
-          console.log('[GEO RESEARCH] Lovable AI (Gemini) fallback data parsed successfully');
-          
-          // Log consumo do fallback Gemini
-          if (supabaseClient && blogId) {
-            try {
-              await supabaseClient.from('ai_usage_logs').insert({
-                blog_id: blogId,
-                provider: 'lovable',
-                endpoint: 'geo-research',
-                cost_usd: 0.002,
-                tokens_used: 1000,
-                success: true,
-                metadata: {
-                  phase: 'geo_research_fallback',
-                  model: 'google/gemini-2.5-flash',
-                  source: 'PromptPy',
-                  theme,
-                  territory: territory?.official_name || null,
-                  article_id: articleId || null,
-                  fallback_reason: 'perplexity_unavailable'
-                }
-              });
-              console.log('[GEO RESEARCH] Fallback usage logged to ai_usage_logs');
-            } catch (logError) {
-              console.error('[GEO RESEARCH] Failed to log fallback usage:', logError);
-            }
-          }
-          
-          return {
-            facts: parsed.facts || [],
-            trends: parsed.trends || [],
-            sources: parsed.sources || [],
-            rawQuery: query,
-            fetchedAt: new Date().toISOString()
-          };
-        }
-        
-        console.warn('[GEO RESEARCH] No valid JSON in Lovable AI fallback response');
-      } else {
-        console.error(`[GEO RESEARCH] Lovable AI fallback error: ${fallbackResponse.status}`);
-      }
-    } catch (fallbackError) {
-      console.error('[GEO RESEARCH] Fallback also failed:', fallbackError);
-    }
+  console.log(`[GEO RESEARCH] ✅ Data received from ${provider}${usedFallback ? ' (FALLBACK)' : ''}`);
+  if (fallbackReason) {
+    console.log(`[GEO RESEARCH] Fallback reason: ${fallbackReason}`);
   }
 
-  // Se ambos falharam, retornar null
-  console.warn('[GEO RESEARCH] No AI provider available or both failed');
-  return null;
+  // Log usage to ai_usage_logs
+  if (supabaseClient && blogId) {
+    try {
+      await supabaseClient.from('ai_usage_logs').insert({
+        blog_id: blogId,
+        provider: provider,
+        endpoint: 'geo-research',
+        cost_usd: provider === 'perplexity' ? 0.015 : 0.002,
+        tokens_used: 1000,
+        success: true,
+        metadata: {
+          phase: 'geo_research',
+          model: provider === 'perplexity' ? 'sonar-pro' : 'gemini-2.0-flash-exp',
+          source: 'PromptPy',
+          theme,
+          territory: territory?.official_name || null,
+          article_id: articleId || null,
+          facts_count: (data.facts || []).length,
+          trends_count: (data.trends || []).length,
+          used_fallback: usedFallback,
+          fallback_reason: fallbackReason || null,
+          duration_ms: result.durationMs
+        }
+      });
+      console.log('[GEO RESEARCH] Usage logged to ai_usage_logs');
+    } catch (logError) {
+      console.error('[GEO RESEARCH] Failed to log usage:', logError);
+    }
+  }
+  
+  return {
+    facts: data.facts || [],
+    trends: data.trends || [],
+    sources: data.sources || data.citations || [],
+    rawQuery: query,
+    fetchedAt: new Date().toISOString()
+  };
 }
 
 // Função para injetar dados de pesquisa no prompt
