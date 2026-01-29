@@ -323,17 +323,29 @@ generateImageAlt({ service: 'dedetização', businessName: 'Truly Nolen', city: 
 
 ## Checklist Final
 
-- [ ] `templateSelector.ts` criado com todas as funções
-- [ ] `pipelineStages.ts` criado com todas as funções
-- [ ] `geoWriterCore.ts` modificado (apenas adições no final)
-- [ ] `imageAltGenerator.ts` criado com todas as funções
-- [ ] TypeScript compila sem erro
-- [ ] Nenhum código existente foi alterado
-- [ ] Imports Deno com .ts funcionam
-- [ ] Logs de debug adicionados
+- [x] `templateSelector.ts` criado com todas as funções
+- [x] `pipelineStages.ts` criado com todas as funções
+- [x] `geoWriterCore.ts` modificado (apenas adições no final)
+- [x] `imageAltGenerator.ts` criado com todas as funções
+- [x] TypeScript compila sem erro
+- [x] Nenhum código existente foi alterado
+- [x] Imports Deno com .ts funcionam
+- [x] Logs de debug adicionados
 
 ---
 
-## Próximo Passo Após Aprovação
+## ✅ SPRINT 2 + SPRINT 3 CONCLUÍDO
 
-Implementar os 4 arquivos conforme especificado neste plano.
+Implementação realizada em 2026-01-29.
+
+### Arquivos Criados:
+1. `supabase/functions/_shared/templateSelector.ts` (~400 linhas)
+2. `supabase/functions/_shared/pipelineStages.ts` (~500 linhas)
+3. `supabase/functions/_shared/imageAltGenerator.ts` (~250 linhas)
+
+### Arquivos Modificados:
+4. `supabase/functions/_shared/geoWriterCore.ts` (+200 linhas E-E-A-T)
+
+### Próximos Passos:
+- Sprint 4: Interface de preview de template
+- Sprint 5: Testes com 10 artigos reais

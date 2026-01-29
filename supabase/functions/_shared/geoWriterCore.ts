@@ -740,3 +740,241 @@ ${corrections.join('\n\n')}
 ⚠️ SE ESTAS CORREÇÕES NÃO FOREM APLICADAS, O ARTIGO SERÁ REJEITADO NOVAMENTE.
 `;
 }
+
+// =============================================================================
+// NICHE E-E-A-T PHRASES (ADIÇÃO V2.1 - Sprint 3)
+// Motor de Artigos de Autoridade Local
+// =============================================================================
+
+/**
+ * Frases de E-E-A-T (Experience, Expertise, Authoritativeness, Trustworthiness)
+ * contextualizadas por nicho
+ * 
+ * Placeholders disponíveis:
+ * - {{business_name}} - Nome da empresa
+ * - {{city}} - Cidade
+ * - {{years}} - Anos de experiência
+ * - {{neighborhood}} - Bairro 1
+ * - {{other_neighborhood}} - Bairro 2
+ */
+export const NICHE_EAT_PHRASES: Record<string, string[]> = {
+  
+  // ========== PEST CONTROL ==========
+  pest_control: [
+    "Na {{business_name}}, vemos diariamente como o clima de {{city}} afeta infestações de pragas.",
+    "Com {{years}} anos atendendo {{city}}, nossa equipe aprendeu que tratamentos preventivos são essenciais.",
+    "{{city}} tem características únicas de clima e urbanização que exigem abordagem específica no controle de pragas.",
+    "Nossos técnicos conhecem profundamente os desafios de {{city}}, desde {{neighborhood}} até {{other_neighborhood}}.",
+    "A {{business_name}} já eliminou pragas em mais de 5.000 imóveis em {{city}}.",
+    "Em {{city}}, o período de chuvas intensifica a presença de cupins e baratas - estamos preparados."
+  ],
+  
+  // ========== PLUMBING ==========
+  plumbing: [
+    "A {{business_name}} atende {{city}} há {{years}} anos e conhece cada peculiaridade da rede de esgoto da região.",
+    "Em {{city}}, problemas de entupimento variam por bairro devido à idade das tubulações.",
+    "Atendemos emergências 24h em toda {{city}}, de {{neighborhood}} a {{other_neighborhood}}.",
+    "Nossa experiência em {{city}} nos ensinou que manutenção preventiva evita 80% dos problemas hidráulicos.",
+    "Conhecemos a infraestrutura de {{city}} como a palma da nossa mão - cada rua tem suas particularidades.",
+    "A {{business_name}} já desentupiu mais de 10.000 residências em {{city}}."
+  ],
+  
+  // ========== ROOFING ==========
+  roofing: [
+    "{{city}} tem clima que exige cuidados específicos com telhados.",
+    "Com {{years}} anos de experiência em {{city}}, sabemos quais telhas funcionam melhor na região.",
+    "A {{business_name}} já instalou mais de 2.000 telhados em {{city}} e conhece cada desafio local.",
+    "{{city}} tem regulamentações específicas para telhados que respeitamos rigorosamente.",
+    "De {{neighborhood}} a {{other_neighborhood}}, atendemos toda {{city}} com qualidade garantida.",
+    "Nossos profissionais são treinados para as condições climáticas de {{city}}."
+  ],
+  
+  // ========== IMAGE CONSULTING ==========
+  image_consulting: [
+    "Em {{city}}, tendências de moda variam entre {{neighborhood}} e {{other_neighborhood}}.",
+    "A {{business_name}} conhece o perfil de cada bairro de {{city}} e adapta consultoria ao contexto local.",
+    "{{city}} tem eventos corporativos com dress codes específicos que dominamos.",
+    "Atendemos {{city}} há {{years}} anos e conhecemos as principais boutiques e fornecedores da região.",
+    "Nossa expertise em {{city}} inclui conhecimento de lojas, personal shoppers e tendências locais.",
+    "Cada cliente de {{city}} recebe consultoria personalizada para seu estilo de vida na cidade."
+  ],
+  
+  // ========== DENTAL ==========
+  dental: [
+    "A {{business_name}} é referência em odontologia em {{city}} com mais de {{years}} anos de atuação.",
+    "Atendemos famílias de toda {{city}}, de {{neighborhood}} a {{other_neighborhood}}.",
+    "{{city}} tem perfil demográfico único que influencia nos tratamentos mais procurados.",
+    "Nossa equipe está registrada no CRO e atualizada com últimas técnicas disponíveis em {{city}}.",
+    "Já realizamos mais de 50.000 atendimentos em {{city}}, sempre com excelência.",
+    "Conhecemos as necessidades odontológicas específicas da população de {{city}}."
+  ],
+  
+  // ========== LEGAL ==========
+  legal: [
+    "O escritório {{business_name}} atua em {{city}} há {{years}} anos e conhece particularidades da Justiça local.",
+    "Tribunais de {{city}} têm procedimentos específicos que dominamos.",
+    "Já representamos centenas de clientes em {{city}}, de {{neighborhood}} a {{other_neighborhood}}.",
+    "{{city}} tem legislação municipal que pode afetar seu caso - estamos sempre atualizados.",
+    "Nossa expertise em {{city}} inclui relacionamento com cartórios e fóruns da região.",
+    "Conhecemos cada vara e cada procedimento dos tribunais de {{city}}."
+  ],
+  
+  // ========== ACCOUNTING ==========
+  accounting: [
+    "A {{business_name}} atende empresas de {{city}} há {{years}} anos com excelência contábil.",
+    "Conhecemos a legislação tributária municipal de {{city}} em detalhes.",
+    "De {{neighborhood}} a {{other_neighborhood}}, atendemos empreendedores de toda {{city}}.",
+    "{{city}} tem incentivos fiscais específicos que ajudamos nossos clientes a aproveitar.",
+    "Nossa equipe domina as particularidades tributárias da Prefeitura de {{city}}.",
+    "Já ajudamos mais de 500 empresas de {{city}} a otimizar sua contabilidade."
+  ],
+  
+  // ========== REAL ESTATE ==========
+  real_estate: [
+    "A {{business_name}} conhece cada bairro de {{city}} como ninguém.",
+    "Com {{years}} anos no mercado imobiliário de {{city}}, sabemos onde estão as melhores oportunidades.",
+    "De {{neighborhood}} a {{other_neighborhood}}, acompanhamos a valorização de toda {{city}}.",
+    "{{city}} tem dinâmica imobiliária única que exige expertise local.",
+    "Já realizamos mais de 1.000 negócios imobiliários em {{city}}.",
+    "Conhecemos cada rua, cada condomínio e cada tendência de {{city}}."
+  ],
+  
+  // ========== AUTOMOTIVE ==========
+  automotive: [
+    "A {{business_name}} atende motoristas de {{city}} há {{years}} anos.",
+    "Conhecemos os desafios do trânsito de {{city}} e como isso afeta os veículos.",
+    "De {{neighborhood}} a {{other_neighborhood}}, atendemos toda {{city}} com qualidade.",
+    "{{city}} tem condições de estradas que exigem manutenção específica.",
+    "Já atendemos mais de 20.000 veículos em {{city}}.",
+    "Nossa equipe conhece os problemas mais comuns dos carros de {{city}}."
+  ],
+  
+  // ========== CONSTRUCTION ==========
+  construction: [
+    "A {{business_name}} construiu mais de 500 projetos em {{city}}.",
+    "Com {{years}} anos de experiência, conhecemos cada regulamentação de {{city}}.",
+    "De {{neighborhood}} a {{other_neighborhood}}, já atuamos em toda {{city}}.",
+    "{{city}} tem solo e clima que exigem técnicas construtivas específicas.",
+    "Conhecemos cada processo de aprovação na Prefeitura de {{city}}.",
+    "Nossa expertise inclui projetos residenciais e comerciais em toda {{city}}."
+  ],
+  
+  // ========== BEAUTY ==========
+  beauty: [
+    "A {{business_name}} é referência em beleza em {{city}} há {{years}} anos.",
+    "Conhecemos as tendências e preferências estéticas de {{city}}.",
+    "De {{neighborhood}} a {{other_neighborhood}}, atendemos clientes exigentes de toda {{city}}.",
+    "{{city}} tem perfil de beleza único que nossa equipe domina.",
+    "Já realizamos mais de 100.000 atendimentos em {{city}}.",
+    "Nossa equipe está sempre atualizada com as últimas tendências de {{city}}."
+  ],
+  
+  // ========== EDUCATION ==========
+  education: [
+    "A {{business_name}} forma alunos em {{city}} há {{years}} anos.",
+    "Conhecemos as exigências educacionais específicas de {{city}}.",
+    "De {{neighborhood}} a {{other_neighborhood}}, atendemos estudantes de toda {{city}}.",
+    "{{city}} tem demandas educacionais únicas que nossa metodologia atende.",
+    "Já formamos mais de 10.000 alunos em {{city}}.",
+    "Nossa expertise inclui preparação para vestibulares e concursos locais de {{city}}."
+  ],
+  
+  // ========== TECHNOLOGY ==========
+  technology: [
+    "A {{business_name}} atende empresas de tecnologia de {{city}} há {{years}} anos.",
+    "Conhecemos o ecossistema tech de {{city}} e suas particularidades.",
+    "De {{neighborhood}} a {{other_neighborhood}}, atendemos startups e empresas de toda {{city}}.",
+    "{{city}} tem polo tecnológico crescente que acompanhamos de perto.",
+    "Já implementamos soluções em mais de 500 empresas de {{city}}.",
+    "Nossa equipe domina as tendências tecnológicas do mercado de {{city}}."
+  ],
+  
+  // ========== DEFAULT (FALLBACK) ==========
+  default: [
+    "A {{business_name}} é referência em {{city}} com mais de {{years}} anos de atuação.",
+    "Atendemos clientes de toda {{city}}, de {{neighborhood}} a {{other_neighborhood}}.",
+    "Com {{years}} anos de experiência, conhecemos as necessidades específicas de {{city}}.",
+    "Nossa equipe está preparada para atender qualquer demanda em {{city}}.",
+    "Já realizamos milhares de atendimentos em {{city}} com excelência.",
+    "Conhecemos {{city}} como a palma da nossa mão."
+  ]
+};
+
+// =============================================================================
+// FUNÇÃO: INJECT LOCAL EXPERIENCE
+// =============================================================================
+
+/**
+ * Injeta frases de experiência local (E-E-A-T) contextualizadas
+ * 
+ * @param niche - Nicho do negócio
+ * @param city - Cidade
+ * @param businessName - Nome da empresa
+ * @param yearsInBusiness - Anos de experiência (opcional, default: 10)
+ * @param neighborhoods - Array de bairros (opcional)
+ * @returns String com 1-2 frases de E-E-A-T para inserir no artigo
+ * 
+ * @example
+ * injectLocalExperience('plumbing', 'São Paulo', 'Desentup Rápido', 15, ['Pinheiros', 'Vila Madalena'])
+ * // "A Desentup Rápido atende São Paulo há 15 anos e conhece cada peculiaridade da rede de esgoto da região. Em São Paulo, problemas de entupimento variam por bairro devido à idade das tubulações."
+ */
+export function injectLocalExperience(
+  niche: string,
+  city: string,
+  businessName: string,
+  yearsInBusiness?: number,
+  neighborhoods?: string[]
+): string {
+  console.log(`[geoWriterCore] Injetando E-E-A-T para nicho: ${niche}, cidade: ${city}`);
+  
+  // Obter frases do nicho ou usar default
+  const phrases = NICHE_EAT_PHRASES[niche] || NICHE_EAT_PHRASES['default'];
+  
+  // Selecionar 1-2 frases aleatórias
+  const selectedPhrases = pickRandomEatPhrases(phrases, 2);
+  
+  // Valores default para placeholders
+  const years = yearsInBusiness || 10;
+  const neighborhood = neighborhoods?.[0] || 'centro';
+  const otherNeighborhood = neighborhoods?.[1] || 'região metropolitana';
+  
+  // Substituir placeholders
+  const processedPhrases = selectedPhrases.map(phrase => 
+    phrase
+      .replace(/\{\{business_name\}\}/g, businessName)
+      .replace(/\{\{city\}\}/g, city)
+      .replace(/\{\{years\}\}/g, String(years))
+      .replace(/\{\{neighborhood\}\}/g, neighborhood)
+      .replace(/\{\{other_neighborhood\}\}/g, otherNeighborhood)
+  );
+  
+  const result = processedPhrases.join(' ');
+  
+  console.log(`[geoWriterCore] E-E-A-T gerado: ${result.substring(0, 100)}...`);
+  
+  return result;
+}
+
+/**
+ * Seleciona frases aleatórias sem repetição
+ */
+function pickRandomEatPhrases(phrases: string[], count: number): string[] {
+  if (phrases.length <= count) return phrases;
+  
+  const shuffled = [...phrases].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
+/**
+ * Retorna lista de nichos com E-E-A-T configurado
+ */
+export function getAvailableNichesWithEat(): string[] {
+  return Object.keys(NICHE_EAT_PHRASES);
+}
+
+/**
+ * Verifica se nicho tem frases E-E-A-T específicas
+ */
+export function hasNicheSpecificEat(niche: string): boolean {
+  return niche in NICHE_EAT_PHRASES && niche !== 'default';
+}
