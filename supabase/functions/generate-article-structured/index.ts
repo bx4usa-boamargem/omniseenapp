@@ -27,10 +27,36 @@ import {
   hasWhatsAppCTA,
   validateGeoArticleFull,
   generateGeoCorrectionInstructions,
+  // V2.1: Article Engine E-E-A-T
+  injectLocalExperience,
+  NICHE_EAT_PHRASES,
   type TerritoryData as GeoTerritoryData,
   type GeoResearchData,
   type GeoValidationResult
 } from '../_shared/geoWriterCore.ts';
+
+// V2.1: Article Engine imports (Sprint 2+3 Integration)
+import { 
+  selectTemplate, 
+  classifyIntent,
+  type TemplateType,
+  type TemplateSelectionResult
+} from '../_shared/templateSelector.ts';
+
+import { 
+  validateBrief, 
+  buildOutlineStructure,
+  selectTemplateForBrief,
+  type ArticleBrief,
+  type OutlineStructure
+} from '../_shared/pipelineStages.ts';
+
+import { 
+  generateImageAlt,
+  generateMultipleAlts,
+  type ImageAltContext,
+  type GeneratedAlt
+} from '../_shared/imageAltGenerator.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -103,6 +129,14 @@ interface ArticleRequest {
   external_sources?: Array<{url: string; title: string}>;
   whatsapp?: string;
   google_place?: Record<string, unknown>;
+  // V2.1: Article Engine fields (Sprint 4 Integration)
+  templateOverride?: string;           // TemplateType override
+  useEat?: boolean;                    // Inject E-E-A-T local phrases
+  contextualAlt?: boolean;             // Contextual image ALT generation
+  niche?: string;                      // Business niche
+  mode?: 'entry' | 'authority';        // Article depth mode
+  businessName?: string;               // Business name (for ALT/E-E-A-T)
+  businessWhatsapp?: string;           // WhatsApp number (for CTA)
 }
 
 interface TerritoryData {
@@ -499,7 +533,10 @@ async function persistArticleToDb(
   inferredCategory?: string,
   inferredTags?: string[],
   nicheProfileId?: string | null,  // V2.0: Niche profile linkage
-  userId?: string | null  // User ID for RLS policy
+  userId?: string | null,  // User ID for RLS policy
+  // V2.1: Article Engine metadata
+  articleStructureType?: string | null,
+  sourcePayload?: Record<string, unknown> | null
 ): Promise<{ id: string; slug: string; status: string; title: string }> {
   console.log(`[PERSIST] Preparing to save article: "${articleData.title}" for blog ${blogId}`);
   
@@ -561,6 +598,9 @@ async function persistArticleToDb(
       status: autoPublish ? 'published' : 'draft',
       published_at: autoPublish ? new Date().toISOString() : null,
       updated_at: new Date().toISOString(),
+      // V2.1: Article Engine metadata
+      article_structure_type: articleStructureType || null,
+      source_payload: sourcePayload || null,
     };
     
     const { error: updateError } = await supabaseClient
@@ -606,6 +646,9 @@ async function persistArticleToDb(
     niche_profile_id: nicheProfileId || null,
     niche_locked: true,   // Always lock niche on generation
     score_locked: true,   // Protect score from automatic changes
+    // V2.1: Article Engine metadata
+    article_structure_type: articleStructureType || null,
+    source_payload: sourcePayload || null,
   };
   
   console.log(`[PERSIST] Inserting article with slug: ${uniqueSlug}, status: ${insertData.status}, user_id: ${insertData.user_id}`);
@@ -951,52 +994,45 @@ Ex: "Olha só, o negócio é o seguinte..."`
 // MASTER PROMPT - MANDATORY EDITORIAL FRAMEWORK (AUTOMARTICLES STYLE)
 function buildMasterPrompt(template: EditorialTemplate | null, theme: string, keywords: string[], tone: string = 'friendly'): string {
   const companyName = template?.company_name || 'a empresa';
-  const niche = template?.target_niche || 'empresas de serviços';
   const keywordsText = keywords.length > 0 ? keywords.join(', ') : theme;
+  
+  // Build structure if mandatory_structure exists
+  let structureText = '';
+  if (template?.mandatory_structure && template.mandatory_structure.length > 0) {
+    structureText = template.mandatory_structure.map(s => 
+      `H2: ${s.heading}\n   Mensagem: ${s.key_message}`
+    ).join('\n');
+  }
 
-  // Get tone instructions based on account configuration
-  const selectedToneInstructions = toneInstructions[tone] || toneInstructions.friendly;
+  return `# 🎯 FRAMEWORK EDITORIAL OMNISEEN (OBRIGATÓRIO)
 
-  // Custom structure from template
-  const structureText = template?.mandatory_structure?.length 
-    ? template.mandatory_structure.map((s, i) => `   ${i + 1}. H2: "${s.heading}" → Mensagem: ${s.key_message}`).join('\n')
-    : '';
+📌 EMPRESA: ${companyName}
+📌 TEMA: ${theme}
+📌 KEYWORDS SEO: ${keywordsText}
 
-  return `Você é a OMNISEEN AI, a assistente virtual inteligente da OMNISEEN, Especialista Editorial em Conteúdo para DONOS de Empresas de Serviços.
+## 👤 PÚBLICO-ALVO (ÚNICO E OBRIGATÓRIO)
 
-🤖 IDENTIDADE: OMNISEEN AI - Assistente de Criação de Conteúdo
+O leitor é EXCLUSIVAMENTE:
+- Dono de pequeno negócio (1 a 15 funcionários)
+- Faturamento R$ 30k–R$ 300k/mês
+- Trabalha DENTRO da operação (não tem tempo)
+- Lida com clientes no WhatsApp pessoal
+- Frustrado com vendas perdidas por não conseguir atender
+- Quer crescer, mas não sabe como delegar ou automatizar
 
-🎯 PRINCÍPIO MESTRE (INQUEBRÁVEL)
-Todo conteúdo deve parecer escrito para um dono de negócio lendo no celular, no carro ou no meio do trabalho.
-O dono deve pensar: "Isso foi escrito para MIM."
-Se isso não for atendido, o conteúdo está ERRADO e deve ser refeito.
+⛔ NÃO É público deste artigo:
+- Profissionais de marketing
+- Gestores de equipes grandes
+- Desenvolvedores ou técnicos
+- Consumidores finais
 
-🎙️ TOM DO ARTIGO (CONFIGURAÇÃO DA CONTA):
-${selectedToneInstructions}
+## 📝 REGRAS ABSOLUTAS DE ESCRITA
 
-🧠 PERSONA OBRIGATÓRIA DO LEITOR
-- Dono de pequena/média empresa de ${niche}
-- Trabalha no campo, no atendimento ou na operação
-- Vive apagando incêndios
-- NÃO tem tempo para estudar tecnologia
-- Quer parar de perder clientes, dinheiro e controle
-- Lê no celular, entre um serviço e outro
-
-🏷️ IDENTIDADE DA MARCA: ${companyName}
-⚠️ EXTREMAMENTE IMPORTANTE:
-- TODO benefício, exemplo e resultado deve ser em nome de: ${companyName}
-- NUNCA use: "nossa plataforma", "esta solução", "o sistema", "a ferramenta", "a tecnologia"
-- SEMPRE use: "${companyName}" ou fale direto com "você", "seu negócio", "seu cliente"
-- Os benefícios pertencem à marca do dono, NUNCA à ferramenta
-
-📐 ESTRUTURA EDITORIAL (ESTILO AUTOMARTICLES):
-- 7-9 seções H2 (mais profundidade que o padrão)
-- Parágrafos de 1-3 linhas no MÁXIMO
-- Frases curtas e diretas (máximo 2 linhas)
-- Listas com bullets FREQUENTES
-- 1-2 blockquotes por artigo para insights importantes (use > no markdown)
-- Negrito estratégico para pontos-chave
-- Transições suaves entre seções
+✍️ ESTILO OBRIGATÓRIO:
+- Parágrafos de 1-3 linhas APENAS (NUNCA mais de 3 linhas)
+- Frases curtas (máximo 2 linhas)
+- Linguagem de WhatsApp entre empreendedores
+- Cenários REAIS: telefone tocando, cliente esperando, dono ocupado
 - Blocos visuais 💡⚠️📌 (mínimo 3, máximo 5)
 
 🚨 PROIBIDO (CAUSA REJEIÇÃO IMEDIATA):
@@ -1256,7 +1292,15 @@ serve(async (req) => {
       internal_links,
       external_sources,
       whatsapp: requestWhatsapp,
-      google_place
+      google_place,
+      // V2.1: Article Engine fields (Sprint 4 Integration)
+      templateOverride,
+      useEat = false,
+      contextualAlt = false,
+      niche = 'default',
+      mode = 'authority',
+      businessName,
+      businessWhatsapp
     }: ArticleRequest & { funnel_mode?: FunnelMode; article_goal?: ArticleGoal | null; auto_publish?: boolean } = await req.json();
 
     // ============================================================================
@@ -1292,11 +1336,56 @@ serve(async (req) => {
     }
 
     // ============================================================================
+    // V2.1: ARTICLE ENGINE - Template Selection & Outline
+    // ============================================================================
+    const primaryKeyword = Array.isArray(keywords) && keywords.length > 0 ? keywords[0] : theme;
+    
+    let articleEngineTemplate: TemplateSelectionResult | null = null;
+    let articleEngineOutline: OutlineStructure | null = null;
+    
+    try {
+      // 1. Select template (with override or auto-selection)
+      if (templateOverride) {
+        console.log(`[Article Engine] Template override: ${templateOverride}`);
+        const intent = classifyIntent(primaryKeyword);
+        articleEngineTemplate = {
+          template: templateOverride as TemplateType,
+          variant: 'chronological',
+          intent,
+          reason: 'Template selecionado manualmente pelo usuário',
+          antiPatternApplied: false
+        };
+      } else if (blog_id) {
+        console.log(`[Article Engine] Auto-selecting template for: "${primaryKeyword}"`);
+        articleEngineTemplate = await selectTemplate(supabase, primaryKeyword, blog_id, niche);
+      }
+
+      if (articleEngineTemplate) {
+        console.log(`[Article Engine] Template selected: ${articleEngineTemplate.template} (variant: ${articleEngineTemplate.variant})`);
+        
+        // 2. Generate structured outline
+        const territoryName = territoryData?.official_name || 'Brasil';
+        articleEngineOutline = buildOutlineStructure(
+          articleEngineTemplate.template,
+          articleEngineTemplate.variant,
+          mode,
+          primaryKeyword,
+          territoryName,
+          businessName || editorial_template?.company_name || undefined
+        );
+        
+        console.log(`[Article Engine] Outline generated: ${articleEngineOutline.h2Count} H2s, ${articleEngineOutline.totalTargetWords} target words`);
+      }
+    } catch (engineError) {
+      console.error(`[Article Engine] Error in selection (using fallback):`, engineError);
+      // Continue without Article Engine - fallback to original behavior
+    }
+
+    // ============================================================================
     // STAGE 1 (RESEARCH - PERPLEXITY REQUIRED)
     // - SERP (analyze-serp)
     // - GEO factual package (Perplexity)
     // ============================================================================
-    const primaryKeyword = Array.isArray(keywords) && keywords.length > 0 ? keywords[0] : theme;
     let researchPackage: ResearchPackage;
 
     try {
@@ -1406,75 +1495,82 @@ serve(async (req) => {
       isDefaultStrategy = resolution.isDefault;
     } else {
       clientStrategy = {
-        empresa_nome: editorial_template?.company_name || null,
-        tipo_negocio: editorial_template?.target_niche || 'serviços',
-        regiao_atuacao: 'Brasil',
-        tipo_publico: 'B2B/B2C',
-        nivel_consciencia: 'consciente_problema',
-        nivel_conhecimento: 'iniciante',
-        dor_principal: null,
-        desejo_principal: null,
-        o_que_oferece: null,
-        principais_beneficios: null,
-        diferenciais: null,
-        acao_desejada: 'entre em contato',
-        canal_cta: 'WhatsApp'
+        dor_principal: '',
+        empresa_nome: 'a empresa',
+        empresa_proposta: 'soluções para seu negócio',
+        segmentos_atendidos: [],
+        dores_do_cliente: [],
+        cta_principal: 'Fale conosco',
+        exemplos_texto_marca: []
       };
-      isDefaultStrategy = true;
     }
 
-    // GEO MODE: Use GEO Writer identity + REAL research + territorial context
-    const researchInjection = buildResearchInjection(researchPackage.geo);
-    const territorialContext = buildTerritorialContext(territoryData as GeoTerritoryData);
-    const governanceBlock = buildGovernanceBlock(researchPackage);
-
-    // Keep identity compact to avoid context overflow.
-    const GEO_WRITER_IDENTITY_COMPACT = `Você é o OmniCore Writer da Omniseen.\n\nRegras: 1) H1 único. 2) H2/H3 consistentes. 3) Parágrafos curtos. 4) Use links externos para fontes. 5) Não invente dados fora do pacote.`;
-
-    const systemPrompt = `${GEO_WRITER_IDENTITY_COMPACT}\n\n${governanceBlock}\n\n${researchInjection}\n${territorialContext}\n\n## CONTEXTO DO CLIENTE\n${buildUniversalPrompt(clientStrategy, funnel_mode as FunnelMode, article_goal as ArticleGoal | null, theme, keywords)}`;
-
     // ============================================================================
-    // STAGE 2 (WRITER)
+    // STAGE 2 (WRITER) - produce article content using GEO-based approach
     // ============================================================================
 
-    const MODEL_CONFIG = {
-      traditional: {
-        sections: { min: 5, max: 7, default: 6 },
-        imageFrequency: 3,
-        visualBlocks: { min: 2, max: 3, types: ['💡', '⚠️', '📌'] }
-      },
-      strategic: {
-        sections: { min: 5, max: 9, default: 7 },
-        imageFrequency: 2,
-        visualBlocks: { min: 5, max: 7, types: ['💡', '⚠️', '📌', '✅', '❝'] }
-      },
-      visual_guided: {
-        sections: { min: 5, max: 6, default: 5 },
-        imageFrequency: 1,
-        visualBlocks: { min: 3, max: 4, types: ['💡', '📌', '✅'] }
-      }
-    };
+    const editorialConfig = EDITORIAL_MODEL_INSTRUCTIONS[editorial_model] || EDITORIAL_MODEL_INSTRUCTIONS.traditional;
 
-    const modelConfig = MODEL_CONFIG[editorial_model] || MODEL_CONFIG.traditional;
-    const effectiveSectionCount = section_count || modelConfig.sections.default;
-    const calculatedImageCount = Math.ceil(effectiveSectionCount / modelConfig.imageFrequency);
-    const targetImageCount = Math.min(Math.max(image_count || calculatedImageCount, 1), 5);
+    // Get niche profile for prompt instructions
+    let nicheProfile: NicheProfile | null = null;
+    if (blog_id) {
+      nicheProfile = await getNicheProfile(supabase, blog_id);
+    }
+    const nichePromptBlock = nicheProfile ? getNichePromptInstructions(nicheProfile) : '';
 
-    // Build dynamic tool schema (kept as create_article)
-    const contextEnumValues = ['problem', 'solution', 'result', 'insight', 'cta'].slice(0, targetImageCount);
+    // V2.1: Build outline instruction if Article Engine generated an outline
+    let outlineInstruction = '';
+    if (articleEngineOutline) {
+      const sectionsPreview = articleEngineOutline.sections
+        .map((s, i) => `${i + 1}. ${s.h2 || 'Introdução'} (${s.targetWords} palavras)${s.includeTable ? ' [TABELA]' : ''}${s.forceList ? ' [LISTA]' : ''}${s.injectEat ? ' [E-E-A-T]' : ''}${s.geoSpecific ? ' [GEO]' : ''}`)
+        .join('\n');
+      
+      outlineInstruction = `
+## ESTRUTURA OBRIGATÓRIA (Article Engine V2.1)
+H1: ${articleEngineOutline.h1}
+Meta Title: ${articleEngineOutline.metaTitle}
+URL Slug: ${articleEngineOutline.urlSlug}
+
+### SEÇÕES:
+${sectionsPreview}
+
+Word Count Target: ${articleEngineOutline.totalTargetWords} palavras
+SIGA ESTA ESTRUTURA EXATAMENTE.
+`;
+    }
+
+    const systemPrompt = `${GEO_WRITER_IDENTITY}
+
+${GEO_LINKING_RULES}
+
+${buildTerritorialContext((territoryData as unknown as GeoTerritoryData) || null)}
+${buildResearchInjection(researchPackage.geo)}
+${buildGovernanceBlock(researchPackage)}
+${nichePromptBlock}
+${outlineInstruction}
+
+${editorialConfig.instructions}
+
+${HIERARCHY_RULES}
+
+${buildMasterPrompt(editorial_template || null, theme, keywords, tone)}
+
+Prazo de entrega: Data de referência é Janeiro de 2026. Todos os dados, tendências e referências devem ser contextualizados para esta data.`;
+
+    const targetImageCount = Math.min(Math.max(image_count, 1), 5);
 
     const createArticleTool = {
       type: 'function' as const,
       function: {
         name: 'create_article',
-        description: 'Creates a complete SEO-optimized blog article with meta + FAQ + image prompts',
+        description: 'Write and returns a complete SEO article based on research package',
         parameters: {
           type: 'object',
           properties: {
-            title: { type: 'string' },
-            meta_description: { type: 'string' },
-            excerpt: { type: 'string' },
-            content: { type: 'string' },
+            title: { type: 'string', description: 'SEO title (max 60 chars)' },
+            meta_description: { type: 'string', description: 'Meta description (max 160 chars)' },
+            excerpt: { type: 'string', description: 'Short excerpt (max 200 chars)' },
+            content: { type: 'string', description: 'Full markdown content' },
             faq: {
               type: 'array',
               items: {
@@ -1484,15 +1580,17 @@ serve(async (req) => {
                   answer: { type: 'string' }
                 },
                 required: ['question', 'answer']
-              }
+              },
+              minItems: 3,
+              maxItems: 8
             },
-            reading_time: { type: 'number' },
+            reading_time: { type: 'number', description: 'Estimated reading time in minutes' },
             image_prompts: {
               type: 'array',
               items: {
                 type: 'object',
                 properties: {
-                  context: { type: 'string', enum: contextEnumValues },
+                  context: { type: 'string' },
                   prompt: { type: 'string' },
                   after_section: { type: 'number' }
                 },
@@ -1510,7 +1608,15 @@ serve(async (req) => {
     };
 
     const writerStart = nowMs();
-    const writerUserPrompt = `Escreva o artigo completo sobre: "${theme}"\n\nREGRAS CRÍTICAS:\n- Use APENAS as fontes e dados do pacote de pesquisa\n- Inclua links externos (https://...) apontando para FONTES PERMITIDAS\n- Estruture com H1–H3, inclua FAQ + meta tags\n- Não invente estatísticas/tendências. Se faltar dado: "não encontrado nas fontes".`;
+    const writerUserPrompt = `Escreva o artigo completo sobre: "${theme}"
+
+${outlineInstruction}
+
+REGRAS CRÍTICAS:
+- Use APENAS as fontes e dados do pacote de pesquisa
+- Inclua links externos (https://...) apontando para FONTES PERMITIDAS
+- Estruture com H1–H3, inclua FAQ + meta tags
+- Não invente estatísticas/tendências. Se faltar dado: "não encontrado nas fontes".`;
 
     const gatewayUrl = 'https://ai.gateway.lovable.dev/v1/chat/completions';
 
@@ -1529,6 +1635,7 @@ serve(async (req) => {
     await logStage(supabase, blog_id, 'writer', 'lovable', 'writer', true, writerDuration, {
       model: textModel,
       keyword: primaryKeyword,
+      articleEngineTemplate: articleEngineTemplate?.template || null,
     }, 0, writerCall.usage?.total_tokens);
 
     // Build article object from writer output
@@ -1676,19 +1783,103 @@ serve(async (req) => {
     }
 
     // ============================================================================
+    // V2.1: ARTICLE ENGINE - E-E-A-T Injection (Post-generation)
+    // ============================================================================
+
+    let contentWithEat = seoOut.content || writerOut.content || '';
+
+    if (useEat && niche) {
+      try {
+        const territoryName = territoryData?.official_name || 'Brasil';
+        const neighborhoods = territoryData?.neighborhood_tags?.slice(0, 2) || [];
+        
+        const eatPhrase = injectLocalExperience(
+          niche,
+          territoryName,
+          businessName || clientStrategy?.empresa_nome || 'nossa empresa',
+          undefined, // yearsInBusiness - could come from business_profile
+          neighborhoods
+        );
+        
+        if (eatPhrase) {
+          console.log(`[Article Engine] E-E-A-T injected: "${eatPhrase.substring(0, 80)}..."`);
+          
+          // Insert E-E-A-T after introduction (second paragraph)
+          const paragraphs = contentWithEat.split('\n\n');
+          if (paragraphs.length > 2) {
+            paragraphs.splice(2, 0, `\n${eatPhrase}\n`);
+            contentWithEat = paragraphs.join('\n\n');
+          } else {
+            contentWithEat = contentWithEat + '\n\n' + eatPhrase;
+          }
+        }
+      } catch (eatError) {
+        console.error(`[Article Engine] Error injecting E-E-A-T:`, eatError);
+        // Continue without E-E-A-T
+      }
+    }
+
+    // ============================================================================
+    // V2.1: ARTICLE ENGINE - Contextual Image ALT Generation
+    // ============================================================================
+
+    let processedImagePrompts = Array.isArray(writerOut.image_prompts) ? writerOut.image_prompts : [];
+    let featuredImageAlt: string | null = null;
+
+    if (contextualAlt && niche) {
+      try {
+        const territoryName = territoryData?.official_name || 'Brasil';
+        const imageTypes: ('hero' | 'service' | 'team' | 'equipment' | 'before_after' | 'location')[] = 
+          ['hero', 'service', 'service', 'equipment', 'team', 'location'];
+        
+        // Generate contextual ALTs for each image
+        const contextualAlts = generateMultipleAlts(
+          {
+            service: primaryKeyword,
+            businessName: businessName || clientStrategy?.empresa_nome || 'empresa local',
+            city: territoryName,
+            niche: niche
+          },
+          processedImagePrompts.length || 3,
+          imageTypes.slice(0, processedImagePrompts.length || 3)
+        );
+        
+        // Associate ALTs to image prompts
+        processedImagePrompts = processedImagePrompts.map((prompt: any, index: number) => ({
+          ...prompt,
+          alt: contextualAlts[index]?.alt || prompt.alt,
+          title: contextualAlts[index]?.title || prompt.title,
+          caption: contextualAlts[index]?.caption || prompt.caption
+        }));
+        
+        // Featured image ALT
+        if (contextualAlts.length > 0) {
+          featuredImageAlt = contextualAlts[0].alt;
+          console.log(`[Article Engine] Featured image ALT: "${featuredImageAlt}"`);
+        }
+        
+        console.log(`[Article Engine] ${contextualAlts.length} contextual ALTs generated`);
+      } catch (altError) {
+        console.error(`[Article Engine] Error generating contextual ALTs:`, altError);
+        // Continue with original ALTs
+      }
+    }
+
+    // ============================================================================
     // From here: continue using seoOut as the article payload (persist/cache/etc.)
     // ============================================================================
 
     // Ensure all fields have defaults
     const article = {
-      title: (seoOut.title || writerOut.title || theme).toString().trim(),
-      meta_description: (seoOut.meta_description || writerOut.meta_description || '').toString().trim().substring(0, 160),
+      title: (seoOut.title || writerOut.title || articleEngineOutline?.h1 || theme).toString().trim(),
+      meta_description: (seoOut.meta_description || writerOut.meta_description || articleEngineOutline?.metaDescription || '').toString().trim().substring(0, 160),
       excerpt: (seoOut.excerpt || writerOut.excerpt || seoOut.meta_description || '').toString().trim(),
-      content: (seoOut.content || writerOut.content || '').toString().trim(),
+      content: contentWithEat,  // Content with E-E-A-T injected
       faq: Array.isArray(seoOut.faq) ? seoOut.faq : (Array.isArray(writerOut.faq) ? writerOut.faq : []),
-      reading_time: Number(writerOut.reading_time || Math.ceil(((seoOut.content || '').toString().split(' ').length) / 200)),
-      image_prompts: Array.isArray(writerOut.image_prompts) ? writerOut.image_prompts : [],
-      images: writerOut.images
+      reading_time: Number(writerOut.reading_time || Math.ceil((contentWithEat.split(' ').length) / 200)),
+      image_prompts: processedImagePrompts,  // With contextual ALTs
+      images: writerOut.images,
+      featured_image_alt: featuredImageAlt  // Contextual ALT
     };
 
     // NEW: infer category/tags (used downstream)
@@ -1712,37 +1903,47 @@ serve(async (req) => {
         .replace(/(^-|-$)/g, '') + '-' + Date.now().toString(36);
     };
 
+    // V2.1: Build Article Engine metadata for source_payload
+    const articleEnginePayload = articleEngineTemplate ? {
+      articleEngine: {
+        version: '2.1',
+        template: articleEngineTemplate.template,
+        variant: articleEngineTemplate.variant,
+        intent: articleEngineTemplate.intent?.type,
+        useEat: useEat,
+        contextualAlt: contextualAlt,
+        niche: niche,
+        mode: mode,
+        outline: articleEngineOutline ? {
+          h2Count: articleEngineOutline.h2Count,
+          targetWords: articleEngineOutline.totalTargetWords
+        } : null
+      }
+    } : null;
+
     let persistedArticle;
     try {
-      const insertData = {
-        blog_id: blog_id,
-        user_id: user?.id, // Derivado do JWT
-        title: article.title,
-        slug: generateSlug(article.title), // FIXED: Generate slug from title
-        content: article.content,
-        status: 'draft',
-        // ... other fields
-      };
-
-      const { data, error: insertError } = await supabase
-        .from('articles')
-        .insert(insertData)
-        .select()
-        .single();
-
-      if (insertError) {
-        console.error(`[${requestId}] INSERT_ERROR:`, insertError);
-        throw insertError;
-      }
-      persistedArticle = data;
-      console.log(`[${requestId}] SUCCESS: id=${data.id}`);
+      persistedArticle = await persistArticleToDb(
+        supabase,
+        blog_id!,
+        article,
+        autoPublish,
+        inferredCategory,
+        inferredTags,
+        nicheProfile?.id || null,
+        user?.id,
+        // V2.1: Article Engine metadata
+        articleEngineTemplate?.template || null,
+        articleEnginePayload
+      );
+      console.log(`[${requestId}] SUCCESS: id=${persistedArticle.id}`);
     } catch (persistError) {
       console.error(`[${requestId}] PERSIST_ERROR:`, persistError);
       throw new Error(`DB_PERSIST_FAILED: Não foi possível salvar o artigo no banco. ${persistError instanceof Error ? persistError.message : 'Erro desconhecido'}`);
     }
 
     // OmniCore metadata - reuse existing textModel from generation
-    const writerModelUsed = 'google/gemini-2.5-flash'; // Model used for writing
+    const writerModelUsed = textModel; // Model used for writing
     const qaModelUsed = 'google/gemini-2.5-flash';     // QA model for OmniCore
     
     return new Response(
@@ -1759,6 +1960,21 @@ serve(async (req) => {
         // OmniCore metadata
         writer_model: writerModelUsed,
         qa_model: qaModelUsed,
+        // V2.1: Article Engine metadata
+        articleEngine: articleEngineTemplate ? {
+          template: articleEngineTemplate.template,
+          variant: articleEngineTemplate.variant,
+          intent: articleEngineTemplate.intent,
+          antiPatternApplied: articleEngineTemplate.antiPatternApplied,
+          outline: articleEngineOutline ? {
+            h1: articleEngineOutline.h1,
+            h2Count: articleEngineOutline.h2Count,
+            targetWords: articleEngineOutline.totalTargetWords,
+            urlSlug: articleEngineOutline.urlSlug
+          } : null,
+          eatInjected: useEat,
+          contextualAltGenerated: contextualAlt
+        } : null,
         // Territorial metadata for frontend JSON-LD injection
         territorial: territoryData ? {
           official_name: territoryData.official_name,
