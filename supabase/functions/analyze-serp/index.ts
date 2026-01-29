@@ -209,6 +209,10 @@ interface ScrapedCompetitor {
 // ═══════════════════════════════════════════════════════════════════
 
 async function scrapeWithFirecrawl(url: string, apiKey: string): Promise<ScrapedCompetitor | null> {
+  // Timeout de 15 segundos por URL
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+
   try {
     console.log(`[SCRAPE] Scraping ${url} with Firecrawl...`);
     
@@ -224,7 +228,10 @@ async function scrapeWithFirecrawl(url: string, apiKey: string): Promise<Scraped
         onlyMainContent: true,
         waitFor: 2000
       }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       console.warn(`[SCRAPE] Failed to scrape ${url}: ${response.status}`);
@@ -266,6 +273,11 @@ async function scrapeWithFirecrawl(url: string, apiKey: string): Promise<Scraped
       hasFAQ
     };
   } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn(`[SCRAPE] ⏱️ Timeout (15s) scraping ${url}`);
+      return null;
+    }
     console.error(`[SCRAPE] Error scraping ${url}:`, error);
     return null;
   }
@@ -395,25 +407,41 @@ Retorne APENAS um JSON válido no formato:
   "topTitles": ["Título 1", "Título 2", ...]
 }`;
 
-  const response = await fetch("https://api.perplexity.ai/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "sonar-pro",
-      messages: [
-        {
-          role: "system",
-          content: "You are an SEO analyst. Return ONLY valid JSON without any markdown formatting or code blocks."
-        },
-        { role: "user", content: serpPrompt }
-      ],
-      temperature: 0.1,
-      max_tokens: 4000
-    }),
-  });
+  // Timeout de 30 segundos para descoberta de URLs
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  let response: Response;
+  try {
+    response = await fetch("https://api.perplexity.ai/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "sonar-pro",
+        messages: [
+          {
+            role: "system",
+            content: "You are an SEO analyst. Return ONLY valid JSON without any markdown formatting or code blocks."
+          },
+          { role: "user", content: serpPrompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 4000
+      }),
+      signal: controller.signal
+    });
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('[SERP] ⏱️ Perplexity TIMEOUT (30s) - aborting URL discovery');
+      throw new Error('PERPLEXITY_TIMEOUT: URL discovery exceeded 30 seconds');
+    }
+    throw error;
+  }
+  clearTimeout(timeoutId);
 
   if (!response.ok) {
     throw new Error(`Perplexity API error: ${response.status}`);

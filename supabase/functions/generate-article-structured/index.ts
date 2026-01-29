@@ -252,29 +252,55 @@ async function runResearchStage(params: {
   const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
   const serpStart = nowMs();
-  const serpRes = await fetch(`${SUPABASE_URL}/functions/v1/analyze-serp`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${SERVICE_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      keyword: primaryKeyword,
-      territory: territoryName,
-      blogId,
-      forceRefresh: false,
-      useFirecrawl: true,
-    }),
-  });
+  
+  // Timeout de 45 segundos para análise SERP completa
+  const serpController = new AbortController();
+  const serpTimeoutId = setTimeout(() => serpController.abort(), 45000);
 
-  if (!serpRes.ok) {
-    const t = await serpRes.text().catch(() => '');
-    throw new Error(`RESEARCH_REQUIRED: analyze-serp failed (${serpRes.status}) ${t.substring(0, 200)}`);
+  let serpRes: Response;
+  let serpMatrix: SerpMatrixLite = {};
+  let serpDuration: number;
+
+  try {
+    serpRes = await fetch(`${SUPABASE_URL}/functions/v1/analyze-serp`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        keyword: primaryKeyword,
+        territory: territoryName,
+        blogId,
+        forceRefresh: false,
+        useFirecrawl: true,
+      }),
+      signal: serpController.signal
+    });
+    clearTimeout(serpTimeoutId);
+
+    if (!serpRes.ok) {
+      const t = await serpRes.text().catch(() => '');
+      console.warn(`[Research] ⚠️ analyze-serp returned ${serpRes.status}: ${t.substring(0, 200)}`);
+      // Continuar com SERP vazia em vez de falhar
+      serpMatrix = {};
+    } else {
+      const serpJson = await serpRes.json();
+      serpMatrix = serpJson?.matrix || {};
+    }
+    serpDuration = nowMs() - serpStart;
+  } catch (error) {
+    clearTimeout(serpTimeoutId);
+    serpDuration = nowMs() - serpStart;
+    
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error('[Research] ⏱️ analyze-serp TIMEOUT (45s) - continuing with empty SERP');
+      serpMatrix = {};
+    } else {
+      console.error('[Research] ⚠️ analyze-serp error - continuing with empty SERP:', error);
+      serpMatrix = {};
+    }
   }
-
-  const serpJson = await serpRes.json();
-  const serpMatrix: SerpMatrixLite = serpJson?.matrix || {};
-  const serpDuration = nowMs() - serpStart;
 
   // 2) GEO factual package (Perplexity) - MUST succeed
   const geoStart = nowMs();
