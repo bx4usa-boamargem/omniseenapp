@@ -1,351 +1,366 @@
 
-# Plano de Implementação: Sprint 2 + Sprint 3
+# Sprint 4: Interface de Geração Manual de Artigos
 
-## Resumo Executivo
+## Contexto Atual
 
-Este plano implementa o **Backend Core** e módulos de **Qualidade** do Authority Article Engine, criando 3 arquivos novos e adicionando funções ao `geoWriterCore.ts` existente.
+### O que já existe:
+| Recurso | Localização | Status |
+|---------|-------------|--------|
+| **Backend - Template Selector** | `supabase/functions/_shared/templateSelector.ts` | ✅ Implementado |
+| **Backend - Pipeline Stages** | `supabase/functions/_shared/pipelineStages.ts` | ✅ Implementado |
+| **Backend - E-E-A-T por Nicho** | `supabase/functions/_shared/geoWriterCore.ts` | ✅ Implementado |
+| **Backend - ALT de Imagens** | `supabase/functions/_shared/imageAltGenerator.ts` | ✅ Implementado |
+| **Frontend - Types** | `src/lib/article-engine/types.ts` | ✅ Implementado |
+| **Frontend - Templates** | `src/lib/article-engine/templates.ts` | ✅ Implementado |
+| **Frontend - Niches** | `src/lib/article-engine/niches.ts` | ✅ Implementado |
+| **Formulário Simples** | `src/components/client/SimpleArticleForm.tsx` | ✅ Existe (inspiração) |
+| **Editor de Artigos** | `src/pages/client/ClientArticleEditor.tsx` | ✅ Existe (1351 linhas) |
+| **Lista de Artigos** | `src/pages/client/ClientArticles.tsx` | ✅ Existe (487 linhas) |
+| **Edge Function** | `generate-article-structured` | ✅ Existe |
 
----
-
-## SPRINT 2: Backend Core
-
-### Arquivo 1: `supabase/functions/_shared/templateSelector.ts`
-
-**Objetivo:** Seleção inteligente de template com lógica anti-padrão
-
-**Funcionalidades a implementar:**
-
-| Função | Descrição |
-|--------|-----------|
-| `classifyIntent(keyword)` | Classificação de intenção via regex (4 categorias) |
-| `getRecentTemplates(supabase, blogId, limit)` | Busca histórico de templates usados |
-| `applyAntiPattern(recommended, history, intent)` | Rotação anti-padrão (evita 2x em 3) |
-| `selectVariant(template, history)` | Escolhe variante diferente da última |
-| `selectTemplate(supabase, keyword, blogId)` | Função principal orquestradora |
-
-**Tipos definidos no arquivo:**
-- `TemplateType`: 5 templates (complete_guide, qa_format, comparative, problem_solution, educational_steps)
-- `TemplateVariant`: 15 variantes (3 por template)
-- `Intent`: { type, urgency, recommendedTemplate }
-- `TemplateSelectionResult`: { template, variant, intent, reason, antiPatternApplied }
-
-**Constantes:**
-```typescript
-const TEMPLATE_VARIANTS: Record<TemplateType, TemplateVariant[]>
-const ALTERNATIVE_TEMPLATES: Record<IntentType, TemplateType[]>
-const TRANSACTIONAL_PATTERNS: RegExp[]
-const COMMERCIAL_PATTERNS: RegExp[]
-const HOW_TO_PATTERNS: RegExp[]
-const INFORMATIONAL_PATTERNS: RegExp[]
-```
-
-**Mapeamento de compatibilidade com structureRotation.ts:**
-| Novo (templateSelector) | Existente (structureRotation) |
-|-------------------------|-------------------------------|
-| complete_guide | guide |
-| qa_format | educational |
-| comparative | comparison |
-| problem_solution | problem_solution |
-| educational_steps | educational |
+### Rotas Atuais (`/client/*`):
+- `/client/create` → `ClientArticleEditor` (formulário simplificado)
+- `/client/articles/:id/edit` → `ClientArticleEditor` (edição)
+- `/client/articles` → `ClientArticles` (listagem)
 
 ---
 
-### Arquivo 2: `supabase/functions/_shared/pipelineStages.ts`
+## Objetivo do Sprint 4
 
-**Objetivo:** Helpers para as 12 etapas do pipeline de geração
-
-**Funcionalidades a implementar:**
-
-| Função | Etapa | Descrição |
-|--------|-------|-----------|
-| `validateBrief(brief)` | 1 | Valida campos obrigatórios do ArticleBrief |
-| `classifyKeywordIntent(keyword)` | 2 | Wrapper para classificação de intenção |
-| `selectTemplateForBrief(supabase, brief)` | 3 | Integra seleção com anti-padrão |
-| `buildOutlineStructure(template, variant, mode, keyword, city, businessName)` | 5 | Gera estrutura completa do artigo |
-| `calculateTargetWordCount(template, mode)` | Helper | Calcula word count esperado |
-| `calculateH2Range(template)` | Helper | Retorna range de H2s por template |
-
-**Tipos definidos:**
-```typescript
-interface ArticleBrief {
-  keyword: string;
-  city: string;
-  state?: string;
-  blogId: string;
-  niche: string;
-  mode: 'entry' | 'authority';
-  webResearch: boolean;
-  templateOverride?: TemplateType;
-  businessName?: string;
-  businessPhone?: string;
-  businessWhatsapp?: string;
-}
-
-interface BriefValidationResult {
-  valid: boolean;
-  errors: string[];
-  warnings: string[];
-}
-
-interface OutlineSection {
-  type: string;
-  h2: string | null;
-  h3s?: string[];
-  targetWords: number;
-  includeTable?: boolean;
-  forceList?: boolean;
-  injectEat?: boolean;
-  geoSpecific?: boolean;
-}
-
-interface OutlineStructure {
-  h1: string;
-  urlSlug: string;
-  metaTitle: string;
-  metaDescription: string;
-  sections: OutlineSection[];
-  totalTargetWords: number;
-  h2Count: number;
-}
-```
-
-**Constante TEMPLATE_SPECS:**
-```typescript
-const TEMPLATE_SPECS: Record<TemplateType, {
-  h2Range: [number, number];
-  wordCountAuthority: [number, number];
-  wordCountEntry: [number, number];
-}> = {
-  complete_guide: { h2Range: [8, 12], wordCountAuthority: [1800, 3000], wordCountEntry: [800, 1200] },
-  qa_format: { h2Range: [7, 10], wordCountAuthority: [1500, 2500], wordCountEntry: [800, 1200] },
-  comparative: { h2Range: [7, 10], wordCountAuthority: [1500, 2800], wordCountEntry: [900, 1300] },
-  problem_solution: { h2Range: [8, 12], wordCountAuthority: [1600, 2800], wordCountEntry: [900, 1400] },
-  educational_steps: { h2Range: [9, 13], wordCountAuthority: [1700, 3000], wordCountEntry: [1000, 1500] }
-};
-```
-
-**Estruturas de seções por template:**
-Cada template terá sua estrutura base de seções com:
-- H2 title pattern
-- targetWords por seção
-- Flags: includeTable, forceList, injectEat, geoSpecific
+Criar uma **interface avançada de geração** que expõe os novos recursos do Article Engine (seleção de template, E-E-A-T, preview de estrutura) para usuários avançados, mantendo o fluxo simples existente para usuários básicos.
 
 ---
 
-## SPRINT 3: Qualidade
+## Arquitetura da Solução
 
-### Arquivo 3: Modificação `supabase/functions/_shared/geoWriterCore.ts`
-
-**Objetivo:** Adicionar E-E-A-T avançado por nicho (APENAS ADIÇÕES - não modificar código existente)
-
-**O que será ADICIONADO (após linha 742):**
-
-```typescript
-// =============================================================================
-// NICHE E-E-A-T PHRASES (ADIÇÃO V2.1)
-// =============================================================================
-
-export const NICHE_EAT_PHRASES: Record<string, string[]> = {
-  pest_control: [
-    "Na {{business_name}}, vemos diariamente como o clima de {{city}} afeta infestações de pragas.",
-    "Com {{years}} anos atendendo {{city}}, nossa equipe aprendeu que tratamentos preventivos são essenciais.",
-    // ... mais frases
-  ],
-  plumbing: [
-    "A {{business_name}} atende {{city}} há {{years}} anos e conhece cada peculiaridade da rede de esgoto.",
-    "Em {{city}}, problemas de entupimento variam por bairro devido à idade das tubulações.",
-    // ... mais frases
-  ],
-  // ... 11 nichos adicionais
-  default: [
-    "A {{business_name}} é referência em {{city}} com mais de {{years}} anos de atuação.",
-    "Atendemos clientes de toda {{city}}, de {{neighborhood}} a {{other_neighborhood}}.",
-  ]
-};
-
-export function injectLocalExperience(
-  niche: string,
-  city: string,
-  businessName: string,
-  yearsInBusiness?: number,
-  neighborhoods?: string[]
-): string {
-  // Escolhe 1-2 frases aleatórias do nicho
-  // Substitui placeholders
-  // Retorna texto para inserir no artigo
-}
+```text
+┌─────────────────────────────────────────────────────────────────────┐
+│                    FLUXO DE GERAÇÃO AVANÇADA                        │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  [1] /client/articles/generate                                      │
+│      └── ArticleGenerator.tsx (Formulário Avançado)                 │
+│          ├── Campos: keyword, cidade, estado, nicho                 │
+│          ├── Modo: Entry vs Authority                               │
+│          ├── Template: Auto ou Manual (5 opções)                    │
+│          ├── Toggles: Web Research, E-E-A-T, ALT de Imagens         │
+│          └── Botões: [PREVIEW TEMPLATE] [GERAR ARTIGO]              │
+│                                                                     │
+│  [2] Modal: ArticleTemplatePreviewModal                             │
+│      └── Mostra estrutura do template selecionado                   │
+│          ├── Template + Variante + Intent                           │
+│          ├── Word Count Range + H2 Count                            │
+│          ├── Lista de seções com targetWords                        │
+│          └── Reason (por que este template foi escolhido)           │
+│                                                                     │
+│  [3] /client/articles/:id/preview                                   │
+│      └── ArticlePreview.tsx (Preview Completo)                      │
+│          ├── Metadados: Word Count, SEO Score, H2 Count             │
+│          ├── Renderização: H1, TL;DR, Seções, FAQ, CTA              │
+│          ├── Imagens: ALT contextualizado                           │
+│          └── Ações: [EDITAR] [PUBLICAR] [REGENERAR]                 │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
-
-**Nichos a implementar E-E-A-T (13 total):**
-1. pest_control
-2. plumbing
-3. roofing
-4. image_consulting
-5. dental
-6. legal
-7. accounting
-8. real_estate
-9. automotive
-10. construction
-11. beauty
-12. education
-13. technology
-14. default (fallback)
 
 ---
 
-### Arquivo 4: `supabase/functions/_shared/imageAltGenerator.ts`
+## Arquivos a Criar
 
-**Objetivo:** Gerar ALT texts contextualizados com cidade + serviço + empresa
+### 1. Página Principal: `ArticleGenerator.tsx`
+
+**Caminho:** `src/pages/client/ArticleGenerator.tsx`
+
+**Estrutura do formulário:**
+
+```text
+┌────────────────────────────────────────────────────────────┐
+│  🎯 Gerar Artigo de Autoridade Local                      │
+├────────────────────────────────────────────────────────────┤
+│                                                            │
+│  📝 Informações Básicas                                    │
+│  ┌──────────────────────────────────────────────────────┐ │
+│  │ Palavra-chave *                                      │ │
+│  │ [________________________________]                   │ │
+│  │                                                      │ │
+│  │ Cidade *              Estado                         │ │
+│  │ [______________]      [SP ▼]                        │ │
+│  │                                                      │ │
+│  │ Nicho *                                              │ │
+│  │ [Desentupidora (plumbing) ▼]                        │ │
+│  └──────────────────────────────────────────────────────┘ │
+│                                                            │
+│  ⚙️ Configurações Avançadas                                │
+│  ┌──────────────────────────────────────────────────────┐ │
+│  │ Modo de Geração                                      │ │
+│  │ ○ Entry (800-1.200 palavras)                        │ │
+│  │ ● Authority (1.200-3.000 palavras)                  │ │
+│  │                                                      │ │
+│  │ Template Estrutural                                  │ │
+│  │ ● Auto-selecionar (inteligente)                     │ │
+│  │ ○ Guia Completo                                     │ │
+│  │ ○ Perguntas & Respostas                             │ │
+│  │ ○ Comparativo Técnico                               │ │
+│  │ ○ Problema → Solução                                │ │
+│  │ ○ Educacional em Etapas                             │ │
+│  │                                                      │ │
+│  │ ☑ Usar Web Research (Perplexity)                    │ │
+│  │ ☑ Incluir E-E-A-T local                             │ │
+│  │ ☑ Gerar ALT de imagens contextualizado              │ │
+│  └──────────────────────────────────────────────────────┘ │
+│                                                            │
+│  [PREVIEW TEMPLATE]       [GERAR ARTIGO →]                │
+└────────────────────────────────────────────────────────────┘
+```
 
 **Funcionalidades:**
+- Carrega blog atual via `useBlog()`
+- Lista de nichos do frontend (`NICHE_RULESETS`)
+- Lista de templates do frontend (`ARTICLE_TEMPLATES`)
+- Validação em tempo real (keyword >= 3 chars, cidade obrigatória)
+- Botão "Preview Template" abre modal com estrutura
+- Botão "Gerar Artigo" chama edge function
 
-| Função | Descrição |
-|--------|-----------|
-| `generateImageAlt(context)` | Gera ALT para uma imagem |
-| `generateMultipleAlts(context, count)` | Gera ALTs em batch |
-| `generateCaption(context)` | Gera caption descritiva |
+---
 
-**Tipos:**
-```typescript
-interface ImageAltContext {
-  service: string;
-  businessName: string;
-  city: string;
-  niche: string;
-  imageType: 'hero' | 'service' | 'team' | 'equipment' | 'before_after' | 'location';
-}
+### 2. Componente Modal: `ArticleTemplatePreviewModal.tsx`
 
-interface GeneratedAlt {
-  alt: string;
-  title?: string;
-  caption?: string;
-}
+**Caminho:** `src/components/client/ArticleTemplatePreviewModal.tsx`
+
+**Estrutura:**
+
+```text
+┌────────────────────────────────────────────────────────────┐
+│  📋 Preview: Template Selecionado                    [✕]  │
+├────────────────────────────────────────────────────────────┤
+│                                                            │
+│  🏷️ Template: Problema → Solução                          │
+│  📊 Variante: urgent_first                                │
+│  🎯 Intenção: transactional (urgência alta)               │
+│                                                            │
+│  ─────────────────────────────────────────────────────────│
+│                                                            │
+│  📈 Especificações                                         │
+│  • Word Count: 1.600 - 2.800 palavras                     │
+│  • Seções H2: 8 - 12                                      │
+│  • FAQ: 8-12 perguntas                                    │
+│                                                            │
+│  ─────────────────────────────────────────────────────────│
+│                                                            │
+│  📑 Estrutura das Seções                                   │
+│  1. Introdução (150 palavras)                             │
+│  2. Sinais de que você precisa [LISTA] (200)              │
+│  3. Por que isso acontece? (250)                          │
+│  4. Riscos de não resolver (200)                          │
+│  5. A solução: profissional (250)                         │
+│  6. Fazer sozinho ou contratar? [TABELA] (300)            │
+│  7. Como resolver passo a passo [LISTA] (350)             │
+│  8. Como prevenir [LISTA] (250)                           │
+│  9. Quando chamar profissional [E-E-A-T] (200)            │
+│  10. Serviço em {{cidade}} [GEO] (200)                    │
+│  11. Perguntas frequentes (300)                           │
+│  12. Precisa de ajuda urgente? [CTA] (150)                │
+│                                                            │
+│  ─────────────────────────────────────────────────────────│
+│                                                            │
+│  💡 Por que este template?                                 │
+│  "A keyword 'desentupidora urgente' indica intenção       │
+│   transacional com alta urgência."                        │
+│                                                            │
+│  [VOLTAR]                    [GERAR COM ESTE TEMPLATE]    │
+└────────────────────────────────────────────────────────────┘
 ```
 
-**Constante ALT_PATTERNS:**
+**Dados a buscar:**
+- Chama `selectTemplateForBrief()` do pipelineStages (via edge function)
+- Ou calcula localmente usando funções do frontend
+
+---
+
+### 3. Página de Preview: `ArticleAdvancedPreview.tsx`
+
+**Caminho:** `src/pages/client/ArticleAdvancedPreview.tsx`
+
+**Estrutura:**
+
+```text
+┌────────────────────────────────────────────────────────────┐
+│  ← Voltar    Desentupidora em São Paulo: Guia 2026        │
+│              [EDITAR] [PUBLICAR] [REGENERAR]               │
+├────────────────────────────────────────────────────────────┤
+│                                                            │
+│  📊 Metadados do Artigo                                    │
+│  ┌────────────────────────────────────────────────────┐   │
+│  │ Word Count     SEO Score    H2 Count    FAQ Count  │   │
+│  │ 2.450/2.800 ✅  85/100 ✅    10 ✅       10 ✅     │   │
+│  │                                                     │   │
+│  │ Imagens       E-E-A-T      Template                 │   │
+│  │ 8 ✅          Presente ✅   problem_solution ✅    │   │
+│  └────────────────────────────────────────────────────┘   │
+│                                                            │
+├────────────────────────────────────────────────────────────┤
+│                                                            │
+│  [RENDERIZAÇÃO DO ARTIGO]                                  │
+│                                                            │
+│  # Desentupidora em São Paulo: Solução Definitiva         │
+│                                                            │
+│  TL;DR:                                                    │
+│  • Atendimento 24h em toda São Paulo                      │
+│  • Orçamento gratuito e garantia de 90 dias               │
+│  • Equipamentos modernos e profissionais capacitados       │
+│                                                            │
+│  [Imagem Hero]                                             │
+│  ALT: "Equipe de desentupidora da Desentup Rápido..."     │
+│                                                            │
+│  ## Sinais de que você precisa de desentupidora           │
+│  ...conteúdo...                                            │
+│                                                            │
+│  ## Por que isso acontece?                                 │
+│  ...conteúdo...                                            │
+│                                                            │
+│  [FAQ section com JSON-LD]                                 │
+│                                                            │
+│  ## Próximo passo: solicite orçamento                     │
+│  [CTA com WhatsApp]                                        │
+│                                                            │
+└────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Rotas a Adicionar
+
+No arquivo `src/App.tsx`, adicionar dentro do `ClientRoutes`:
+
 ```typescript
-const ALT_PATTERNS: Record<ImageAltContext['imageType'], string[]> = {
-  hero: [
-    "{{service}} profissional em {{city}} pela {{business}}",
-    "Equipe de {{service}} da {{business}} atendendo em {{city}}",
-  ],
-  service: [
-    "{{service}} realizado pela {{business}} em {{city}}",
-    "Serviço de {{service}} da {{business}} em {{city}}",
-  ],
-  team: [
-    "Equipe profissional da {{business}} em {{city}}",
-    "Time especializado em {{service}} da {{business}}",
-  ],
-  equipment: [
-    "Equipamento profissional para {{service}} usado pela {{business}}",
-    "Tecnologia moderna para {{service}} em {{city}}",
-  ],
-  before_after: [
-    "Antes e depois de {{service}} pela {{business}} em {{city}}",
-    "Resultado de {{service}} realizado pela {{business}}",
-  ],
-  location: [
-    "{{business}} atendendo em {{city}}",
-    "Área de cobertura da {{business}} em {{city}}",
-  ]
+// Geração avançada
+<Route path="articles/generate" element={<ArticleGenerator />} />
+
+// Preview do artigo gerado
+<Route path="articles/:id/preview" element={<ArticleAdvancedPreview />} />
+```
+
+---
+
+## Componentes Auxiliares a Criar
+
+| Componente | Responsabilidade |
+|------------|------------------|
+| `ArticleGeneratorForm.tsx` | Formulário com campos e validação |
+| `TemplateSelectorRadio.tsx` | Radio buttons dos 5 templates |
+| `NicheSelectorDropdown.tsx` | Dropdown com 13 nichos |
+| `ArticleMetadataCard.tsx` | Card com métricas (word count, SEO) |
+| `OutlineSectionsList.tsx` | Lista de seções do outline |
+
+---
+
+## Integração com Backend
+
+### Edge Function a chamar:
+
+```typescript
+const { data, error } = await supabase.functions.invoke('generate-article-structured', {
+  body: {
+    keyword: formData.keyword,
+    city: formData.city,
+    state: formData.state,
+    niche: formData.niche,
+    mode: formData.mode, // 'entry' | 'authority'
+    webResearch: formData.webResearch,
+    templateOverride: formData.template !== 'auto' ? formData.template : undefined,
+    blogId: blog.id,
+    businessName: businessProfile?.company_name,
+    businessPhone: businessProfile?.phone,
+    businessWhatsapp: businessProfile?.whatsapp,
+    // Flags do novo Article Engine
+    useEat: formData.eatInjection,
+    contextualAlt: formData.imageAlt
+  }
+});
+```
+
+### Preview de Template (Local):
+
+Para preview rápido sem chamar o backend, podemos calcular no frontend:
+
+```typescript
+import { classifyIntent } from '@/lib/article-engine/intent';
+import { ARTICLE_TEMPLATES, getWordCountRange } from '@/lib/article-engine/templates';
+
+const preview = {
+  intent: classifyIntent(keyword),
+  template: intent.recommendedTemplate,
+  specs: ARTICLE_TEMPLATES[intent.recommendedTemplate],
+  wordCountRange: getWordCountRange(specs, mode)
 };
 ```
 
 ---
 
-## Regras de Implementação
+## Estados de Loading
 
-| Regra | Status |
-|-------|--------|
-| Criar APENAS 3 arquivos novos | ✅ |
-| Modificar geoWriterCore.ts APENAS adicionando (não alterar existente) | ✅ |
-| NÃO tocar em generate-article-structured/index.ts | ✅ |
-| NÃO modificar structureRotation.ts | ✅ |
-| NÃO modificar editorialRotation.ts | ✅ |
-| Imports Deno com extensão .ts | ✅ |
-| Comentários explicativos em português | ✅ |
-| Logs de debug para troubleshooting | ✅ |
-
----
-
-## Arquivos a Criar/Modificar
-
-| Arquivo | Ação | Linhas Est. |
-|---------|------|-------------|
-| `supabase/functions/_shared/templateSelector.ts` | CRIAR | ~350 |
-| `supabase/functions/_shared/pipelineStages.ts` | CRIAR | ~450 |
-| `supabase/functions/_shared/geoWriterCore.ts` | ADICIONAR ao final | ~200 |
-| `supabase/functions/_shared/imageAltGenerator.ts` | CRIAR | ~200 |
-
----
-
-## Validação Pós-Implementação
-
-### Template Selector:
 ```typescript
-// Teste 1: Classificação de intenção
-classifyIntent("desentupidora urgente 24h")
-// Esperado: { type: 'transactional', urgency: 'high', recommendedTemplate: 'problem_solution' }
+const [isPreviewingTemplate, setIsPreviewingTemplate] = useState(false);
+const [isGenerating, setIsGenerating] = useState(false);
+const [generationProgress, setGenerationProgress] = useState(0);
+const [generationStage, setGenerationStage] = useState<string | null>(null);
 
-// Teste 2: Seleção completa
-await selectTemplate(supabase, "desentupidora urgente", blogId)
-// Esperado: { template: 'problem_solution', variant: 'urgent_first', ... }
-```
-
-### Pipeline Stages:
-```typescript
-// Teste 3: Validação de Brief
-validateBrief({ keyword: '', city: 'SP', blogId: '123', niche: 'plumbing', mode: 'authority' })
-// Esperado: { valid: false, errors: ['Keyword é obrigatória...'], warnings: [] }
-
-// Teste 4: Outline Structure
-buildOutlineStructure('complete_guide', 'chronological', 'authority', 'desentupidora', 'São Paulo', 'Desentup Rápido')
-// Esperado: { h1: 'Desentupidora em São Paulo: Guia Completo 2026', sections: [...], ... }
-```
-
-### E-E-A-T:
-```typescript
-// Teste 5: Injeção E-E-A-T
-injectLocalExperience('plumbing', 'São Paulo', 'Desentup Rápido', 15, ['Pinheiros', 'Vila Madalena'])
-// Esperado: "A Desentup Rápido atende São Paulo há 15 anos e conhece cada peculiaridade..."
-```
-
-### ALT de Imagens:
-```typescript
-// Teste 6: Geração de ALT
-generateImageAlt({ service: 'dedetização', businessName: 'Truly Nolen', city: 'São Paulo', niche: 'pest_control', imageType: 'service' })
-// Esperado: { alt: 'Dedetização realizada pela Truly Nolen em São Paulo', title: '...', caption: '...' }
+// Stages possíveis:
+// 'validating' → 'classifying' → 'researching' → 'outlining' → 'writing' → 'optimizing' → 'done'
 ```
 
 ---
 
-## Checklist Final
+## Validações
 
-- [x] `templateSelector.ts` criado com todas as funções
-- [x] `pipelineStages.ts` criado com todas as funções
-- [x] `geoWriterCore.ts` modificado (apenas adições no final)
-- [x] `imageAltGenerator.ts` criado com todas as funções
-- [x] TypeScript compila sem erro
-- [x] Nenhum código existente foi alterado
-- [x] Imports Deno com .ts funcionam
-- [x] Logs de debug adicionados
+### No Formulário:
+- ✅ Keyword: mínimo 3 caracteres
+- ✅ Cidade: obrigatória
+- ✅ Nicho: obrigatório (dropdown)
+- ✅ Modo: entry ou authority (radio)
+- ✅ Template: auto ou específico (radio)
+
+### Após Geração:
+- ✅ Word count dentro do range do template
+- ✅ H2 count dentro do range (8-12)
+- ✅ Keyword density 1-2%
+- ✅ E-E-A-T presente (se habilitado)
+- ✅ ALT de imagens contextualizado (se habilitado)
 
 ---
 
-## ✅ SPRINT 2 + SPRINT 3 CONCLUÍDO
+## Checklist de Implementação
 
-Implementação realizada em 2026-01-29.
+### Arquivos a Criar:
+- [ ] `src/pages/client/ArticleGenerator.tsx`
+- [ ] `src/pages/client/ArticleAdvancedPreview.tsx`
+- [ ] `src/components/client/ArticleTemplatePreviewModal.tsx`
+- [ ] `src/components/client/ArticleGeneratorForm.tsx`
+- [ ] `src/components/client/TemplateSelectorRadio.tsx`
+- [ ] `src/components/client/NicheSelectorDropdown.tsx`
+- [ ] `src/components/client/ArticleMetadataCard.tsx`
+- [ ] `src/components/client/OutlineSectionsList.tsx`
 
-### Arquivos Criados:
-1. `supabase/functions/_shared/templateSelector.ts` (~400 linhas)
-2. `supabase/functions/_shared/pipelineStages.ts` (~500 linhas)
-3. `supabase/functions/_shared/imageAltGenerator.ts` (~250 linhas)
+### Arquivos a Modificar:
+- [ ] `src/App.tsx` - adicionar rotas
 
-### Arquivos Modificados:
-4. `supabase/functions/_shared/geoWriterCore.ts` (+200 linhas E-E-A-T)
+### Validações:
+- [ ] Formulário com validação em tempo real
+- [ ] Preview de template funciona localmente
+- [ ] Botão "Gerar" chama edge function corretamente
+- [ ] Preview do artigo renderiza markdown
+- [ ] Metadados são calculados corretamente
+- [ ] Botões EDITAR/PUBLICAR/REGENERAR funcionam
 
-### Próximos Passos:
-- Sprint 4: Interface de preview de template
-- Sprint 5: Testes com 10 artigos reais
+---
+
+## Resumo Técnico
+
+| Item | Descrição |
+|------|-----------|
+| **Páginas novas** | 2 (`ArticleGenerator`, `ArticleAdvancedPreview`) |
+| **Componentes novos** | 6 (Modal, Form, Selectors, Cards) |
+| **Rotas novas** | 2 (`/articles/generate`, `/articles/:id/preview`) |
+| **Integração backend** | `generate-article-structured` + preview local |
+| **Dependências frontend** | `@/lib/article-engine/*` já existentes |
+
