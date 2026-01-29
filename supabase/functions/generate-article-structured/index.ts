@@ -1944,16 +1944,17 @@ REGRAS CRÍTICAS:
     }
 
     // ============================================================================
-    // V2.2: AI IMAGE GENERATION - Generate actual images from prompts
+    // V2.2: AI IMAGE GENERATION - ALWAYS generate images from prompts
+    // FIX: Removida condição `&& contextualAlt` que bloqueava geração
     // ============================================================================
     
     let generatedImages: GeneratedImage[] = [];
     let featuredImageUrl: string | null = null;
     
-    // Only generate images if we have prompts and contextual ALTs
-    if (processedImagePrompts.length > 0 && contextualAlt) {
+    // SEMPRE gerar imagens quando houver prompts (independente de toggles)
+    if (processedImagePrompts.length > 0) {
       try {
-        console.log(`[Images] Starting AI image generation for ${processedImagePrompts.length} images...`);
+        console.log(`[Images] FORÇANDO geração de ${processedImagePrompts.length} imagens...`);
         
         // Prepare article slug for image naming
         const articleSlug = (seoOut.title || writerOut.title || theme)
@@ -1973,33 +1974,104 @@ REGRAS CRÍTICAS:
           niche: niche || undefined  // Pass niche for style optimization
         }));
         
-        // Generate images using Lovable AI
-        generatedImages = await generateArticleImages(
+        // TIMEOUT: 90s para geração de imagens (evita travar o artigo)
+        const IMAGE_GENERATION_TIMEOUT = 90000;
+        
+        const imagePromise = generateArticleImages(
           imageRequests,
           blog_id!,
           articleSlug
         );
         
-        // Update processedImagePrompts with generated URLs
+        const timeoutPromise = new Promise<GeneratedImage[]>((_, reject) =>
+          setTimeout(() => reject(new Error('IMAGE_TIMEOUT: Geração excedeu 90s')), IMAGE_GENERATION_TIMEOUT)
+        );
+        
+        try {
+          // Race: geração vs timeout
+          generatedImages = await Promise.race([imagePromise, timeoutPromise]);
+          
+          // Update processedImagePrompts with generated URLs
+          processedImagePrompts = processedImagePrompts.map((prompt: any, idx: number) => ({
+            ...prompt,
+            url: generatedImages[idx]?.url || null,
+            generated_by: generatedImages[idx]?.generated_by || 'none'
+          }));
+          
+          // Set featured image as first generated image
+          if (generatedImages.length > 0 && generatedImages[0].url) {
+            featuredImageUrl = generatedImages[0].url;
+            console.log(`[Images] Featured image URL: ${featuredImageUrl}`);
+          }
+          
+          const aiCount = generatedImages.filter(g => g.generated_by === 'lovable_ai').length;
+          console.log(`[Images] ✅ Geração completa: ${aiCount} AI / ${generatedImages.length - aiCount} fallback`);
+          
+        } catch (raceError) {
+          // Timeout ou erro na geração - usar fallback Unsplash
+          console.warn(`[Images] Timeout/erro, usando Unsplash fallback:`, raceError);
+          
+          // GARANTIR que SEMPRE tem URLs (Unsplash)
+          const fallbackTerritoryName = territoryData?.official_name || 'brazil';
+          generatedImages = processedImagePrompts.map((prompt: any, idx: number) => {
+            const keywords = [
+              prompt.context || 'business',
+              niche || 'professional',
+              fallbackTerritoryName
+            ].filter(Boolean).join(',');
+            
+            const seed = `${blog_id}-${idx}-${Date.now()}`;
+            
+            return {
+              url: `https://source.unsplash.com/1024x768/?${encodeURIComponent(keywords)}&sig=${seed}`,
+              prompt: prompt.prompt || '',
+              alt: prompt.alt || `Imagem ${idx + 1}`,
+              context: prompt.context || 'business',
+              generated_by: 'unsplash_fallback' as const
+            };
+          });
+          
+          // Update processedImagePrompts with fallback URLs
+          processedImagePrompts = processedImagePrompts.map((prompt: any, idx: number) => ({
+            ...prompt,
+            url: generatedImages[idx]?.url || null,
+            generated_by: 'unsplash_fallback'
+          }));
+          
+          // Set featured image from fallback
+          if (generatedImages.length > 0) {
+            featuredImageUrl = generatedImages[0].url;
+          }
+          
+          console.log(`[Images] ✅ Fallback Unsplash aplicado: ${generatedImages.length} imagens`);
+        }
+        
+      } catch (imageError) {
+        console.error(`[Images] Erro crítico na geração:`, imageError);
+        
+        // ÚLTIMO FALLBACK: URLs Unsplash genéricas
+        generatedImages = processedImagePrompts.map((prompt: any, idx: number) => ({
+          url: `https://source.unsplash.com/1024x768/?business,professional&sig=${blog_id}-${idx}`,
+          prompt: prompt.prompt || '',
+          alt: prompt.alt || `Imagem ${idx + 1}`,
+          context: prompt.context || 'business',
+          generated_by: 'unsplash_fallback' as const
+        }));
+        
         processedImagePrompts = processedImagePrompts.map((prompt: any, idx: number) => ({
           ...prompt,
           url: generatedImages[idx]?.url || null,
-          generated_by: generatedImages[idx]?.generated_by || 'none'
+          generated_by: 'unsplash_fallback'
         }));
         
-        // Set featured image as first generated image
-        if (generatedImages.length > 0 && generatedImages[0].url) {
+        if (generatedImages.length > 0) {
           featuredImageUrl = generatedImages[0].url;
-          console.log(`[Images] Featured image URL: ${featuredImageUrl}`);
         }
         
-        const aiCount = generatedImages.filter(g => g.generated_by === 'lovable_ai').length;
-        console.log(`[Images] ✅ Generation complete: ${aiCount} AI / ${generatedImages.length - aiCount} fallback`);
-        
-      } catch (imageError) {
-        console.error(`[Images] Image generation failed:`, imageError);
-        // Continue without generated images - prompts are still saved
+        console.log(`[Images] Fallback genérico aplicado: ${generatedImages.length} imagens`);
       }
+    } else {
+      console.log(`[Images] Nenhum prompt de imagem para gerar`);
     }
 
     // ============================================================================
