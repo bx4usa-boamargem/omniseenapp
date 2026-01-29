@@ -218,12 +218,25 @@ async function callGoogleWriter(request: WriterRequest): Promise<WriterResponse>
     body.systemInstruction = { parts: [{ text: systemInstruction }] };
   }
   
-  // Add tool if provided
+  // Add tool if provided - Google requires specific schema format
   if (request.tool) {
+    // Google API requires type: "object" at root level, not "function"
+    // Clean the schema to ensure compatibility
+    const cleanSchema = { ...request.tool.schema };
+    
+    // Force type to "object" if it's "function" or missing
+    if (cleanSchema.type === 'function' || !cleanSchema.type) {
+      cleanSchema.type = 'object';
+    }
+    
+    // Remove any OpenAI-specific fields that Google doesn't understand
+    delete cleanSchema.additionalProperties;
+    
     body.tools = [{
       functionDeclarations: [{
         name: request.tool.name,
-        parameters: request.tool.schema
+        description: `Generate ${request.tool.name} content`,
+        parameters: cleanSchema
       }]
     }];
     body.toolConfig = {
