@@ -1381,43 +1381,49 @@ serve(async (req) => {
     }
 
     // ============================================================================
-    // STAGE 1 (RESEARCH - PERPLEXITY REQUIRED)
-    // - SERP (analyze-serp)
-    // - GEO factual package (Perplexity)
+    // STAGE 1 (RESEARCH - TEMPORARIAMENTE DESABILITADO)
+    // ⚠️ TEMPORÁRIO: Web research desabilitado para evitar timeouts do Perplexity
+    // TODO: Reativar quando Perplexity estiver estável
     // ============================================================================
     let researchPackage: ResearchPackage;
 
-    try {
-      researchPackage = await runResearchStage({
-        supabase,
-        blogId: blog_id!,
-        theme,
-        primaryKeyword,
-        territoryName: territoryData?.official_name || null,
-        territoryData: (territoryData as unknown as GeoTerritoryData) || null,
-      });
-    } catch (e) {
-      // V2.2: FALLBACK AUTOMÁTICO - Gerar sem pesquisa em vez de bloquear
-      const msg = e instanceof Error ? e.message : String(e);
-      console.warn(`[RESEARCH] Fallback mode - no web research: ${msg}`);
-      await logStage(supabase, blog_id, 'research', 'perplexity', 'research-package', false, 0, { fallback: true }, 0, 0, msg);
-      
-      // Create empty research package (allows generation without web research)
-      researchPackage = {
-        geo: { 
-          facts: [], 
-          trends: [],
-          sources: [], 
-          rawQuery: primaryKeyword,
-          fetchedAt: new Date().toISOString()
-        },
-        serp: { commonTerms: [], topTitles: [], contentGaps: [], averages: {} },
-        sources: [],
-        generatedAt: new Date().toISOString(),
-      };
-      
-      console.log(`[RESEARCH] Proceeding with empty research package (fallback mode)`);
-    }
+    console.log('[TEMPORARY] Web research DISABLED - using empty package immediately');
+    
+    researchPackage = {
+      geo: { 
+        facts: [], 
+        trends: [],
+        sources: [], 
+        rawQuery: primaryKeyword,
+        fetchedAt: new Date().toISOString()
+      },
+      serp: { commonTerms: [], topTitles: [], contentGaps: [], averages: {} },
+      sources: [],
+      generatedAt: new Date().toISOString(),
+    };
+
+    await logStage(supabase, blog_id, 'research', 'skipped', 'empty-package', true, 0, { 
+      reason: 'TEMPORARY_DISABLED' 
+    });
+
+    console.log('[TEMPORARY] Proceeding with empty research package');
+
+    // CÓDIGO ORIGINAL COMENTADO (Reativar quando Perplexity estiver estável):
+    // try {
+    //   researchPackage = await runResearchStage({
+    //     supabase,
+    //     blogId: blog_id!,
+    //     theme,
+    //     primaryKeyword,
+    //     territoryName: territoryData?.official_name || null,
+    //     territoryData: (territoryData as unknown as GeoTerritoryData) || null,
+    //   });
+    // } catch (e) {
+    //   const msg = e instanceof Error ? e.message : String(e);
+    //   console.warn(`[RESEARCH] Fallback mode - no web research: ${msg}`);
+    //   await logStage(supabase, blog_id, 'research', 'perplexity', 'research-package', false, 0, { fallback: true }, 0, 0, msg);
+    //   researchPackage = { geo: { facts: [], trends: [], sources: [], rawQuery: primaryKeyword, fetchedAt: new Date().toISOString() }, serp: {}, sources: [], generatedAt: new Date().toISOString() };
+    // }
 
     // ============================================================================
     // (Existing) RATE LIMIT + DEDUP can remain
