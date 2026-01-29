@@ -20,8 +20,8 @@ const contentItems = [
     icon: Sparkles,
     iconBg: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
     title: 'Gerar Artigo',
-    subtitle: 'Crie conteúdo otimizado com IA',
-    path: '/client/create',
+    subtitle: 'Controle total: nicho, template, E-E-A-T',
+    path: '/client/articles/generate',
     highlight: true,
   },
   {
