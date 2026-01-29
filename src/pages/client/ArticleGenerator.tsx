@@ -96,12 +96,12 @@ export default function ArticleGenerator() {
     keyword: '',
     city: businessProfile?.city || '',
     state: 'SP',
-    niche: (businessProfile?.niche as NicheType) || 'pest_control',
+    niche: (businessProfile?.niche as NicheType) || 'pest_control',  // ROLLBACK: Default to pest_control
     mode: 'authority',
     template: 'auto',
     webResearch: true,
-    eatInjection: true,
-    imageAlt: true
+    eatInjection: true,   // ROLLBACK: Default to true
+    imageAlt: true        // ROLLBACK: Default to true
   });
   
   const [isGenerating, setIsGenerating] = useState(false);
@@ -189,13 +189,21 @@ export default function ArticleGenerator() {
     startProgressSimulation();
     
     try {
+      // ROLLBACK: Debug logging to verify payload
+      console.log('[ArticleGenerator] Sending payload:', {
+        niche: formData.niche,
+        useEat: formData.eatInjection,
+        contextualAlt: formData.imageAlt,
+        mode: formData.mode
+      });
+      
       // Prepare payload for edge function with full Article Engine parameters
       const payload = {
         theme: formData.keyword.trim(),  // Edge function expects 'theme', not 'keyword'
         keywords: [formData.keyword.trim()],  // Also send as keywords array
         city: formData.city.trim(),
         state: formData.state,
-        niche: formData.niche,
+        niche: formData.niche || 'pest_control',  // ROLLBACK: Ensure niche is never empty
         mode: formData.mode,
         webResearch: formData.webResearch,
         templateOverride: formData.template !== 'auto' ? formData.template : undefined,
@@ -203,8 +211,8 @@ export default function ArticleGenerator() {
         blog_id: blog.id,  // Edge function also expects blog_id
         businessName: businessProfile?.company_name || blog.name,
         businessWhatsapp: businessProfile?.whatsapp,
-        useEat: formData.eatInjection,
-        contextualAlt: formData.imageAlt,
+        useEat: formData.eatInjection === true,  // ROLLBACK: Explicit boolean
+        contextualAlt: formData.imageAlt === true,  // ROLLBACK: Explicit boolean
         // V2.2: Article Engine parameters based on mode
         // Authority mode: 8 images (min 6, max 10), Entry mode: 3 images
         image_count: formData.mode === 'authority' ? 8 : 3,
