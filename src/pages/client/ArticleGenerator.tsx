@@ -191,7 +191,8 @@ export default function ArticleGenerator() {
     try {
       // Prepare payload for edge function with full Article Engine parameters
       const payload = {
-        keyword: formData.keyword.trim(),
+        theme: formData.keyword.trim(),  // Edge function expects 'theme', not 'keyword'
+        keywords: [formData.keyword.trim()],  // Also send as keywords array
         city: formData.city.trim(),
         state: formData.state,
         niche: formData.niche,
@@ -199,6 +200,7 @@ export default function ArticleGenerator() {
         webResearch: formData.webResearch,
         templateOverride: formData.template !== 'auto' ? formData.template : undefined,
         blogId: blog.id,
+        blog_id: blog.id,  // Edge function also expects blog_id
         businessName: businessProfile?.company_name || blog.name,
         businessWhatsapp: businessProfile?.whatsapp,
         useEat: formData.eatInjection,
