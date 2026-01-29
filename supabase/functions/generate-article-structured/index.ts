@@ -58,6 +58,13 @@ import {
   type GeneratedAlt
 } from '../_shared/imageAltGenerator.ts';
 
+import { 
+  generateArticleImages,
+  generateCoverImage,
+  type ImageGenerationRequest,
+  type GeneratedImage
+} from '../_shared/imageGenerator.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -77,7 +84,8 @@ interface ArticleData {
   reading_time?: number;
   featured_image_url?: string | null;
   featured_image_alt?: string | null;
-  image_prompts?: Array<{ context: string; prompt: string; after_section: number }>;
+  image_prompts?: Array<{ context: string; prompt: string; after_section: number; url?: string | null; alt?: string; generated_by?: string }>;
+  content_images?: Array<{ url: string; context: string; alt: string; after_section: number }> | null;
   // deno-lint-ignore no-explicit-any
   images?: any;
 }
@@ -587,15 +595,17 @@ async function persistArticleToDb(
     
     // UPDATE existing article instead of creating duplicate
     // Convert image_prompts to content_images format for persistence
-    const contentImages = (articleData.image_prompts || []).map((prompt: any, index: number) => ({
+    // Use generated URLs if available
+    const contentImages = (articleData.content_images || (articleData.image_prompts || []).map((prompt: any, index: number) => ({
       context: prompt.context || `Imagem ${index + 1}`,
       prompt: prompt.prompt || '',
       alt: prompt.alt || prompt.context || `Imagem do artigo`,
       title: prompt.title || '',
       caption: prompt.caption || '',
       after_section: prompt.after_section || index + 1,
-      url: null // URL será preenchido quando imagem for gerada
-    }));
+      url: prompt.url || null, // Use generated URL if available
+      generated_by: prompt.generated_by || 'none'
+    })));
     
     console.log(`[PERSIST] Saving ${contentImages.length} content_images for article update`);
     
@@ -638,14 +648,16 @@ async function persistArticleToDb(
   }
   
   // Convert image_prompts to content_images format for persistence
-  const contentImagesForInsert = (articleData.image_prompts || []).map((prompt: any, index: number) => ({
+  // Use generated URLs if available, or use content_images directly
+  const contentImagesForInsert = articleData.content_images || (articleData.image_prompts || []).map((prompt: any, index: number) => ({
     context: prompt.context || `Imagem ${index + 1}`,
     prompt: prompt.prompt || '',
     alt: prompt.alt || prompt.context || `Imagem do artigo`,
     title: prompt.title || '',
     caption: prompt.caption || '',
     after_section: prompt.after_section || index + 1,
-    url: null // URL será preenchido quando imagem for gerada
+    url: prompt.url || null, // Use generated URL if available
+    generated_by: prompt.generated_by || 'none'
   }));
   
   console.log(`[PERSIST] Saving ${contentImagesForInsert.length} content_images for new article`);
@@ -1932,6 +1944,64 @@ REGRAS CRÍTICAS:
     }
 
     // ============================================================================
+    // V2.2: AI IMAGE GENERATION - Generate actual images from prompts
+    // ============================================================================
+    
+    let generatedImages: GeneratedImage[] = [];
+    let featuredImageUrl: string | null = null;
+    
+    // Only generate images if we have prompts and contextual ALTs
+    if (processedImagePrompts.length > 0 && contextualAlt) {
+      try {
+        console.log(`[Images] Starting AI image generation for ${processedImagePrompts.length} images...`);
+        
+        // Prepare article slug for image naming
+        const articleSlug = (seoOut.title || writerOut.title || theme)
+          .toString()
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .substring(0, 50);
+        
+        // Build image generation requests
+        const imageRequests: ImageGenerationRequest[] = processedImagePrompts.map((prompt: any) => ({
+          prompt: prompt.prompt,
+          context: prompt.context || 'article-image',
+          alt: prompt.alt || '',
+          aspectRatio: '16:9' as const
+        }));
+        
+        // Generate images using Lovable AI
+        generatedImages = await generateArticleImages(
+          imageRequests,
+          blog_id!,
+          articleSlug
+        );
+        
+        // Update processedImagePrompts with generated URLs
+        processedImagePrompts = processedImagePrompts.map((prompt: any, idx: number) => ({
+          ...prompt,
+          url: generatedImages[idx]?.url || null,
+          generated_by: generatedImages[idx]?.generated_by || 'none'
+        }));
+        
+        // Set featured image as first generated image
+        if (generatedImages.length > 0 && generatedImages[0].url) {
+          featuredImageUrl = generatedImages[0].url;
+          console.log(`[Images] Featured image URL: ${featuredImageUrl}`);
+        }
+        
+        const aiCount = generatedImages.filter(g => g.generated_by === 'lovable_ai').length;
+        console.log(`[Images] ✅ Generation complete: ${aiCount} AI / ${generatedImages.length - aiCount} fallback`);
+        
+      } catch (imageError) {
+        console.error(`[Images] Image generation failed:`, imageError);
+        // Continue without generated images - prompts are still saved
+      }
+    }
+
+    // ============================================================================
     // From here: continue using seoOut as the article payload (persist/cache/etc.)
     // ============================================================================
 
@@ -1943,9 +2013,16 @@ REGRAS CRÍTICAS:
       content: contentWithEat,  // Content with E-E-A-T injected
       faq: Array.isArray(seoOut.faq) ? seoOut.faq : (Array.isArray(writerOut.faq) ? writerOut.faq : []),
       reading_time: Number(writerOut.reading_time || Math.ceil((contentWithEat.split(' ').length) / 200)),
-      image_prompts: processedImagePrompts,  // With contextual ALTs
+      image_prompts: processedImagePrompts,  // With contextual ALTs and URLs
       images: writerOut.images,
-      featured_image_alt: featuredImageAlt  // Contextual ALT
+      featured_image_url: featuredImageUrl,  // AI-generated featured image
+      featured_image_alt: featuredImageAlt,  // Contextual ALT
+      content_images: generatedImages.length > 1 ? generatedImages.slice(1).map((img, idx) => ({
+        url: img.url,
+        context: img.context,
+        alt: img.alt,
+        after_section: processedImagePrompts[idx + 1]?.after_section || idx + 1
+      })) : null
     };
 
     // NEW: infer category/tags (used downstream)
