@@ -11,6 +11,7 @@ export interface ImageGenerationRequest {
   context: string;
   alt: string;
   aspectRatio?: '1:1' | '16:9' | '4:3';
+  niche?: string;  // For niche-specific style optimization
 }
 
 export interface GeneratedImage {
@@ -124,35 +125,60 @@ export async function generateArticleImages(
 
 /**
  * Build enhanced prompt for better image generation
+ * Adds niche-specific styles and anti-futuristic rules
  */
 function buildEnhancedPrompt(request: ImageGenerationRequest): string {
   const basePrompt = request.prompt;
   
-  // Add quality and style modifiers
-  const enhancements = [
-    'Professional photography style',
-    'High quality, sharp focus',
-    'Natural lighting',
-    'Business/corporate aesthetic',
-    'Clean and modern',
+  // Niche-specific style additions
+  const nicheStyles: Record<string, string> = {
+    pest_control: 'pest control service, professional technician with protective equipment, realistic urban work environment',
+    plumbing: 'plumbing repair service, professional plumber with tools, realistic pipes and fixtures',
+    roofing: 'roofing installation, professional roofer on roof, realistic construction scene with tiles',
+    dental: 'modern dental clinic, professional dentist with patient, clean medical environment',
+    legal: 'professional law office, business meeting, corporate legal setting with documents',
+    accounting: 'professional accounting office, financial documents, modern corporate desk',
+    real_estate: 'real estate property, professional agent showing home, beautiful residential area',
+    automotive: 'auto repair shop, professional mechanic working on vehicle, realistic garage tools',
+    construction: 'construction site, professional builders at work, realistic heavy equipment',
+    beauty: 'beauty salon interior, professional aesthetician with client, elegant spa environment',
+    cleaning: 'professional cleaning service, uniformed cleaner with equipment, spotless environment',
+    landscaping: 'landscaping service, gardener with tools, beautiful garden or lawn'
+  };
+  
+  const nicheStyle = request.niche && nicheStyles[request.niche] 
+    ? nicheStyles[request.niche] 
+    : 'professional business setting, corporate environment';
+  
+  // Quality modifiers for photorealistic output
+  const qualityModifiers = [
+    'Professional editorial photography',
+    'High resolution 4K quality',
+    'Sharp focus with natural lighting',
+    'Photorealistic documentary style',
+    'Clean composition',
     '16:9 aspect ratio'
   ];
   
-  // Add anti-futuristic rules for realism
+  // Anti-futuristic rules for realism (from NICHE_EAT_PHRASES memory)
   const restrictions = [
     'NO holograms or futuristic interfaces',
-    'NO artificial glowing effects',
-    'NO sci-fi elements',
-    'Real photographic style only'
+    'NO artificial glowing effects or neon',
+    'NO sci-fi or fantasy elements',
+    'NO text, logos, or watermarks',
+    'NO stock photo poses or fake smiles',
+    'Real photographic documentary style only'
   ];
   
-  return `Generate a professional editorial photo: ${basePrompt}
+  return `${qualityModifiers.join(', ')}. 
 
-Style: ${enhancements.join(', ')}
+Generate: ${basePrompt}
 
-Restrictions: ${restrictions.join('. ')}
+Niche style: ${nicheStyle}
 
-Context: ${request.context}`;
+Context: ${request.context}
+
+CRITICAL RESTRICTIONS: ${restrictions.join('. ')}.`;
 }
 
 /**

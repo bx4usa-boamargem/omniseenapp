@@ -1964,12 +1964,13 @@ REGRAS CRÍTICAS:
           .replace(/[^a-z0-9]+/g, '-')
           .substring(0, 50);
         
-        // Build image generation requests
+        // Build image generation requests with niche for style optimization
         const imageRequests: ImageGenerationRequest[] = processedImagePrompts.map((prompt: any) => ({
           prompt: prompt.prompt,
           context: prompt.context || 'article-image',
           alt: prompt.alt || '',
-          aspectRatio: '16:9' as const
+          aspectRatio: '16:9' as const,
+          niche: niche || undefined  // Pass niche for style optimization
         }));
         
         // Generate images using Lovable AI
