@@ -343,3 +343,66 @@ export function isValidImageType(type: string): type is ImageType {
 export function getAvailableImageTypes(): ImageType[] {
   return ['hero', 'service', 'team', 'equipment', 'before_after', 'location'];
 }
+
+// =============================================================================
+// PROMPT OPTIMIZATION FOR AI IMAGE GENERATION
+// =============================================================================
+
+/**
+ * Optimizes a prompt for AI image generation (Lovable AI / Gemini)
+ * Adds professional photography style and anti-futuristic rules
+ */
+export function optimizePromptForImageGen(
+  prompt: string, 
+  context: string,
+  niche?: string
+): string {
+  // Niche-specific style additions
+  const nicheStyles: Record<string, string> = {
+    pest_control: 'pest control service, professional technician with equipment, realistic work environment',
+    plumbing: 'plumbing repair, professional plumber at work, realistic tools and pipes',
+    roofing: 'roofing installation, professional roofer on roof, realistic construction scene',
+    dental: 'modern dental clinic, professional dentist with patient, clean medical environment',
+    legal: 'professional law office, business meeting, corporate legal setting',
+    accounting: 'professional accounting office, business financial documents, corporate setting',
+    real_estate: 'real estate property, professional agent showing home, residential neighborhood',
+    automotive: 'auto repair shop, professional mechanic working on car, realistic garage',
+    construction: 'construction site, professional builders at work, realistic equipment',
+    beauty: 'beauty salon, professional aesthetician with client, elegant spa environment'
+  };
+  
+  const nicheStyle = niche && nicheStyles[niche] ? nicheStyles[niche] : 'professional business setting';
+  
+  // Quality modifiers for photorealistic output
+  const qualityModifiers = [
+    'Professional business photography',
+    'High quality, 4K resolution',
+    'Sharp focus, natural lighting',
+    'Photorealistic, editorial style',
+    'Clean composition, corporate aesthetic'
+  ].join(', ');
+  
+  // Anti-futuristic rules for realism
+  const restrictions = [
+    'NO holograms or futuristic interfaces',
+    'NO artificial glowing effects',
+    'NO sci-fi or fantasy elements',
+    'NO text or watermarks',
+    'Real photographic style only'
+  ].join('. ');
+  
+  return `${qualityModifiers}. ${prompt}. Style: ${nicheStyle}. Context: ${context}. ${restrictions}`;
+}
+
+/**
+ * Generates an optimized image prompt from article context
+ */
+export function generateImagePrompt(
+  service: string,
+  city: string,
+  context: string,
+  niche?: string
+): string {
+  const basePrompt = `Professional service of ${service} in ${city}, ${context}`;
+  return optimizePromptForImageGen(basePrompt, context, niche);
+}
