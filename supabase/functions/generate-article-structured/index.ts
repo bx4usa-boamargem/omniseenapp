@@ -1695,52 +1695,45 @@ Prazo de entrega: Data de referência é Janeiro de 2026. Todos os dados, tendê
     const targetImageCount = Math.min(Math.max(image_count || (mode === 'authority' ? 8 : 3), minImagesByMode), maxImagesByMode);
     console.log(`[IMAGES] Mode: ${mode}, requested: ${image_count}, target: ${targetImageCount} (min: ${minImagesByMode}, max: ${maxImagesByMode})`);
 
-    const createArticleTool = {
-      type: 'function' as const,
-      function: {
-        name: 'create_article',
-        description: 'Write and returns a complete SEO article based on research package',
-        parameters: {
-          type: 'object',
-          properties: {
-            title: { type: 'string', description: 'SEO title (max 60 chars)' },
-            meta_description: { type: 'string', description: 'Meta description (max 160 chars)' },
-            excerpt: { type: 'string', description: 'Short excerpt (max 200 chars)' },
-            content: { type: 'string', description: 'Full markdown content' },
-            faq: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  question: { type: 'string' },
-                  answer: { type: 'string' }
-                },
-                required: ['question', 'answer']
-              },
-              minItems: 3,
-              maxItems: 8
+    // Tool schema for article generation - only the parameters object, not the full function wrapper
+    const createArticleSchema = {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'SEO title (max 60 chars)' },
+        meta_description: { type: 'string', description: 'Meta description (max 160 chars)' },
+        excerpt: { type: 'string', description: 'Short excerpt (max 200 chars)' },
+        content: { type: 'string', description: 'Full markdown content' },
+        faq: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              question: { type: 'string' },
+              answer: { type: 'string' }
             },
-            reading_time: { type: 'number', description: 'Estimated reading time in minutes' },
-            image_prompts: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  context: { type: 'string' },
-                  prompt: { type: 'string' },
-                  after_section: { type: 'number' }
-                },
-                required: ['context', 'prompt', 'after_section']
-              },
-              minItems: targetImageCount,
-              maxItems: targetImageCount
-            },
-            images: { type: 'object' }
+            required: ['question', 'answer']
           },
-          required: ['title', 'meta_description', 'excerpt', 'content', 'faq', 'reading_time', 'image_prompts', 'images'],
-          additionalProperties: false
-        }
-      }
+          minItems: 3,
+          maxItems: 8
+        },
+        reading_time: { type: 'number', description: 'Estimated reading time in minutes' },
+        image_prompts: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              context: { type: 'string' },
+              prompt: { type: 'string' },
+              after_section: { type: 'number' }
+            },
+            required: ['context', 'prompt', 'after_section']
+          },
+          minItems: targetImageCount,
+          maxItems: targetImageCount
+        },
+        images: { type: 'object' }
+      },
+      required: ['title', 'meta_description', 'excerpt', 'content', 'faq', 'reading_time', 'image_prompts', 'images']
     };
 
     const writerStart = nowMs();
@@ -1760,7 +1753,7 @@ REGRAS CRÍTICAS:
       system: systemPrompt,
       user: writerUserPrompt,
       toolName: 'create_article',
-      toolSchema: createArticleTool,
+      toolSchema: createArticleSchema,
       temperature: 0.6
     });
 
@@ -1779,43 +1772,35 @@ REGRAS CRÍTICAS:
     // STAGE 3 (SEO) - Re-structure for organic performance using SERP package
     // ============================================================================
 
-    const optimizeTool = {
-      type: 'function' as const,
-      function: {
-        name: 'optimize_article',
-        description: 'SEO rewriter: outputs improved title/meta/content/faq based on research package',
-        parameters: {
+    // Tool schema for SEO optimization - only the parameters object
+    const optimizeArticleSchema = {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        meta_description: { type: 'string' },
+        excerpt: { type: 'string' },
+        content: { type: 'string' },
+        faq: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              question: { type: 'string' },
+              answer: { type: 'string' }
+            },
+            required: ['question', 'answer']
+          }
+        },
+        seo_notes: {
           type: 'object',
           properties: {
-            title: { type: 'string' },
-            meta_description: { type: 'string' },
-            excerpt: { type: 'string' },
-            content: { type: 'string' },
-            faq: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  question: { type: 'string' },
-                  answer: { type: 'string' }
-                },
-                required: ['question', 'answer']
-              }
-            },
-            seo_notes: {
-              type: 'object',
-              properties: {
-                entities_used: { type: 'array', items: { type: 'string' } },
-                intent: { type: 'string' },
-                snippet_candidates: { type: 'array', items: { type: 'string' } }
-              },
-              additionalProperties: true
-            }
-          },
-          required: ['title', 'meta_description', 'excerpt', 'content', 'faq'],
-          additionalProperties: true
+            entities_used: { type: 'array', items: { type: 'string' } },
+            intent: { type: 'string' },
+            snippet_candidates: { type: 'array', items: { type: 'string' } }
+          }
         }
-      }
+      },
+      required: ['title', 'meta_description', 'excerpt', 'content', 'faq']
     };
 
     const seoSystem = `Você é um Agente SEO. Reestruture o texto para máxima performance orgânica.\n\nRegras:\n- H1 único, H2/H3 consistentes, densidade semântica alta sem keyword stuffing\n- Use entidades/termos do SERP e respeite intenção de busca\n- Gere FAQ/snippet/meta tags\n- NÃO crie fatos novos. Use apenas o pacote de pesquisa e o rascunho.`;
@@ -1828,7 +1813,7 @@ REGRAS CRÍTICAS:
       system: seoSystem,
       user: seoUser,
       toolName: 'optimize_article',
-      toolSchema: optimizeTool,
+      toolSchema: optimizeArticleSchema,
       temperature: 0.3
     });
 
