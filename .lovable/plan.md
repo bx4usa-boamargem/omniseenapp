@@ -1,17 +1,13 @@
 
-# Corrigir Link do Gerador Avançado no Menu
+# Desabilitar Web Research Completamente (Temporário)
 
-## Problema Identificado
+## Problema
 
-O menu lateral ("Hub de Conteúdo") aponta "Gerar Artigo" para `/client/create` (fluxo rápido) em vez de `/client/articles/generate` (gerador avançado com todos os controles do Article Engine).
+A geração de artigos está travando em "Pesquisando na web..." por mais de 2 minutos porque a etapa de research (Perplexity + analyze-serp) está fazendo timeout antes do fallback entrar em ação.
 
-## Solução Proposta
+## Solução
 
-Atualizar o `ContentHubPanel.tsx` para ter **duas opções**:
-1. **Gerar Artigo (Rápido)** → `/client/create`
-2. **Gerar Artigo (Avançado)** → `/client/articles/generate`
-
-OU substituir o link atual para ir diretamente ao gerador avançado.
+Pular completamente a chamada `runResearchStage` e criar o pacote de pesquisa vazio imediatamente, sem tentar Perplexity.
 
 ---
 
@@ -19,75 +15,92 @@ OU substituir o link atual para ir diretamente ao gerador avançado.
 
 | Arquivo | Modificação |
 |---------|-------------|
-| `src/components/layout/PremiumSidebar/ContentHubPanel.tsx` | Atualizar path ou adicionar item |
+| `supabase/functions/generate-article-structured/index.ts` | Comentar chamada ao `runResearchStage` e usar fallback direto |
 
 ---
 
-## Opção A: Substituir Link (Mais Simples)
+## Implementação
 
-Modificar o item "Gerar Artigo" para apontar para o gerador avançado:
+Modificar o bloco de research (linhas 1388-1420) para pular completamente a chamada ao Perplexity:
 
 ```typescript
-// Linha 19-26 em ContentHubPanel.tsx
-{
-  id: 'generate',
-  icon: Sparkles,
-  iconBg: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
-  title: 'Gerar Artigo',
-  subtitle: 'Interface avançada com controles do Article Engine',
-  path: '/client/articles/generate', // ← MUDANÇA
-  highlight: true,
-},
+// ============================================================================
+// STAGE 1 (RESEARCH - TEMPORARIAMENTE DESABILITADO)
+// ============================================================================
+let researchPackage: ResearchPackage;
+
+// ⚠️ TEMPORÁRIO: Web research desabilitado para evitar timeouts
+// TODO: Reativar quando Perplexity estiver estável
+console.log('[TEMPORARY] Web research DISABLED - using empty package immediately');
+
+researchPackage = {
+  geo: { 
+    facts: [], 
+    trends: [],
+    sources: [], 
+    rawQuery: primaryKeyword,
+    fetchedAt: new Date().toISOString()
+  },
+  serp: { commonTerms: [], topTitles: [], contentGaps: [], averages: {} },
+  sources: [],
+  generatedAt: new Date().toISOString(),
+};
+
+await logStage(supabase, blog_id, 'research', 'skipped', 'empty-package', true, 0, { 
+  reason: 'TEMPORARY_DISABLED' 
+});
+
+console.log('[TEMPORARY] Proceeding with empty research package');
+
+// CÓDIGO ORIGINAL COMENTADO:
+// try {
+//   researchPackage = await runResearchStage({
+//     supabase,
+//     blogId: blog_id!,
+//     theme,
+//     primaryKeyword,
+//     territoryName: territoryData?.official_name || null,
+//     territoryData: (territoryData as unknown as GeoTerritoryData) || null,
+//   });
+// } catch (e) {
+//   ... fallback code ...
+// }
 ```
 
 ---
 
-## Opção B: Dois Itens (Mais Completo)
+## Resultado Esperado
 
-Adicionar dois itens separados no menu:
-
-```typescript
-const contentItems = [
-  // ... radar
-  {
-    id: 'generate-quick',
-    icon: Zap,
-    iconBg: 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
-    title: 'Criar Artigo Rápido',
-    subtitle: 'Geração simplificada em poucos cliques',
-    path: '/client/create',
-  },
-  {
-    id: 'generate-advanced',
-    icon: Sparkles,
-    iconBg: 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
-    title: 'Gerar Artigo Avançado',
-    subtitle: 'Controle total: nicho, template, E-E-A-T',
-    path: '/client/articles/generate',
-    highlight: true,
-  },
-  // ... articles, portal, landing-pages
-];
-```
+| Antes | Depois |
+|-------|--------|
+| Trava 2+ min tentando Perplexity | Pula imediatamente para geração |
+| Timeout infinito | Geração em ~30-60 segundos |
+| Erro 424 se Perplexity falhar | Sempre gera (sem fontes externas) |
 
 ---
 
-## Recomendação
+## Impacto Temporário
 
-**Opção A** é mais simples e direta. Se o usuário quer acesso rápido, pode clicar em uma oportunidade no Radar.
+- Artigos gerados **sem** pesquisa web (fatos, trends, fontes)
+- E-E-A-T e ALT contextual continuam funcionando normalmente
+- Template selection e estrutura funcionam normalmente
+- Nicho e modo (Entry/Authority) funcionam normalmente
 
-O gerador avançado (`/client/articles/generate`) é a interface completa com:
-- Seleção de nicho (13 opções)
-- Modo Entry/Authority
-- Template override
-- Toggles: Web Research, E-E-A-T, ALT contextual
-- Preview de estrutura antes de gerar
+---
+
+## Próximos Passos (Após Estabilizar)
+
+1. Investigar timeout do Perplexity
+2. Adicionar timeout explícito de 30s na chamada
+3. Reativar research com timeout seguro
+4. Ou: adicionar toggle no frontend para "usar pesquisa web" (já existe mas não está funcionando)
 
 ---
 
 ## Checklist
 
-- [ ] Atualizar `path` do item "Gerar Artigo" de `/client/create` para `/client/articles/generate`
-- [ ] Atualizar `subtitle` para refletir os recursos avançados
-- [ ] Testar navegação pelo menu
-- [ ] Verificar que formulário carrega com todos os campos
+- [ ] Comentar chamada ao `runResearchStage`
+- [ ] Criar pacote de pesquisa vazio imediatamente
+- [ ] Log indicando que research está temporariamente desabilitado
+- [ ] Deploy da edge function
+- [ ] Testar geração (deve completar em ~1 minuto)
