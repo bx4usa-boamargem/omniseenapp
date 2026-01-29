@@ -343,91 +343,49 @@ async function callLovableJsonTool(params: {
   toolName: string;
   toolSchema: Record<string, unknown>;
   temperature?: number;
-  maxRetries?: number;
 }): Promise<{ arguments: Record<string, unknown>; usage?: { total_tokens?: number; prompt_tokens?: number; completion_tokens?: number } }> {
-  const { url, apiKey, model, system, user, toolName, toolSchema, temperature = 0.4, maxRetries = 2 } = params;
+  const { url, apiKey, model, system, user, toolName, toolSchema, temperature = 0.4 } = params;
 
-  let lastError: Error | null = null;
+  // SIMPLE DIRECT CALL - NO RETRY (rollback)
+  console.log(`[AI] callLovableJsonTool for tool: ${toolName}`);
   
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`[AI] callLovableJsonTool attempt ${attempt + 1}/${maxRetries + 1} for tool: ${toolName}`);
-      
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: user },
-          ],
-          tools: [toolSchema],
-          tool_choice: { type: 'function', function: { name: toolName } },
-          temperature: temperature + (attempt * 0.1), // Slightly increase temperature on retry
-        }),
-      });
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      tools: [toolSchema],
+      tool_choice: { type: 'function', function: { name: toolName } },
+      temperature,
+    }),
+  });
 
-      if (!res.ok) {
-        const t = await res.text().catch(() => '');
-        throw new Error(`AI_GATEWAY_ERROR: ${res.status} ${t.substring(0, 300)}`);
-      }
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    throw new Error(`AI_GATEWAY_ERROR: ${res.status} ${t.substring(0, 300)}`);
+  }
 
-      const rawText = await res.text();
-      const data = safeJsonParse<any>(rawText);
-      
-      // Primary path: tool call response
-      const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-      if (toolCall?.function?.arguments) {
-        console.log(`[AI] Tool call received successfully on attempt ${attempt + 1}`);
-        const parsedArgs = parseArticleJSON(toolCall.function.arguments);
-        return { arguments: parsedArgs, usage: data.usage };
-      }
-      
-      // Fallback: Check if AI responded with content instead of tool call
-      const messageContent = data.choices?.[0]?.message?.content;
-      if (messageContent) {
-        console.log(`[AI] Received content instead of tool call, attempting to extract JSON...`);
-        
-        // Try to extract JSON from the content
-        const jsonMatch = messageContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-        const jsonStr = jsonMatch ? jsonMatch[1] : messageContent;
-        
-        try {
-          const extracted = parseArticleJSON(jsonStr);
-          if (extracted && typeof extracted === 'object' && Object.keys(extracted).length > 0) {
-            console.log(`[AI] Successfully extracted JSON from content fallback`);
-            return { arguments: extracted, usage: data.usage };
-          }
-        } catch (parseErr) {
-          console.warn(`[AI] Failed to parse content as JSON: ${parseErr}`);
-        }
-      }
-      
-      // If we reach here, the response format was unexpected
-      console.warn(`[AI] Unexpected response format on attempt ${attempt + 1}:`, JSON.stringify(data).substring(0, 500));
-      lastError = new Error('AI_OUTPUT_INVALID: missing tool call arguments');
-      
-      // Wait before retry
-      if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-      }
-      
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      console.error(`[AI] Attempt ${attempt + 1} failed:`, lastError.message);
-      
-      // Wait before retry
-      if (attempt < maxRetries) {
-        await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-      }
-    }
+  const rawText = await res.text();
+  const data = safeJsonParse<any>(rawText);
+  
+  // Primary path: tool call response
+  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+  if (toolCall?.function?.arguments) {
+    console.log(`[AI] Tool call received successfully`);
+    const parsedArgs = parseArticleJSON(toolCall.function.arguments);
+    return { arguments: parsedArgs, usage: data.usage };
   }
   
-  throw lastError || new Error('AI_OUTPUT_INVALID: all retry attempts failed');
+  // If no tool call, throw error immediately (no fallback)
+  console.error(`[AI] Missing tool call arguments in response`);
+  throw new Error('AI_OUTPUT_INVALID: missing tool call arguments');
 }
 
 async function callLovableQa(params: {
@@ -1386,9 +1344,9 @@ serve(async (req) => {
       google_place,
       // V2.1: Article Engine fields (Sprint 4 Integration)
       templateOverride,
-      useEat = false,
-      contextualAlt = false,
-      niche = 'default',
+      useEat = true,  // ROLLBACK: Default to true for E-E-A-T injection
+      contextualAlt = true,  // ROLLBACK: Default to true for image generation
+      niche = 'pest_control',  // ROLLBACK: Default to pest_control, NOT 'default'
       mode = 'authority',
       businessName,
       businessWhatsapp
@@ -2122,6 +2080,48 @@ REGRAS CRÍTICAS:
       }
     } else {
       console.log(`[Images] Nenhum prompt de imagem para gerar`);
+    }
+
+    // ============================================================================
+    // ROLLBACK: FORCE MINIMUM 8 IMAGES (Unsplash fallback if needed)
+    // ============================================================================
+    if (processedImagePrompts.length < 6) {
+      console.log(`[Images] FORÇANDO imagens mínimas: ${processedImagePrompts.length} → 8`);
+      const needed = 8 - processedImagePrompts.length;
+      const fallbackTerritoryName = territoryData?.official_name || 'brazil';
+      
+      for (let i = 0; i < needed; i++) {
+        const keywords = [
+          niche || 'business',
+          primaryKeyword.split(' ')[0],
+          fallbackTerritoryName
+        ].filter(Boolean);
+        
+        const fillerPrompt = {
+          context: `filler-${i + 1}`,
+          prompt: `Professional ${keywords.join(' ')} service`,
+          alt: `Imagem profissional ${i + 1}`,
+          url: `https://source.unsplash.com/1024x768/?${encodeURIComponent(keywords.join(','))}&sig=${blog_id}-filler-${i}-${Date.now()}`,
+          after_section: processedImagePrompts.length + 1,
+          generated_by: 'unsplash_fallback' as const
+        };
+        
+        processedImagePrompts.push(fillerPrompt);
+        generatedImages.push({
+          url: fillerPrompt.url,
+          prompt: fillerPrompt.prompt,
+          alt: fillerPrompt.alt,
+          context: fillerPrompt.context,
+          generated_by: 'unsplash_fallback' as const
+        });
+      }
+      
+      // Update featured image if not set
+      if (!featuredImageUrl && generatedImages.length > 0) {
+        featuredImageUrl = generatedImages[0].url;
+      }
+      
+      console.log(`[Images] ✅ Mínimo garantido: ${processedImagePrompts.length} imagens totais`);
     }
 
     // ============================================================================
