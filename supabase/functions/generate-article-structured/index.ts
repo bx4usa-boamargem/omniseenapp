@@ -2066,8 +2066,21 @@ REGRAS CRÍTICAS:
       meta_description: (seoOut.meta_description || writerOut.meta_description || articleEngineOutline?.metaDescription || '').toString().trim().substring(0, 160),
       excerpt: (seoOut.excerpt || writerOut.excerpt || seoOut.meta_description || '').toString().trim(),
       content: contentWithEat,  // Content with E-E-A-T injected
-      introduction: contentWithEat.split('\n\n')[0] || '',  // For quality gate validation
-      conclusion: contentWithEat.split(/##\s*[^#]+próximo\s*passo|##\s*[^#]+conclus/i).pop() || '',
+      // V3.1: Extract introduction as ALL content before first H2 (not just first paragraph)
+      introduction: (() => {
+        const firstH2Index = contentWithEat.search(/^##\s+/m);
+        if (firstH2Index > 0) {
+          return contentWithEat.substring(0, firstH2Index).trim();
+        }
+        // Fallback: use first 2 paragraphs if no H2 found
+        const paragraphs = contentWithEat.split('\n\n').slice(0, 2);
+        return paragraphs.join('\n\n');
+      })(),
+      // V3.1: Extract conclusion as content after last "Próximo Passo" or "Conclusão" H2
+      conclusion: (() => {
+        const conclusionMatch = contentWithEat.match(/##\s*[^#]*(próximo\s*passo|conclus[ãa]o)[^#]*\n([\s\S]*?)(?=##|$)/i);
+        return conclusionMatch?.[2]?.trim() || contentWithEat.split(/##\s*[^#]+próximo\s*passo|##\s*[^#]+conclus/i).pop()?.trim() || '';
+      })(),
       sections: extractSectionsFromContent(contentWithEat),  // Extract H2 sections for validation
       faq: Array.isArray(seoOut.faq) ? seoOut.faq : (Array.isArray(writerOut.faq) ? writerOut.faq : []),
       reading_time: Number(writerOut.reading_time || Math.ceil((contentWithEat.split(' ').length) / 200)),
