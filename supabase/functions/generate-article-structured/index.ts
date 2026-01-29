@@ -58,6 +58,12 @@ import {
   type GeneratedAlt
 } from '../_shared/imageAltGenerator.ts';
 
+// V3.0: Quality Gate imports (Anti-Loop Architecture)
+import { runQualityGate } from '../_shared/qualityGate.ts';
+import { parseArticleJSONStrict } from '../_shared/jsonParser.ts';
+import { generateArticleImages } from '../_shared/geminiImageGenerator.ts';
+import { QUALITY_GATE_CONFIG, ERROR_CODES, ERROR_MESSAGES, type ArticleMode } from '../_shared/qualityGateConfig.ts';
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -1271,6 +1277,31 @@ function cleanAndFormatContent(content: string): string {
   return refinedParagraphs.join('\n\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+// V3.0: Extract H2 sections from markdown content for Quality Gate validation
+function extractSectionsFromContent(content: string): Array<{ h2: string; content: string }> {
+  const sections: Array<{ h2: string; content: string }> = [];
+  
+  // Split by H2 headers (## )
+  const h2Regex = /^##\s+([^#\n]+)/gm;
+  const parts = content.split(h2Regex);
+  
+  // First part is introduction (before any H2), skip it
+  for (let i = 1; i < parts.length; i += 2) {
+    const h2Title = parts[i]?.trim() || '';
+    const sectionContent = parts[i + 1]?.trim() || '';
+    
+    if (h2Title) {
+      sections.push({
+        h2: h2Title,
+        content: sectionContent
+      });
+    }
+  }
+  
+  console.log(`[extractSections] Found ${sections.length} H2 sections`);
+  return sections;
+}
+
 serve(async (req) => {
   const requestId = crypto.randomUUID();
   if (req.method === 'OPTIONS') {
@@ -1345,13 +1376,6 @@ serve(async (req) => {
     const generation_mode = requestedGenerationMode || 'deep';
     console.log(`[GENERATION MODE] Resolved: ${generation_mode} (requested: ${requestedGenerationMode || 'none'})`);
 
-    if (!theme) {
-      return new Response(
-        JSON.stringify({ error: 'Theme is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // ============ TERRITORIAL DATA FETCH (needed for research) ============
     let territoryData: TerritoryData | null = null;
 
@@ -1366,6 +1390,44 @@ serve(async (req) => {
         territoryData = territory as TerritoryData;
       }
     }
+
+    // ============================================================================
+    // V3.0 QUALITY GATE - STEP 1: CONTEXT VALIDATION (HARD GATES)
+    // ============================================================================
+    console.log('[QualityGate] Step 1: Validating request context...');
+
+    // Extract city from request body or territory
+    const requestBody = await req.clone().json().catch(() => ({}));
+    let city = requestBody.city || territoryData?.official_name || '';
+    
+    // HARD GATE: City is mandatory for local authority articles
+    if (!city || city.trim() === '') {
+      console.error('[QualityGate] ❌ ABORT: Missing city');
+      return new Response(
+        JSON.stringify({
+          error: 'QUALITY_GATE_FAILED',
+          code: ERROR_CODES.MISSING_CITY,
+          message: ERROR_MESSAGES[ERROR_CODES.MISSING_CITY]
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Niche fallback with warning (never 'default')
+    let effectiveNiche = niche;
+    if (!effectiveNiche || effectiveNiche.trim() === '' || effectiveNiche === 'default') {
+      console.warn('[QualityGate] ⚠️ Niche invalid, using fallback: pest_control');
+      effectiveNiche = 'pest_control';
+    }
+
+    // BusinessName fallback with warning
+    let effectiveBusinessName = businessName;
+    if (!effectiveBusinessName || effectiveBusinessName.trim() === '') {
+      console.warn('[QualityGate] ⚠️ BusinessName missing, using fallback: Empresa Local');
+      effectiveBusinessName = 'Empresa Local';
+    }
+
+    console.log('[QualityGate] ✅ Context validated:', { city, niche: effectiveNiche, businessName: effectiveBusinessName });
 
     // ============================================================================
     // V2.1: ARTICLE ENGINE - Template Selection & Outline
@@ -1932,20 +1994,82 @@ REGRAS CRÍTICAS:
     }
 
     // ============================================================================
-    // From here: continue using seoOut as the article payload (persist/cache/etc.)
+    // V3.0: QUALITY GATE - IMAGE GENERATION WITH GEMINI
     // ============================================================================
-
-    // Ensure all fields have defaults
-    const article = {
+    console.log('[QualityGate] Step 3: Generating images with Gemini...');
+    
+    // Generate images for all prompts using Gemini (with Unsplash fallback)
+    let articleWithImages = {
       title: (seoOut.title || writerOut.title || articleEngineOutline?.h1 || theme).toString().trim(),
       meta_description: (seoOut.meta_description || writerOut.meta_description || articleEngineOutline?.metaDescription || '').toString().trim().substring(0, 160),
       excerpt: (seoOut.excerpt || writerOut.excerpt || seoOut.meta_description || '').toString().trim(),
       content: contentWithEat,  // Content with E-E-A-T injected
+      introduction: contentWithEat.split('\n\n')[0] || '',  // For quality gate validation
+      conclusion: contentWithEat.split(/##\s*[^#]+próximo\s*passo|##\s*[^#]+conclus/i).pop() || '',
+      sections: extractSectionsFromContent(contentWithEat),  // Extract H2 sections for validation
       faq: Array.isArray(seoOut.faq) ? seoOut.faq : (Array.isArray(writerOut.faq) ? writerOut.faq : []),
       reading_time: Number(writerOut.reading_time || Math.ceil((contentWithEat.split(' ').length) / 200)),
       image_prompts: processedImagePrompts,  // With contextual ALTs
       images: writerOut.images,
-      featured_image_alt: featuredImageAlt  // Contextual ALT
+      featured_image_alt: featuredImageAlt,  // Contextual ALT
+      featured_image_url: null as string | null
+    };
+
+    // Generate images if we have prompts
+    if (articleWithImages.image_prompts && articleWithImages.image_prompts.length > 0) {
+      try {
+        articleWithImages = await generateArticleImages(
+          articleWithImages,
+          effectiveNiche,
+          city
+        );
+        console.log(`[QualityGate] ✅ Images generated: ${articleWithImages.image_prompts?.length || 0} images`);
+      } catch (imgError) {
+        console.error('[QualityGate] ⚠️ Image generation failed:', imgError);
+        // Continue without images - will fail quality gate if required
+      }
+    }
+
+    // ============================================================================
+    // V3.0: QUALITY GATE - FINAL VALIDATION (FAIL-FAST)
+    // ============================================================================
+    console.log('[QualityGate] Step 4: Running quality validation...');
+    
+    // Determine mode for validation
+    const articleMode: ArticleMode = mode === 'entry' ? 'entry' : 'authority';
+    const gateResult = runQualityGate(articleWithImages, articleMode);
+
+    if (!gateResult.passed) {
+      console.error(`[QualityGate] ❌ ABORT: ${gateResult.code}`);
+      console.error(`[QualityGate] Details: ${gateResult.details}`);
+      
+      return new Response(
+        JSON.stringify({
+          error: 'QUALITY_GATE_FAILED',
+          code: gateResult.code,
+          message: ERROR_MESSAGES[gateResult.code] || 'Artigo não atende critérios de qualidade',
+          details: gateResult.details,
+          suggestion: 'Tente novamente com tema mais específico ou verifique os parâmetros'
+        }),
+        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('[QualityGate] ✅ ALL GATES PASSED');
+    console.log('[QualityGate] Metrics:', gateResult.metrics);
+
+    // Build final article object for persistence
+    const article = {
+      title: articleWithImages.title,
+      meta_description: articleWithImages.meta_description,
+      excerpt: articleWithImages.excerpt,
+      content: articleWithImages.content,
+      faq: articleWithImages.faq,
+      reading_time: articleWithImages.reading_time,
+      image_prompts: articleWithImages.image_prompts,
+      images: articleWithImages.images,
+      featured_image_alt: articleWithImages.featured_image_alt,
+      featured_image_url: articleWithImages.featured_image_url
     };
 
     // NEW: infer category/tags (used downstream)
@@ -1972,14 +2096,15 @@ REGRAS CRÍTICAS:
     // V2.1: Build Article Engine metadata for source_payload
     const articleEnginePayload = articleEngineTemplate ? {
       articleEngine: {
-        version: '2.1',
+        version: '3.0',
         template: articleEngineTemplate.template,
         variant: articleEngineTemplate.variant,
         intent: articleEngineTemplate.intent?.type,
         useEat: useEat,
         contextualAlt: contextualAlt,
-        niche: niche,
+        niche: effectiveNiche,
         mode: mode,
+        qualityGate: gateResult.metrics,
         outline: articleEngineOutline ? {
           h2Count: articleEngineOutline.h2Count,
           targetWords: articleEngineOutline.totalTargetWords
