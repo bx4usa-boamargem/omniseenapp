@@ -1,176 +1,84 @@
 
-# Emergency Rollback & Stability Plan
+## Objetivo (rollback total imediato)
+Restaurar o projeto para a **última versão estável** (antes das mudanças recentes), de forma segura e rápida, usando os recursos de **Histórico/Restore** do Lovable (em vez de comandos Git).
 
-## Summary
+---
 
-The article generation system has critical issues causing:
-1. **Score 0/100** - Articles being evaluated incorrectly
-2. **Only 1 image** - Image generation failing silently
-3. **E-E-A-T not injecting** - `useEat=false` in logs despite frontend setting it to ON
-4. **Niche defaulting to 'default'** - Missing niche data from frontend
-5. **AI Tool Call Retry** - Adding unnecessary complexity and potential loops
+## Por que não vou executar “git reset --hard” aqui
+No ambiente do Lovable eu não tenho acesso para rodar comandos Git/CLI nem fazer force-push. O caminho correto e mais seguro é o **History (Histórico de edições)** do Lovable, que é justamente feito para rollback rápido.
 
-## Root Cause Analysis
+---
 
-From the edge function logs:
-```
-[Article Engine] Params: useEat=false, niche=default, mode=authority, businessName=not set
-```
+## Passo a passo do rollback total (o que você faz agora)
+### 1) Abrir o Histórico
+1. No topo do chat, clique em **History** (Histórico).
+2. Você verá uma lista de edições/alterações (como “Improve AI tool call resilience”, “Emergency rollback”, etc.).
 
-This shows:
-- `useEat=false` when it should be `true`
-- `niche=default` when it should be `pest_control` or `plumbing`
-- `businessName=not set` when it should come from `business_profile`
+### 2) Encontrar a versão estável
+Procure a última edição onde o sistema “estava bom”, tipicamente:
+- Antes de qualquer mudança relacionada a:
+  - “Improve AI tool call resilience”
+  - “Fallback JSON extraction”
+  - “Emergency rollback”
+  - Alterações de geração de imagens/score recentes
 
-The disconnect is:
-1. **ArticleGenerator.tsx** sends `formData.eatInjection` but the edge function receives `useEat=false`
-2. **ArticleGenerator.tsx** sends `formData.niche` but the edge function receives `niche=default`
-3. The frontend form defaults may not match the backend expectations
+Dica prática:
+- Abra 1–3 versões anteriores em “Preview” (quando disponível) para checar rapidamente se o comportamento voltou.
 
-## Technical Changes
+### 3) Restaurar a versão
+- Clique em **Restore** na versão estável escolhida.
+- Aguarde o rebuild/atualização do preview.
 
-### 1. Simplify AI Tool Call (Remove Retry Loop)
+### 4) Hard refresh / cache
+Após o restore:
+- Faça **hard refresh** (Ctrl+Shift+R / Cmd+Shift+R).
+- Se ainda estiver estranho, abra em **aba anônima** para evitar cache e localStorage interferindo.
 
-**File:** `supabase/functions/generate-article-structured/index.ts`
+---
 
-Remove the retry mechanism that was added and return to simple direct call:
-- Remove `maxRetries` parameter and retry loop from `callLovableJsonTool`
-- Keep only primary tool call path
-- Remove content fallback extraction that may produce lower quality results
+## Validação pós-rollback (checklist objetivo)
+### A) Confirmação visual de “1 editor”
+- Navegue pelo fluxo de artigos e confirme se existe **um único caminho principal** para editar artigos (sem duplicidade/confusão).
 
-### 2. Fix Parameter Passing from Frontend
+### B) Teste de geração (quando houver crédito de IA)
+- Gere 1 artigo teste (ex.: “Dedetização em [cidade]”).
+- Verifique:
+  - Estrutura (H2/H3 coerentes, metas SEO dentro dos limites)
+  - Presença de imagens conforme esperado
+  - E-E-A-T presente quando habilitado
+  - Tempo total “normal” (aprox. esperado do seu baseline)
 
-**File:** `src/pages/client/ArticleGenerator.tsx`
+> Observação crítica: se o aviso “AI balance acabou” continuar, a geração não vai executar (não é bug do código). Ainda assim, o rollback garante que, ao retornar os créditos, o comportamento volte ao baseline estável.
 
-Ensure the payload is correctly structured:
-- Verify `niche` defaults to `pest_control` (not empty or 'default')
-- Verify `useEat` is explicitly true when toggle is ON
-- Add logging to confirm values before sending
+### C) Conferência rápida do que deve ter voltado
+Após o restore, o estado “estável” deve refletir principalmente nestes pontos:
+- `supabase/functions/generate-article-structured/index.ts` sem as mudanças problemáticas (retry/fallback agressivo etc.)
+- `src/pages/client/ArticleGenerator.tsx` e/ou fluxo de geração consistente (sem defaults quebrados)
+- Fluxo do editor principal sem duplicidade
 
-### 3. Force Unsplash Fallback for Images (Guaranteed 8 Images)
+---
 
-**File:** `supabase/functions/generate-article-structured/index.ts`
+## Se o problema “2 editores” persistir mesmo após rollback
+Isso normalmente indica que:
+- O “editor duplicado” já existia antes (não era só mudança recente), ou
+- Há rotas/menu apontando para duas telas diferentes, e o rollback escolhido ainda não era o ponto “antes” disso.
 
-If the AI image generation fails or returns 0 images, force 8 Unsplash fallback images:
-- Add check after image generation completes
-- If `processedImagePrompts.length < 6`, generate additional fallback images
-- This guarantees 6-8 images even if AI fails
+Ação nesse caso:
+1. Volte ao History e teste **mais 1–3 versões ainda mais antigas**.
+2. Anote quais rotas aparecem no menu para “Editar artigo” (ex.: /client/articles/... vs /client/editor/...) para eu mapear com precisão depois.
 
-### 4. Verify E-E-A-T Injection Logic
+---
 
-**File:** `supabase/functions/generate-article-structured/index.ts`
+## Plano de contingência (se não achar a versão estável rapidamente)
+1. Escolher uma versão de ~48h atrás (como você sugeriu).
+2. Restaurar.
+3. Confirmar rapidamente se o menu e as rotas do editor voltaram ao normal.
+4. Só então testar geração (quando o crédito permitir).
 
-The E-E-A-T injection is conditional on `useEat && niche && niche !== 'default'`.
-When `niche='default'`, E-E-A-T is skipped. Fix:
-- Use `pest_control` as fallback niche instead of `default`
-- Add logging to confirm E-E-A-T injection occurs
+---
 
-### 5. QA System Already Disabled (Confirm)
+## Entregáveis (resultado esperado após concluir)
+- Projeto restaurado para uma edição estável
+- Interface sem “confusão de 2 editores” (ou, no mínimo, reduzida ao comportamento antigo)
+- Fluxo de geração e preview no baseline anterior assim que a IA estiver disponível
 
-**File:** `src/hooks/useContentOptimizer.ts`
-
-Already has `RUN_TO_100_DISABLED = true`. Verify this is working:
-- The "Levar a 100" button should show a toast warning instead of opening the modal
-- Confirm the `ContentScorePanel` respects this flag
-
-## File-by-File Changes
-
-### `supabase/functions/generate-article-structured/index.ts`
-
-```typescript
-// Line ~348: SIMPLIFY callLovableJsonTool - REMOVE RETRY
-async function callLovableJsonTool(params: {
-  // ... existing params ...
-  // REMOVE: maxRetries parameter
-}): Promise<{ arguments: Record<string, unknown>; usage?: {...} }> {
-  // SIMPLE DIRECT CALL - NO RETRY
-  const res = await fetch(url, { ... });
-  
-  if (!res.ok) {
-    throw new Error(`AI_GATEWAY_ERROR: ${res.status}`);
-  }
-  
-  const data = safeJsonParse<any>(await res.text());
-  const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-  
-  if (!toolCall?.function?.arguments) {
-    throw new Error('AI_OUTPUT_INVALID: missing tool call arguments');
-  }
-  
-  return { arguments: parseArticleJSON(toolCall.function.arguments), usage: data.usage };
-}
-```
-
-```typescript
-// Line ~1391: FIX NICHE DEFAULT
-niche = 'default',  // CHANGE TO: niche = 'pest_control',
-```
-
-```typescript
-// Line ~2123: FORCE MINIMUM 8 IMAGES
-} else {
-  console.log(`[Images] Nenhum prompt de imagem para gerar`);
-}
-
-// NEW: FORCE MINIMUM IMAGES IF NEEDED
-if (processedImagePrompts.length < 6) {
-  console.log(`[Images] FORÇANDO imagens mínimas: ${processedImagePrompts.length} → 8`);
-  const needed = 8 - processedImagePrompts.length;
-  for (let i = 0; i < needed; i++) {
-    const keywords = [niche || 'business', primaryKeyword.split(' ')[0], territoryData?.official_name || 'brazil'];
-    processedImagePrompts.push({
-      context: `filler-${i + 1}`,
-      prompt: `Professional ${keywords.join(' ')} service`,
-      alt: `Imagem profissional ${i + 1}`,
-      url: `https://source.unsplash.com/1024x768/?${encodeURIComponent(keywords.join(','))}&sig=${blog_id}-filler-${i}`,
-      after_section: processedImagePrompts.length + 1,
-      generated_by: 'unsplash_filler'
-    });
-  }
-}
-```
-
-### `src/pages/client/ArticleGenerator.tsx`
-
-```typescript
-// Ensure correct defaults in form state
-const [formData, setFormData] = useState({
-  keyword: '',
-  city: '',
-  state: '',
-  niche: 'pest_control',  // DEFAULT TO pest_control, NOT empty
-  mode: 'authority' as 'entry' | 'authority',
-  template: 'auto',
-  webResearch: false,
-  eatInjection: true,   // DEFAULT TO true
-  imageAlt: true,       // DEFAULT TO true
-});
-```
-
-```typescript
-// Add debug logging before API call
-console.log('[ArticleGenerator] Sending payload:', {
-  niche: formData.niche,
-  useEat: formData.eatInjection,
-  contextualAlt: formData.imageAlt,
-  mode: formData.mode
-});
-```
-
-## Validation Checklist
-
-After implementing:
-- [ ] Generate test article with Authority mode
-- [ ] Confirm logs show `useEat=true, niche=pest_control`
-- [ ] Confirm 6-8 images appear in preview
-- [ ] Confirm E-E-A-T phrase visible in 2nd paragraph
-- [ ] Confirm article has 1,500+ words
-- [ ] Confirm no "Score 0/100" issues
-- [ ] Confirm "Levar a 100" button shows warning toast (not modal)
-
-## Risk Assessment
-
-- **Low Risk**: All changes are conservative rollbacks or fixes
-- **No Schema Changes**: Database schema remains unchanged
-- **Backward Compatible**: Existing articles unaffected
-- **Easy Revert**: If issues persist, can revert individual changes
