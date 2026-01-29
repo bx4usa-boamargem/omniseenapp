@@ -126,12 +126,13 @@ async function callOpenAIWriter(request: WriterRequest): Promise<WriterResponse>
     max_tokens: request.maxTokens ?? config.maxTokens,
   };
   
-  // Add tool if provided
+  // Add tool if provided - OpenAI requires 'description' field
   if (request.tool) {
     body.tools = [{
       type: 'function',
       function: {
         name: request.tool.name,
+        description: `Generate structured ${request.tool.name} output`,
         parameters: request.tool.schema
       }
     }];
