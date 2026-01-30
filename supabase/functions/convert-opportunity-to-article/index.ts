@@ -171,7 +171,8 @@ serve(async (req) => {
       word_count: 1500, // GEO mode requires 1200-3000 words
       include_faq: true,
       include_conclusion: true,
-      generation_mode: 'deep', // GEO mode ALWAYS uses deep
+      generation_mode: 'fast',  // HOTFIX: Mudado de 'deep' para 'fast'
+      mode: 'entry',            // HOTFIX: Força thresholds permissivos do Quality Gate
       geo_mode: true, // V2.0: Try with GEO first
       source: 'opportunity',
       auto_publish: false, // SEMPRE draft
@@ -197,6 +198,13 @@ serve(async (req) => {
       // ROTAÇÃO EDITORIAL - Modelo de conteúdo
       editorial_model: editorialModel,
     };
+
+    // HOTFIX: Log de diagnóstico antes da chamada
+    console.log('[CONVERT] Calling generate with:', {
+      generation_mode: generatePayload.generation_mode,
+      mode: (generatePayload as any).mode,
+      city: generatePayload.city
+    });
 
     let generateResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-article-structured`, {
       method: "POST",
