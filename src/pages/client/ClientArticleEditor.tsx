@@ -253,10 +253,54 @@ export default function ClientArticleEditor() {
 
       clearInterval(progressInterval);
 
-      if (error || !data?.success) {
-        throw new Error(data?.error || 'Erro na conversão');
+      // =====================================================================
+      // HOTFIX: Tratamento específico de erros do Quality Gate (HTTP 422)
+      // =====================================================================
+      if (error) {
+        console.error('[ConvertOpportunity] Edge function error:', error);
+        
+        // Tentar extrair mensagem específica do Quality Gate
+        const errorMessage = error.message || 'Erro desconhecido';
+        
+        // Detectar erros específicos do Quality Gate
+        if (errorMessage.includes('insufficient_sections') || errorMessage.includes('QUALITY_GATE')) {
+          toast.error('Estrutura do artigo insuficiente. Tente com outro tema.');
+        } else if (errorMessage.includes('insufficient_faq')) {
+          toast.error('FAQ insuficiente. Tente novamente.');
+        } else if (errorMessage.includes('missing_introduction')) {
+          toast.error('Introdução muito curta. Tente novamente.');
+        } else {
+          toast.error(`Erro ao gerar: ${errorMessage}`);
+        }
+        
+        // Resetar estado
+        setPhase('form');
+        setGenerationProgress(0);
+        setGenerationStage(null);
+        return;
       }
 
+      // Verificar se retornou sucesso
+      if (!data?.success) {
+        console.error('[ConvertOpportunity] Conversion failed:', data);
+        
+        // Extrair mensagem específica do backend
+        const failReason = data?.message || data?.details || data?.error || 'Erro na conversão';
+        
+        // Detectar falhas do Quality Gate no payload
+        if (failReason.includes('insufficient') || failReason.includes('QUALITY_GATE')) {
+          toast.error(`Validação falhou: ${failReason}`);
+        } else {
+          toast.error(failReason);
+        }
+        
+        setPhase('form');
+        setGenerationProgress(0);
+        setGenerationStage(null);
+        return;
+      }
+
+      // Sucesso!
       setGenerationProgress(100);
       toast.success('Artigo criado com sucesso!');
 
@@ -265,8 +309,11 @@ export default function ClientArticleEditor() {
       // Redirect to the real editor with the created article
       smartNavigate(navigate, getClientArticleEditPath(data.article_id));
     } catch (err) {
-      console.error('[ConvertOpportunity] Error:', err);
-      toast.error('Erro ao criar artigo. Tente novamente.');
+      console.error('[ConvertOpportunity] Unexpected error:', err);
+      
+      const errorMsg = err instanceof Error ? err.message : 'Erro inesperado';
+      toast.error(`Erro ao criar artigo: ${errorMsg}`);
+      
       setPhase('form');
       setGenerationProgress(0);
       setGenerationStage(null);
