@@ -1757,13 +1757,23 @@ Prazo de entrega: Data de referência é Janeiro de 2026. Todos os dados, tendê
     console.log(`[IMAGES] Mode: ${mode}, requested: ${image_count}, target: ${targetImageCount} (min: ${minImagesByMode}, max: ${maxImagesByMode})`);
 
     // Tool schema for article generation - only the parameters object, not the full function wrapper
+    // V3.3: Added explicit 'introduction' field to enforce separation from content
     const createArticleSchema = {
       type: 'object',
       properties: {
         title: { type: 'string', description: 'SEO title (max 60 chars)' },
         meta_description: { type: 'string', description: 'Meta description (max 160 chars)' },
         excerpt: { type: 'string', description: 'Short excerpt (max 200 chars)' },
-        content: { type: 'string', description: 'Full markdown content' },
+        // V3.3: Campo explícito de introdução - FONTE DA VERDADE
+        introduction: { 
+          type: 'string', 
+          description: 'Introduction paragraph (3-4 sentences, MINIMUM 120 characters). Plain text WITHOUT any headings (#, ##, ###). Must NOT start with markdown heading. This is SEPARATE from content field.',
+          minLength: 120
+        },
+        content: { 
+          type: 'string', 
+          description: 'Full markdown content starting with first H2 section (##). Do NOT include introduction here - it goes in separate "introduction" field. Content MUST start with ## heading.' 
+        },
         faq: {
           type: 'array',
           items: {
@@ -1794,18 +1804,33 @@ Prazo de entrega: Data de referência é Janeiro de 2026. Todos os dados, tendê
         },
         images: { type: 'object' }
       },
-      required: ['title', 'meta_description', 'excerpt', 'content', 'faq', 'reading_time', 'image_prompts', 'images']
+      required: ['title', 'meta_description', 'excerpt', 'introduction', 'content', 'faq', 'reading_time', 'image_prompts', 'images']
     };
 
     const writerStart = nowMs();
+    // V3.3: Writer prompt exigindo introdução como campo separado
     const writerUserPrompt = `Escreva o artigo completo sobre: "${theme}"
 
 ${outlineInstruction}
 
+## ⛔ CAMPO "introduction" OBRIGATÓRIO (SEPARADO DO CONTENT):
+- DEVE ter no MÍNIMO 120 caracteres de texto corrido
+- DEVE ser texto puro, SEM headings (#, ##, ###)
+- DEVE contextualizar o problema/tema para o leitor em 3-4 frases
+- Se gerar menos de 120 caracteres, REESCREVA até atingir o mínimo
+- NÃO repita esta introdução no campo "content"
+- NÃO comece com heading - comece direto com o texto
+
+## CAMPO "content" (SEPARADO DA INTRODUÇÃO):
+- DEVE começar DIRETAMENTE com o primeiro H2 (##)
+- NÃO inclua a introdução aqui - ela vai no campo separado "introduction"
+- Estruture com H2/H3 conforme outline
+- O primeiro caractere do content DEVE ser #
+
 REGRAS CRÍTICAS:
 - Use APENAS as fontes e dados do pacote de pesquisa
 - Inclua links externos (https://...) apontando para FONTES PERMITIDAS
-- Estruture com H1–H3, inclua FAQ + meta tags
+- Estruture com H2–H3, inclua FAQ + meta tags
 - Não invente estatísticas/tendências. Se faltar dado: "não encontrado nas fontes".`;
 
     // V3.1: Using unified AI Provider Layer (aiProviders.ts)
@@ -1888,6 +1913,7 @@ Regras SEO:
 - NÃO crie fatos novos. Use apenas o pacote de pesquisa e o rascunho.
 - PRESERVE A INTRODUÇÃO DO RASCUNHO. Ela DEVE ter pelo menos 120 caracteres ANTES do primeiro ##.`;
 
+    // V3.3: SEO User Prompt - NÃO recebe introdução, atua APENAS no corpo
     const seoUser = `PACOTE DE PESQUISA (resumo):
 - Termos: ${(researchPackage.serp.commonTerms || []).slice(0, 12).join(', ')}
 - Títulos top: ${(researchPackage.serp.topTitles || []).slice(0, 3).join(' | ')}
@@ -1898,10 +1924,13 @@ RASCUNHO (writer):
 Title: ${writerOut.title}
 Meta: ${writerOut.meta_description}
 
-CONTENT:
+⚠️ A INTRODUÇÃO FOI SEPARADA E NÃO DEVE SER MODIFICADA.
+OTIMIZE APENAS O CORPO ABAIXO (H2s e seus conteúdos):
+
+CONTENT (corpo apenas, SEM introdução):
 ${(writerOut.content || '').substring(0, 6000)}
 
-⚠️ IMPORTANTE: O campo "content" da resposta DEVE começar com 3-4 linhas de introdução (texto puro, mínimo 120 chars) ANTES do primeiro ## heading. NÃO remova a introdução!
+⚠️ REGRA CRÍTICA: O campo "content" da resposta DEVE começar com ## (H2). NÃO adicione introdução - ela é gerenciada separadamente pelo Writer.
 
 Reestruture e retorne via tool optimize_article.`;
 
@@ -2003,10 +2032,40 @@ Reestruture e retorne via tool optimize_article.`;
     }
 
     // ============================================================================
-    // V2.1: ARTICLE ENGINE - E-E-A-T Injection (Post-generation)
+    // V3.3: ARTICLE ENGINE - Writer é FONTE DA VERDADE para INTRODUÇÃO
+    // SEO atua APENAS no corpo (content), NUNCA na introdução
     // ============================================================================
 
-    let contentWithEat = seoOut.content || writerOut.content || '';
+    // A introdução vem EXPLICITAMENTE do Writer (campo separado)
+    const writerIntroduction = (writerOut.introduction || '').toString().trim();
+
+    // Telemetria obrigatória V3.3
+    console.log(`[Merge V3.3] Writer introduction: ${writerIntroduction.length} chars`);
+    console.log(`[Merge V3.3] Writer introduction preview: "${writerIntroduction.substring(0, 100)}..."`);
+
+    // Validar que não começa com heading (double check)
+    const introStartsWithHeading = /^#/.test(writerIntroduction.trim());
+    if (introStartsWithHeading) {
+      console.error(`[Merge V3.3] ⚠️ WARNING: Writer introduction starts with heading! Cleaning...`);
+    }
+    const cleanIntroduction = introStartsWithHeading 
+      ? writerIntroduction.replace(/^#+\s*[^\n]*\n*/gm, '').trim()
+      : writerIntroduction;
+
+    // SEO content (corpo apenas, SEM introdução)
+    let seoBodyContent = seoOut.content || writerOut.content || '';
+
+    // Garantir que SEO content começa com H2 (remover qualquer intro duplicada)
+    const firstH2InSeo = seoBodyContent.search(/^##\s+/m);
+    if (firstH2InSeo > 0) {
+      console.log(`[Merge V3.3] Removing ${firstH2InSeo} chars before first H2 in SEO output (prevents duplication)`);
+      seoBodyContent = seoBodyContent.substring(firstH2InSeo).trim();
+    } else if (firstH2InSeo === -1) {
+      console.warn(`[Merge V3.3] ⚠️ SEO output has no H2, using as-is`);
+    }
+
+    // E-E-A-T injection mantém a lógica existente, mas sobre seoBodyContent
+    let contentWithEat = seoBodyContent;
 
     console.log(`[Article Engine] E-E-A-T check: useEat=${useEat}, niche="${niche}", hasContent=${contentWithEat.length > 0}`);
     
@@ -2027,11 +2086,11 @@ Reestruture e retorne via tool optimize_article.`;
         if (eatPhrase) {
           console.log(`[Article Engine] E-E-A-T injected: "${eatPhrase.substring(0, 80)}..."`);
           
-          // Insert E-E-A-T after introduction (second paragraph)
-          const paragraphs = contentWithEat.split('\n\n');
-          if (paragraphs.length > 2) {
-            paragraphs.splice(2, 0, `\n${eatPhrase}\n`);
-            contentWithEat = paragraphs.join('\n\n');
+          // V3.3: E-E-A-T agora é inserido logo após o primeiro H2 (não na introdução)
+          const firstH2Match = contentWithEat.match(/^(##\s+[^\n]+\n)/m);
+          if (firstH2Match && firstH2Match.index !== undefined) {
+            const insertPos = firstH2Match.index + firstH2Match[0].length;
+            contentWithEat = contentWithEat.slice(0, insertPos) + `\n${eatPhrase}\n\n` + contentWithEat.slice(insertPos);
           } else {
             contentWithEat = contentWithEat + '\n\n' + eatPhrase;
           }
@@ -2041,6 +2100,10 @@ Reestruture e retorne via tool optimize_article.`;
         // Continue without E-E-A-T
       }
     }
+
+    // V3.3: MERGE FINAL - Introdução do Writer + Corpo do SEO (com E-E-A-T)
+    const finalContent = cleanIntroduction + '\n\n' + contentWithEat;
+    console.log(`[Merge V3.3] Final content length: ${finalContent.length}, intro: ${cleanIntroduction.length}, body: ${contentWithEat.length}`);
 
     // ============================================================================
     // V2.1: ARTICLE ENGINE - Contextual Image ALT Generation
@@ -2098,62 +2161,63 @@ Reestruture e retorne via tool optimize_article.`;
     console.log('[QualityGate] Step 3: Generating images with Gemini...');
     
     // Generate images for all prompts using Gemini (with Unsplash fallback)
+    // V3.3: LOGS OBRIGATÓRIOS antes do Quality Gate
+    console.log(`[QualityGate V3.3] ========== PRE-VALIDATION DIAGNOSTICS ==========`);
+    console.log(`[QualityGate V3.3] writer_intro_raw: ${writerIntroduction.length} chars`);
+    console.log(`[QualityGate V3.3] clean_introduction: ${cleanIntroduction.length} chars`);
+    console.log(`[QualityGate V3.3] introduction.preview: "${cleanIntroduction.substring(0, 120)}..."`);
+    console.log(`[QualityGate V3.3] seo_body_trimmed: ${seoBodyContent.length} chars`);
+    console.log(`[QualityGate V3.3] firstH2Index in finalContent: ${finalContent.search(/^##\s+/m)}`);
+    console.log(`[QualityGate V3.3] ================================================`);
+
     let articleWithImages = {
       title: (seoOut.title || writerOut.title || articleEngineOutline?.h1 || theme).toString().trim(),
       meta_description: (seoOut.meta_description || writerOut.meta_description || articleEngineOutline?.metaDescription || '').toString().trim().substring(0, 160),
       excerpt: (seoOut.excerpt || writerOut.excerpt || seoOut.meta_description || '').toString().trim(),
-      content: contentWithEat,  // Content with E-E-A-T injected
-      // V3.2: Extract introduction with telemetry and proper edge-case handling
+      content: finalContent,  // V3.3: Usando finalContent (intro + body merged)
+      // V3.3: Introduction vem DIRETAMENTE do campo Writer, não de parsing
       introduction: (() => {
-        const firstH2Index = contentWithEat.search(/^##\s+/m);
+        // Prioridade 1: Campo explícito do Writer (FONTE DA VERDADE)
+        const explicitIntro = cleanIntroduction;
         
-        // Telemetry: log introduction extraction details
-        const writerIntro = (() => {
-          const idx = (writerOut.content || '').search(/^##\s+/m);
-          if (idx > 0) return (writerOut.content || '').substring(0, idx).trim();
-          if (idx === 0) return '';
-          return (writerOut.content || '').split('\n\n').slice(0, 2).join('\n\n');
-        })();
+        if (explicitIntro.length >= 100) {
+          console.log(`[Intro V3.3] ✅ Using explicit Writer introduction: ${explicitIntro.length} chars`);
+          return explicitIntro;
+        }
         
-        const seoIntro = (() => {
-          const idx = (seoOut.content || '').search(/^##\s+/m);
-          if (idx > 0) return (seoOut.content || '').substring(0, idx).trim();
-          if (idx === 0) return '';
-          return (seoOut.content || '').split('\n\n').slice(0, 2).join('\n\n');
-        })();
+        // Prioridade 2: Fallback - extrair do finalContent (backward compatibility)
+        console.warn(`[Intro V3.3] ⚠️ Writer introduction too short (${explicitIntro.length}), falling back to extraction`);
         
-        console.log(`[Intro Telemetry] writerOut intro: ${writerIntro.length} chars, first 100: "${writerIntro.substring(0, 100)}..."`);
-        console.log(`[Intro Telemetry] seoOut intro: ${seoIntro.length} chars, first 100: "${seoIntro.substring(0, 100)}..."`);
-        console.log(`[Intro Telemetry] contentWithEat firstH2Index: ${firstH2Index}`);
-        console.log(`[Intro Telemetry] source: ${seoOut.content ? 'seoOut' : 'writerOut'}`);
+        const firstH2Index = finalContent.search(/^##\s+/m);
         
-        // Edge-case: H2 at index 0 means NO introduction exists
+        // Edge-case: H2 at index 0 = no introduction
         if (firstH2Index === 0) {
-          console.error(`[Intro Telemetry] ⚠️ CRITICAL: Content starts with ## (no introduction). firstH2Index=0`);
-          console.error(`[Intro Telemetry] Content prefix: "${contentWithEat.substring(0, 200)}"`);
-          return ''; // Return empty - Quality Gate will catch this
+          console.error(`[Intro V3.3] ❌ Content starts with ## - no introduction found`);
+          return '';
         }
         
-        // Normal case: extract everything before first H2
+        // Normal case: extract before first H2
         if (firstH2Index > 0) {
-          const intro = contentWithEat.substring(0, firstH2Index).trim();
-          console.log(`[Intro Telemetry] Extracted intro: ${intro.length} chars`);
-          return intro;
+          const extracted = finalContent.substring(0, firstH2Index).trim();
+          console.log(`[Intro V3.3] Extracted from finalContent: ${extracted.length} chars`);
+          return extracted;
         }
         
-        // Fallback: no H2 found at all, use first 2 paragraphs
-        console.log(`[Intro Telemetry] No H2 found, using fallback (first 2 paragraphs)`);
-        const paragraphs = contentWithEat.split('\n\n').filter((p: string) => !p.trim().startsWith('#')).slice(0, 2);
+        // Fallback extremo: primeiros 2 parágrafos (sem headings)
+        const paragraphs = finalContent.split('\n\n')
+          .filter((p: string) => !p.trim().startsWith('#'))
+          .slice(0, 2);
+        console.warn(`[Intro V3.3] Using paragraph fallback: ${paragraphs.join('\n\n').length} chars`);
         return paragraphs.join('\n\n');
       })(),
-      // V3.1: Extract conclusion as content after last "Próximo Passo" or "Conclusão" H2
+      // V3.3: Extract conclusion using finalContent
       conclusion: (() => {
-        const conclusionMatch = contentWithEat.match(/##\s*[^#]*(próximo\s*passo|conclus[ãa]o)[^#]*\n([\s\S]*?)(?=##|$)/i);
-        return conclusionMatch?.[2]?.trim() || contentWithEat.split(/##\s*[^#]+próximo\s*passo|##\s*[^#]+conclus/i).pop()?.trim() || '';
+        const conclusionMatch = finalContent.match(/##\s*[^#]*(próximo\s*passo|conclus[ãa]o)[^#]*\n([\s\S]*?)(?=##|$)/i);
+        return conclusionMatch?.[2]?.trim() || finalContent.split(/##\s*[^#]+próximo\s*passo|##\s*[^#]+conclus/i).pop()?.trim() || '';
       })(),
-      sections: extractSectionsFromContent(contentWithEat),  // Extract H2 sections for validation
+      sections: extractSectionsFromContent(finalContent),  // V3.3: Extract H2 sections from finalContent
       faq: Array.isArray(seoOut.faq) ? seoOut.faq : (Array.isArray(writerOut.faq) ? writerOut.faq : []),
-      reading_time: Number(writerOut.reading_time || Math.ceil((contentWithEat.split(' ').length) / 200)),
+      reading_time: Number(writerOut.reading_time || Math.ceil((finalContent.split(' ').length) / 200)),
       image_prompts: processedImagePrompts,  // With contextual ALTs
       images: writerOut.images,
       featured_image_alt: featuredImageAlt,  // Contextual ALT
