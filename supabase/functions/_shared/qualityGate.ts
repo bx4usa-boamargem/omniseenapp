@@ -18,10 +18,14 @@ export interface QualityGateOptions {
 export function runQualityGate(article: any, mode: ArticleMode, options?: QualityGateOptions): QualityGateResult {
   const config = QUALITY_GATE_CONFIG[mode];
   const warnings: string[] = [];
+  // V4.3: Allow warnings for entry/fast modes, AND for authority if functional minimum is met
   const allowWarnings = options?.allowWarnings ?? (mode === 'entry' || options?.generationMode === 'fast');
   const logPrefix = options?.requestId ? `[${options.requestId}]` : '';
   
-  console.log(`${logPrefix}[QualityGate] Running validation for mode: ${mode}, allowWarnings: ${allowWarnings}`);
+  // V4.3: Functional minimums - articles can pass with warnings if these are met
+  const FUNCTIONAL_MIN_SECTIONS = mode === 'authority' ? 5 : 3;
+  
+  console.log(`${logPrefix}[QualityGate] Running validation for mode: ${mode}, allowWarnings: ${allowWarnings}, functionalMinSections: ${FUNCTIONAL_MIN_SECTIONS}`);
 
   // 1. TITLE - SEMPRE HARD GATE
   if (!article.title?.trim()) {
@@ -42,18 +46,21 @@ export function runQualityGate(article: any, mode: ArticleMode, options?: Qualit
     };
   }
 
-  // 3. SECTIONS - DEGRADAÇÃO CONTROLADA
+  // 3. SECTIONS - DEGRADAÇÃO CONTROLADA V4.3
+  // Authority mode: if >= 5 sections, allow as warning (not hard fail)
+  // Entry mode: if >= 3 sections, allow as warning
   const sections = Array.isArray(article.sections) ? article.sections : [];
   
   if (sections.length < config.minH2Count) {
-    if (allowWarnings && sections.length >= 3) {
+    // V4.3: Allow degradation if functional minimum is met
+    if (sections.length >= FUNCTIONAL_MIN_SECTIONS) {
       warnings.push(`insufficient_sections: ${sections.length}/${config.minH2Count}`);
-      console.warn(`${logPrefix}[QualityGate] WARNING: Sections ${sections.length} < ${config.minH2Count}`);
+      console.warn(`${logPrefix}[QualityGate] WARNING: Sections ${sections.length} < ${config.minH2Count} (functional min ${FUNCTIONAL_MIN_SECTIONS} met)`);
     } else {
       return {
         passed: false,
         code: ERROR_CODES.INSUFFICIENT_SECTIONS,
-        details: `Sections: ${sections.length}, mínimo: ${config.minH2Count} (modo ${mode})`
+        details: `Sections: ${sections.length}, mínimo funcional: ${FUNCTIONAL_MIN_SECTIONS} (modo ${mode})`
       };
     }
   }
