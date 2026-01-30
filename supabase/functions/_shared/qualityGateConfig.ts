@@ -1,8 +1,10 @@
 /**
  * Quality Gate Configuration
- * Define os thresholds exatos para cada modo de artigo
+ * Define os thresholds para cada modo de artigo
  * 
- * REGRA: Zero retry - fail-fast - abort imediato
+ * V4.5: NUNCA ABORTA - Todos os thresholds são apenas para warnings
+ * Artigos são salvos como draft quando thresholds não são atingidos
+ * Pipeline 100% Non-Blocking
  */
 
 export const QUALITY_GATE_CONFIG = {

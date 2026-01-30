@@ -1630,24 +1630,10 @@ serve(async (req) => {
       console.log(`[${requestId}][QualityGate] City from google_place: ${city}`);
     }
     
-    // HARD GATE: City is mandatory for local authority articles
+    // V4.5: City fallback (nunca abort - usa fallback genérico)
     if (!city || city.trim() === '') {
-      console.error(`[${requestId}][QualityGate] ❌ ABORT: Missing city after all fallbacks`);
-      return new Response(
-        JSON.stringify({
-          error: 'QUALITY_GATE_FAILED',
-          code: ERROR_CODES.MISSING_CITY,
-          message: ERROR_MESSAGES[ERROR_CODES.MISSING_CITY],
-          request_id: requestId,
-          debug: {
-            requestCity,
-            territoryName: territoryData?.official_name,
-            googlePlaceName: google_place?.official_name,
-            theme,
-          }
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      console.warn(`[${requestId}][PIPELINE] Forcing draft fallback - city missing, using "Brasil"`);
+      city = 'Brasil';
     }
 
     // Niche fallback with warning (never 'default')

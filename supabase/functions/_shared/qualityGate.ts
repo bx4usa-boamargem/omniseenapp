@@ -1,11 +1,11 @@
-import { QUALITY_GATE_CONFIG, QualityGateResult, ERROR_CODES, ArticleMode } from './qualityGateConfig.ts';
+import { QUALITY_GATE_CONFIG, QualityGateResult, ArticleMode } from './qualityGateConfig.ts';
 
 /**
  * Quality Gate Principal
- * Valida se artigo atende TODOS os critérios mínimos
- * FAIL-FAST: Primeira falha = abort imediato
+ * V4.5: NUNCA ABORTA - Todos os gates são convertidos em warnings
+ * O caller decide se força status 'draft' baseado nos warnings críticos
  * 
- * V3.4: Suporte a allowWarnings para degradação controlada em mode=entry ou fast
+ * Pipeline 100% Non-Blocking - Artigos sempre são salvos
  */
 
 export interface QualityGateOptions {
@@ -18,124 +18,31 @@ export interface QualityGateOptions {
 export function runQualityGate(article: any, mode: ArticleMode, options?: QualityGateOptions): QualityGateResult {
   const config = QUALITY_GATE_CONFIG[mode];
   const warnings: string[] = [];
-  // V4.4: ALWAYS allow warnings (never abort) - articles are saved as draft with quality issues
-  // The frontend and publication flow will handle quality enforcement
-  const allowWarnings = true;
   const logPrefix = options?.requestId ? `[${options.requestId}]` : '';
   
-  // V4.3: Functional minimums - articles can pass with warnings if these are met
-  const FUNCTIONAL_MIN_SECTIONS = mode === 'authority' ? 5 : 3;
-  const FUNCTIONAL_MIN_FAQ = 2;  // V4.4: Minimum functional FAQ
-  
-  console.log(`${logPrefix}[QualityGate] Running validation for mode: ${mode}, allowWarnings: ${allowWarnings}, functionalMinSections: ${FUNCTIONAL_MIN_SECTIONS}`);
+  // V4.5: LOG OBRIGATÓRIO - Pipeline NUNCA aborta
+  console.log(`${logPrefix}[PIPELINE] Never aborting on quality gate - draft fallback active`);
+  console.log(`${logPrefix}[QualityGate] Running validation for mode: ${mode}`);
 
-  // 1. TITLE - SEMPRE HARD GATE
-  if (!article.title?.trim()) {
-    return {
-      passed: false,
-      code: ERROR_CODES.MISSING_TITLE,
-      details: 'Title está vazio ou ausente'
-    };
-  }
-
-  // 2. INTRODUCTION - SEMPRE HARD GATE
-  const introduction = article.introduction || article.intro || '';
-  if (introduction.length < config.minIntroductionLength) {
-    return {
-      passed: false,
-      code: ERROR_CODES.MISSING_INTRODUCTION,
-      details: `Introduction tem ${introduction.length} chars, mínimo: ${config.minIntroductionLength}`
-    };
-  }
-
-  // 3. SECTIONS - DEGRADAÇÃO CONTROLADA V4.3
-  // Authority mode: if >= 5 sections, allow as warning (not hard fail)
-  // Entry mode: if >= 3 sections, allow as warning
+  // ============================================================================
+  // V4.5: MÉTRICAS CALCULADAS PRIMEIRO (sempre retorna métricas)
+  // ============================================================================
   const sections = Array.isArray(article.sections) ? article.sections : [];
-  
-  if (sections.length < config.minH2Count) {
-    // V4.3: Allow degradation if functional minimum is met
-    if (sections.length >= FUNCTIONAL_MIN_SECTIONS) {
-      warnings.push(`insufficient_sections: ${sections.length}/${config.minH2Count}`);
-      console.warn(`${logPrefix}[QualityGate] WARNING: Sections ${sections.length} < ${config.minH2Count} (functional min ${FUNCTIONAL_MIN_SECTIONS} met)`);
-    } else {
-      return {
-        passed: false,
-        code: ERROR_CODES.INSUFFICIENT_SECTIONS,
-        details: `Sections: ${sections.length}, mínimo funcional: ${FUNCTIONAL_MIN_SECTIONS} (modo ${mode})`
-      };
-    }
-  }
-
-  // 4. SEÇÕES INVÁLIDAS - SEMPRE HARD GATE
-  // deno-lint-ignore no-explicit-any
-  const invalidSections = sections.filter((s: any) => 
-    !s.h2?.trim() || 
-    !s.content?.trim() || 
-    s.content.length < config.minSectionContentLength
-  );
-
-  if (invalidSections.length > 0) {
-    return {
-      passed: false,
-      code: ERROR_CODES.INVALID_SECTIONS,
-      details: `${invalidSections.length} seções vazias ou com menos de ${config.minSectionContentLength} chars`
-    };
-  }
-
-  // 5. FAQ - DEGRADAÇÃO CONTROLADA V4.4
   const faqCount = Array.isArray(article.faq) ? article.faq.length : 0;
-  
-  if (faqCount < config.minFaqCount) {
-    // V4.4: Always allow warning if functional minimum is met (never abort)
-    if (faqCount >= FUNCTIONAL_MIN_FAQ) {
-      warnings.push(`insufficient_faq: ${faqCount}/${config.minFaqCount}`);
-      console.warn(`${logPrefix}[QualityGate] WARNING: FAQ ${faqCount} < ${config.minFaqCount} (functional min ${FUNCTIONAL_MIN_FAQ} met)`);
-    } else {
-      warnings.push(`critical_faq: ${faqCount}/${FUNCTIONAL_MIN_FAQ}`);
-      console.warn(`${logPrefix}[QualityGate] CRITICAL WARNING: FAQ ${faqCount} < functional min ${FUNCTIONAL_MIN_FAQ}`);
-    }
-  }
-
-  // 6. IMAGES - DEGRADAÇÃO CONTROLADA V4.4 (never abort)
   const imageCount = Array.isArray(article.image_prompts) ? article.image_prompts.length : 0;
+  const introduction = article.introduction || article.intro || '';
+  const conclusion = article.conclusion || '';
   
-  if (imageCount < config.minImagePrompts) {
-    if (imageCount >= 1) {
-      warnings.push(`insufficient_images: ${imageCount}/${config.minImagePrompts}`);
-      console.warn(`${logPrefix}[QualityGate] WARNING: Images ${imageCount} < ${config.minImagePrompts}`);
-    } else {
-      warnings.push(`critical_images: ${imageCount}/${config.minImagePrompts}`);
-      console.warn(`${logPrefix}[QualityGate] CRITICAL WARNING: No images available`);
-    }
-  }
-
-  // 7. HERO IMAGE - SEMPRE HARD GATE
-  const hasHeroImage = article.featured_image_url || 
-                       article.image_prompts?.[0]?.url;
-  if (!hasHeroImage) {
-    return {
-      passed: false,
-      code: ERROR_CODES.MISSING_HERO_IMAGE,
-      details: 'Hero image URL obrigatória para preview funcionar'
-    };
-  }
-
-  // 8. WORD COUNT - DEGRADAÇÃO CONTROLADA
+  // Word count calculation
   let totalWords = 0;
-  
-  // Contar introduction
   if (introduction) {
     totalWords += introduction.split(/\s+/).filter(Boolean).length;
   }
-  
-  // Contar sections
   // deno-lint-ignore no-explicit-any
   sections.forEach((s: any) => {
     if (s.content) {
       totalWords += s.content.split(/\s+/).filter(Boolean).length;
     }
-    // Contar H3s
     if (Array.isArray(s.h3s)) {
       // deno-lint-ignore no-explicit-any
       s.h3s.forEach((h3: any) => {
@@ -145,41 +52,89 @@ export function runQualityGate(article: any, mode: ArticleMode, options?: Qualit
       });
     }
   });
-  
-  // Contar conclusion
-  const conclusion = article.conclusion || '';
   if (conclusion) {
     totalWords += conclusion.split(/\s+/).filter(Boolean).length;
   }
 
+  // ============================================================================
+  // V4.5: VALIDAÇÕES - Todas viram WARNINGS (nunca abort)
+  // ============================================================================
+
+  // 1. TITLE - Warning crítico (não abort)
+  if (!article.title?.trim()) {
+    warnings.push('critical_missing_title');
+    console.warn(`${logPrefix}[QualityGate] CRITICAL: Title missing - will force draft`);
+  }
+
+  // 2. INTRODUCTION - Warning crítico (não abort)
+  if (introduction.length < config.minIntroductionLength) {
+    warnings.push(`critical_introduction: ${introduction.length}/${config.minIntroductionLength}`);
+    console.warn(`${logPrefix}[QualityGate] CRITICAL: Introduction too short (${introduction.length}/${config.minIntroductionLength})`);
+  }
+
+  // 3. SECTIONS COUNT - Warning (não abort)
+  if (sections.length < config.minH2Count) {
+    warnings.push(`insufficient_sections: ${sections.length}/${config.minH2Count}`);
+    console.warn(`${logPrefix}[QualityGate] WARNING: Sections ${sections.length} < ${config.minH2Count}`);
+  }
+
+  // 4. INVALID SECTIONS - Warning (não abort)
+  // deno-lint-ignore no-explicit-any
+  const invalidSections = sections.filter((s: any) => 
+    !s.h2?.trim() || 
+    !s.content?.trim() || 
+    s.content.length < config.minSectionContentLength
+  );
+  if (invalidSections.length > 0) {
+    warnings.push(`invalid_sections: ${invalidSections.length}`);
+    console.warn(`${logPrefix}[QualityGate] WARNING: ${invalidSections.length} sections are empty or too short`);
+  }
+
+  // 5. FAQ - Warning (não abort)
+  if (faqCount < config.minFaqCount) {
+    warnings.push(`insufficient_faq: ${faqCount}/${config.minFaqCount}`);
+    console.warn(`${logPrefix}[QualityGate] WARNING: FAQ ${faqCount} < ${config.minFaqCount}`);
+  }
+
+  // 6. IMAGES - Warning (não abort)
+  if (imageCount < config.minImagePrompts) {
+    warnings.push(`insufficient_images: ${imageCount}/${config.minImagePrompts}`);
+    console.warn(`${logPrefix}[QualityGate] WARNING: Images ${imageCount} < ${config.minImagePrompts}`);
+  }
+
+  // 7. HERO IMAGE - Warning (não abort)
+  const hasHeroImage = article.featured_image_url || article.image_prompts?.[0]?.url;
+  if (!hasHeroImage) {
+    warnings.push('missing_hero_image');
+    console.warn(`${logPrefix}[QualityGate] WARNING: No hero image - frontend will show placeholder`);
+  }
+
+  // 8. WORD COUNT - Warning (não abort)
   if (totalWords < config.minWordCount) {
-    // V4.4: Never abort - use warnings
-    if (totalWords >= 500) {
-      warnings.push(`insufficient_word_count: ${totalWords}/${config.minWordCount}`);
-      console.warn(`${logPrefix}[QualityGate] WARNING: Words ${totalWords} < ${config.minWordCount}`);
-    } else {
-      warnings.push(`critical_word_count: ${totalWords}/500`);
-      console.warn(`${logPrefix}[QualityGate] CRITICAL WARNING: Word count ${totalWords} < 500`);
-    }
+    warnings.push(`insufficient_word_count: ${totalWords}/${config.minWordCount}`);
+    console.warn(`${logPrefix}[QualityGate] WARNING: Word count ${totalWords} < ${config.minWordCount}`);
   }
 
-  // 9. CONCLUSION - V4.4: Convert to critical warning (not hard gate)
+  // 9. CONCLUSION - Warning (não abort)
   if (conclusion.length < config.minConclusionLength) {
-    warnings.push(`critical_conclusion: ${conclusion.length}/${config.minConclusionLength}`);
-    console.warn(`${logPrefix}[QualityGate] CRITICAL WARNING: Conclusion ${conclusion.length} < ${config.minConclusionLength}`);
+    warnings.push(`insufficient_conclusion: ${conclusion.length}/${config.minConclusionLength}`);
+    console.warn(`${logPrefix}[QualityGate] WARNING: Conclusion too short (${conclusion.length}/${config.minConclusionLength})`);
   }
 
-  // ✅ PASSOU EM TUDO
-  console.log(`${logPrefix}[QualityGate] ✅ PASSED - ${sections.length} H2s, ${faqCount} FAQs, ${imageCount} images, ${totalWords} palavras`);
+  // ============================================================================
+  // V4.5: SEMPRE RETORNA passed: true (caller decide draft baseado em warnings)
+  // ============================================================================
+  const hasCriticalWarnings = warnings.some(w => w.startsWith('critical_'));
   
-  if (warnings.length > 0) {
-    console.warn(`${logPrefix}[QualityGate] Passed with ${warnings.length} warnings:`, warnings);
-  }
+  console.log(`${logPrefix}[QualityGate] ✅ PASSED (${warnings.length} warnings${hasCriticalWarnings ? ', HAS CRITICAL' : ''})`);
+  console.log(`${logPrefix}[QualityGate] Metrics: ${sections.length} H2s, ${faqCount} FAQs, ${imageCount} images, ${totalWords} words`);
   
   return {
-    passed: true,
+    passed: true, // V4.5: SEMPRE true - caller decide se força draft
     code: 'ok',
-    details: warnings.length > 0 ? `Validado com ${warnings.length} avisos` : 'Artigo validado com sucesso',
+    details: warnings.length > 0 
+      ? `Validado com ${warnings.length} avisos${hasCriticalWarnings ? ' (críticos presentes)' : ''}`
+      : 'Artigo validado com sucesso',
     warnings: warnings.length > 0 ? warnings : undefined,
     metrics: {
       wordCount: totalWords,
