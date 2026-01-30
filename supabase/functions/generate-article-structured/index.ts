@@ -1864,9 +1864,46 @@ REGRAS CRÍTICAS:
       required: ['title', 'meta_description', 'excerpt', 'content', 'faq']
     };
 
-    const seoSystem = `Você é um Agente SEO. Reestruture o texto para máxima performance orgânica.\n\nRegras:\n- H1 único, H2/H3 consistentes, densidade semântica alta sem keyword stuffing\n- Use entidades/termos do SERP e respeite intenção de busca\n- Gere FAQ/snippet/meta tags\n- NÃO crie fatos novos. Use apenas o pacote de pesquisa e o rascunho.`;
+    // V3.2: SEO System with HIERARCHY_RULES to preserve introduction
+    const seoSystem = `Você é um Agente SEO. Reestruture o texto para máxima performance orgânica.
 
-    const seoUser = `PACOTE DE PESQUISA (resumo):\n- Termos: ${(researchPackage.serp.commonTerms || []).slice(0, 12).join(', ')}\n- Títulos top: ${(researchPackage.serp.topTitles || []).slice(0, 3).join(' | ')}\n- Gaps: ${(researchPackage.serp.contentGaps || []).slice(0, 5).join(' | ')}\n- Fontes permitidas: ${(researchPackage.sources || []).slice(0, 8).join(' | ')}\n\nRASCUNHO (writer):\nTitle: ${writerOut.title}\nMeta: ${writerOut.meta_description}\n\nCONTENT:\n${(writerOut.content || '').substring(0, 6000)}\n\nReestruture e retorne via tool optimize_article.`;
+## ⛔ REGRAS ABSOLUTAS DE HIERARQUIA (VIOLAÇÃO = ARTIGO INVÁLIDO)
+❌ PROIBIDO:
+- Mais de 1 H1 por artigo
+- H2 na introdução (primeiras 3-4 linhas DEVEM ser texto puro, SEM headings)
+- H3 sem H2 pai imediatamente antes
+- H2 consecutivos sem conteúdo entre eles
+
+✅ ESTRUTURA OBRIGATÓRIA:
+1. H1 (título) → 1 único, NÃO incluir no content
+2. INTRODUÇÃO → 3-4 linhas de texto puro, MÍNIMO 120 caracteres, SEM headings (##/###)
+3. Primeiro ## só aparece APÓS a introdução
+4. H2 → 2-3 parágrafos cada
+5. Último H2 → CTA natural
+
+Regras SEO:
+- H1 único, H2/H3 consistentes, densidade semântica alta sem keyword stuffing
+- Use entidades/termos do SERP e respeite intenção de busca
+- Gere FAQ/snippet/meta tags
+- NÃO crie fatos novos. Use apenas o pacote de pesquisa e o rascunho.
+- PRESERVE A INTRODUÇÃO DO RASCUNHO. Ela DEVE ter pelo menos 120 caracteres ANTES do primeiro ##.`;
+
+    const seoUser = `PACOTE DE PESQUISA (resumo):
+- Termos: ${(researchPackage.serp.commonTerms || []).slice(0, 12).join(', ')}
+- Títulos top: ${(researchPackage.serp.topTitles || []).slice(0, 3).join(' | ')}
+- Gaps: ${(researchPackage.serp.contentGaps || []).slice(0, 5).join(' | ')}
+- Fontes permitidas: ${(researchPackage.sources || []).slice(0, 8).join(' | ')}
+
+RASCUNHO (writer):
+Title: ${writerOut.title}
+Meta: ${writerOut.meta_description}
+
+CONTENT:
+${(writerOut.content || '').substring(0, 6000)}
+
+⚠️ IMPORTANTE: O campo "content" da resposta DEVE começar com 3-4 linhas de introdução (texto puro, mínimo 120 chars) ANTES do primeiro ## heading. NÃO remova a introdução!
+
+Reestruture e retorne via tool optimize_article.`;
 
     const seoStart = nowMs();
     // V3.1: SEO optimization via unified provider layer
@@ -2066,14 +2103,47 @@ REGRAS CRÍTICAS:
       meta_description: (seoOut.meta_description || writerOut.meta_description || articleEngineOutline?.metaDescription || '').toString().trim().substring(0, 160),
       excerpt: (seoOut.excerpt || writerOut.excerpt || seoOut.meta_description || '').toString().trim(),
       content: contentWithEat,  // Content with E-E-A-T injected
-      // V3.1: Extract introduction as ALL content before first H2 (not just first paragraph)
+      // V3.2: Extract introduction with telemetry and proper edge-case handling
       introduction: (() => {
         const firstH2Index = contentWithEat.search(/^##\s+/m);
-        if (firstH2Index > 0) {
-          return contentWithEat.substring(0, firstH2Index).trim();
+        
+        // Telemetry: log introduction extraction details
+        const writerIntro = (() => {
+          const idx = (writerOut.content || '').search(/^##\s+/m);
+          if (idx > 0) return (writerOut.content || '').substring(0, idx).trim();
+          if (idx === 0) return '';
+          return (writerOut.content || '').split('\n\n').slice(0, 2).join('\n\n');
+        })();
+        
+        const seoIntro = (() => {
+          const idx = (seoOut.content || '').search(/^##\s+/m);
+          if (idx > 0) return (seoOut.content || '').substring(0, idx).trim();
+          if (idx === 0) return '';
+          return (seoOut.content || '').split('\n\n').slice(0, 2).join('\n\n');
+        })();
+        
+        console.log(`[Intro Telemetry] writerOut intro: ${writerIntro.length} chars, first 100: "${writerIntro.substring(0, 100)}..."`);
+        console.log(`[Intro Telemetry] seoOut intro: ${seoIntro.length} chars, first 100: "${seoIntro.substring(0, 100)}..."`);
+        console.log(`[Intro Telemetry] contentWithEat firstH2Index: ${firstH2Index}`);
+        console.log(`[Intro Telemetry] source: ${seoOut.content ? 'seoOut' : 'writerOut'}`);
+        
+        // Edge-case: H2 at index 0 means NO introduction exists
+        if (firstH2Index === 0) {
+          console.error(`[Intro Telemetry] ⚠️ CRITICAL: Content starts with ## (no introduction). firstH2Index=0`);
+          console.error(`[Intro Telemetry] Content prefix: "${contentWithEat.substring(0, 200)}"`);
+          return ''; // Return empty - Quality Gate will catch this
         }
-        // Fallback: use first 2 paragraphs if no H2 found
-        const paragraphs = contentWithEat.split('\n\n').slice(0, 2);
+        
+        // Normal case: extract everything before first H2
+        if (firstH2Index > 0) {
+          const intro = contentWithEat.substring(0, firstH2Index).trim();
+          console.log(`[Intro Telemetry] Extracted intro: ${intro.length} chars`);
+          return intro;
+        }
+        
+        // Fallback: no H2 found at all, use first 2 paragraphs
+        console.log(`[Intro Telemetry] No H2 found, using fallback (first 2 paragraphs)`);
+        const paragraphs = contentWithEat.split('\n\n').filter((p: string) => !p.trim().startsWith('#')).slice(0, 2);
         return paragraphs.join('\n\n');
       })(),
       // V3.1: Extract conclusion as content after last "Próximo Passo" or "Conclusão" H2
@@ -2119,13 +2189,28 @@ REGRAS CRÍTICAS:
       console.error(`[QualityGate] ❌ ABORT: ${gateResult.code}`);
       console.error(`[QualityGate] Details: ${gateResult.details}`);
       
+      // V3.2: Enhanced error payload with diagnostic info
+      const introLen = articleWithImages.introduction?.length || 0;
+      const firstH2Index = contentWithEat.search(/^##\s+/m);
+      const contentSource = seoOut.content ? 'seoOut' : 'writerOut';
+      
+      console.error(`[QualityGate] Diagnostic: intro_len=${introLen}, first_h2_index=${firstH2Index}, source=${contentSource}`);
+      console.error(`[QualityGate] Content prefix: "${contentWithEat.substring(0, 150)}"`);
+      
       return new Response(
         JSON.stringify({
           error: 'QUALITY_GATE_FAILED',
           code: gateResult.code,
           message: ERROR_MESSAGES[gateResult.code] || 'Artigo não atende critérios de qualidade',
           details: gateResult.details,
-          suggestion: 'Tente novamente com tema mais específico ou verifique os parâmetros'
+          suggestion: 'Tente novamente com tema mais específico ou verifique os parâmetros',
+          // V3.2: Diagnostic fields (for debugging only)
+          _debug: {
+            intro_len: introLen,
+            first_h2_index: firstH2Index,
+            content_source: contentSource,
+            content_prefix: contentWithEat.substring(0, 120)
+          }
         }),
         { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
