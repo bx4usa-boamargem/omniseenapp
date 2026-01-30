@@ -67,8 +67,8 @@ import { QUALITY_GATE_CONFIG, ERROR_CODES, ERROR_MESSAGES, type ArticleMode } fr
 import { 
   callWriter, 
   callQA, 
-  // callResearch, // TEMPORARILY DISABLED - Gemini fallback not available
   generateArticleImagesViaProvider,
+  generateUnsplashFallback, // V4.1: For image timeout fallback
   type WriterRequest,
   type QARequest
 } from '../_shared/aiProviders.ts';
@@ -2223,19 +2223,52 @@ Reestruture e retorne via tool optimize_article.`;
       featured_image_url: null as string | null
     };
 
-    // Generate images if we have prompts
-    // V3.1: Using unified provider layer (Primary: Lovable Gateway, Fallback: Unsplash)
+    // V4.1: Image generation with 5s timeout + async fallback
+    const IMAGE_TIMEOUT_MS = 5000; // 5 seconds max for sync images
+    let imagesTimedOut = false;
+    
     if (articleWithImages.image_prompts && articleWithImages.image_prompts.length > 0) {
       try {
-        articleWithImages = await generateArticleImagesViaProvider(
+        // V4.1: Race between image generation and timeout
+        const imageGenPromise = generateArticleImagesViaProvider(
           articleWithImages,
           effectiveNiche,
           city
         );
-        console.log(`[QualityGate] ✅ Images generated: ${articleWithImages.image_prompts?.length || 0} images`);
+        
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('IMAGE_TIMEOUT')), IMAGE_TIMEOUT_MS);
+        });
+        
+        articleWithImages = await Promise.race([imageGenPromise, timeoutPromise]);
+        console.log(`[${requestId}][Images] ✅ Generated in sync within ${IMAGE_TIMEOUT_MS}ms`);
+        
       } catch (imgError) {
-        console.error('[QualityGate] ⚠️ Image generation failed:', imgError);
-        // Continue without images - will fail quality gate if required
+        const errorMsg = imgError instanceof Error ? imgError.message : 'Unknown';
+        
+        if (errorMsg === 'IMAGE_TIMEOUT') {
+          console.warn(`[${requestId}][Images] ⏱️ Timeout after ${IMAGE_TIMEOUT_MS}ms - will generate in background`);
+          imagesTimedOut = true;
+          
+          // Use Unsplash placeholders for immediate response
+          for (const imgPrompt of articleWithImages.image_prompts) {
+            const placeholder = generateUnsplashFallback({
+              prompt: '',
+              context: imgPrompt.context || 'business',
+              niche: effectiveNiche,
+              city
+            });
+            imgPrompt.url = placeholder.url;
+            imgPrompt.generated_by = 'unsplash_placeholder';
+          }
+          
+          // Set placeholder for featured image
+          if (!articleWithImages.featured_image_url && articleWithImages.image_prompts[0]) {
+            articleWithImages.featured_image_url = articleWithImages.image_prompts[0].url;
+          }
+        } else {
+          console.error(`[${requestId}][Images] ⚠️ Generation failed:`, errorMsg);
+        }
       }
     }
 
@@ -2401,6 +2434,38 @@ Reestruture e retorne via tool optimize_article.`;
       }).catch(e => {
         console.error(`[${requestId}][SEO-Job] ❌ Failed to dispatch:`, e);
       });
+      
+      // V4.1: Dispatch background image generation if timed out
+      if (imagesTimedOut) {
+        console.log(`[${requestId}][Images] Dispatching background image job for article ${persistedArticle.id}`);
+        
+        // Mark article as having pending images
+        await supabase
+          .from('articles')
+          .update({ images_pending: true })
+          .eq('id', persistedArticle.id);
+        
+        // Fire-and-forget background job
+        fetch(`${SUPABASE_URL}/functions/v1/generate-images-background`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SERVICE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            article_id: persistedArticle.id,
+            blog_id,
+            request_id: requestId,
+            image_prompts: articleWithImages.image_prompts,
+            niche: effectiveNiche,
+            city
+          }),
+        }).then(res => {
+          console.log(`[${requestId}][ImageJob] Dispatch status: ${res.status}`);
+        }).catch(e => {
+          console.error(`[${requestId}][ImageJob] Dispatch failed:`, e);
+        });
+      }
       
     } catch (persistError) {
       console.error(`[${requestId}] PERSIST_ERROR:`, persistError);

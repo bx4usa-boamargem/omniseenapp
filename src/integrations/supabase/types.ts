@@ -1060,6 +1060,7 @@ export type Database = {
           generation_source: string | null
           highlights: Json | null
           id: string
+          images_pending: boolean | null
           keywords: string[] | null
           last_content_change_at: string | null
           last_score_change_reason: string | null
@@ -1123,6 +1124,7 @@ export type Database = {
           generation_source?: string | null
           highlights?: Json | null
           id?: string
+          images_pending?: boolean | null
           keywords?: string[] | null
           last_content_change_at?: string | null
           last_score_change_reason?: string | null
@@ -1186,6 +1188,7 @@ export type Database = {
           generation_source?: string | null
           highlights?: Json | null
           id?: string
+          images_pending?: boolean | null
           keywords?: string[] | null
           last_content_change_at?: string | null
           last_score_change_reason?: string | null
