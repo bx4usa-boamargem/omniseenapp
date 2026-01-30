@@ -825,6 +825,23 @@ async function persistArticleToDb(
   if (sanitizeRemoved.length > 0) {
     console.log(`[PERSIST] Content sanitized, removed ${sanitizeRemoved.length} issues`);
   }
+
+  // V4.3: Validar links externos (warning only, não bloqueia persistência)
+  const externalLinks = sanitizedContent.match(
+    /<a\s+href="https?:\/\/(?![^"]*(seudominio\.com|localhost))[^"]+"/gi
+  );
+
+  if (!externalLinks || externalLinks.length < 2) {
+    console.warn(
+      `[PERSIST] ⚠️ Less than 2 external links detected. Found: ${
+        externalLinks ? externalLinks.length : 0
+      }`
+    );
+  } else {
+    console.log(
+      `[PERSIST] ✅ External links validated: ${externalLinks.length}`
+    );
+  }
   
   // Preparar dados para inserção (no duplicate found)
   const insertData = {
