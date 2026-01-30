@@ -130,14 +130,18 @@ export default function ClientArticleEditor() {
   const generationLockRef = useRef(false); // Prevent double-submission
   const timeoutWarningRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Map local stages to Article Engine stages
+  /**
+   * V4.0: Updated stage mapping - aligned with new fast generation flow
+   * Removed 'outlining' and 'optimizing' from sync flow (now background)
+   */
   const mapStageToArticleEngine = (stage: GenerationStage): string | null => {
     if (!stage) return null;
     const mapping: Record<string, string> = {
-      'analyzing': 'classifying', // Maps to first real UI stage
-      'structuring': 'researching',
+      'analyzing': 'classifying',
+      'structuring': 'selecting',
       'generating': 'writing',
-      'finalizing': 'optimizing'
+      'images': 'images',
+      'finalizing': 'finalizing'
     };
     return mapping[stage] || stage;
   };
