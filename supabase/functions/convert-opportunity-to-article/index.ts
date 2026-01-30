@@ -397,16 +397,18 @@ serve(async (req) => {
     if (!generateResponse.ok) {
       console.error(`[${requestId}][CONVERT] Article generation failed:`, responseText);
       
-      // E) Retorno estruturado com error_type e reason_code
+      // V4.5: NUNCA propagar 422 - Quality Gate é non-blocking
+      // Qualquer erro do generate-article-structured é tratado como erro interno 500
       try {
         const errorData = JSON.parse(responseText);
-        const statusCode = generateResponse.status === 422 ? 422 : 500;
+        const statusCode = 500; // V4.5: SEMPRE 500 - nunca propagar 422
+        console.warn(`[${requestId}][PIPELINE] Forcing error response as 500 (original status: ${generateResponse.status})`);
         return new Response(
           JSON.stringify({
             success: false,
-            error_type: statusCode === 422 ? 'QUALITY_GATE_FAILED' : 'GENERATION_FAILED',
+            error_type: 'GENERATION_FAILED', // V4.5: Nunca usar QUALITY_GATE_FAILED no retorno
             reason_code: errorData.code || errorData.error || 'unknown',
-            message: errorData.message || `Falha na geração do artigo (${generateResponse.status})`,
+            message: errorData.message || `Falha na geração do artigo (erro interno)`,
             request_id: requestId,
             debug: errorData.debug || null,
           }),
@@ -417,7 +419,7 @@ serve(async (req) => {
           JSON.stringify({
             success: false,
             error_type: 'GENERATION_FAILED',
-            message: `Falha na geração do artigo (${generateResponse.status})`,
+            message: `Falha na geração do artigo (erro interno)`,
             request_id: requestId,
           }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
