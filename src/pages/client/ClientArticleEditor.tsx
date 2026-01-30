@@ -53,6 +53,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/hooks/useAuth';
+import { usePlanLimits } from '@/hooks/usePlanLimits';
 
 type EditorPhase = 'form' | 'generating' | 'editing';
 type ViewMode = 'editor' | 'preview' | 'split';
@@ -77,6 +78,7 @@ export default function ClientArticleEditor() {
   const [searchParams] = useSearchParams();
   const { blog, loading: blogLoading, isPlatformAdmin } = useBlog();
   const { user } = useAuth();
+  const { checkLimit } = usePlanLimits();
 
   const showAdvanced = useMemo(() => {
     const email = user?.email?.toLowerCase();
@@ -239,6 +241,18 @@ export default function ClientArticleEditor() {
     const requestId = crypto.randomUUID();
     console.log(`[${requestId}][ConvertOpportunity] Starting conversion for opportunity:`, oppId);
     
+    // 🔒 VERIFICAÇÃO DE LIMITE (UX - evitar tentativa inútil)
+    const limitCheck = await checkLimit('articles');
+    if (!limitCheck.canCreate) {
+      console.log(`[${requestId}][ConvertOpportunity] BLOCKED: Article limit reached`);
+      toast.error('Limite de artigos atingido', {
+        description: `Você usou ${limitCheck.used}/${limitCheck.limit} artigos este mês. Faça upgrade para continuar.`,
+      });
+      return;
+    }
+    
+    console.log(`[${requestId}][ConvertOpportunity] Limit OK: ${limitCheck.remaining} articles remaining`);
+    
     setPhase('generating');
     setGenerationStage('analyzing');
     setGenerationProgress(10);
@@ -262,6 +276,17 @@ export default function ClientArticleEditor() {
       if (error) {
         console.error(`[${requestId}][ConvertOpportunity] Edge function error:`, error);
         const errorMessage = error.message || 'Erro desconhecido';
+        
+        // Tratamento específico para LIMIT_REACHED
+        if (errorMessage.includes('LIMIT_REACHED')) {
+          toast.error('Limite de artigos atingido', {
+            description: 'Faça upgrade do seu plano para continuar.',
+          });
+          setPhase('form');
+          setGenerationProgress(0);
+          setGenerationStage(null);
+          return;
+        }
         
         if (errorMessage.includes('insufficient_sections') || errorMessage.includes('QUALITY_GATE')) {
           toast.error('Estrutura do artigo insuficiente. Tente com outro tema.');
@@ -287,6 +312,17 @@ export default function ClientArticleEditor() {
         const reasonCode = data?.reason_code || '';
         const failReason = data?.message || data?.details || data?.error || 'Erro na conversão';
         
+        // Tratamento específico para LIMIT_REACHED
+        if (errorType === 'LIMIT_REACHED') {
+          toast.error('Limite de artigos atingido', {
+            description: failReason || 'Faça upgrade do seu plano para continuar.',
+          });
+          setPhase('form');
+          setGenerationProgress(0);
+          setGenerationStage(null);
+          return;
+        }
+        
         if (errorType === 'QUALITY_GATE_FAILED' || reasonCode.includes('insufficient')) {
           toast.error(`Validação falhou: ${failReason}`);
         } else {
@@ -299,7 +335,7 @@ export default function ClientArticleEditor() {
         return;
       }
 
-      // Sucesso
+      // ✅ SUCESSO - NÃO incrementar usage (backend já fez)
       setGenerationProgress(100);
       toast.success('Artigo criado com sucesso!');
       console.log(`[${requestId}][ConvertOpportunity] Success, redirecting to article:`, data.article_id);

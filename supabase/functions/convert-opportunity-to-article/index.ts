@@ -31,6 +31,8 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let requestId = 'unknown';
+
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -39,7 +41,7 @@ serve(async (req) => {
     
     // A) Receber request_id do frontend
     const { opportunityId, blogId, request_id }: ConvertRequest & { request_id?: string } = await req.json();
-    const requestId = request_id || crypto.randomUUID();
+    requestId = request_id || crypto.randomUUID();
 
     if (!opportunityId || !blogId) {
       throw new Error("opportunityId and blogId are required");
@@ -72,6 +74,53 @@ serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // 🔒 LIMIT CHECK - Buscar user_id do blog
+    const { data: blogData } = await supabase
+      .from('blogs')
+      .select('user_id')
+      .eq('id', blogId)
+      .single();
+
+    if (!blogData?.user_id) {
+      throw new Error('Blog not found or no user associated');
+    }
+
+    console.log(`[${requestId}][CONVERT] Checking limits for user ${blogData.user_id}`);
+
+    // Chamar check-limits
+    const limitCheckResponse = await fetch(
+      `${SUPABASE_URL}/functions/v1/check-limits`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        },
+        body: JSON.stringify({
+          userId: blogData.user_id,
+          action: 'check',
+          resource: 'articles',
+        }),
+      }
+    );
+
+    const limitData = await limitCheckResponse.json();
+
+    if (limitData.limitReached) {
+      console.log(`[${requestId}][CONVERT] BLOCKED: Limit reached for user ${blogData.user_id}`);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error_type: 'LIMIT_REACHED',
+          message: `Limite de artigos atingido (${limitData.usage?.articles_used || 0}/${limitData.limits?.articles_limit || 0})`,
+          request_id: requestId,
+        }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[${requestId}][CONVERT] Limit OK: ${limitData.remaining} remaining`);
 
     // 2. Buscar contexto do blog para geração
     const { data: profile } = await supabase
@@ -444,6 +493,60 @@ serve(async (req) => {
 
     console.log(`[${requestId}][CONVERT] ✅ Conversion complete: Opportunity ${opportunityId} → Article ${articleId}`);
 
+    // 🔒 INCREMENTAR USAGE após sucesso (fonte da verdade)
+    console.log(`[${requestId}][CONVERT] Incrementing usage for user ${blogData.user_id}`);
+
+    try {
+      // Incrementar usage
+      await fetch(
+        `${SUPABASE_URL}/functions/v1/check-limits`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          },
+          body: JSON.stringify({
+            userId: blogData.user_id,
+            action: 'increment',
+            resource: 'articles',
+          }),
+        }
+      );
+
+      console.log(`[${requestId}][CONVERT] Usage incremented`);
+
+      // Log consumption para billing
+      await fetch(
+        `${SUPABASE_URL}/functions/v1/log-consumption`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          },
+          body: JSON.stringify({
+            user_id: blogData.user_id,
+            blog_id: blogId,
+            action_type: 'article_generation',
+            action_description: `Artigo: ${opportunity.suggested_title}`,
+            model_used: 'google/gemini-2.5-flash',
+            metadata: {
+              article_id: articleId,
+              opportunity_id: opportunityId,
+              source: 'opportunity_conversion',
+              request_id: requestId,
+            },
+          }),
+        }
+      );
+
+      console.log(`[${requestId}][CONVERT] Consumption logged`);
+    } catch (billingError) {
+      // Non-blocking - article was created
+      console.error(`[${requestId}][CONVERT] Billing error (non-blocking):`, billingError);
+    }
+
     // E) Retorno estruturado de sucesso
     return new Response(
       JSON.stringify({
@@ -466,6 +569,7 @@ serve(async (req) => {
         success: false,
         error_type: 'UNEXPECTED_ERROR',
         message: error instanceof Error ? error.message : "Unknown error",
+        request_id: requestId || 'unknown',
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
