@@ -13,11 +13,12 @@ export type GenerationStageType =
   | 'selecting' 
   | 'researching' 
   | 'writing' 
+  | 'seo'
+  | 'qa'
   | 'images' 
   | 'finalizing' 
   | 'completed' 
-  | 'failed' 
-  | null;
+  | 'failed';
 
 interface GenerationStatus {
   stage: GenerationStageType;
@@ -44,7 +45,7 @@ export function useGenerationPolling({
   onError
 }: UseGenerationPollingOptions) {
   const [status, setStatus] = useState<GenerationStatus>({
-    stage: null,
+    stage: 'classifying',
     progress: 0,
     imagesTotal: 0,
     imagesCompleted: 0,
@@ -53,7 +54,7 @@ export function useGenerationPolling({
   });
   const [isPolling, setIsPolling] = useState(false);
   const [stuckCounter, setStuckCounter] = useState(0);
-  const lastStageRef = useRef<GenerationStageType>(null);
+  const lastStageRef = useRef<GenerationStageType>('classifying');
   const lastProgressRef = useRef<number>(0);
 
   const pollStatus = useCallback(async () => {
@@ -73,7 +74,7 @@ export function useGenerationPolling({
 
       if (!data) return;
 
-      const newStage = (data.generation_stage as GenerationStageType) || null;
+      const newStage = (data.generation_stage as GenerationStageType) || 'classifying';
       const newProgress = data.generation_progress || 0;
 
       // Check if stuck (same stage + progress for multiple polls)
@@ -95,9 +96,10 @@ export function useGenerationPolling({
         status: data.status
       });
 
-      // Check for completion
+      // Check for completion - V4.3: Only 'completed' is valid, no null fallback
       if (data.status === 'published' || data.status === 'draft') {
-        if (newStage === null || newStage === 'completed') {
+        if (newStage === 'completed') {
+          console.log('[GenerationPolling] ✅ Generation completed');
           onComplete?.();
         }
       }
@@ -132,8 +134,9 @@ export function useGenerationPolling({
     };
   }, [enabled, articleId, intervalMs, pollStatus]);
 
-  // Derive if we're stuck (> 7 polls = ~10.5s with 1.5s interval)
-  const isStuck = stuckCounter > 7 && status.stage === 'classifying';
+  // Derive if we're stuck (> 10 polls = ~15s with 1.5s interval)
+  const isStuck = stuckCounter > 10 && 
+    (status.stage === 'classifying' || status.stage === 'researching');
 
   return {
     ...status,
