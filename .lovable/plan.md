@@ -1,173 +1,168 @@
 
 
-# Correção Definitiva V4.5 — Pipeline 100% Non-Blocking
+# Eliminação de Propagação 422 — convert-opportunity-to-article V4.5
 
-## Resumo
+## Objetivo
 
-O pipeline de geração de artigos ainda contém **6 pontos de abort** que causam erros 422/400. Esta correção elimina **todos** os retornos antecipados por validação de qualidade, convertendo-os em warnings.
-
----
-
-## Problemas Identificados
-
-| Arquivo | Linha | Problema | Código de Erro |
-|---------|-------|----------|----------------|
-| `qualityGate.ts` | 34-38 | `return { passed: false }` | MISSING_TITLE |
-| `qualityGate.ts` | 44-48 | `return { passed: false }` | MISSING_INTRODUCTION |
-| `qualityGate.ts` | 62-66 | `return { passed: false }` | INSUFFICIENT_SECTIONS |
-| `qualityGate.ts` | 79-83 | `return { passed: false }` | INVALID_SECTIONS |
-| `qualityGate.ts` | 117-121 | `return { passed: false }` | MISSING_HERO_IMAGE |
-| `generate-article-structured/index.ts` | 1636-1650 | `return new Response(..., { status: 400 })` | MISSING_CITY |
+Eliminar completamente qualquer possibilidade de propagação de status 422 no arquivo `convert-opportunity-to-article/index.ts`, garantindo que o pipeline de conversão de oportunidades nunca retorne erro 422 relacionado a Quality Gate ou conteúdo.
 
 ---
 
-## Alterações Detalhadas
+## Problema Atual
 
-### 1. Arquivo: `supabase/functions/_shared/qualityGate.ts`
-
-**Reescrever completamente** para eliminar todos os `return { passed: false }`.
-
-**Mudanças principais:**
-
-- Adicionar log obrigatório no início: `[PIPELINE] Never aborting on quality gate - draft fallback active`
-- Converter todos os hard gates em warnings com prefixo `critical_`
-- Garantir que a função **SEMPRE** retorna `{ passed: true }`
-- Calcular métricas **antes** das validações para retornar sempre
-
-**Novo comportamento de cada gate:**
-
-| Gate Antigo | Comportamento Novo |
-|-------------|-------------------|
-| Title missing → `passed: false` | `critical_missing_title` warning |
-| Introduction short → `passed: false` | `critical_introduction` warning |
-| Sections < minimum → `passed: false` | `insufficient_sections` warning |
-| Invalid sections → `passed: false` | `invalid_sections` warning |
-| Hero image missing → `passed: false` | `missing_hero_image` warning |
-| FAQ/Images/Words → warning | Mantém como warning |
-
----
-
-### 2. Arquivo: `supabase/functions/_shared/qualityGateConfig.ts`
-
-**Atualizar comentário** para refletir V4.5:
+**Linhas 397-426** do arquivo `supabase/functions/convert-opportunity-to-article/index.ts`:
 
 ```typescript
-/**
- * Quality Gate Configuration
- * V4.5: NUNCA ABORTA - Todos os thresholds são apenas para warnings
- * Artigos são salvos como draft quando thresholds não são atingidos
- */
-```
-
----
-
-### 3. Arquivo: `supabase/functions/generate-article-structured/index.ts`
-
-**Linha 1633-1651:** Substituir abort por fallback + warning
-
-Antes:
-```typescript
-if (!city || city.trim() === '') {
-  console.error(`[${requestId}][QualityGate] ❌ ABORT: Missing city after all fallbacks`);
-  return new Response(
-    JSON.stringify({ error: 'QUALITY_GATE_FAILED', code: ERROR_CODES.MISSING_CITY, ... }),
-    { status: 400, headers: {...} }
-  );
+// CÓDIGO ATUAL (PROBLEMÁTICO)
+if (!generateResponse.ok) {
+  console.error(`[${requestId}][CONVERT] Article generation failed:`, responseText);
+  
+  try {
+    const errorData = JSON.parse(responseText);
+    const statusCode = generateResponse.status === 422 ? 422 : 500;  // ⚠️ PROPAGA 422
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error_type: statusCode === 422 ? 'QUALITY_GATE_FAILED' : 'GENERATION_FAILED',  // ⚠️ USA QUALITY_GATE_FAILED
+        // ...
+      }),
+      { status: statusCode, headers: {...} }  // ⚠️ PODE RETORNAR 422
+    );
+  } catch {
+    // ...
+  }
 }
 ```
 
-Depois:
+---
+
+## Alteração Necessária
+
+**Substituir linhas 397-426** por:
+
 ```typescript
-if (!city || city.trim() === '') {
-  console.warn(`[${requestId}][PIPELINE] Forcing draft fallback - city missing, using "Brasil"`);
-  city = 'Brasil';
+if (!generateResponse.ok) {
+  console.error(`[${requestId}][CONVERT] Article generation failed:`, responseText);
+  
+  // V4.5: NUNCA propagar 422 - Quality Gate é non-blocking
+  // Qualquer erro do generate-article-structured é tratado como erro interno 500
+  try {
+    const errorData = JSON.parse(responseText);
+    const statusCode = 500; // V4.5: SEMPRE 500 - nunca propagar 422
+    console.warn(`[${requestId}][PIPELINE] Forcing error response as 500 (original status: ${generateResponse.status})`);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error_type: 'GENERATION_FAILED', // V4.5: Nunca usar QUALITY_GATE_FAILED no retorno
+        reason_code: errorData.code || errorData.error || 'unknown',
+        message: errorData.message || `Falha na geração do artigo (erro interno)`,
+        request_id: requestId,
+        debug: errorData.debug || null,
+      }),
+      { status: statusCode, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error_type: 'GENERATION_FAILED',
+        message: `Falha na geração do artigo (erro interno)`,
+        request_id: requestId,
+      }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 }
-```
-
-**Linha ~2475:** Adicionar log obrigatório após Quality Gate:
-
-```typescript
-console.log(`[${requestId}][PIPELINE] Never aborting on quality gate - draft fallback active`);
 ```
 
 ---
 
-## Arquivos a Modificar
+## Mudanças Específicas
 
-| Arquivo | Tipo de Alteração |
-|---------|-------------------|
-| `supabase/functions/_shared/qualityGate.ts` | Reescrita completa (~100 linhas) |
-| `supabase/functions/_shared/qualityGateConfig.ts` | Atualizar comentário |
-| `supabase/functions/generate-article-structured/index.ts` | Remover abort linha 1636-1650, adicionar log |
+| Item | Antes | Depois |
+|------|-------|--------|
+| statusCode | `generateResponse.status === 422 ? 422 : 500` | `500` (fixo) |
+| error_type | `statusCode === 422 ? 'QUALITY_GATE_FAILED' : 'GENERATION_FAILED'` | `'GENERATION_FAILED'` (fixo) |
+| Mensagem | `Falha na geração do artigo (${generateResponse.status})` | `Falha na geração do artigo (erro interno)` |
+| Log adicional | Nenhum | `console.warn('[PIPELINE] Forcing error response as 500')` |
 
 ---
 
 ## Verificação Global
 
-O resultado da busca confirma que:
+**Busca por `status: 422` no projeto:**
 
-- **status: 422** - Existe em `generate-image/index.ts` (não relacionado ao Quality Gate)
-- **status: 400** - Existe em várias funções (validações de input, não Quality Gate) + linha 1649 de `generate-article-structured` (será removida)
-- **QUALITY_GATE_FAILED** - Existe em 2 arquivos (ambos serão corrigidos)
-- **passed: false** - Existe **apenas** em `qualityGate.ts` (será completamente removido)
+| Arquivo | Ocorrência | Ação |
+|---------|------------|------|
+| `generate-image/index.ts` linha 293 | Validação de input de imagem individual | Nenhuma (não é Quality Gate) |
+| `convert-opportunity-to-article/index.ts` | Propagação do status 422 | **Será eliminada** |
 
----
+**Busca por `statusCode === 422`:**
 
-## Deploy Necessário
-
-Após aplicar as alterações:
-
-1. `generate-article-structured` (contém o abort de city + lógica do Quality Gate)
-2. `generate-images-background` (depende indiretamente do fluxo)
+| Arquivo | Ocorrência | Ação |
+|---------|------------|------|
+| `convert-opportunity-to-article/index.ts` linha 407 | Decisão de error_type | **Será eliminada** |
 
 ---
 
-## Validação Esperada
+## Arquivo a Modificar
 
-Após a implementação, os logs devem mostrar:
+| Arquivo | Tipo de Alteração |
+|---------|-------------------|
+| `supabase/functions/convert-opportunity-to-article/index.ts` | Substituir linhas 397-426 |
 
-```text
-[PIPELINE] Never aborting on quality gate - draft fallback active
-[QualityGate] Running validation for mode: authority
-[QualityGate] WARNING: FAQ 2 < 8
-[QualityGate] ✅ PASSED (1 warnings)
-[PERSIST] ✅ Article inserted: id=...
-[STAGE] completed (100%)
-```
+---
+
+## Deploy
+
+Realizar deploy forçado de:
+1. `convert-opportunity-to-article` — Eliminação da propagação 422
+
+---
+
+## Validação Pós-Deploy
+
+1. **Busca global** por `status: 422` deve retornar apenas `generate-image/index.ts` (não relacionado a Quality Gate)
+2. **Busca global** por `statusCode === 422` deve retornar zero ocorrências
+3. **Logs esperados** em caso de erro:
+   ```text
+   [abc123][CONVERT] Article generation failed: {...}
+   [abc123][PIPELINE] Forcing error response as 500 (original status: 422)
+   ```
 
 ---
 
 ## Seção Técnica
 
-### Fluxo V4.5
+### Fluxo V4.5 Atualizado
 
 ```text
-INPUT: Artigo gerado pela IA
-         ↓
-QUALITY GATE: runQualityGate()
-  - SEMPRE retorna passed: true
-  - Coleta warnings (critical_ e standard)
-  - Log: [PIPELINE] Never aborting...
-         ↓
-DECISION LOGIC (caller):
-  if (warnings.some(w => w.startsWith('critical_')))
-    → status = 'draft'
-  else
-    → status = autoPublish ? 'published' : 'draft'
-         ↓
-PERSISTENCE: Artigo salvo no banco
-  - generation_stage = 'completed'
-  - generation_progress = 100
-         ↓
-OUTPUT: Response 200 com success: true
+┌─────────────────────────────────────────────────────────────┐
+│            convert-opportunity-to-article V4.5              │
+├─────────────────────────────────────────────────────────────┤
+│  1. Recebe oportunidade do frontend                         │
+│                    ↓                                         │
+│  2. Chama generate-article-structured                       │
+│                    ↓                                         │
+│  3. Se generate retornar erro (qualquer status):            │
+│     - Log: [PIPELINE] Forcing error response as 500         │
+│     - Retorna SEMPRE status 500                             │
+│     - error_type: 'GENERATION_FAILED'                       │
+│     - NUNCA retorna 422 ou QUALITY_GATE_FAILED             │
+│                    ↓                                         │
+│  4. Se sucesso:                                             │
+│     - Processa normalmente                                  │
+│     - Retorna 200 com article_id                            │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Tipos de Warning
+### Garantias V4.5
 
-| Prefixo | Significado | Ação no Caller |
-|---------|-------------|----------------|
-| `critical_` | Problema estrutural grave | Força `status: 'draft'` |
-| `insufficient_` | Abaixo do threshold | Registra para analytics |
-| `invalid_` | Conteúdo com problemas | Registra para analytics |
-| `missing_` | Elemento ausente | Registra para analytics |
+| Garantia | Status |
+|----------|--------|
+| `generate-article-structured` nunca retorna 422 | ✅ Implementado |
+| `convert-opportunity-to-article` nunca propaga 422 | 🔄 Será implementado |
+| Quality Gate sempre retorna `passed: true` | ✅ Implementado |
+| Artigos são salvos como draft em caso de warnings | ✅ Implementado |
+| `generation_stage = 'completed'` sempre executado | ✅ Implementado |
 
