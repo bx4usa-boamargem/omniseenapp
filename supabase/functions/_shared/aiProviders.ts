@@ -376,7 +376,7 @@ async function callPerplexityResearch(request: ResearchRequest): Promise<Researc
         max_tokens: request.maxTokens || 1000
       })
     },
-    45000 // 45s timeout for research
+    20000 // V4.1: 20s timeout for research (fail-fast)
   );
   
   if (!response.ok) {
@@ -499,37 +499,24 @@ export async function callResearch(request: ResearchRequest): Promise<AICallResu
       durationMs: duration
     };
   } catch (perplexityError) {
+    // V4.1: FAIL-FAST - NO Gemini fallback for research
+    // This eliminates +45s of potential stacking timeouts
     const errorMsg = perplexityError instanceof Error ? perplexityError.message : 'Unknown error';
-    console.warn(`[AI_CONFIG] Research: Perplexity failed - ${errorMsg}`);
-    console.log('[AI_CONFIG] Research: Falling back to Google Gemini with grounding...');
+    const duration = Date.now() - start;
     
-    // Fallback to Google
-    try {
-      const result = await callGoogleResearch(request);
-      const duration = Date.now() - start;
-      logAICall('research', 'google', true, duration, true);
-      
-      return {
-        success: true,
-        data: result,
-        provider: 'google',
-        usedFallback: true,
-        fallbackReason: errorMsg,
-        durationMs: duration
-      };
-    } catch (googleError) {
-      const duration = Date.now() - start;
-      const fallbackError = googleError instanceof Error ? googleError.message : 'Unknown error';
-      logAICall('research', 'google', false, duration, true, fallbackError);
-      
-      return {
-        success: false,
-        provider: 'google',
-        usedFallback: true,
-        fallbackReason: `Primary: ${errorMsg}, Fallback: ${fallbackError}`,
-        durationMs: duration
-      };
-    }
+    console.warn(`[AI_CONFIG] Research: Perplexity failed (${duration}ms) - ${errorMsg}`);
+    console.log('[AI_CONFIG] Research: ❌ NO FALLBACK - using minimal package (V4.1: fail-fast)');
+    
+    logAICall('research', 'perplexity', false, duration, false, errorMsg);
+    
+    // Return failure immediately - caller will use minimal package
+    return {
+      success: false,
+      provider: 'perplexity',
+      usedFallback: false,
+      fallbackReason: errorMsg,
+      durationMs: duration
+    };
   }
 }
 
@@ -730,7 +717,8 @@ No text, no watermarks, no logos.`;
   return { url: imageUrl, generatedBy: 'gemini_image' };
 }
 
-function generateUnsplashFallback(request: ImageRequest): ImageResponse {
+// V4.1: Exported for use in main flow for image timeout fallback
+export function generateUnsplashFallback(request: ImageRequest): ImageResponse {
   const nicheKeywords: Record<string, string> = {
     'pest_control': 'pest control,exterminator,professional cleaning',
     'plumbing': 'plumber,plumbing,pipes,water',
