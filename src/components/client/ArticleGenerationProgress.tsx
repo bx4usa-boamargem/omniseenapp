@@ -31,10 +31,9 @@ interface GenerationStage {
 }
 
 const GENERATION_STAGES: GenerationStage[] = [
-  { key: 'validating', label: 'Validando brief...', icon: CheckCircle2, progress: 5 },
-  { key: 'classifying', label: 'Classificando intenção...', icon: Brain, progress: 15 },
-  { key: 'selecting', label: 'Selecionando template...', icon: LayoutTemplate, progress: 25 },
-  { key: 'researching', label: 'Pesquisando na web...', icon: Search, progress: 45 },
+  { key: 'classifying', label: 'Classificando intenção...', icon: Brain, progress: 10 },
+  { key: 'selecting', label: 'Selecionando template...', icon: LayoutTemplate, progress: 20 },
+  { key: 'researching', label: 'Pesquisando na web...', icon: Search, progress: 40 },
   { key: 'outlining', label: 'Gerando estrutura...', icon: ListTree, progress: 55 },
   { key: 'writing', label: 'Escrevendo conteúdo...', icon: FileText, progress: 75 },
   { key: 'optimizing', label: 'Otimizando SEO...', icon: Target, progress: 90 },

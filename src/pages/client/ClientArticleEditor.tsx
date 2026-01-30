@@ -134,7 +134,7 @@ export default function ClientArticleEditor() {
   const mapStageToArticleEngine = (stage: GenerationStage): string | null => {
     if (!stage) return null;
     const mapping: Record<string, string> = {
-      'analyzing': 'validating',
+      'analyzing': 'classifying', // Maps to first real UI stage
       'structuring': 'researching',
       'generating': 'writing',
       'finalizing': 'optimizing'
