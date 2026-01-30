@@ -1081,6 +1081,8 @@ export type Database = {
           ready_for_publish_at: string | null
           scheduled_at: string | null
           score_locked: boolean | null
+          serp_enhanced: boolean | null
+          serp_enhanced_at: string | null
           serp_hash_at_calculation: string | null
           share_count: number | null
           slug: string
@@ -1142,6 +1144,8 @@ export type Database = {
           ready_for_publish_at?: string | null
           scheduled_at?: string | null
           score_locked?: boolean | null
+          serp_enhanced?: boolean | null
+          serp_enhanced_at?: string | null
           serp_hash_at_calculation?: string | null
           share_count?: number | null
           slug: string
@@ -1203,6 +1207,8 @@ export type Database = {
           ready_for_publish_at?: string | null
           scheduled_at?: string | null
           score_locked?: boolean | null
+          serp_enhanced?: boolean | null
+          serp_enhanced_at?: string | null
           serp_hash_at_calculation?: string | null
           share_count?: number | null
           slug?: string
