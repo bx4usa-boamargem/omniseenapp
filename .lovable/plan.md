@@ -1,147 +1,77 @@
 
+# Implementação: Validação de Links Externos V4.3
 
-# Ajuste do Frontend: Remover Fallback Legado de `null`
+## Localização Exata
 
-## Contexto
+**Arquivo:** `supabase/functions/generate-article-structured/index.ts`
+**Inserir:** Entre linhas 827 e 829
 
-Com a implementação V4.3 da máquina de estados determinística no backend, o `generation_stage` agora **sempre** terá um valor definido:
-- Estados intermediários: `classifying`, `selecting`, `researching`, `writing`, `seo`, `qa`, `images`, `finalizing`
-- Estados finais: `completed` ou `failed`
-
-O frontend não deve mais aceitar `null` como estado final válido.
-
----
-
-## Alterações no Arquivo
-
-**Arquivo:** `src/hooks/useGenerationPolling.ts`
-
-### Alteração 1: Tipo `GenerationStageType` (linhas 11-20)
-
-Remover `null` da union type:
+## Código a Inserir
 
 ```typescript
-// ANTES
-export type GenerationStageType = 
-  | 'classifying' 
-  | 'selecting' 
-  | 'researching' 
-  | 'writing' 
-  | 'images' 
-  | 'finalizing' 
-  | 'completed' 
-  | 'failed' 
-  | null;
+// Linha 827 existente:
+// }
 
-// DEPOIS
-export type GenerationStageType = 
-  | 'classifying' 
-  | 'selecting' 
-  | 'researching' 
-  | 'writing' 
-  | 'seo'
-  | 'qa'
-  | 'images' 
-  | 'finalizing' 
-  | 'completed' 
-  | 'failed';
-```
+// V4.3: Validar links externos (warning only, não bloqueia persistência)
+const externalLinks = sanitizedContent.match(
+  /<a\s+href="https?:\/\/(?![^"]*(seudominio\.com|localhost))[^"]+"/gi
+);
 
-**Nota:** Também adicionados os estados `seo` e `qa` que faltavam no tipo.
-
----
-
-### Alteração 2: Estado inicial (linha 47)
-
-```typescript
-// ANTES
-stage: null,
-
-// DEPOIS
-stage: 'classifying',
-```
-
-O estado inicial agora é `classifying` (o primeiro estado da máquina).
-
----
-
-### Alteração 3: Parsing do stage (linha 76)
-
-```typescript
-// ANTES
-const newStage = (data.generation_stage as GenerationStageType) || null;
-
-// DEPOIS
-const newStage = (data.generation_stage as GenerationStageType) || 'classifying';
-```
-
-Se o banco retornar `null` (dados legados), assumir `classifying` como fallback seguro.
-
----
-
-### Alteração 4: Refs iniciais (linhas 56-57)
-
-```typescript
-// ANTES
-const lastStageRef = useRef<GenerationStageType>(null);
-
-// DEPOIS
-const lastStageRef = useRef<GenerationStageType>('classifying');
-```
-
----
-
-### Alteração 5: Condição de completion (linha 100)
-
-```typescript
-// ANTES
-if (newStage === null || newStage === 'completed') {
-  onComplete?.();
+if (!externalLinks || externalLinks.length < 2) {
+  console.warn(
+    `[${requestId}] ⚠️ Less than 2 external links detected. Found: ${
+      externalLinks ? externalLinks.length : 0
+    }`
+  );
+} else {
+  console.log(
+    `[${requestId}] ✅ External links validated: ${externalLinks.length}`
+  );
 }
 
-// DEPOIS
-if (newStage === 'completed') {
-  console.log('[GenerationPolling] ✅ Generation completed');
-  onComplete?.();
-}
+// Preparar dados para inserção (no duplicate found)
+// ... resto do código existente
 ```
 
-**Removido** o fallback `null`. Agora apenas `completed` é aceito como estado final de sucesso.
+## Comportamento
 
----
+| Condição | Ação |
+|----------|------|
+| Links < 2 | `console.warn()` - apenas log |
+| Links >= 2 | `console.log()` - confirmação |
+| Persistência | **Nunca bloqueada** |
+| Status | **Nunca alterado** |
 
-### Alteração 6: Detecção de stuck (linha 136)
+## Sequência Pós-Implementação
 
-```typescript
-// ANTES
-const isStuck = stuckCounter > 7 && status.stage === 'classifying';
+1. Deploy da edge function `generate-article-structured`
+2. Gerar 1 artigo authority
+3. Validar logs:
+   - `[QA SCORE]` com threshold 60
+   - `[STAGE] completed`
+   - `[IMAGES LOOP]` com índices
+   - `External links validated` OU warning
 
-// DEPOIS
-const isStuck = stuckCounter > 10 && 
-  (status.stage === 'classifying' || status.stage === 'researching');
+## Checklist V4.3 Completo
+
+| Componente | Status |
+|------------|--------|
+| QA threshold 60/100 | ✅ Implementado |
+| Publicação controlada | ✅ Implementado |
+| `generation_stage` nunca `null` | ✅ Confirmado |
+| Imagens com loop resiliente | ✅ Implementado |
+| Sanitizer remove markdown fences | ✅ Implementado |
+| CTA com colunas corretas | ✅ Implementado |
+| Links externos monitorados | 🔄 A implementar agora |
+
+## Seção Técnica
+
+A regex utilizada:
+```regex
+/<a\s+href="https?:\/\/(?![^"]*(seudominio\.com|localhost))[^"]+"/gi
 ```
 
-Ajustado para considerar também `researching` como potencial ponto de travamento (Perplexity timeout).
-
----
-
-## Resumo das Mudanças
-
-| Local | Antes | Depois |
-|-------|-------|--------|
-| Tipo `GenerationStageType` | Inclui `null` | Remove `null`, adiciona `seo`, `qa` |
-| Estado inicial | `null` | `'classifying'` |
-| Parsing do banco | `\|\| null` | `\|\| 'classifying'` |
-| Condição de completion | `null \|\| completed` | Apenas `completed` |
-| Detecção de stuck | Apenas `classifying` | `classifying` ou `researching` |
-
----
-
-## Resultado Esperado
-
-Após esta alteração:
-- O frontend NÃO aceita mais `null` como estado final
-- A UI aguarda explicitamente por `generation_stage = 'completed'`
-- Estados legados são tratados como `classifying` (fallback seguro)
-- A tipagem TypeScript reflete a máquina de estados real
-
+- Captura tags `<a href="...">` com URLs HTTP/HTTPS
+- Exclui domínios internos via negative lookahead
+- Case-insensitive (`i`) e global (`g`)
+- Retorna array de matches ou `null`
