@@ -61,7 +61,9 @@ serve(async (req) => {
       throw new Error(`Opportunity not found: ${oppError?.message || 'Unknown error'}`);
     }
 
-    // Verificar se já foi convertida
+    // =========================================================================
+    // 🛡️ GUARD 1: Verificar se oportunidade já foi convertida (status)
+    // =========================================================================
     if (opportunity.status === 'converted') {
       console.log(`[${requestId}][CONVERT] Opportunity ${opportunityId} already converted to article ${opportunity.converted_article_id}`);
       return new Response(
@@ -69,11 +71,100 @@ serve(async (req) => {
           success: true,
           message: "Opportunity already converted",
           article_id: opportunity.converted_article_id,
+          reused: true,
           request_id: requestId
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // =========================================================================
+    // 🛡️ GUARD 2: Verificar se já existe artigo para esta oportunidade (race condition)
+    // =========================================================================
+    const { data: existingArticleForOpp } = await supabase
+      .from("articles")
+      .select("id, title, status")
+      .eq("opportunity_id", opportunityId)
+      .eq("blog_id", blogId)
+      .maybeSingle();
+
+    if (existingArticleForOpp) {
+      console.log(`[${requestId}][CONVERT] Article already exists for opportunity ${opportunityId}: ${existingArticleForOpp.id}`);
+      
+      // Sincronizar status da oportunidade se estiver dessincronizado
+      await supabase
+        .from("article_opportunities")
+        .update({
+          status: 'converted',
+          converted_article_id: existingArticleForOpp.id,
+          converted_at: new Date().toISOString(),
+        })
+        .eq("id", opportunityId)
+        .eq("status", "pending"); // Só atualiza se ainda pending
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Article already exists for this opportunity",
+          article_id: existingArticleForOpp.id,
+          reused: true,
+          request_id: requestId
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // =========================================================================
+    // 🔒 LOCK ATÔMICO: Marcar oportunidade como 'processing' ANTES de gerar
+    // Isso elimina race conditions entre requests paralelos
+    // =========================================================================
+    const { data: lockResult, error: lockError } = await supabase
+      .from("article_opportunities")
+      .update({ status: 'processing' })
+      .eq("id", opportunityId)
+      .eq("status", "pending") // Só atualiza se ainda está pending
+      .select("id")
+      .maybeSingle();
+
+    if (lockError || !lockResult) {
+      console.log(`[${requestId}][CONVERT] Could not acquire lock - opportunity may be processing or already converted`);
+      
+      // Re-verificar status atual
+      const { data: recheckOpp } = await supabase
+        .from("article_opportunities")
+        .select("status, converted_article_id")
+        .eq("id", opportunityId)
+        .single();
+        
+      if (recheckOpp?.converted_article_id) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: "Opportunity was converted by another request",
+            article_id: recheckOpp.converted_article_id,
+            reused: true,
+            request_id: requestId
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      if (recheckOpp?.status === 'processing') {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error_type: 'ALREADY_PROCESSING',
+            message: "Esta oportunidade está sendo processada por outra requisição. Aguarde alguns segundos.",
+            request_id: requestId
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
+      throw new Error("Failed to acquire processing lock for opportunity");
+    }
+
+    console.log(`[${requestId}][CONVERT] Lock acquired for opportunity ${opportunityId}`);
 
     // 🔒 LIMIT CHECK - Buscar user_id do blog
     const { data: blogData } = await supabase
