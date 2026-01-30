@@ -18,12 +18,14 @@ export interface QualityGateOptions {
 export function runQualityGate(article: any, mode: ArticleMode, options?: QualityGateOptions): QualityGateResult {
   const config = QUALITY_GATE_CONFIG[mode];
   const warnings: string[] = [];
-  // V4.3: Allow warnings for entry/fast modes, AND for authority if functional minimum is met
-  const allowWarnings = options?.allowWarnings ?? (mode === 'entry' || options?.generationMode === 'fast');
+  // V4.4: ALWAYS allow warnings (never abort) - articles are saved as draft with quality issues
+  // The frontend and publication flow will handle quality enforcement
+  const allowWarnings = true;
   const logPrefix = options?.requestId ? `[${options.requestId}]` : '';
   
   // V4.3: Functional minimums - articles can pass with warnings if these are met
   const FUNCTIONAL_MIN_SECTIONS = mode === 'authority' ? 5 : 3;
+  const FUNCTIONAL_MIN_FAQ = 2;  // V4.4: Minimum functional FAQ
   
   console.log(`${logPrefix}[QualityGate] Running validation for mode: ${mode}, allowWarnings: ${allowWarnings}, functionalMinSections: ${FUNCTIONAL_MIN_SECTIONS}`);
 
@@ -81,35 +83,30 @@ export function runQualityGate(article: any, mode: ArticleMode, options?: Qualit
     };
   }
 
-  // 5. FAQ - DEGRADAÇÃO CONTROLADA
+  // 5. FAQ - DEGRADAÇÃO CONTROLADA V4.4
   const faqCount = Array.isArray(article.faq) ? article.faq.length : 0;
   
   if (faqCount < config.minFaqCount) {
-    if (allowWarnings && faqCount >= 2) {
+    // V4.4: Always allow warning if functional minimum is met (never abort)
+    if (faqCount >= FUNCTIONAL_MIN_FAQ) {
       warnings.push(`insufficient_faq: ${faqCount}/${config.minFaqCount}`);
-      console.warn(`${logPrefix}[QualityGate] WARNING: FAQ ${faqCount} < ${config.minFaqCount}`);
+      console.warn(`${logPrefix}[QualityGate] WARNING: FAQ ${faqCount} < ${config.minFaqCount} (functional min ${FUNCTIONAL_MIN_FAQ} met)`);
     } else {
-      return {
-        passed: false,
-        code: ERROR_CODES.INSUFFICIENT_FAQ,
-        details: `FAQ: ${faqCount} perguntas, mínimo: ${config.minFaqCount} (modo ${mode})`
-      };
+      warnings.push(`critical_faq: ${faqCount}/${FUNCTIONAL_MIN_FAQ}`);
+      console.warn(`${logPrefix}[QualityGate] CRITICAL WARNING: FAQ ${faqCount} < functional min ${FUNCTIONAL_MIN_FAQ}`);
     }
   }
 
-  // 6. IMAGES - DEGRADAÇÃO CONTROLADA
+  // 6. IMAGES - DEGRADAÇÃO CONTROLADA V4.4 (never abort)
   const imageCount = Array.isArray(article.image_prompts) ? article.image_prompts.length : 0;
   
   if (imageCount < config.minImagePrompts) {
-    if (allowWarnings && imageCount >= 1) {
+    if (imageCount >= 1) {
       warnings.push(`insufficient_images: ${imageCount}/${config.minImagePrompts}`);
       console.warn(`${logPrefix}[QualityGate] WARNING: Images ${imageCount} < ${config.minImagePrompts}`);
     } else {
-      return {
-        passed: false,
-        code: ERROR_CODES.INSUFFICIENT_IMAGES,
-        details: `Images: ${imageCount}, mínimo: ${config.minImagePrompts} (modo ${mode})`
-      };
+      warnings.push(`critical_images: ${imageCount}/${config.minImagePrompts}`);
+      console.warn(`${logPrefix}[QualityGate] CRITICAL WARNING: No images available`);
     }
   }
 
@@ -156,25 +153,20 @@ export function runQualityGate(article: any, mode: ArticleMode, options?: Qualit
   }
 
   if (totalWords < config.minWordCount) {
-    if (allowWarnings && totalWords >= 500) {
+    // V4.4: Never abort - use warnings
+    if (totalWords >= 500) {
       warnings.push(`insufficient_word_count: ${totalWords}/${config.minWordCount}`);
       console.warn(`${logPrefix}[QualityGate] WARNING: Words ${totalWords} < ${config.minWordCount}`);
     } else {
-      return {
-        passed: false,
-        code: ERROR_CODES.INSUFFICIENT_WORD_COUNT,
-        details: `Word count: ${totalWords}, mínimo: ${config.minWordCount} (modo ${mode})`
-      };
+      warnings.push(`critical_word_count: ${totalWords}/500`);
+      console.warn(`${logPrefix}[QualityGate] CRITICAL WARNING: Word count ${totalWords} < 500`);
     }
   }
 
-  // 9. CONCLUSION - SEMPRE HARD GATE
+  // 9. CONCLUSION - V4.4: Convert to critical warning (not hard gate)
   if (conclusion.length < config.minConclusionLength) {
-    return {
-      passed: false,
-      code: ERROR_CODES.MISSING_CONCLUSION,
-      details: `Conclusion tem ${conclusion.length} chars, mínimo: ${config.minConclusionLength}`
-    };
+    warnings.push(`critical_conclusion: ${conclusion.length}/${config.minConclusionLength}`);
+    console.warn(`${logPrefix}[QualityGate] CRITICAL WARNING: Conclusion ${conclusion.length} < ${config.minConclusionLength}`);
   }
 
   // ✅ PASSOU EM TUDO

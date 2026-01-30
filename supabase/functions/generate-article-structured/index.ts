@@ -2467,39 +2467,21 @@ Reestruture e retorne via tool optimize_article.`;
       console.warn(`[${requestId}][QualityGate] Passed with warnings:`, gateResult.warnings);
     }
 
+    // V4.4: Quality Gate NEVER aborts - always saves with warnings
+    // Articles with quality issues are forced to 'draft' status
+    const hasQualityWarnings = gateResult.warnings && gateResult.warnings.length > 0;
+    const hasCriticalWarnings = gateResult.warnings?.some(w => w.startsWith('critical_'));
+    
     if (!gateResult.passed) {
-      console.error(`[${requestId}][QualityGate] ❌ ABORT: ${gateResult.code}`);
-      console.error(`[${requestId}][QualityGate] Details: ${gateResult.details}`);
-      
-      // V3.2: Enhanced error payload with diagnostic info
-      const introLen = articleWithImages.introduction?.length || 0;
-      const firstH2Index = contentWithEat.search(/^##\s+/m);
-      const contentSource = seoOut.content ? 'seoOut' : 'writerOut';
-      
-      console.error(`[${requestId}][QualityGate] Diagnostic: intro_len=${introLen}, first_h2_index=${firstH2Index}, source=${contentSource}`);
-      console.error(`[${requestId}][QualityGate] Content prefix: "${contentWithEat.substring(0, 150)}"`);
-      
-      return new Response(
-        JSON.stringify({
-          error: 'QUALITY_GATE_FAILED',
-          code: gateResult.code,
-          message: ERROR_MESSAGES[gateResult.code] || 'Artigo não atende critérios de qualidade',
-          details: gateResult.details,
-          suggestion: 'Tente novamente com tema mais específico ou verifique os parâmetros',
-          request_id: requestId,
-          // V3.2: Diagnostic fields (for debugging only)
-          _debug: {
-            intro_len: introLen,
-            first_h2_index: firstH2Index,
-            content_source: contentSource,
-            content_prefix: contentWithEat.substring(0, 120)
-          }
-        }),
-        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      // V4.4: Even failed gates should save as draft (never return 422)
+      console.warn(`[${requestId}][QualityGate] ⚠️ GATE FAILED but saving as draft: ${gateResult.code}`);
+      console.warn(`[${requestId}][QualityGate] Details: ${gateResult.details}`);
+    } else if (hasQualityWarnings) {
+      console.warn(`[${requestId}][QualityGate] ⚠️ PASSED WITH WARNINGS:`, gateResult.warnings);
+    } else {
+      console.log(`[${requestId}][QualityGate] ✅ ALL GATES PASSED`);
     }
-
-    console.log(`[${requestId}][QualityGate] ✅ ALL GATES PASSED`);
+    
     console.log(`[${requestId}][QualityGate] Metrics:`, gateResult.metrics);
 
     // Build final article object for persistence
@@ -2522,10 +2504,15 @@ Reestruture e retorne via tool optimize_article.`;
 
     // ============ PERSISTÊNCIA OBRIGATÓRIA NO BANCO ============
     // CRÍTICO: O artigo DEVE ser salvo na tabela 'articles' antes de retornar
-    // O frontend espera id, slug e status válidos para confirmar sucesso
-    const autoPublish = true; // Fluxo de subconta sempre auto-publica
+    // V4.4: Se Quality Gate falhou ou tem warnings críticos, forçar status 'draft'
+    const shouldForceDraft = !gateResult.passed || hasCriticalWarnings;
+    const autoPublish = !shouldForceDraft; // Só auto-publica se não tiver problemas críticos
     
-    console.log(`[${requestId}] Starting persistence: blog_id=${blog_id}, user_id=${user?.id}`);
+    if (shouldForceDraft) {
+      console.log(`[${requestId}] ⚠️ Forcing draft status due to quality gate issues`);
+    }
+    
+    console.log(`[${requestId}] Starting persistence: blog_id=${blog_id}, user_id=${user?.id}, autoPublish=${autoPublish}`);
     
     // Helper function to generate slug from title
     const generateSlug = (title: string): string => {
