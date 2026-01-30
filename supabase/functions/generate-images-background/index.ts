@@ -101,49 +101,61 @@ serve(async (req) => {
     const totalImages = image_prompts.length;
     let completedImages = 0;
 
-    // Initialize tracking columns
+    // V4.3: Initialize tracking columns - NUNCA alterar generation_stage
     await supabase
       .from('articles')
       .update({ 
         images_total: totalImages,
         images_completed: 0,
-        images_pending: true,
-        generation_stage: 'images'
+        images_pending: true
+        // V4.3: REMOVIDO generation_stage - artigo principal define estado
       })
       .eq('id', article_id);
 
-    // Generate each image sequentially with retries
+    // V4.3: Generate each image with resilient loop - NUNCA abortar
     for (let i = 0; i < image_prompts.length; i++) {
       const imgPrompt = image_prompts[i];
       const imageIndex = i + 1;
       
-      console.log(`[${request_id}][ImageJob] Generating image ${imageIndex}/${totalImages}...`);
+      console.log(`[${request_id}][IMAGES LOOP] index=${imageIndex}/${totalImages}`);
       
-      const result = await generateImageWithRetry(imgPrompt, niche, city, request_id, imageIndex);
-      
-      if (result.url) {
-        imgPrompt.url = result.url;
-        imgPrompt.generated_by = result.generatedBy || 'ai';
-        completedImages++;
+      try {
+        const result = await generateImageWithRetry(imgPrompt, niche, city, request_id, imageIndex);
+        
+        if (result.url) {
+          imgPrompt.url = result.url;
+          imgPrompt.generated_by = result.generatedBy || 'ai';
+          completedImages++;
+          console.log(`[${request_id}][IMAGES LOOP] ✅ Image ${imageIndex} completed`);
+        } else {
+          console.warn(`[${request_id}][IMAGES LOOP] ⚠️ Image ${imageIndex} no URL, keeping placeholder`);
+        }
+      } catch (err) {
+        console.error(`[${request_id}][IMAGES LOOP] ❌ Image ${imageIndex} exception:`, err);
+        // V4.3: CONTINUE - nunca abortar loop
+        continue;
       }
-      // If result.url is null, keep existing placeholder URL
       
       // INCREMENTAL UPDATE: Update article after each image
-      const { error: incrementalError } = await supabase
-        .from('articles')
-        .update({
-          image_prompts: image_prompts,
-          images_completed: completedImages,
-          // Update featured image if this is the first image
-          ...(i === 0 && result.url ? { featured_image_url: result.url } : {}),
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', article_id);
-      
-      if (incrementalError) {
-        console.warn(`[${request_id}][ImageJob] Incremental update failed:`, incrementalError);
-      } else {
-        console.log(`[${request_id}][ImageJob] Progress: ${completedImages}/${totalImages} images completed`);
+      try {
+        const { error: incrementalError } = await supabase
+          .from('articles')
+          .update({
+            image_prompts: image_prompts,
+            images_completed: completedImages,
+            // Update featured image if this is the first image
+            ...(i === 0 && imgPrompt.url ? { featured_image_url: imgPrompt.url } : {}),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', article_id);
+        
+        if (incrementalError) {
+          console.warn(`[${request_id}][ImageJob] Incremental update failed:`, incrementalError);
+        } else {
+          console.log(`[${request_id}][ImageJob] Progress: ${completedImages}/${totalImages} images completed`);
+        }
+      } catch (updateErr) {
+        console.error(`[${request_id}][ImageJob] Incremental update exception:`, updateErr);
       }
       
       // Small delay between requests to avoid rate limiting
@@ -156,14 +168,15 @@ serve(async (req) => {
     const featuredUrl = image_prompts[0]?.url || null;
     const allCompleted = completedImages === totalImages;
 
+    // V4.3: Final update - NUNCA alterar generation_stage (artigo principal é dono do estado)
     const { error: finalError } = await supabase
       .from('articles')
       .update({
         image_prompts: image_prompts,
         featured_image_url: featuredUrl,
-        images_pending: false,
+        images_pending: completedImages < totalImages, // V4.3: Pendente apenas se incompleto
         images_completed: completedImages,
-        generation_stage: null, // Clear generation stage
+        // V4.3: REMOVIDO generation_stage: null - background job não altera estado principal
         updated_at: new Date().toISOString()
       })
       .eq('id', article_id);

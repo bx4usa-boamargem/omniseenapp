@@ -527,8 +527,19 @@ function sanitizeContent(content: string): SanitizeResult {
   const removed: string[] = [];
   let sanitized = content;
   
+  // V4.3: PRIMEIRO - Remover markdown fences (```html, ```, etc.)
+  const fenceMatches = sanitized.match(/```(?:html|markdown|md|json|text)?/gi);
+  if (fenceMatches) {
+    removed.push(`Markdown fences removed: ${fenceMatches.length}`);
+    // Extract content inside fences, remove the fence markers
+    sanitized = sanitized.replace(/```(?:html|markdown|md|json|text)?\n?([\s\S]*?)```/gi, '$1');
+  }
+  // Also remove standalone ``` markers
+  sanitized = sanitized.replace(/```/g, '');
+  
   // 1. Remove ocorrências repetidas de "ATENÇÃO" (case-insensitive)
-  const atencaoPattern = /(?:^|\n)(?:>?\s*)?(?:⚠️?\s*)?ATENÇÃO[:\s!]*[^\n]*\n?/gi;
+  // V4.3: Negative lookahead para proteger headings (## Atenção:)
+  const atencaoPattern = /(?:^|\n)(?!##\s)(?:>?\s*)?(?:⚠️?\s*)?ATENÇÃO[:\s!]*[^\n]*\n?/gi;
   const atencaoMatches = sanitized.match(atencaoPattern);
   if (atencaoMatches && atencaoMatches.length > 1) {
     // Keep only the first occurrence
@@ -598,13 +609,11 @@ function sanitizeContent(content: string): SanitizeResult {
 // ============ CTA BUILDER ============
 // Builds CTA JSON from business profile
 
+// V4.3: Interface atualizada - apenas colunas que EXISTEM na tabela
 interface ArticleCTA {
   company_name?: string;
-  phone?: string;
   whatsapp?: string;
-  booking_url?: string;
-  site?: string;
-  email?: string;
+  city?: string;
 }
 
 async function buildArticleCTA(
@@ -613,10 +622,12 @@ async function buildArticleCTA(
   blogId: string
 ): Promise<ArticleCTA | null> {
   try {
-    // Fetch business profile for CTA data
+    console.log(`[CTA] Fetching business profile for blog: ${blogId}`);
+    
+    // V4.3: Query apenas colunas que EXISTEM (phone, booking_url, site, email NÃO existem)
     const { data: profile } = await supabaseClient
       .from('business_profile')
-      .select('company_name, phone, whatsapp, booking_url, site, email')
+      .select('company_name, whatsapp, city')
       .eq('blog_id', blogId)
       .maybeSingle();
     
@@ -628,18 +639,22 @@ async function buildArticleCTA(
     const cta: ArticleCTA = {};
     
     if (profile.company_name) cta.company_name = profile.company_name;
-    if (profile.phone) cta.phone = profile.phone;
     if (profile.whatsapp) cta.whatsapp = profile.whatsapp;
-    if (profile.booking_url) cta.booking_url = profile.booking_url;
-    if (profile.site) cta.site = profile.site;
-    if (profile.email) cta.email = profile.email;
+    if (profile.city) cta.city = profile.city;
     
-    // Only return if we have at least one contact method
-    if (cta.phone || cta.whatsapp || cta.booking_url || cta.site || cta.email) {
-      console.log(`[CTA] Built CTA for "${cta.company_name || 'unnamed'}"`);
+    // V4.3: Nunca retornar objeto vazio - CRÍTICO
+    if (Object.keys(cta).length === 0) {
+      console.log('[CTA] Profile found but no usable fields');
+      return null;
+    }
+    
+    // Retornar se tiver pelo menos company_name OU whatsapp
+    if (cta.company_name || cta.whatsapp) {
+      console.log(`[CTA] ✅ Built: company="${cta.company_name || 'N/A'}", whatsapp="${cta.whatsapp || 'N/A'}", city="${cta.city || 'N/A'}"`);
       return cta;
     }
     
+    console.log('[CTA] No company_name or whatsapp found');
     return null;
   } catch (error) {
     console.warn('[CTA] Error fetching business profile:', error);
@@ -2582,37 +2597,69 @@ Reestruture e retorne via tool optimize_article.`;
         console.error(`[${requestId}][SEO-Job] ❌ Failed to dispatch:`, e);
       });
       
-      // V4.1: Dispatch background image generation if timed out
-      if (imagesTimedOut) {
-        console.log(`[${requestId}][Images] Dispatching background image job for article ${persistedArticle.id}`);
+      // V4.3: Dispatch background image generation if timed out
+      if (imagesTimedOut && articleWithImages.image_prompts?.length > 0) {
+        const totalImages = articleWithImages.image_prompts.length;
+        console.log(`[${requestId}][STAGE] images - Dispatching background job for ${totalImages} images`);
         
-        // Mark article as having pending images
-        await supabase
+        // V4.3: CRÍTICO - Atualizar image_prompts ANTES do dispatch
+        const { error: preDispatchError } = await supabase
           .from('articles')
-          .update({ images_pending: true })
+          .update({ 
+            images_pending: true,
+            images_total: totalImages,
+            images_completed: 0,
+            image_prompts: articleWithImages.image_prompts // Salvar prompts antes do dispatch
+          })
           .eq('id', persistedArticle.id);
         
-        // Fire-and-forget background job
-        fetch(`${SUPABASE_URL}/functions/v1/generate-images-background`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${SERVICE_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            article_id: persistedArticle.id,
-            blog_id,
-            request_id: requestId,
-            image_prompts: articleWithImages.image_prompts,
-            niche: effectiveNiche,
-            city
-          }),
-        }).then(res => {
-          console.log(`[${requestId}][ImageJob] Dispatch status: ${res.status}`);
-        }).catch(e => {
-          console.error(`[${requestId}][ImageJob] Dispatch failed:`, e);
-        });
+        if (preDispatchError) {
+          console.error(`[${requestId}][Images] Pre-dispatch update failed:`, preDispatchError);
+        }
+        
+        // V4.3: Dispatch com await e logging obrigatório
+        try {
+          const dispatchRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-images-background`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${SERVICE_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              article_id: persistedArticle.id,
+              blog_id,
+              request_id: requestId,
+              image_prompts: articleWithImages.image_prompts,
+              niche: effectiveNiche,
+              city
+            }),
+          });
+          
+          const dispatchBody = await dispatchRes.text();
+          console.log(`[${requestId}][ImageJob] Dispatch response: status=${dispatchRes.status}, body=${dispatchBody.substring(0, 200)}`);
+          
+          if (!dispatchRes.ok) {
+            console.error(`[${requestId}][ImageJob] ❌ Dispatch failed: ${dispatchRes.status}`);
+          }
+        } catch (dispatchErr) {
+          console.error(`[${requestId}][ImageJob] ❌ Dispatch exception:`, dispatchErr);
+        }
       }
+      
+      // V4.3: Garantir generation_stage = 'completed' após persistência
+      const { error: stageError } = await supabase
+        .from('articles')
+        .update({ 
+          generation_stage: 'completed',
+          generation_progress: 100
+        })
+        .eq('id', persistedArticle.id);
+      
+      if (stageError) {
+        console.warn(`[${requestId}] Failed to set final stage:`, stageError);
+      }
+      
+      console.log(`[${requestId}][STAGE] completed (100%)`);
       
     } catch (persistError) {
       console.error(`[${requestId}] PERSIST_ERROR:`, persistError);
