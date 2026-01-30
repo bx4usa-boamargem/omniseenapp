@@ -349,13 +349,18 @@ export default function ClientArticleEditor() {
   // AUTO-RUN MODE: If quick=true, auto-generate or convert opportunity
   // ====================================================================
   useEffect(() => {
+    // 🛡️ GUARD CRÍTICO: Se estamos editando um artigo existente, NÃO auto-gerar
+    if (articleId) {
+      console.log('[Auto-run] Skipping - editing existing article:', articleId);
+      return;
+    }
+
     if (
       quickMode &&
       blog?.id &&
       phase === 'form' &&
       !generationLockRef.current &&
-      !autoGenerationTriggeredRef.current &&
-      !articleId // Don't auto-generate when editing existing
+      !autoGenerationTriggeredRef.current
     ) {
       autoGenerationTriggeredRef.current = true;
 
