@@ -216,9 +216,10 @@ serve(async (req) => {
       
       const fallbackPayload = {
         ...generatePayload,
+        generation_mode: 'fast',
+        mode: 'entry',  // HOTFIX: Alinhar mode com generation_mode fast
         geo_mode: false,
-        generation_mode: 'fast', // Use fast mode for fallback
-        word_count: 800, // Smaller for fast mode
+        word_count: 800,
       };
       
       generateResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-article-structured`, {

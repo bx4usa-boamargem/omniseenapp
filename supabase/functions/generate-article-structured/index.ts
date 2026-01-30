@@ -1420,6 +1420,15 @@ serve(async (req) => {
     const generation_mode = requestedGenerationMode || 'deep';
     console.log(`[GENERATION MODE] Resolved: ${generation_mode} (requested: ${requestedGenerationMode || 'none'})`);
 
+    // ============================================================================
+    // HOTFIX: Forçar mode='entry' quando generation_mode='fast'
+    // ============================================================================
+    let effectiveMode = mode;
+    if (generation_mode === 'fast') {
+      effectiveMode = 'entry';
+      console.log('[HOTFIX] mode forced to entry because generation_mode=fast');
+    }
+
     // ============ TERRITORIAL DATA FETCH (needed for research) ============
     let territoryData: TerritoryData | null = null;
 
@@ -2245,8 +2254,9 @@ Reestruture e retorne via tool optimize_article.`;
     // ============================================================================
     console.log('[QualityGate] Step 4: Running quality validation...');
     
-    // Determine mode for validation
-    const articleMode: ArticleMode = mode === 'entry' ? 'entry' : 'authority';
+    // Determine mode for validation - HOTFIX: usar effectiveMode
+    const articleMode: ArticleMode = effectiveMode === 'entry' ? 'entry' : 'authority';
+    console.log('[QualityGate] Running validation for mode:', articleMode);
     const gateResult = runQualityGate(articleWithImages, articleMode);
 
     if (!gateResult.passed) {
