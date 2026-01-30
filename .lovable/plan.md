@@ -1,34 +1,34 @@
 
 
-# Blindagem de Monetização e Controle de Volume
+# Simplificação do Error Handling: handleConvertOpportunity
 
 ## Objetivo
 
-Garantir que:
-1. Backend é a fonte da verdade (verifica, bloqueia, incrementa, loga)
-2. Frontend verifica limite apenas para UX (evitar tentativa inútil), NÃO incrementa
-3. Frontend trata LIMIT_REACHED de forma clara
-4. Nada depende de modal/rota inexistente
+Implementar o padrão simplificado de tratamento de erros conforme especificação, garantindo:
+1. `clearInterval` imediatamente após o invoke (antes de qualquer return)
+2. Estado `setGenerationStage('failed')` em erros
+3. Estado `setGenerationStage('completed')` em sucesso
+4. Mensagens de erro simplificadas e consistentes
 
 ---
 
-## 1. FRONTEND — ClientArticleEditor.tsx
+## Alterações
 
-### A) Adicionar import (linha 56)
+**Arquivo:** `src/pages/client/ClientArticleEditor.tsx`
+**Linhas:** 265-354
 
-```typescript
-import { usePlanLimits } from '@/hooks/usePlanLimits';
-```
+### Código Atual vs Novo
 
-### B) Instanciar hook no componente (linha 80, após useAuth)
+O código atual usa `try/finally` com `clearInterval` no finally, e tem múltiplos blocos de tratamento de erro com mensagens específicas.
 
-```typescript
-const { checkLimit } = usePlanLimits();
-```
+O novo padrão:
+- Move `clearInterval` para logo após o invoke
+- Remove o `try/finally` (não mais necessário)
+- Adiciona `setGenerationStage('failed')` em todos os caminhos de erro
+- Adiciona `setGenerationStage('completed')` no sucesso
+- Simplifica mensagens de erro
 
-### C) Modificar handleConvertOpportunity (linhas 237-319)
-
-Adicionar verificação de limite ANTES de setPhase e tratamento de LIMIT_REACHED:
+### Nova Implementação
 
 ```typescript
 const handleConvertOpportunity = async (oppId: string, blogId: string) => {
@@ -55,271 +55,68 @@ const handleConvertOpportunity = async (oppId: string, blogId: string) => {
     setGenerationProgress((prev) => Math.min(prev + 8, 85));
   }, 2000);
 
-  try {
-    const { data, error } = await supabase.functions.invoke('convert-opportunity-to-article', {
-      body: { 
-        opportunityId: oppId, 
-        blogId,
-        request_id: requestId
-      },
-    });
+  const { data, error } = await supabase.functions.invoke('convert-opportunity-to-article', {
+    body: { 
+      opportunityId: oppId, 
+      blogId,
+      request_id: requestId
+    },
+  });
 
-    if (error) {
-      console.error(`[${requestId}][ConvertOpportunity] Edge function error:`, error);
-      const errorMessage = error.message || 'Erro desconhecido';
-      
-      // Tratamento específico para LIMIT_REACHED
-      if (errorMessage.includes('LIMIT_REACHED')) {
-        toast.error('Limite de artigos atingido', {
-          description: 'Faça upgrade do seu plano para continuar.',
-        });
-        setPhase('form');
-        setGenerationProgress(0);
-        setGenerationStage(null);
-        return;
-      }
-      
-      if (errorMessage.includes('insufficient_sections') || errorMessage.includes('QUALITY_GATE')) {
-        toast.error('Estrutura do artigo insuficiente. Tente com outro tema.');
-      } else if (errorMessage.includes('insufficient_faq')) {
-        toast.error('FAQ insuficiente. Tente novamente.');
-      } else if (errorMessage.includes('missing_introduction')) {
-        toast.error('Introdução muito curta. Tente novamente.');
-      } else {
-        toast.error(`Erro ao gerar: ${errorMessage}`);
-      }
-      
-      setPhase('form');
-      setGenerationProgress(0);
-      setGenerationStage(null);
-      return;
-    }
+  // 🔴 SEMPRE limpar o timer antes de qualquer return
+  clearInterval(progressInterval);
 
-    if (!data?.success) {
-      console.error(`[${requestId}][ConvertOpportunity] Conversion failed:`, data);
-      
-      const errorType = data?.error_type || '';
-      const reasonCode = data?.reason_code || '';
-      const failReason = data?.message || data?.details || data?.error || 'Erro na conversão';
-      
-      // Tratamento específico para LIMIT_REACHED
-      if (errorType === 'LIMIT_REACHED') {
-        toast.error('Limite de artigos atingido', {
-          description: failReason || 'Faça upgrade do seu plano para continuar.',
-        });
-        setPhase('form');
-        setGenerationProgress(0);
-        setGenerationStage(null);
-        return;
-      }
-      
-      if (errorType === 'QUALITY_GATE_FAILED' || reasonCode.includes('insufficient')) {
-        toast.error(`Validação falhou: ${failReason}`);
-      } else {
-        toast.error(failReason);
-      }
-      
-      setPhase('form');
-      setGenerationProgress(0);
-      setGenerationStage(null);
-      return;
-    }
-
-    // ✅ SUCESSO - NÃO incrementar usage (backend já fez)
-    setGenerationProgress(100);
-    toast.success('Artigo criado com sucesso!');
-    console.log(`[${requestId}][ConvertOpportunity] Success, redirecting to article:`, data.article_id);
-    smartNavigate(navigate, getClientArticleEditPath(data.article_id));
-    
-  } catch (err) {
-    console.error(`[${requestId}][ConvertOpportunity] Unexpected error:`, err);
-    const errorMsg = err instanceof Error ? err.message : 'Erro inesperado';
-    toast.error(`Erro ao criar artigo: ${errorMsg}`);
+  // ❌ ERRO DE EDGE FUNCTION
+  if (error) {
+    console.error(`[${requestId}] Edge error`, error);
+    setGenerationStage('failed');
     setPhase('form');
     setGenerationProgress(0);
-    setGenerationStage(null);
-  } finally {
-    clearInterval(progressInterval);
+    toast.error('Erro ao gerar artigo', {
+      description: error.message || 'Falha inesperada',
+    });
+    return;
   }
+
+  // ❌ BACKEND RESPONDEU COM success=false
+  if (!data?.success) {
+    console.error(`[${requestId}] Backend failure`, data);
+    setGenerationStage('failed');
+    setPhase('form');
+    setGenerationProgress(0);
+    toast.error('Falha na geração do artigo', {
+      description: data?.message || 'Erro de validação',
+    });
+    return;
+  }
+
+  // ✅ SUCESSO REAL
+  setGenerationStage('completed');
+  setGenerationProgress(100);
+  toast.success('Artigo criado com sucesso');
+  smartNavigate(navigate, getClientArticleEditPath(data.article_id));
 };
 ```
 
 ---
 
-## 2. BACKEND — convert-opportunity-to-article/index.ts
+## Benefícios
 
-### A) Buscar user_id do blog e verificar limites (após linha 74, antes de buscar profile)
-
-Inserir após a verificação de oportunidade convertida (linha 74):
-
-```typescript
-    // 🔒 LIMIT CHECK - Buscar user_id do blog
-    const { data: blogData } = await supabase
-      .from('blogs')
-      .select('user_id')
-      .eq('id', blogId)
-      .single();
-
-    if (!blogData?.user_id) {
-      throw new Error('Blog not found or no user associated');
-    }
-
-    console.log(`[${requestId}][CONVERT] Checking limits for user ${blogData.user_id}`);
-
-    // Chamar check-limits
-    const limitCheckResponse = await fetch(
-      `${SUPABASE_URL}/functions/v1/check-limits`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        },
-        body: JSON.stringify({
-          userId: blogData.user_id,
-          action: 'check',
-          resource: 'articles',
-        }),
-      }
-    );
-
-    const limitData = await limitCheckResponse.json();
-
-    if (limitData.limitReached) {
-      console.log(`[${requestId}][CONVERT] BLOCKED: Limit reached for user ${blogData.user_id}`);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error_type: 'LIMIT_REACHED',
-          message: `Limite de artigos atingido (${limitData.usage?.articles_used || 0}/${limitData.limits?.articles_limit || 0})`,
-          request_id: requestId,
-        }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    console.log(`[${requestId}][CONVERT] Limit OK: ${limitData.remaining} remaining`);
-```
-
-### B) Incrementar usage e logar consumo após sucesso (antes do return final, linha 445)
-
-Inserir após o log de imagens geradas e antes do return final:
-
-```typescript
-    // 🔒 INCREMENTAR USAGE após sucesso (fonte da verdade)
-    console.log(`[${requestId}][CONVERT] Incrementing usage for user ${blogData.user_id}`);
-
-    try {
-      // Incrementar usage
-      await fetch(
-        `${SUPABASE_URL}/functions/v1/check-limits`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          },
-          body: JSON.stringify({
-            userId: blogData.user_id,
-            action: 'increment',
-            resource: 'articles',
-          }),
-        }
-      );
-
-      console.log(`[${requestId}][CONVERT] Usage incremented`);
-
-      // Log consumption para billing
-      await fetch(
-        `${SUPABASE_URL}/functions/v1/log-consumption`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          },
-          body: JSON.stringify({
-            user_id: blogData.user_id,
-            blog_id: blogId,
-            action_type: 'article_generation',
-            action_description: `Artigo: ${opportunity.suggested_title}`,
-            model_used: 'google/gemini-2.5-flash',
-            metadata: {
-              article_id: articleId,
-              opportunity_id: opportunityId,
-              source: 'opportunity_conversion',
-              request_id: requestId,
-            },
-          }),
-        }
-      );
-
-      console.log(`[${requestId}][CONVERT] Consumption logged`);
-    } catch (billingError) {
-      // Non-blocking - article was created
-      console.error(`[${requestId}][CONVERT] Billing error (non-blocking):`, billingError);
-    }
-```
-
-### C) Atualizar catch final para incluir request_id (linha 461-471)
-
-```typescript
-  } catch (error) {
-    console.error("[CONVERT] Error:", error);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error_type: 'UNEXPECTED_ERROR',
-        message: error instanceof Error ? error.message : "Unknown error",
-        request_id: requestId || 'unknown',
-      }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
-```
-
----
-
-## Resumo de Arquivos a Modificar
-
-| Arquivo | Alterações |
-|---------|------------|
-| `src/pages/client/ClientArticleEditor.tsx` | Import `usePlanLimits`, instanciar `checkLimit`, verificar limite ANTES de gerar, tratar `LIMIT_REACHED`, **NÃO usar incrementUsage** |
-| `supabase/functions/convert-opportunity-to-article/index.ts` | Buscar `user_id`, verificar limites no início (retornar 403 se atingido), incrementar usage e logar consumo após sucesso, incluir `request_id` no catch |
-
----
-
-## Fluxo Final
-
-```text
-1. Frontend chama checkLimit('articles') [UX]
-   └─ Se limitReached → toast → return (SEM navegar)
-
-2. Frontend chama convert-opportunity-to-article
-   └─ Backend busca user_id do blog
-   └─ Backend chama check-limits (action: check)
-      └─ Se limitReached → retorna 403 LIMIT_REACHED → FIM
-
-3. Backend gera artigo + imagens
-   └─ Se erro → retorna erro estruturado → FIM
-
-4. Backend persiste artigo
-   └─ Backend chama check-limits (action: increment) [fonte da verdade]
-   └─ Backend chama log-consumption [auditoria]
-
-5. Frontend recebe sucesso
-   └─ NÃO chama incrementUsage (evita duplicidade)
-   └─ Navega para editor
-```
+| Antes | Depois |
+|-------|--------|
+| `try/finally` com `clearInterval` no finally | `clearInterval` imediatamente após invoke |
+| Múltiplas mensagens de erro específicas | 2 mensagens genéricas e claras |
+| Sem estado `failed` | `setGenerationStage('failed')` explícito |
+| Sucesso sem estado `completed` | `setGenerationStage('completed')` explícito |
+| ~90 linhas | ~60 linhas |
 
 ---
 
 ## Resultado Esperado
 
-1. Frontend bloqueia tentativa sem quota (UX - evitar espera desnecessária)
-2. Backend bloqueia com 403 se alguém burlar o frontend (segurança)
-3. Backend incrementa 1 vez por artigo criado (fonte única da verdade)
-4. Billing registra consumo com request_id (auditoria)
-5. Nada depende de modal/layout inacessível nem de rota inexistente
-6. ZERO DUPLICAÇÃO de incremento
+1. Timer sempre limpo antes de qualquer return
+2. UI reflete estado `failed` corretamente
+3. UI reflete estado `completed` corretamente
+4. Código mais simples e manutenível
+5. Mensagens de erro consistentes para o usuário
 
