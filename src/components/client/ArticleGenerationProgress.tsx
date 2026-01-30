@@ -30,13 +30,18 @@ interface GenerationStage {
   progress: number;
 }
 
+/**
+ * V4.0: Updated stages - Removed heavy SERP/Firecrawl from sync flow
+ * "Pesquisando referências" = Only Perplexity (~5s) - NOT full SERP
+ * SEO deep analysis now happens in background (seo-enhancer-job)
+ */
 const GENERATION_STAGES: GenerationStage[] = [
-  { key: 'classifying', label: 'Classificando intenção...', icon: Brain, progress: 10 },
-  { key: 'selecting', label: 'Selecionando template...', icon: LayoutTemplate, progress: 20 },
-  { key: 'researching', label: 'Pesquisando na web...', icon: Search, progress: 40 },
-  { key: 'outlining', label: 'Gerando estrutura...', icon: ListTree, progress: 55 },
-  { key: 'writing', label: 'Escrevendo conteúdo...', icon: FileText, progress: 75 },
-  { key: 'optimizing', label: 'Otimizando SEO...', icon: Target, progress: 90 },
+  { key: 'classifying', label: 'Classificando intenção...', icon: Brain, progress: 15 },
+  { key: 'selecting', label: 'Selecionando template...', icon: LayoutTemplate, progress: 25 },
+  { key: 'researching', label: 'Pesquisando referências...', icon: Search, progress: 40 },
+  { key: 'writing', label: 'Escrevendo conteúdo...', icon: FileText, progress: 70 },
+  { key: 'images', label: 'Gerando imagens...', icon: Target, progress: 85 },
+  { key: 'finalizing', label: 'Finalizando artigo...', icon: Target, progress: 95 },
 ];
 
 interface ArticleGenerationProgressProps {
@@ -77,7 +82,7 @@ export function ArticleGenerationProgress({
         </div>
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <Clock className="h-4 w-4" />
-          <span>Tempo estimado: 1-2 minutos</span>
+          <span>Tempo estimado: 20-30 segundos</span>
         </div>
       </div>
       

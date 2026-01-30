@@ -229,7 +229,15 @@ interface ResearchPackage {
   provider?: 'perplexity' | 'gemini_fallback'; // Track which provider generated the research
 }
 
-async function runResearchStage(params: {
+/**
+ * runLightResearchStage - FAST Perplexity-only research (NO Firecrawl)
+ * 
+ * V4.0: Decoupled from analyze-serp to eliminate blocking on Firecrawl.
+ * Time: ~5 seconds vs ~60+ seconds with full SERP analysis.
+ * 
+ * Deep SERP analysis now happens in background via seo-enhancer-job.
+ */
+async function runLightResearchStage(params: {
   // deno-lint-ignore no-explicit-any
   supabase: any;
   blogId: string;
@@ -246,64 +254,10 @@ async function runResearchStage(params: {
   }
 
   const start = nowMs();
+  console.log(`[LightResearch] Starting fast research (Perplexity only) for: "${primaryKeyword}"`);
 
-  // 1) SERP research (Perplexity + Firecrawl inside analyze-serp)
-  const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-  const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-
-  const serpStart = nowMs();
-  
-  // Timeout de 45 segundos para análise SERP completa
-  const serpController = new AbortController();
-  const serpTimeoutId = setTimeout(() => serpController.abort(), 45000);
-
-  let serpRes: Response;
-  let serpMatrix: SerpMatrixLite = {};
-  let serpDuration: number;
-
-  try {
-    serpRes = await fetch(`${SUPABASE_URL}/functions/v1/analyze-serp`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${SERVICE_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        keyword: primaryKeyword,
-        territory: territoryName,
-        blogId,
-        forceRefresh: false,
-        useFirecrawl: true,
-      }),
-      signal: serpController.signal
-    });
-    clearTimeout(serpTimeoutId);
-
-    if (!serpRes.ok) {
-      const t = await serpRes.text().catch(() => '');
-      console.warn(`[Research] ⚠️ analyze-serp returned ${serpRes.status}: ${t.substring(0, 200)}`);
-      // Continuar com SERP vazia em vez de falhar
-      serpMatrix = {};
-    } else {
-      const serpJson = await serpRes.json();
-      serpMatrix = serpJson?.matrix || {};
-    }
-    serpDuration = nowMs() - serpStart;
-  } catch (error) {
-    clearTimeout(serpTimeoutId);
-    serpDuration = nowMs() - serpStart;
-    
-    if (error instanceof Error && error.name === 'AbortError') {
-      console.error('[Research] ⏱️ analyze-serp TIMEOUT (45s) - continuing with empty SERP');
-      serpMatrix = {};
-    } else {
-      console.error('[Research] ⚠️ analyze-serp error - continuing with empty SERP:', error);
-      serpMatrix = {};
-    }
-  }
-
-  // 2) GEO factual package (Perplexity) - MUST succeed
-  const geoStart = nowMs();
+  // ONLY GEO factual package (Perplexity) - ~5 seconds
+  // NO analyze-serp, NO Firecrawl - that happens in background job
   const geo = await fetchGeoResearchData(
     theme,
     territoryData,
@@ -314,33 +268,51 @@ async function runResearchStage(params: {
     undefined
   );
 
-  const geoDuration = nowMs() - geoStart;
+  const geoDuration = nowMs() - start;
 
   if (!geo) {
     throw new Error('RESEARCH_REQUIRED: Perplexity research returned null');
   }
 
-  // unified sources list (Perplexity + competitors)
-  const competitorUrls = (serpMatrix.competitors || []).map(c => c.url).filter(Boolean);
-  const sources = [...new Set([...(geo.sources || []), ...competitorUrls])].filter(Boolean);
+  // Sources from Perplexity only (SERP will be empty - filled by background job)
+  const sources = [...new Set(geo.sources || [])].filter(Boolean);
 
   const pkg: ResearchPackage = {
     geo,
-    serp: serpMatrix,
+    serp: {}, // Empty SERP - will be filled by seo-enhancer-job in background
     sources,
     generatedAt: new Date().toISOString(),
+    provider: 'perplexity',
   };
 
-  const totalDuration = nowMs() - start;
+  console.log(`[LightResearch] ✅ Completed in ${geoDuration}ms (Perplexity only, no Firecrawl)`);
 
-  await logStage(supabase, blogId, 'research', 'perplexity', 'research-package', true, totalDuration, {
+  await logStage(supabase, blogId, 'research', 'perplexity', 'light-research', true, geoDuration, {
     geo_ms: geoDuration,
-    serp_ms: serpDuration,
     sources_count: sources.length,
-    has_firecrawl: true,
+    firecrawl_skipped: true, // V4.0: Firecrawl moved to background
   });
 
   return pkg;
+}
+
+/**
+ * LEGACY: runResearchStage - DEPRECATED in favor of runLightResearchStage
+ * Kept for backward compatibility but NOT used in main flow.
+ * Deep SERP analysis now happens in seo-enhancer-job.
+ */
+async function runResearchStage(params: {
+  // deno-lint-ignore no-explicit-any
+  supabase: any;
+  blogId: string;
+  theme: string;
+  primaryKeyword: string;
+  territoryName: string | null;
+  territoryData: GeoTerritoryData | null;
+}): Promise<ResearchPackage> {
+  // V4.0: Redirect to light research - deep SERP is now background
+  console.warn('[Research] runResearchStage is DEPRECATED - using runLightResearchStage');
+  return runLightResearchStage(params);
 }
 
 function buildGovernanceBlock(research: ResearchPackage): string {
@@ -2393,6 +2365,43 @@ Reestruture e retorne via tool optimize_article.`;
         articleEnginePayload
       );
       console.log(`[${requestId}] SUCCESS: id=${persistedArticle.id}`);
+      
+      // ============================================================================
+      // V4.0: DISPATCH BACKGROUND SEO ENHANCER JOB
+      // This runs AFTER article is saved - does NOT block the response
+      // ============================================================================
+      const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+      const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      
+      // Use EdgeRuntime.waitUntil if available, otherwise fire-and-forget
+      const seoJobPayload = {
+        article_id: persistedArticle.id,
+        blog_id,
+        request_id: requestId,
+        keyword: primaryKeyword,
+        territory: territoryData?.official_name || null,
+      };
+      
+      console.log(`[${requestId}] Dispatching seo-enhancer-job for article ${persistedArticle.id}`);
+      
+      // Fire-and-forget background job (non-blocking)
+      fetch(`${SUPABASE_URL}/functions/v1/seo-enhancer-job`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SERVICE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(seoJobPayload),
+      }).then(res => {
+        if (res.ok) {
+          console.log(`[${requestId}][SEO-Job] ✅ Dispatched successfully`);
+        } else {
+          console.warn(`[${requestId}][SEO-Job] ⚠️ Dispatch returned ${res.status}`);
+        }
+      }).catch(e => {
+        console.error(`[${requestId}][SEO-Job] ❌ Failed to dispatch:`, e);
+      });
+      
     } catch (persistError) {
       console.error(`[${requestId}] PERSIST_ERROR:`, persistError);
       throw new Error(`DB_PERSIST_FAILED: Não foi possível salvar o artigo no banco. ${persistError instanceof Error ? persistError.message : 'Erro desconhecido'}`);

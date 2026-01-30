@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.wordpress-com-oauth]
 verify_jwt = false
+
+[functions.seo-enhancer-job]
+verify_jwt = false
