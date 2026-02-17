@@ -71,6 +71,7 @@ export interface StreamArticleOptions {
   editorialModel?: EditorialModel;
   generationMode?: GenerationMode; // fast = 400-1000 palavras, deep = 1500-3000 palavras
   autoPublish?: boolean; // Default true - auto-publicar o artigo
+  articleId?: string; // V4.7.3: ID do placeholder para fallback
   onDelta: (text: string) => void;
   onDone: (article: ArticleData | null) => void;
   onError: (error: string) => void;
@@ -143,6 +144,7 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
 
   try {
     // Stage 1: Analyzing
+    console.log('[V4.7.2] stage analyzing');
     onStage?.('analyzing');
     onProgress?.(0);
 
@@ -171,7 +173,7 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
     }, 2000);
 
     // Use structured endpoint via supabase.functions.invoke (sends user JWT automatically)
-    console.log("[streamArticle] Calling generate-article-structured via invoke...", { theme, blogId });
+    console.log('[V4.7.2] invoking backend', { theme, blogId });
     
     let data: any;
     let invokeError: any;
@@ -212,6 +214,7 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
     }
 
     // V4.7.2: Emitir generating imediatamente após resposta
+    console.log('[V4.7.2] stage generating');
     onStage?.('generating');
     onProgress?.(30);
 
@@ -270,6 +273,7 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
     }
 
     // Stage 4: Finalizing
+    console.log('[V4.7.2] stage finalizing');
     onStage?.('finalizing');
     onProgress?.(95);
     
@@ -279,6 +283,56 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
     onDone(article);
   } catch (error) {
     console.error('Article generation error:', error);
+    const errorMsg = error instanceof Error ? error.message : '';
+    const isTimeout =
+      errorMsg.includes('Failed to fetch') ||
+      errorMsg.includes('FunctionsFetchError') ||
+      errorMsg.includes('Failed to send');
+
+    if (isTimeout && blogId) {
+      console.log('[V4.7.3] Timeout detectado. Tentando recuperar artigo...');
+      onStage?.('finalizing');
+      onProgress?.(90);
+
+      await new Promise(resolve => setTimeout(resolve, 5000));
+
+      const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { data: recovered } = await supabase
+        .from('articles')
+        .select('id, title, slug, status, content, excerpt, meta_description, faq')
+        .eq('blog_id', blogId)
+        .eq('status', 'published')
+        .gte('created_at', fiveMinAgo)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (recovered && recovered.content) {
+        console.log('[V4.7.3] Artigo recuperado com sucesso:', recovered.id);
+        onProgress?.(95);
+
+        const words = recovered.content.split(' ');
+        for (let i = 0; i < words.length; i++) {
+          onDelta(words[i] + ' ');
+          if (i % 30 === 0) await new Promise(r => setTimeout(r, 5));
+        }
+
+        onProgress?.(100);
+        onDone({
+          id: recovered.id,
+          slug: recovered.slug,
+          title: recovered.title,
+          content: recovered.content,
+          excerpt: recovered.excerpt || '',
+          meta_description: recovered.meta_description || '',
+          faq: Array.isArray(recovered.faq) ? (recovered.faq as Array<{ question: string; answer: string }>) : [],
+        });
+        return;
+      }
+
+      console.log('[V4.7.3] Artigo NAO encontrado apos timeout.');
+    }
+
     onError(error instanceof Error ? error.message : 'Erro de conexão');
   }
 }
