@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.seo-enhancer-job]
 verify_jwt = false
+
+[functions.cleanup-orphaned-articles]
+verify_jwt = false
