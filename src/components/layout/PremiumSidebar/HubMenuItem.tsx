@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect, ReactNode } from 'react';
 import { LucideIcon, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface HubMenuItemProps {
   id: string;
   icon: LucideIcon;
   label: string;
   isActive?: boolean;
+  isExpanded?: boolean;
   children: ReactNode;
   onClose?: () => void;
 }
@@ -27,7 +29,8 @@ export function HubMenuItem({
   id, 
   icon: Icon, 
   label, 
-  isActive, 
+  isActive,
+  isExpanded = true,
   children,
   onClose 
 }: HubMenuItemProps) {
@@ -77,48 +80,72 @@ export function HubMenuItem({
       onMouseLeave={handleMouseLeave}
     >
       {/* Botão Principal */}
-      <button
-        onClick={handleClick}
-        className={cn(
-          'w-full flex items-center gap-3 px-4 py-3 rounded-lg relative',
-          'transition-all duration-200',
-          isActive && [
-            'bg-[#EDE9FE] dark:bg-[#7C3AED]/20',
-            'text-[#7C3AED] font-semibold',
-          ],
-          !isActive && [
-            'text-[#6B7280] dark:text-gray-400',
-            'hover:text-[#111827] dark:hover:text-white',
-            'hover:bg-[#F9FAFB] dark:hover:bg-gray-800',
-          ]
-        )}
-        aria-expanded={isOpen}
-        aria-haspopup="menu"
-      >
-        {/* Faixa lateral ativa (roxo → laranja) */}
-        {isActive && (
-          <div 
-            className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full"
-            style={{ 
-              background: 'linear-gradient(to bottom, #7C3AED, #F97316)' 
-            }}
-          />
-        )}
-        
-        <Icon className={cn(
-          'h-5 w-5 shrink-0 transition-colors',
-          isActive && 'text-[#7C3AED]'
-        )} />
-        
-        <span className="flex-1 text-left text-sm font-medium">
-          {label}
-        </span>
-        
-        <ChevronRight className={cn(
-          'h-4 w-4 text-[#9CA3AF] transition-transform duration-200',
-          isOpen && 'rotate-90'
-        )} />
-      </button>
+      {(() => {
+        const btn = (
+          <button
+            onClick={handleClick}
+            className={cn(
+              'w-full flex items-center gap-3 py-3 rounded-lg relative',
+              'transition-all duration-200',
+              isExpanded ? 'px-4' : 'px-0 justify-center',
+              isActive && [
+                'bg-[#EDE9FE] dark:bg-[#7C3AED]/20',
+                'text-[#7C3AED] font-semibold',
+              ],
+              !isActive && [
+                'text-[#6B7280] dark:text-gray-400',
+                'hover:text-[#111827] dark:hover:text-white',
+                'hover:bg-[#F9FAFB] dark:hover:bg-gray-800',
+              ]
+            )}
+            aria-expanded={isOpen}
+            aria-haspopup="menu"
+          >
+            {/* Faixa lateral ativa (roxo → laranja) */}
+            {isActive && (
+              <div 
+                className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full"
+                style={{ 
+                  background: 'linear-gradient(to bottom, #7C3AED, #F97316)' 
+                }}
+              />
+            )}
+            
+            <Icon className={cn(
+              'h-5 w-5 shrink-0 transition-colors',
+              isActive && 'text-[#7C3AED]'
+            )} />
+            
+            {isExpanded && (
+              <>
+                <span className="flex-1 text-left text-sm font-medium whitespace-nowrap">
+                  {label}
+                </span>
+                
+                <ChevronRight className={cn(
+                  'h-4 w-4 text-[#9CA3AF] transition-transform duration-200',
+                  isOpen && 'rotate-90'
+                )} />
+              </>
+            )}
+          </button>
+        );
+
+        if (!isExpanded) {
+          return (
+            <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>{btn}</TooltipTrigger>
+                <TooltipContent side="right" className="font-medium">
+                  {label}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          );
+        }
+
+        return btn;
+      })()}
 
       {/* Menu Flutuante - Position Fixed */}
       {isOpen && (

@@ -58,8 +58,8 @@ export function SubAccountLayout({ children }: SubAccountLayoutProps) {
         onHelpClick={handleHelpClick}
       />
 
-      {/* Main Content - Margin fixo para sidebar de 280px */}
-      <main className="flex-1 lg:ml-[280px]">
+      {/* Main Content - Margin fixo para sidebar recolhido (64px) */}
+      <main className="flex-1 lg:ml-16">
         <div className={cn('min-h-screen', isMobile ? 'pb-20' : '')}>
           <div className="p-4 md:p-8 max-w-5xl mx-auto">{children}</div>
         </div>

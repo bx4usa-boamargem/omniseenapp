@@ -1,6 +1,7 @@
 import { LucideIcon, Sun, Moon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTheme } from 'next-themes';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface NavItemProps {
   id: string;
@@ -9,6 +10,7 @@ interface NavItemProps {
   path?: string;
   isActive?: boolean;
   isSecondary?: boolean;
+  isExpanded?: boolean;
   highlight?: boolean;
   badge?: string | number;
   badgeType?: 'default' | 'success' | 'purple';
@@ -26,6 +28,7 @@ export function NavItem({
   label,
   isActive,
   isSecondary,
+  isExpanded = true,
   highlight,
   badge,
   badgeType = 'default',
@@ -75,12 +78,13 @@ export function NavItem({
   }
 
   // Renderização padrão
-  return (
+  const buttonContent = (
     <button
       onClick={onClick}
       className={cn(
-        'w-full flex items-center gap-3 px-4 py-3 rounded-lg mx-2 relative',
+        'w-full flex items-center gap-3 py-3 rounded-lg mx-2 relative',
         'transition-all duration-200',
+        isExpanded ? 'px-4' : 'px-0 justify-center',
 
         // Item ativo
         isActive && !isSecondary && [
@@ -118,39 +122,55 @@ export function NavItem({
         )}
       />
 
-      <span className="flex-1 text-left text-sm font-medium">{label}</span>
+      {isExpanded && (
+        <>
+          <span className="flex-1 text-left text-sm font-medium whitespace-nowrap">{label}</span>
 
-      {/* Badge "Novo" para CTA */}
-      {highlight && (
-        <span className="px-2 py-0.5 bg-[#7C3AED] text-white text-xs font-semibold rounded-full">
-          Novo
-        </span>
-      )}
-
-      {/* Badge numérico ou texto */}
-      {badge && !highlight && (
-        <span
-          className={cn(
-            'flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full',
-            badgeType === 'default' && 'bg-[#F3F4F6] text-[#4B5563] dark:bg-gray-700 dark:text-gray-300',
-            badgeType === 'success' && 'bg-[#DCFCE7] text-[#16A34A] dark:bg-green-900/30 dark:text-green-400',
-            badgeType === 'purple' && 'bg-[#EDE9FE] text-[#7C3AED] dark:bg-[#7C3AED]/20'
-          )}
-        >
-          {/* Ícone Star para badge purple */}
-          {BadgeIcon && <BadgeIcon className="h-2.5 w-2.5 fill-current" />}
-
-          {/* Dot pulsante para success */}
-          {pulseDot && (
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#16A34A] opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#16A34A]" />
+          {/* Badge "Novo" para CTA */}
+          {highlight && (
+            <span className="px-2 py-0.5 bg-[#7C3AED] text-white text-xs font-semibold rounded-full">
+              Novo
             </span>
           )}
 
-          {badge}
-        </span>
+          {/* Badge numérico ou texto */}
+          {badge && !highlight && (
+            <span
+              className={cn(
+                'flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full',
+                badgeType === 'default' && 'bg-[#F3F4F6] text-[#4B5563] dark:bg-gray-700 dark:text-gray-300',
+                badgeType === 'success' && 'bg-[#DCFCE7] text-[#16A34A] dark:bg-green-900/30 dark:text-green-400',
+                badgeType === 'purple' && 'bg-[#EDE9FE] text-[#7C3AED] dark:bg-[#7C3AED]/20'
+              )}
+            >
+              {BadgeIcon && <BadgeIcon className="h-2.5 w-2.5 fill-current" />}
+              {pulseDot && (
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#16A34A] opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#16A34A]" />
+                </span>
+              )}
+              {badge}
+            </span>
+          )}
+        </>
       )}
     </button>
   );
+
+  // Tooltip quando recolhido
+  if (!isExpanded) {
+    return (
+      <TooltipProvider delayDuration={0}>
+        <Tooltip>
+          <TooltipTrigger asChild>{buttonContent}</TooltipTrigger>
+          <TooltipContent side="right" className="font-medium">
+            {label}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return buttonContent;
 }

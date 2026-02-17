@@ -9,6 +9,7 @@ interface AccountFooterProps {
   onNavigate: (path: string) => void;
   onLogout: () => void;
   currentPath?: string;
+  isExpanded?: boolean;
 }
 
 /**
@@ -16,7 +17,7 @@ interface AccountFooterProps {
  * - Exibe avatar + nome do workspace
  * - Clique abre painel flutuante para CIMA com todas as opções de conta/sistema
  */
-export function AccountFooter({ onNavigate, onLogout, currentPath }: AccountFooterProps) {
+export function AccountFooter({ onNavigate, onLogout, currentPath, isExpanded = true }: AccountFooterProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { user } = useAuth();
   const { blog } = useBlog();
@@ -58,24 +59,28 @@ export function AccountFooter({ onNavigate, onLogout, currentPath }: AccountFoot
           <span className="text-white font-semibold text-sm">{initials}</span>
         </div>
 
-        {/* Info */}
-        <div className="flex-1 text-left min-w-0">
-          <p className="text-sm font-semibold text-[#111827] dark:text-white truncate">
-            {displayName}
-          </p>
-          <div className="flex items-center gap-1.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-pulse" />
-            <span className="text-xs text-[#6B7280]">Plano Growth</span>
-          </div>
-        </div>
+        {isExpanded && (
+          <>
+            {/* Info */}
+            <div className="flex-1 text-left min-w-0">
+              <p className="text-sm font-semibold text-[#111827] dark:text-white truncate">
+                {displayName}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-[#22C55E] animate-pulse" />
+                <span className="text-xs text-[#6B7280]">Plano Growth</span>
+              </div>
+            </div>
 
-        {/* Chevron - aponta para cima quando aberto */}
-        <ChevronUp
-          className={cn(
-            'h-4 w-4 text-[#9CA3AF] transition-transform duration-200 shrink-0',
-            !isOpen && 'rotate-180'
-          )}
-        />
+            {/* Chevron - aponta para cima quando aberto */}
+            <ChevronUp
+              className={cn(
+                'h-4 w-4 text-[#9CA3AF] transition-transform duration-200 shrink-0',
+                !isOpen && 'rotate-180'
+              )}
+            />
+          </>
+        )}
       </button>
 
       {/* Menu Flutuante - Abre para CIMA */}
