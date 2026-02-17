@@ -2,7 +2,7 @@ import logoOmniseen from "@/assets/logo-omniseen.png";
 import { cn } from "@/lib/utils";
 
 interface OmniseenLogoProps {
-  size?: 'sm' | 'md' | 'lg' | 'sidebar';
+  size?: 'sm' | 'md' | 'lg' | 'sidebar' | 'sidebar-collapsed';
   variant?: 'light' | 'dark';
   className?: string;
 }
@@ -12,6 +12,7 @@ const sizeClasses = {
   md: "h-10",
   lg: "h-14",
   sidebar: "h-14 max-w-[80px]",
+  'sidebar-collapsed': "h-8 max-w-[40px]",
 };
 
 export function OmniseenLogo({ size = 'md', variant = 'light', className }: OmniseenLogoProps) {

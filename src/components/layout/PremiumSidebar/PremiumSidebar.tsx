@@ -74,7 +74,7 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
           'flex-col bg-white dark:bg-gray-900',
           'border-r border-[#E5E7EB] dark:border-gray-700',
           'transition-all duration-300 overflow-hidden',
-          isExpanded ? 'w-[280px]' : 'w-16'
+          isExpanded ? 'w-60 shadow-lg' : 'w-16'
         )}
         role="navigation"
         aria-label="Sidebar principal"

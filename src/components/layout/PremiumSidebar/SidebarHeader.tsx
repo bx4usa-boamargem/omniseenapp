@@ -10,22 +10,21 @@ export function SidebarHeader({ isExpanded }: SidebarHeaderProps) {
   const navigate = useNavigate();
 
   return (
-    <div className="h-20 flex items-center px-3 gap-3 border-b border-[#E5E7EB] dark:border-gray-700">
+    <div className={cn(
+      "h-16 flex items-center border-b border-[#E5E7EB] dark:border-gray-700",
+      isExpanded ? 'px-4 gap-3' : 'justify-center'
+    )}>
       <button
         onClick={() => navigate('/client/dashboard')}
         className="flex items-center gap-3 hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-[#7C3AED]/50 rounded-lg p-1 -m-1"
         aria-label="Ir para Dashboard"
       >
-        <OmniseenLogo size="sidebar" className="shrink-0" />
-        <span
-          className={cn(
-            'text-lg font-semibold text-[#111827] dark:text-white whitespace-nowrap',
-            'transition-opacity duration-200',
-            isExpanded ? 'opacity-100' : 'opacity-0'
-          )}
-        >
-          OmniSeen
-        </span>
+        <OmniseenLogo size={isExpanded ? 'md' : 'sidebar-collapsed'} className="shrink-0" />
+        {isExpanded && (
+          <span className="text-lg font-semibold text-[#111827] dark:text-white whitespace-nowrap">
+            OmniSeen
+          </span>
+        )}
       </button>
     </div>
   );

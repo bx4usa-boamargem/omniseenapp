@@ -46,8 +46,9 @@ export function AccountFooter({ onNavigate, onLogout, currentPath, isExpanded = 
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all cursor-pointer',
+          'w-full flex items-center gap-3 py-3 rounded-xl transition-all cursor-pointer',
           'hover:bg-[#F9FAFB] dark:hover:bg-gray-800 hover:shadow-sm',
+          isExpanded ? 'px-3' : 'justify-center px-0',
           isOpen && 'bg-[#F9FAFB] dark:bg-gray-800'
         )}
         aria-expanded={isOpen}

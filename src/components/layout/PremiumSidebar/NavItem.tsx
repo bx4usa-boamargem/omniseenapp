@@ -82,9 +82,9 @@ export function NavItem({
     <button
       onClick={onClick}
       className={cn(
-        'w-full flex items-center gap-3 py-3 rounded-lg mx-2 relative',
+        'w-full flex items-center gap-3 py-3 rounded-lg relative',
         'transition-all duration-200',
-        isExpanded ? 'px-4' : 'px-0 justify-center',
+        isExpanded ? 'mx-2 px-4' : 'justify-center',
 
         // Item ativo
         isActive && !isSecondary && [

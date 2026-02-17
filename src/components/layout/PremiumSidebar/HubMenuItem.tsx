@@ -54,7 +54,9 @@ export function HubMenuItem({
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
-    setIsOpen(true);
+    if (isExpanded) {
+      setIsOpen(true);
+    }
   };
 
   const handleMouseLeave = () => {
@@ -75,7 +77,7 @@ export function HubMenuItem({
   return (
     <div 
       ref={containerRef}
-      className="relative px-2"
+      className="relative"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
@@ -87,7 +89,7 @@ export function HubMenuItem({
             className={cn(
               'w-full flex items-center gap-3 py-3 rounded-lg relative',
               'transition-all duration-200',
-              isExpanded ? 'px-4' : 'px-0 justify-center',
+              isExpanded ? 'mx-2 px-4' : 'justify-center',
               isActive && [
                 'bg-[#EDE9FE] dark:bg-[#7C3AED]/20',
                 'text-[#7C3AED] font-semibold',
