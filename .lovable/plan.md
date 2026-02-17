@@ -1,98 +1,90 @@
 
 
-# Sidebar Colapsavel com Expansao por Hover
+# Sidebar — Centralização, Timing e Organização
 
-## Problema Atual
+## Problemas Identificados
 
-O `PremiumSidebar` tem largura fixa de 280px no desktop e usa um botao hamburguer no canto direito para mobile. O usuario quer um sidebar que:
-- Quando **recolhido**: mostra apenas os icones (largura ~64px)
-- Quando o mouse **passa por cima**: expande suavemente para mostrar icones + labels (largura 280px)
-- Sem botao hamburguer no lado direito
+1. **Icones descentrados**: Os botoes usam `mx-2` que desloca os icones para a direita dentro dos 64px
+2. **Hover conflitante**: O HubMenuItem abre o painel flutuante ao mesmo tempo que o sidebar expande — duplo efeito simultaneo
+3. **Largura excessiva**: 280px e demais para 3 itens de navegacao — reduzir para 240px
+4. **Logo grande demais**: `h-14` nao cabe bem no estado recolhido de 64px
+5. **AccountFooter desalinhado**: Padding e margens nao centralizam o avatar quando recolhido
 
-## Solucao
+## Correcoes
 
-Transformar o `PremiumSidebar` em um sidebar colapsavel com hover, mantendo toda a estrutura existente (3 itens + AccountFooter + hubs flutuantes).
+### 1. `NavItem.tsx` — Centralizar icones
 
-## Alteracoes
+- Remover `mx-2` do botao
+- Quando recolhido: usar `w-full flex justify-center py-3` (sem padding lateral, sem margin)
+- Quando expandido: usar `px-4 py-3`
+- Faixa lateral ativa: ajustar `left` para compensar a remocao do `mx-2`
 
-### 1. `src/components/layout/PremiumSidebar/PremiumSidebar.tsx`
+### 2. `HubMenuItem.tsx` — Corrigir hover e centralizar
 
-- Adicionar estado `isExpanded` controlado por `onMouseEnter` / `onMouseLeave`
-- Sidebar tera `w-16` quando recolhido e `w-[280px]` quando expandido
-- Transicao suave com `transition-all duration-300`
-- Passar `isExpanded` para os componentes filhos (NavItem, HubMenuItem, SidebarHeader, AccountFooter)
-- Remover o `MobileMenuButton` do lado direito (manter apenas o `MobileDrawer` para mobile)
+- Remover `px-2` do container
+- Centralizar icone quando recolhido (mesmo padrao do NavItem)
+- **Separar hover do sidebar vs hover do item**: O painel flutuante so deve abrir com CLICK quando sidebar esta recolhido, e com hover quando esta expandido
+- Recalcular `panelPosition.left` baseado no estado expandido/recolhido (64px vs 240px)
 
-### 2. `src/components/layout/PremiumSidebar/SidebarHeader.tsx`
+### 3. `PremiumSidebar.tsx` — Reduzir largura
 
-- Quando recolhido: mostrar apenas o logo (sem o texto "OmniSeen")
-- Quando expandido: mostrar logo + texto
-- Receber prop `isExpanded`
+- Mudar `w-[280px]` para `w-60` (240px)
+- Adicionar `shadow-lg` quando expandido para separar visualmente do conteudo
 
-### 3. `src/components/layout/PremiumSidebar/NavItem.tsx`
+### 4. `SidebarHeader.tsx` — Organizar logo
 
-- Receber prop `isExpanded`
-- Quando recolhido: mostrar apenas o icone centralizado (esconder label, badges)
-- Quando expandido: mostrar icone + label + badges (como esta hoje)
-- Tooltip com o nome do item quando recolhido
+- Quando recolhido: logo menor (`h-8`), centralizado sem texto
+- Quando expandido: logo `h-10` + texto "OmniSeen"
+- Centralizar o botao inteiro dentro dos 64px quando recolhido
 
-### 4. `src/components/layout/PremiumSidebar/HubMenuItem.tsx`
+### 5. `AccountFooter.tsx` — Centralizar avatar
 
-- Receber prop `isExpanded`
-- Quando recolhido: mostrar apenas o icone (esconder label e chevron)
-- O painel flutuante continua funcionando normalmente no hover (ja abre ao lado)
+- Quando recolhido: centralizar avatar (remover padding lateral, `justify-center`)
+- Quando expandido: layout normal com nome + plano + chevron
 
-### 5. `src/components/layout/PremiumSidebar/AccountFooter.tsx`
+### 6. `OmniseenLogo.tsx` — Novo tamanho
 
-- Receber prop `isExpanded`
-- Quando recolhido: mostrar apenas o avatar circular (esconder nome, plano, chevron)
-- Quando expandido: mostrar tudo como hoje
-
-### 6. `src/components/layout/SubAccountLayout.tsx`
-
-- Mudar `lg:ml-[280px]` para `lg:ml-16` (margem fixa do sidebar recolhido)
-- O conteudo principal nao se desloca quando o sidebar expande (o sidebar expande por cima com `position: fixed`)
-
-## Comportamento Final
-
-```text
-RECOLHIDO (estado padrao):
-  [Logo]          <- apenas icone, 64px de largura
-  [Home icon]
-  [Pencil icon]
-  [Chat icon]
-  ...
-  [Avatar]
-
-HOVER (mouse sobre o sidebar):
-  [Logo] OmniSeen     <- expande para 280px
-  [Home] Dashboard
-  [Pencil] Conteudo  >
-  [Chat] Conversoes
-  ...
-  [Avatar] Workspace Name
-```
-
-O sidebar expande suavemente sobre o conteudo (position fixed, z-index alto), sem empurrar o layout principal.
+- Adicionar variante `sidebar-collapsed` com `h-8` para o estado recolhido
 
 ## Detalhes Tecnicos
 
-- O sidebar usa `position: fixed` (ja usa), entao a expansao nao afeta o layout
-- A margem do conteudo principal (`lg:ml-16`) permanece fixa
-- A expansao e puramente visual com `width` transition
-- Os textos usam `opacity-0` / `opacity-100` com `transition-opacity` para fade suave
-- `overflow-hidden` no sidebar impede que textos vazem quando recolhido
-- Os hubs flutuantes (ContentHubPanel, AccountHubPanel) continuam abrindo normalmente
-- No mobile (< 1024px), o MobileDrawer continua funcionando como esta, mas sem o botao hamburguer no canto direito (o MobileBottomNav ja existe para navegacao mobile)
+### Logica de hover do HubMenuItem
+
+```text
+Sidebar RECOLHIDO + hover no item:
+  -> Sidebar expande (controlado pelo PremiumSidebar)
+  -> Painel flutuante NAO abre automaticamente
+  -> Painel so abre com CLICK ou hover APOS sidebar expandir
+
+Sidebar EXPANDIDO + hover no item:
+  -> Painel flutuante abre normalmente ao lado
+```
+
+Implementacao: no `handleMouseEnter` do HubMenuItem, verificar `isExpanded` — se `false`, nao abrir o painel (deixar apenas o sidebar expandir via o handler do `aside`).
+
+### Largura e posicionamento
+
+```text
+Recolhido: w-16 (64px) — icones centralizados
+Expandido: w-60 (240px) — icones + labels
+Margem do conteudo: lg:ml-16 (sem mudanca)
+```
 
 ## Arquivos a Modificar
 
 | Arquivo | Mudanca |
 |---------|---------|
-| `PremiumSidebar.tsx` | Estado hover, passar isExpanded, remover MobileMenuButton |
-| `SidebarHeader.tsx` | Esconder texto quando recolhido |
-| `NavItem.tsx` | Esconder label quando recolhido |
-| `HubMenuItem.tsx` | Esconder label/chevron quando recolhido |
-| `AccountFooter.tsx` | Esconder texto quando recolhido |
-| `SubAccountLayout.tsx` | Margem fixa `lg:ml-16` |
+| `PremiumSidebar.tsx` | Largura `w-60`, shadow quando expandido |
+| `SidebarHeader.tsx` | Logo menor e centralizado quando recolhido |
+| `NavItem.tsx` | Remover `mx-2`, centralizar icone quando recolhido |
+| `HubMenuItem.tsx` | Centralizar icone, corrigir timing do hover |
+| `AccountFooter.tsx` | Centralizar avatar quando recolhido |
+| `OmniseenLogo.tsx` | Adicionar tamanho `sidebar-collapsed` |
 
+## Resultado Esperado
+
+- Icones perfeitamente centralizados na coluna de 64px
+- Hover no sidebar expande suavemente sem abrir paineis flutuantes prematuramente
+- Largura expandida de 240px (mais compacta, sem invadir o conteudo)
+- Logo OmniSeen visivel e organizado em ambos os estados
+- Avatar da conta centralizado quando recolhido
