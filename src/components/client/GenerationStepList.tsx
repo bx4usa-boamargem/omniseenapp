@@ -1,9 +1,8 @@
-import { Brain, LayoutTemplate, FileText, Search, Waves, Image, Rocket, Check, Loader2 } from 'lucide-react';
+import { Brain, FileText, Search, Waves, Image, Rocket, Check, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export type GenerationStep = 
   | 'analyzing' 
-  | 'structuring' 
   | 'generating' 
   | 'seo' 
   | 'rhythm' 
@@ -17,8 +16,7 @@ interface GenerationStepListProps {
 }
 
 const STEPS = [
-  { id: 'analyzing' as const, label: 'Analisando seu nicho', icon: Brain },
-  { id: 'structuring' as const, label: 'Definindo estrutura ideal', icon: LayoutTemplate },
+  { id: 'analyzing' as const, label: 'Analisando intenção e nicho', icon: Brain },
   { id: 'generating' as const, label: 'Gerando conteúdo principal', icon: FileText },
   { id: 'seo' as const, label: 'Otimizando SEO', icon: Search },
   { id: 'rhythm' as const, label: 'Ajustando leitura e ritmo', icon: Waves },
@@ -26,7 +24,7 @@ const STEPS = [
   { id: 'publishing' as const, label: 'Publicando artigo', icon: Rocket },
 ];
 
-const STEP_ORDER: GenerationStep[] = ['analyzing', 'structuring', 'generating', 'seo', 'rhythm', 'images', 'publishing', 'complete'];
+const STEP_ORDER: GenerationStep[] = ['analyzing', 'generating', 'seo', 'rhythm', 'images', 'publishing', 'complete'];
 
 export function GenerationStepList({ currentStep, progress }: GenerationStepListProps) {
   const currentIndex = STEP_ORDER.indexOf(currentStep);

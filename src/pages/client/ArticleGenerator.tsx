@@ -53,12 +53,11 @@ const STATES = [
 // Progress simulation sequence
 const PROGRESS_SEQUENCE = [
   { stage: 'validating', delay: 500, progress: 5 },
-  { stage: 'classifying', delay: 1000, progress: 15 },
-  { stage: 'selecting', delay: 1500, progress: 25 },
-  { stage: 'researching', delay: 15000, progress: 45 },
-  { stage: 'outlining', delay: 3000, progress: 55 },
-  { stage: 'writing', delay: 25000, progress: 75 },
-  { stage: 'optimizing', delay: 5000, progress: 90 }
+  { stage: 'classifying', delay: 1000, progress: 10 },
+  { stage: 'researching', delay: 15000, progress: 35 },
+  { stage: 'writing', delay: 25000, progress: 65 },
+  { stage: 'seo', delay: 5000, progress: 80 },
+  { stage: 'images', delay: 5000, progress: 92 }
 ];
 
 interface GeneratorFormData {

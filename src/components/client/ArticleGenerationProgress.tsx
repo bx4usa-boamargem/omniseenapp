@@ -10,7 +10,6 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { 
   Brain, 
-  LayoutTemplate, 
   Search, 
   FileText, 
   Target, 
@@ -38,12 +37,12 @@ interface GenerationStage {
  * V4.2: Complete stage list matching backend exactly
  */
 const GENERATION_STAGES: GenerationStage[] = [
-  { key: 'classifying', label: 'Classificando intenção...', icon: Brain, progress: 15 },
-  { key: 'selecting', label: 'Selecionando template...', icon: LayoutTemplate, progress: 25 },
-  { key: 'researching', label: 'Pesquisando referências...', icon: Search, progress: 40 },
-  { key: 'writing', label: 'Escrevendo conteúdo...', icon: FileText, progress: 70 },
-  { key: 'images', label: 'Gerando imagens...', icon: Image, progress: 85 },
-  { key: 'finalizing', label: 'Finalizando artigo...', icon: Target, progress: 95 },
+  { key: 'classifying', label: 'Classificando intenção...', icon: Brain, progress: 10 },
+  { key: 'researching', label: 'Pesquisando referências...', icon: Search, progress: 30 },
+  { key: 'writing', label: 'Escrevendo conteúdo...', icon: FileText, progress: 60 },
+  { key: 'seo', label: 'Otimizando SEO...', icon: Target, progress: 75 },
+  { key: 'images', label: 'Gerando imagens...', icon: Image, progress: 88 },
+  { key: 'finalizing', label: 'Finalizando artigo...', icon: CheckCircle2, progress: 98 },
 ];
 
 interface DiagnosticsData {

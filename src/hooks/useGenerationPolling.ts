@@ -10,7 +10,6 @@ import { supabase } from '@/integrations/supabase/client';
 
 export type GenerationStageType = 
   | 'classifying' 
-  | 'selecting' 
   | 'researching' 
   | 'writing' 
   | 'seo'

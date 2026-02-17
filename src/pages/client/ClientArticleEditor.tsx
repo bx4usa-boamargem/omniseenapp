@@ -138,7 +138,6 @@ export default function ClientArticleEditor() {
     if (!stage) return null;
     const mapping: Record<string, string> = {
       'analyzing': 'classifying',
-      'structuring': 'selecting',
       'generating': 'writing',
       'images': 'images',
       'finalizing': 'finalizing'

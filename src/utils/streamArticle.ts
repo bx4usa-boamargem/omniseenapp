@@ -44,7 +44,7 @@ interface EditorialTemplate {
   category_default?: string;
 }
 
-export type GenerationStage = 'analyzing' | 'structuring' | 'generating' | 'finalizing' | null;
+export type GenerationStage = 'analyzing' | 'generating' | 'finalizing' | null;
 
 // Editorial Model Type
 export type EditorialModel = 'traditional' | 'strategic' | 'visual_guided';
@@ -155,8 +155,7 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
       }
     }
 
-    // Stage 2: Structuring
-    onStage?.('structuring');
+    // V4.7.1: Template stage removido - progresso ajustado
     onProgress?.(15);
 
     // Get current user for cost tracking

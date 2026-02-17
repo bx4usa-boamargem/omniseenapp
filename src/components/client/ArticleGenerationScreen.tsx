@@ -44,8 +44,6 @@ const mapStageToStep = (stage: GenerationStage): GenerationStep => {
   switch (stage) {
     case 'analyzing':
       return 'analyzing';
-    case 'structuring':
-      return 'structuring';
     case 'generating':
       return 'generating';
     case 'finalizing':
