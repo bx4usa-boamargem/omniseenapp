@@ -157,6 +157,15 @@ export default function ClientArticleEditor() {
     if (timeoutWarningRef.current) {
       clearTimeout(timeoutWarningRef.current);
     }
+
+    // V4.7.4: Limpar placeholder no banco para evitar loop de re-geracao
+    if (existingArticleId) {
+      supabase.from('articles')
+        .update({ status: 'draft', generation_stage: 'failed' })
+        .eq('id', existingArticleId)
+        .then(() => console.log('[V4.7.4] Placeholder marcado como draft'));
+    }
+
     toast.info('Geração cancelada');
   };
 
@@ -404,7 +413,47 @@ export default function ClientArticleEditor() {
       // ============================================================
       const articleStatus = data.status as string;
       if (articleStatus === "generating") {
-        console.log("[loadExistingArticle] Detected generating status, starting stream");
+        console.log("[loadExistingArticle] Detected generating status, checking for existing article first...");
+        
+        // V4.7.4: Verificar se artigo real ja foi gerado pelo backend antes de re-gerar
+        const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+        const { data: existingPublished } = await supabase
+          .from('articles')
+          .select('id, title, slug, content, excerpt, meta_description, faq, status')
+          .eq('blog_id', blog?.id || data.blog_id)
+          .eq('status', 'published')
+          .gte('created_at', tenMinAgo)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (existingPublished && existingPublished.content) {
+          console.log('[V4.7.4] Artigo real encontrado, atualizando placeholder:', existingPublished.id);
+          // Atualizar placeholder com conteudo do artigo real
+          await supabase.from('articles').update({
+            title: existingPublished.title,
+            content: existingPublished.content,
+            excerpt: existingPublished.excerpt,
+            meta_description: existingPublished.meta_description,
+            faq: existingPublished.faq || [],
+            status: 'published',
+            published_at: new Date().toISOString(),
+          }).eq('id', data.id);
+
+          // Carregar no editor
+          setTitle(existingPublished.title || '');
+          setContent(existingPublished.content || '');
+          setExcerpt(existingPublished.excerpt || '');
+          setMetaDescription(existingPublished.meta_description || '');
+          setFaq(Array.isArray(existingPublished.faq) ? (existingPublished.faq as unknown as Array<{ question: string; answer: string }>) : []);
+          setExistingArticleId(data.id);
+          setPhase('editing');
+          toast.success('Artigo recuperado com sucesso!');
+          return;
+        }
+
+        // Se nao encontrou artigo real, continuar com geracao normal
+        console.log("[loadExistingArticle] No existing article found, starting stream");
         setExistingArticleId(data.id);
         setTitle(data.title || '');
         setPhase('generating');
