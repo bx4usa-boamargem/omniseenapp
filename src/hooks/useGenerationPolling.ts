@@ -1,5 +1,5 @@
 /**
- * Hook for real-time generation stage polling
+ * Hook for real-time generation stage polling V5.0
  * 
  * Polls the article's generation_stage and generation_progress
  * from the database to show accurate UI progress.
@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export type GenerationStageType = 
+  | 'validating'
   | 'classifying' 
   | 'researching' 
   | 'writing' 
@@ -44,7 +45,7 @@ export function useGenerationPolling({
   onError
 }: UseGenerationPollingOptions) {
   const [status, setStatus] = useState<GenerationStatus>({
-    stage: 'classifying',
+    stage: 'validating',
     progress: 0,
     imagesTotal: 0,
     imagesCompleted: 0,
@@ -53,7 +54,7 @@ export function useGenerationPolling({
   });
   const [isPolling, setIsPolling] = useState(false);
   const [stuckCounter, setStuckCounter] = useState(0);
-  const lastStageRef = useRef<GenerationStageType>('classifying');
+  const lastStageRef = useRef<GenerationStageType>('validating');
   const lastProgressRef = useRef<number>(0);
 
   const pollStatus = useCallback(async () => {
@@ -64,7 +65,7 @@ export function useGenerationPolling({
         .from('articles')
         .select('generation_stage, generation_progress, images_total, images_completed, images_pending, status')
         .eq('id', articleId)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.warn('[GenerationPolling] Poll error:', error);
@@ -73,7 +74,7 @@ export function useGenerationPolling({
 
       if (!data) return;
 
-      const newStage = (data.generation_stage as GenerationStageType) || 'classifying';
+      const newStage = (data.generation_stage as GenerationStageType) || 'validating';
       const newProgress = data.generation_progress || 0;
 
       // Check if stuck (same stage + progress for multiple polls)
@@ -95,7 +96,7 @@ export function useGenerationPolling({
         status: data.status
       });
 
-      // Check for completion - V4.3: Only 'completed' is valid, no null fallback
+      // Check for completion
       if (data.status === 'published' || data.status === 'draft') {
         if (newStage === 'completed') {
           console.log('[GenerationPolling] ✅ Generation completed');
@@ -133,9 +134,13 @@ export function useGenerationPolling({
     };
   }, [enabled, articleId, intervalMs, pollStatus]);
 
-  // Derive if we're stuck (> 10 polls = ~15s with 1.5s interval)
-  const isStuck = stuckCounter > 10 && 
-    (status.stage === 'classifying' || status.stage === 'researching');
+  // V5.0: Stuck detection for ALL stages (not just classifying/researching)
+  // 10 polls = ~15s for early stages, 20 polls = ~30s for images stage
+  const isStuck = (
+    (stuckCounter > 10 && ['classifying', 'researching', 'validating'].includes(status.stage)) ||
+    (stuckCounter > 20 && status.stage === 'images') ||
+    (stuckCounter > 30) // Any stage stuck for 45s+
+  );
 
   return {
     ...status,

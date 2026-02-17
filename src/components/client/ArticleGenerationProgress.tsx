@@ -97,8 +97,14 @@ export function ArticleGenerationProgress({
   
   const currentStageIndex = GENERATION_STAGES.findIndex(s => s.key === currentStage);
   
-  // Determine if we should show "waiting for server" message
-  const showWaitingMessage = isStuck && currentStage === 'classifying' && progress >= 80;
+  // V5.0: Show waiting message when stuck on any stage
+  const showWaitingMessage = isStuck;
+  const stuckMessage = currentStage === 'images' 
+    ? 'Gerando imagens em segundo plano...'
+    : 'Aguardando resposta do servidor...';
+  const stuckSubMessage = currentStage === 'images'
+    ? 'A geração de imagens pode levar mais tempo. O artigo será salvo automaticamente.'
+    : 'A geração está em progresso. Aguarde mais um momento.';
   
   return (
     <div className="bg-card border rounded-2xl shadow-2xl p-8 space-y-6 animate-in fade-in duration-300">
@@ -209,10 +215,10 @@ export function ArticleGenerationProgress({
           <Loader2 className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 animate-spin" />
           <div className="flex-1">
             <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">
-              Aguardando resposta do servidor...
+              {stuckMessage}
             </p>
             <p className="text-xs text-blue-600/70 dark:text-blue-400/70">
-              A geração está em progresso. Aguarde mais um momento.
+              {stuckSubMessage}
             </p>
           </div>
           <Button
