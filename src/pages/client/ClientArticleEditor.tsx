@@ -441,7 +441,10 @@ export default function ClientArticleEditor() {
           generationMode,
           tone: 'friendly',
           autoPublish: true,
-          onStage: (stage) => setGenerationStage(stage),
+          onStage: (stage) => {
+            console.log('[UI] stage recebido:', stage);
+            setGenerationStage(stage);
+          },
           onProgress: (percent) => setGenerationProgress(percent),
           onDelta: (text) => setStreamingText((prev) => prev + text),
           onDone: async (result) => {
@@ -481,13 +484,64 @@ export default function ClientArticleEditor() {
               }
             }
           },
-          onError: (error) => {
+          onError: async (error) => {
+            const isTimeout =
+              error.includes('Failed to fetch') ||
+              error.includes('FunctionsFetchError') ||
+              error.includes('Failed to send');
+
+            if (isTimeout && blog?.id) {
+              console.log('[V4.7.3] Timeout no Editor. Verificando artigo salvo...');
+
+              await new Promise(resolve => setTimeout(resolve, 5000));
+
+              const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+              const { data: article } = await supabase
+                .from('articles')
+                .select('id, title, slug, status, content, excerpt, meta_description, faq')
+                .eq('blog_id', blog.id)
+                .eq('status', 'published')
+                .gte('created_at', fiveMinAgo)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+              if (article && article.content) {
+                console.log('[V4.7.3] Artigo recuperado apos timeout:', article.id);
+
+                await supabase
+                  .from('articles')
+                  .update({
+                    title: article.title,
+                    content: article.content,
+                    excerpt: article.excerpt,
+                    meta_description: article.meta_description,
+                    faq: article.faq || [],
+                    status: 'published',
+                    published_at: new Date().toISOString(),
+                  })
+                  .eq('id', data.id);
+
+                setTitle(article.title || '');
+                setContent(article.content || '');
+                setExcerpt(article.excerpt || '');
+                setMetaDescription(article.meta_description || '');
+                setFaq(Array.isArray(article.faq) ? (article.faq as unknown as Array<{ question: string; answer: string }>) : []);
+
+                setIsGenerating(false);
+                setGenerationStage(null);
+                generationLockRef.current = false;
+                setPhase('editing');
+                toast.success('Artigo gerado com sucesso!');
+                return;
+              }
+            }
+
+            // Erro real
             setIsGenerating(false);
             setGenerationStage(null);
             generationLockRef.current = false;
             toast.error(error || 'Erro ao gerar artigo');
-            
-            // Mark as draft on error
             supabase.from('articles').update({ status: 'draft' }).eq('id', data.id);
             setPhase('form');
           },
