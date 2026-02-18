@@ -65,6 +65,59 @@ const extractWhatsAppCTA = (line: string): { text: string; url: string } | null 
 };
 
 export const ArticleContent = ({ content, contentImages = [] }: ArticleContentProps) => {
+  // Detect if content is HTML (from SEO optimization) vs Markdown
+  const isHtmlContent = /<(h[1-6]|p|div|figure|ul|ol|table|section)\b/i.test(content);
+
+  if (isHtmlContent) {
+    // HTML content: process WhatsApp CTAs and render directly
+    let processedHtml = content;
+    
+    // Convert WhatsApp links to styled buttons
+    processedHtml = processedHtml.replace(
+      /<a\s+href="(https:\/\/wa\.me\/[^"]+)"[^>]*>([^<]+)<\/a>/gi,
+      (_, url, text) => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="whatsapp-cta-inline">${text}</a>`
+    );
+
+    // Inject content_images after corresponding h2 sections
+    if (contentImages && contentImages.length > 0) {
+      let h2Count = 0;
+      processedHtml = processedHtml.replace(/(<\/h2>)/gi, (match) => {
+        h2Count++;
+        const image = contentImages.find(img => img.after_section === h2Count);
+        if (image) {
+          const label = contextLabels[image.context] || 'Ilustração';
+          return `${match}<figure class="my-10"><div class="rounded-xl overflow-hidden shadow-xl"><img src="${image.url}" alt="${label}" class="w-full aspect-video object-cover object-center" style="max-height:400px" loading="lazy" /></div><figcaption class="text-center text-sm text-muted-foreground mt-3 italic">${label}</figcaption></figure>`;
+        }
+        return match;
+      });
+    }
+
+    return (
+      <article className="prose prose-lg max-w-none prose-headings:font-heading prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground prose-h2:text-2xl prose-h2:mt-8 prose-h2:mb-4 prose-h3:text-xl prose-h3:mt-6 prose-h3:mb-3 prose-p:leading-relaxed prose-ul:my-4 prose-ol:my-4 prose-li:my-1 prose-blockquote:not-italic">
+        <style>{`
+          .whatsapp-cta-inline {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background-color: #25D366;
+            color: white !important;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            text-decoration: none !important;
+            transition: all 0.2s;
+          }
+          .whatsapp-cta-inline:hover {
+            background-color: #1da851;
+            transform: scale(1.02);
+          }
+        `}</style>
+        <div dangerouslySetInnerHTML={{ __html: processedHtml }} />
+      </article>
+    );
+  }
+
+  // Markdown content: use existing parser
   const formatContent = (text: string) => {
     const lines = text.split("\n");
     const elements: JSX.Element[] = [];

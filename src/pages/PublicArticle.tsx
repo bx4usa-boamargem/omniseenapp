@@ -22,6 +22,7 @@ import { usePublicArticleTranslation } from "@/hooks/useArticleTranslations";
 import { getCanonicalArticleUrl, getBlogPath } from "@/utils/blogUrl";
 import { Calendar, Clock, ChevronDown, ChevronUp, Eye, Share2, ArrowLeft } from "lucide-react";
 import { ArticlePdfDownload } from "@/components/articles/ArticlePdfDownload";
+import { ArticleCTARenderer } from "@/components/client/ArticleCTARenderer";
 
 interface ContentImage {
   context: string;
@@ -206,8 +207,10 @@ const PublicArticle = () => {
   const canonicalUrl = getCanonicalArticleUrl(mappedBlog, article.slug);
   const blogPath = getBlogPath(mappedBlog);
 
-  // Parse content_images if present (from highlights field)
-  const contentImages: ContentImage[] = [];
+  // Parse content_images from article data
+  const contentImages: ContentImage[] = Array.isArray(article.content_images)
+    ? (article.content_images as ContentImage[])
+    : [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -370,6 +373,15 @@ const PublicArticle = () => {
                   contentImages={contentImages}
                 />
               )}
+            </div>
+          </section>
+        )}
+
+        {/* Article CTA */}
+        {article.cta && (
+          <section className="px-4 pb-12">
+            <div className="max-w-3xl mx-auto lg:mr-80 lg:ml-auto">
+              <ArticleCTARenderer cta={article.cta as any} />
             </div>
           </section>
         )}

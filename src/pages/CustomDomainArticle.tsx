@@ -15,6 +15,7 @@ import { FloatingShareBar } from "@/components/public/FloatingShareBar";
 import { TableOfContents } from "@/components/public/TableOfContents";
 import { FocusedReadingMode } from "@/components/public/FocusedReadingMode";
 import { BrandSalesAgentWidget } from "@/components/public/BrandSalesAgentWidget";
+import { ArticleCTARenderer } from "@/components/client/ArticleCTARenderer";
 import { Badge } from "@/components/ui/badge";
 
 // FAQ Item component
@@ -206,9 +207,16 @@ export default function CustomDomainArticle({ blogId, blogSlug: propBlogSlug }: 
             <div className="prose prose-lg dark:prose-invert max-w-none">
               <ArticleContent 
                 content={article.content || ""} 
-                contentImages={null}
+                contentImages={Array.isArray(article.content_images) ? (article.content_images as { context: string; url: string; after_section: number }[]) : undefined}
               />
             </div>
+
+            {/* Article CTA */}
+            {article.cta && (
+              <div className="mt-12">
+                <ArticleCTARenderer cta={article.cta as any} />
+              </div>
+            )}
 
             {/* FAQ Section */}
             {faq && faq.length > 0 && (
