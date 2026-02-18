@@ -66,31 +66,51 @@ serve(async (req) => {
     if (action === "migrate") {
       console.log("Starting retroactive cost migration...");
 
-      // Get all articles with their blogs and owners
-      const { data: articles, error: articlesError } = await supabase
-        .from("articles")
-        .select(`
-          id,
-          blog_id,
-          title,
-          created_at,
-          featured_image_url,
-          content_images,
-          blogs!inner (
-            user_id
-          )
-        `);
+      // Fetch articles in paginated batches to avoid statement timeout
+      const PAGE_SIZE = 500;
+      let allArticles: any[] = [];
+      let page = 0;
+      let hasMore = true;
 
-      if (articlesError) {
-        console.error("Error fetching articles:", articlesError);
-        throw articlesError;
+      while (hasMore) {
+        const { data: batch, error: batchError } = await supabase
+          .from("articles")
+          .select(`
+            id,
+            blog_id,
+            title,
+            created_at,
+            featured_image_url,
+            content_images,
+            blogs!inner (
+              user_id
+            )
+          `)
+          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+          .order("created_at", { ascending: true });
+
+        if (batchError) {
+          console.error("Error fetching articles batch:", batchError);
+          throw batchError;
+        }
+
+        if (!batch || batch.length === 0) {
+          hasMore = false;
+        } else {
+          allArticles = allArticles.concat(batch);
+          hasMore = batch.length === PAGE_SIZE;
+          page++;
+        }
       }
+
+      console.log(`Fetched ${allArticles.length} articles in ${page} pages`);
 
       // Get existing article generation logs to avoid duplicates
       const { data: existingArticleLogs } = await supabase
         .from("consumption_logs")
         .select("blog_id, created_at")
-        .eq("action_type", "article_generation");
+        .eq("action_type", "article_generation")
+        .limit(10000);
 
       const existingArticleSet = new Set(
         existingArticleLogs?.map((l) => `${l.blog_id}_${l.created_at?.split("T")[0]}`) || []
@@ -100,7 +120,8 @@ serve(async (req) => {
       const { data: existingImageLogs } = await supabase
         .from("consumption_logs")
         .select("blog_id, created_at")
-        .eq("action_type", "image_generation");
+        .eq("action_type", "image_generation")
+        .limit(10000);
 
       const existingImageSet = new Set(
         existingImageLogs?.map((l) => `${l.blog_id}_${l.created_at?.split("T")[0]}`) || []
@@ -109,7 +130,7 @@ serve(async (req) => {
       const articleLogsToInsert: any[] = [];
       const imageLogsToInsert: any[] = [];
 
-      for (const article of articles || []) {
+      for (const article of allArticles) {
         const userId = (article.blogs as any)?.user_id;
         if (!userId) continue;
 
