@@ -206,13 +206,20 @@ async function callGoogleWriter(request: WriterRequest): Promise<WriterResponse>
   
   const url = `${config.endpoint}/${config.model}:generateContent?key=${apiKey}`;
   
+  const generationConfig: Record<string, unknown> = {
+    temperature: request.temperature ?? config.temperature,
+    maxOutputTokens: request.maxTokens ?? config.maxOutputTokens,
+  };
+  
+  // Only set responseMimeType when NOT using tool/function calling
+  // Google API rejects combining forced function calling (ANY mode) with responseMimeType: 'application/json'
+  if (!request.tool) {
+    generationConfig.responseMimeType = 'application/json';
+  }
+
   const body: Record<string, unknown> = {
     contents,
-    generationConfig: {
-      temperature: request.temperature ?? config.temperature,
-      maxOutputTokens: request.maxTokens ?? config.maxOutputTokens,
-      responseMimeType: 'application/json'
-    }
+    generationConfig
   };
   
   if (systemInstruction) {
@@ -222,15 +229,12 @@ async function callGoogleWriter(request: WriterRequest): Promise<WriterResponse>
   // Add tool if provided - Google requires specific schema format
   if (request.tool) {
     // Google API requires type: "object" at root level, not "function"
-    // Clean the schema to ensure compatibility
     const cleanSchema = { ...request.tool.schema };
     
-    // Force type to "object" if it's "function" or missing
     if (cleanSchema.type === 'function' || !cleanSchema.type) {
       cleanSchema.type = 'object';
     }
     
-    // Remove any OpenAI-specific fields that Google doesn't understand
     delete cleanSchema.additionalProperties;
     
     body.tools = [{
