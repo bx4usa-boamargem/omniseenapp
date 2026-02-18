@@ -1,3 +1,6 @@
+// DEPRECATED – Replaced by editorialOrchestrator.ts (Elite Engine V2)
+// Do not use. Maintained temporarily for reference.
+
 /**
  * Editorial Rotation Module
  * 

@@ -417,6 +417,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "article_analytics_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
+          },
+          {
             foreignKeyName: "article_analytics_blog_id_fkey"
             columns: ["blog_id"]
             isOneToOne: false
@@ -478,6 +485,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "articles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_broken_links_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
           },
         ]
       }
@@ -548,6 +562,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "article_content_scores_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: true
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
+          },
+          {
             foreignKeyName: "article_content_scores_serp_analysis_id_fkey"
             columns: ["serp_analysis_id"]
             isOneToOne: false
@@ -611,6 +632,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "article_conversion_metrics_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
+          },
+          {
             foreignKeyName: "article_conversion_metrics_blog_id_fkey"
             columns: ["blog_id"]
             isOneToOne: false
@@ -650,11 +678,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "article_internal_links_source_article_id_fkey"
+            columns: ["source_article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
+          },
+          {
             foreignKeyName: "article_internal_links_target_article_id_fkey"
             columns: ["target_article_id"]
             isOneToOne: false
             referencedRelation: "articles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_internal_links_target_article_id_fkey"
+            columns: ["target_article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
           },
         ]
       }
@@ -763,6 +805,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "article_opportunities_converted_article_id_fkey"
+            columns: ["converted_article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
+          },
+          {
             foreignKeyName: "article_opportunities_intel_week_id_fkey"
             columns: ["intel_week_id"]
             isOneToOne: false
@@ -842,6 +891,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "article_queue_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
+          },
+          {
             foreignKeyName: "article_queue_blog_id_fkey"
             columns: ["blog_id"]
             isOneToOne: false
@@ -902,6 +958,13 @@ export type Database = {
             referencedRelation: "articles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "article_revisions_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
+          },
         ]
       }
       article_translations: {
@@ -957,6 +1020,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "articles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_translations_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
           },
         ]
       }
@@ -1031,6 +1101,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "articles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "article_versions_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
           },
         ]
       }
@@ -1321,6 +1398,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "articles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "automation_notifications_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
           },
           {
             foreignKeyName: "automation_notifications_blog_id_fkey"
@@ -1970,6 +2054,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "brand_agent_conversations_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
+          },
+          {
             foreignKeyName: "brand_agent_conversations_blog_id_fkey"
             columns: ["blog_id"]
             isOneToOne: false
@@ -2043,6 +2134,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "articles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "brand_agent_leads_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
           },
           {
             foreignKeyName: "brand_agent_leads_blog_id_fkey"
@@ -2321,6 +2419,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "client_reviews_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
+          },
+          {
             foreignKeyName: "client_reviews_blog_id_fkey"
             columns: ["blog_id"]
             isOneToOne: false
@@ -2438,6 +2543,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "articles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cluster_articles_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
           },
           {
             foreignKeyName: "cluster_articles_cluster_id_fkey"
@@ -2611,6 +2723,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "articles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cms_publish_logs_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
           },
           {
             foreignKeyName: "cms_publish_logs_integration_id_fkey"
@@ -3178,6 +3297,13 @@ export type Database = {
             referencedRelation: "articles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ebooks_source_article_id_fkey"
+            columns: ["source_article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
+          },
         ]
       }
       editorial_templates: {
@@ -3339,6 +3465,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "articles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "funnel_events_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
           },
           {
             foreignKeyName: "funnel_events_blog_id_fkey"
@@ -3862,6 +3995,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "indexnow_submissions_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
+          },
+          {
             foreignKeyName: "indexnow_submissions_blog_id_fkey"
             columns: ["blog_id"]
             isOneToOne: false
@@ -4302,6 +4442,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "niche_guard_logs_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
+          },
+          {
             foreignKeyName: "niche_guard_logs_blog_id_fkey"
             columns: ["blog_id"]
             isOneToOne: false
@@ -4433,6 +4580,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "articles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "omnicore_articles_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
           },
           {
             foreignKeyName: "omnicore_articles_omnicore_opportunity_id_fkey"
@@ -5085,6 +5239,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "quality_gate_audits_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
+          },
+          {
             foreignKeyName: "quality_gate_audits_blog_id_fkey"
             columns: ["blog_id"]
             isOneToOne: false
@@ -5131,6 +5292,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "articles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reading_goal_alerts_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
           },
           {
             foreignKeyName: "reading_goal_alerts_goal_id_fkey"
@@ -5232,6 +5400,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "articles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "real_leads_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
           },
           {
             foreignKeyName: "real_leads_blog_id_fkey"
@@ -5405,6 +5580,13 @@ export type Database = {
             referencedRelation: "articles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "score_change_log_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
+          },
         ]
       }
       section_analytics: {
@@ -5448,6 +5630,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "articles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "section_analytics_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
           },
         ]
       }
@@ -5513,6 +5702,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "articles"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seo_ai_runs_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "elite_engine_analytics"
+            referencedColumns: ["article_id"]
           },
         ]
       }
@@ -6464,6 +6660,85 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "cms_integrations_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      elite_engine_analytics: {
+        Row: {
+          angle: string | null
+          article_goal: string | null
+          article_id: string | null
+          blocks_hash: string | null
+          blocks_used: string[] | null
+          blog_id: string | null
+          city: string | null
+          collision_avoided: boolean | null
+          collision_scope: string | null
+          created_at: string | null
+          engine_version: string | null
+          funnel_mode: string | null
+          h2_pattern_hash: string | null
+          high_similarity_warning: boolean | null
+          niche: string | null
+          rhythm_profile: string | null
+          similarity_score: number | null
+          structure_hash: string | null
+          structure_type: string | null
+          style_mode: string | null
+          variant: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "articles_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      elite_engine_angle_distribution: {
+        Row: {
+          angle: string | null
+          count: number | null
+          niche: string | null
+          percentage: number | null
+        }
+        Relationships: []
+      }
+      elite_engine_collision_rate: {
+        Row: {
+          avg_similarity: number | null
+          blog_id: string | null
+          collisions_avoided: number | null
+          high_similarity_warnings: number | null
+          max_similarity: number | null
+          total_articles: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "articles_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      elite_engine_structure_distribution: {
+        Row: {
+          blog_id: string | null
+          count: number | null
+          percentage: number | null
+          structure_type: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "articles_blog_id_fkey"
             columns: ["blog_id"]
             isOneToOne: false
             referencedRelation: "blogs"
