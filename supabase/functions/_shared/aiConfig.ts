@@ -70,7 +70,7 @@ export const AI_CONFIG = {
     },
     fallback: {
       provider: 'unsplash' as const,
-      apiUrl: 'https://source.unsplash.com',
+      apiUrl: 'https://picsum.photos',
       size: '1024x576',
       quality: 80
     }

@@ -124,6 +124,20 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
     let listItems: string[] = [];
     let listType: "ul" | "ol" | null = null;
     let h2Count = 0;
+    let pendingParagraph: string[] = [];
+
+    const flushParagraph = () => {
+      if (pendingParagraph.length > 0) {
+        const processedLine = pendingParagraph.join(' ')
+          .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+          .replace(/\*(.+?)\*/g, "<em>$1</em>")
+          .replace(/_(.+?)_/g, "<em>$1</em>");
+        elements.push(
+          <p key={`p-${elements.length}`} dangerouslySetInnerHTML={{ __html: processLinks(processedLine) }} />
+        );
+        pendingParagraph = [];
+      }
+    };
 
     const flushList = () => {
       if (listItems.length > 0 && listType) {
@@ -166,6 +180,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
       const trimmedLine = line.trim();
 
       if (!trimmedLine) {
+        flushParagraph();
         flushList();
         return;
       }
@@ -346,20 +361,11 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         return;
       }
 
-      // Bold, italic, and links
-      let processedLine = trimmedLine
-        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-        .replace(/\*(.+?)\*/g, "<em>$1</em>")
-        .replace(/_(.+?)_/g, "<em>$1</em>");
-      
-      processedLine = processLinks(processedLine);
-
-      flushList();
-      elements.push(
-        <p key={index} dangerouslySetInnerHTML={{ __html: processedLine }} />
-      );
+      // Regular paragraph text - accumulate for grouping
+      pendingParagraph.push(trimmedLine);
     });
 
+    flushParagraph();
     flushList();
     return elements;
   };

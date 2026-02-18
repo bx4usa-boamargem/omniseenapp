@@ -99,28 +99,11 @@ function generateUnsplashFallback(
   city: string, 
   context: string
 ): ImageGenerationResult {
-  // Map niche to better Unsplash keywords
-  const nicheKeywords: Record<string, string> = {
-    'pest_control': 'pest control,exterminator,professional cleaning',
-    'plumbing': 'plumber,plumbing,pipes,water',
-    'dental': 'dentist,dental clinic,smile,teeth',
-    'legal': 'lawyer,law office,legal,justice',
-    'accounting': 'accountant,finance,business,office',
-    'real_estate': 'real estate,house,property,home',
-    'technology': 'technology,software,computer,office'
-  };
-
-  const nicheQuery = nicheKeywords[niche] || niche || 'professional,business';
+  // Use picsum.photos as functional placeholder (source.unsplash.com is deprecated)
+  const seed = `${niche}-${city}-${context}-${Date.now()}`.replace(/[^a-zA-Z0-9]/g, '');
+  const url = `https://picsum.photos/seed/${seed}/1024/576`;
   
-  const keywords = [
-    nicheQuery,
-    'professional',
-    context || 'service'
-  ].filter(Boolean).join(',');
-  
-  const url = `https://source.unsplash.com/1024x576/?${encodeURIComponent(keywords)}&sig=${Date.now()}-${Math.random().toString(36).substring(7)}`;
-  
-  console.log('[GeminiImage] Unsplash fallback URL generated');
+  console.log('[GeminiImage] Picsum fallback URL generated');
   
   return { 
     url, 

@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { FileText, Search, MessageSquare, RefreshCw, Loader2, ImageIcon, CheckCircle2, XCircle, Eye } from "lucide-react";
 import { ArticleContent } from "@/components/public/ArticleContent";
+import { ArticleCTARenderer } from "@/components/client/ArticleCTARenderer";
 import type { ArticleData } from "@/utils/streamArticle";
 import type { ContentImage, ImageGenerationProgress } from "@/utils/generateContentImages";
 
@@ -191,6 +192,13 @@ export function ArticlePreview({
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* CTA da subconta */}
+        {(article as any).cta && (
+          <div className="mt-8 pt-6 border-t">
+            <ArticleCTARenderer cta={(article as any).cta} />
           </div>
         )}
       </CardContent>
