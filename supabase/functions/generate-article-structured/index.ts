@@ -1551,12 +1551,33 @@ serve(async (req) => {
       businessName,
       businessWhatsapp,
       city: requestCity,
-      request_id: incomingRequestId
-    }: ArticleRequest & { funnel_mode?: FunnelMode; article_goal?: ArticleGoal | null; auto_publish?: boolean; request_id?: string } = await req.json();
+      request_id: incomingRequestId,
+      // V5.0: Accept article_id for placeholder-first pattern
+      article_id: incomingArticleId,
+      // V5.0: Accept article_structure_type from caller (editorial rotation)
+      article_structure_type: incomingArticleStructureType,
+    }: ArticleRequest & { funnel_mode?: FunnelMode; article_goal?: ArticleGoal | null; auto_publish?: boolean; request_id?: string; article_id?: string; article_structure_type?: string } = await req.json();
 
     // A) Usar request_id do caller OU gerar novo
     const requestId = incomingRequestId || crypto.randomUUID();
-    console.log(`[${requestId}] Starting article generation (incoming: ${incomingRequestId ? 'yes' : 'no'})`);
+    console.log(`[${requestId}] Starting article generation (incoming: ${incomingRequestId ? 'yes' : 'no'}, article_id: ${incomingArticleId || 'none'})`);
+
+    // V5.0: Helper to update generation stage in DB (for polling)
+    const updateStage = async (stage: string, progress: number) => {
+      if (!incomingArticleId) return; // No placeholder to update
+      try {
+        await supabase.from('articles').update({
+          generation_stage: stage,
+          generation_progress: progress,
+        }).eq('id', incomingArticleId);
+        console.log(`[${requestId}][STAGE] ${stage} (${progress}%)`);
+      } catch (e) {
+        console.warn(`[${requestId}][STAGE] Failed to update stage:`, e);
+      }
+    };
+
+    // V5.0: Update stage to validating
+    await updateStage('validating', 5);
 
     // ============================================================================
     // V2.0: GEO MODE IS ALWAYS TRUE - NO EXCEPTIONS
@@ -1660,17 +1681,29 @@ serve(async (req) => {
     let articleEngineTemplate: TemplateSelectionResult | null = null;
     let articleEngineOutline: OutlineStructure | null = null;
     
-    // V4.7: Template fixo síncrono - NUNCA travar em seleção de template
-    console.log(`[${requestId}][PIPELINE] V4.7: Using fixed template (no async selection)`);
+    // V5.0: Use editorial_model to select template instead of hardcoding
+    console.log(`[${requestId}][PIPELINE] V5.0: Using editorial_model=${editorial_model}`);
     const intent = classifyIntent(primaryKeyword);
+    
+    // V5.0: Map editorial_model to template type
+    const editorialToTemplate: Record<string, TemplateType> = {
+      'traditional': 'complete_guide' as TemplateType,
+      'strategic': 'problem_solution' as TemplateType,
+      'visual_guided': 'educational_steps' as TemplateType,
+    };
+    const selectedTemplate = (incomingArticleStructureType as TemplateType) || editorialToTemplate[editorial_model] || 'complete_guide' as TemplateType;
+    
     articleEngineTemplate = {
-      template: 'complete_guide' as TemplateType,
+      template: selectedTemplate,
       variant: 'chronological' as import('../_shared/pipelineStages.ts').TemplateVariant,
       intent,
-      reason: 'V4.7: Template fixo para evitar travamento',
+      reason: `V5.0: editorial_model=${editorial_model}, template=${selectedTemplate}`,
       antiPatternApplied: false
     };
-    console.log(`[${requestId}][STAGE] writing`);
+    
+    // V5.0: Update stage to classifying
+    await updateStage('classifying', 15);
+    console.log(`[${requestId}][STAGE] classifying (15%)`);
 
     // Generate structured outline with fixed template
     try {
@@ -1694,6 +1727,9 @@ serve(async (req) => {
     // ============================================================================
     let researchPackage: ResearchPackage;
 
+    // V5.0: Update stage to researching
+    await updateStage('researching', 30);
+    
     // Diagnostic logging
     console.log('[Research] Starting web research stage...');
     console.log('[Research] PERPLEXITY_API_KEY exists:', !!Deno.env.get('PERPLEXITY_API_KEY'));
@@ -1852,6 +1888,9 @@ serve(async (req) => {
     // STAGE 2 (WRITER) - produce article content using GEO-based approach
     // ============================================================================
 
+    // V5.0: Update stage to writing
+    await updateStage('writing', 55);
+    
     const editorialConfig = EDITORIAL_MODEL_INSTRUCTIONS[editorial_model] || EDITORIAL_MODEL_INSTRUCTIONS.traditional;
 
     // Get niche profile for prompt instructions
@@ -2084,6 +2123,9 @@ ${(writerOut.content || '').substring(0, 6000)}
 
 Reestruture e retorne via tool optimize_article.`;
 
+    // V5.0: Update stage to seo
+    await updateStage('seo', 75);
+    
     const seoStart = nowMs();
     // V3.1: SEO optimization via unified provider layer
     const seoCall = await callWriterWithTool({
@@ -2374,6 +2416,9 @@ Reestruture e retorne via tool optimize_article.`;
       featured_image_url: null as string | null
     };
 
+    // V5.0: Update stage to images
+    await updateStage('images', 88);
+    
     // V4.1: Image generation with 5s timeout + async fallback
     const IMAGE_TIMEOUT_MS = 5000; // 5 seconds max for sync images
     let imagesTimedOut = false;
@@ -2479,11 +2524,14 @@ Reestruture e retorne via tool optimize_article.`;
     const inferredCategory = inferCategory(theme, article.content, keywords);
     const inferredTags = inferTags(theme, article.content, keywords, inferredCategory);
 
+    // V5.0: Update stage to finalizing
+    await updateStage('finalizing', 95);
+    
     // ============ PERSISTÊNCIA OBRIGATÓRIA NO BANCO ============
     // CRÍTICO: O artigo DEVE ser salvo na tabela 'articles' antes de retornar
-    // V4.4: Se Quality Gate falhou ou tem warnings críticos, forçar status 'draft'
+    // V5.0: Respeitar auto_publish do request + Quality Gate
     const shouldForceDraft = !gateResult.passed || hasCriticalWarnings;
-    const autoPublish = !shouldForceDraft; // Só auto-publica se não tiver problemas críticos
+    const autoPublish = auto_publish && !shouldForceDraft; // V5.0: Respeitar parametro do caller
     
     if (shouldForceDraft) {
       console.log(`[${requestId}] ⚠️ Forcing draft status due to quality gate issues`);
@@ -2525,21 +2573,93 @@ Reestruture e retorne via tool optimize_article.`;
 
     let persistedArticle;
     try {
-      persistedArticle = await persistArticleToDb(
-        supabase,
-        blog_id!,
-        article,
-        autoPublish,
-        inferredCategory,
-        inferredTags,
-        nicheProfile?.id || null,
-        user?.id,
-        // V2.1: Article Engine metadata
-        articleEngineTemplate?.template || null,
-        articleEnginePayload,
-        // V4.2: CTA
-        articleCTA
-      );
+      // V5.0: If article_id provided, UPDATE the placeholder instead of INSERT
+      if (incomingArticleId) {
+        console.log(`[${requestId}] V5.0: Updating placeholder ${incomingArticleId} instead of creating new`);
+        
+        // V5.0: Deduplicate featured image from content_images (Bug 3 fix)
+        const contentImagesForUpdate = (article.image_prompts || []).map((prompt: any, index: number) => ({
+          context: prompt.context || `Imagem ${index + 1}`,
+          prompt: prompt.prompt || '',
+          alt: prompt.alt || prompt.context || `Imagem do artigo`,
+          title: prompt.title || '',
+          caption: prompt.caption || '',
+          after_section: prompt.after_section || index + 1,
+          url: prompt.url || null
+        }));
+        
+        // V5.0 Bug 3: Remove featured image from content_images to avoid duplication
+        const featuredUrl = article.featured_image_url;
+        const filteredContentImages = featuredUrl 
+          ? contentImagesForUpdate.filter((img: any) => img.url !== featuredUrl)
+          : contentImagesForUpdate;
+        
+        const { content: sanitizedContent } = sanitizeContent(article.content || '');
+        
+        const updateData: Record<string, any> = {
+          title: article.title || 'Artigo sem título',
+          slug: (article.title || 'artigo').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 60) + '-' + Date.now().toString(36),
+          content: sanitizedContent,
+          excerpt: article.excerpt || article.meta_description || '',
+          meta_description: article.meta_description || '',
+          category: inferredCategory || null,
+          tags: inferredTags || [],
+          faq: article.faq || [],
+          keywords: keywords || [],
+          reading_time: article.reading_time || 5,
+          status: autoPublish ? 'published' : 'draft',
+          published_at: autoPublish ? new Date().toISOString() : null,
+          generation_source: source || 'form',
+          featured_image_url: article.featured_image_url || null,
+          featured_image_alt: article.featured_image_alt || null,
+          niche_profile_id: nicheProfile?.id || null,
+          niche_locked: true,
+          score_locked: true,
+          // V5.0: Save editorial_model as article_structure_type for rotation
+          article_structure_type: editorial_model || articleEngineTemplate?.template || null,
+          source_payload: articleEnginePayload || null,
+          content_images: filteredContentImages.length > 0 ? filteredContentImages : null,
+          cta: articleCTA || null,
+          generation_stage: 'completed',
+          generation_progress: 100,
+          updated_at: new Date().toISOString(),
+        };
+        
+        const { error: updateError } = await supabase
+          .from('articles')
+          .update(updateData)
+          .eq('id', incomingArticleId);
+        
+        if (updateError) {
+          console.error(`[${requestId}] Placeholder update failed:`, updateError);
+          throw new Error(`Falha ao atualizar placeholder: ${updateError.message}`);
+        }
+        
+        persistedArticle = { 
+          id: incomingArticleId, 
+          slug: updateData.slug, 
+          status: updateData.status, 
+          title: updateData.title 
+        };
+        console.log(`[${requestId}] ✅ Placeholder updated: id=${incomingArticleId}`);
+      } else {
+        // Original flow: create new article
+        persistedArticle = await persistArticleToDb(
+          supabase,
+          blog_id!,
+          article,
+          autoPublish,
+          inferredCategory,
+          inferredTags,
+          nicheProfile?.id || null,
+          user?.id,
+          // V5.0: Save editorial_model for rotation instead of template name
+          editorial_model || articleEngineTemplate?.template || null,
+          articleEnginePayload,
+          // V4.2: CTA
+          articleCTA
+        );
+      }
       console.log(`[${requestId}] SUCCESS: id=${persistedArticle.id}`);
       
       // ============================================================================

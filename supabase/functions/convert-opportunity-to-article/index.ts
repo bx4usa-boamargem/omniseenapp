@@ -304,11 +304,43 @@ serve(async (req) => {
 
     console.log(`[${requestId}][CONVERT] Resolved city: ${resolvedCity}`);
 
+    // =========================================================================
+    // V5.0: CREATE PLACEHOLDER BEFORE CALLING generate-article-structured
+    // This enables real-time progress tracking via polling
+    // =========================================================================
+    console.log(`[${requestId}][CONVERT] Creating placeholder article...`);
+    const placeholderSlug = `generating-${Date.now().toString(36)}`;
+    const { data: placeholder, error: placeholderError } = await supabase
+      .from("articles")
+      .insert({
+        blog_id: blogId,
+        title: `Gerando: ${opportunity.suggested_title}`,
+        slug: placeholderSlug,
+        status: 'generating',
+        generation_stage: 'validating',
+        generation_progress: 5,
+        generation_source: 'opportunity',
+        opportunity_id: opportunityId,
+        funnel_stage: opportunity.funnel_stage,
+      })
+      .select('id')
+      .single();
+
+    if (placeholderError || !placeholder?.id) {
+      console.error(`[${requestId}][CONVERT] Placeholder creation failed:`, placeholderError);
+      throw new Error(`Failed to create placeholder article: ${placeholderError?.message || 'Unknown'}`);
+    }
+
+    const placeholderArticleId = placeholder.id;
+    console.log(`[${requestId}][CONVERT] Placeholder created: ${placeholderArticleId}`);
+
     // 5. Gerar conteúdo via generate-article-structured
     // V2.0: Tenta com geo_mode=true primeiro, fallback para geo_mode=false se QA falhar
     console.log(`[${requestId}][CONVERT] Generating article content for: "${opportunity.suggested_title}" with geo_mode=true`);
 
     const generatePayload = {
+      // V5.0: Send article_id so generator updates placeholder instead of creating new
+      article_id: placeholderArticleId,
       blog_id: blogId,
       theme: opportunity.suggested_title,
       keywords: opportunity.suggested_keywords || [],
@@ -376,6 +408,7 @@ serve(async (req) => {
         geo_mode: false,
         word_count: 800,
         request_id: requestId,
+        article_id: placeholderArticleId, // V5.0: Keep article_id for update
       };
       
       generateResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-article-structured`, {
@@ -397,22 +430,25 @@ serve(async (req) => {
     if (!generateResponse.ok) {
       console.error(`[${requestId}][CONVERT] Article generation failed:`, responseText);
       
-      // V4.5: NUNCA propagar 422 - Quality Gate é non-blocking
-      // Qualquer erro do generate-article-structured é tratado como erro interno 500
+      // V5.0: Mark placeholder as failed
+      await supabase.from("articles").update({
+        status: 'draft',
+        generation_stage: 'failed',
+        title: opportunity.suggested_title,
+      }).eq("id", placeholderArticleId);
+      
       try {
         const errorData = JSON.parse(responseText);
-        const statusCode = 500; // V4.5: SEMPRE 500 - nunca propagar 422
-        console.warn(`[${requestId}][PIPELINE] Forcing error response as 500 (original status: ${generateResponse.status})`);
         return new Response(
           JSON.stringify({
             success: false,
-            error_type: 'GENERATION_FAILED', // V4.5: Nunca usar QUALITY_GATE_FAILED no retorno
+            error_type: 'GENERATION_FAILED',
             reason_code: errorData.code || errorData.error || 'unknown',
             message: errorData.message || `Falha na geração do artigo (erro interno)`,
             request_id: requestId,
-            debug: errorData.debug || null,
+            article_id: placeholderArticleId, // V5.0: Return placeholder ID for cleanup
           }),
-          { status: statusCode, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       } catch {
         return new Response(
@@ -421,6 +457,7 @@ serve(async (req) => {
             error_type: 'GENERATION_FAILED',
             message: `Falha na geração do artigo (erro interno)`,
             request_id: requestId,
+            article_id: placeholderArticleId,
           }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
@@ -436,51 +473,13 @@ serve(async (req) => {
       throw new Error("Failed to parse article generation response");
     }
 
-    // CRITICAL FIX: The generate-article-structured returns { success, article: { id, ... } }
-    // We need to extract article.id, not just id
-    const articleId = generatedResult.article?.id || generatedResult.id;
+    // V5.0: Article ID is the placeholder we created (generator updated it)
+    const articleId = placeholderArticleId;
     const articleSlug = generatedResult.article?.slug || generatedResult.slug;
-    
-    if (!articleId) {
-      console.error(`[${requestId}][CONVERT] No article ID in response:`, JSON.stringify(generatedResult).substring(0, 500));
-      throw new Error("Article was generated but no ID was returned. Response structure may have changed.");
-    }
 
     console.log(`[${requestId}][CONVERT] Article generated successfully, id: ${articleId}`);
 
-    // 4. Verificar que o artigo existe no banco antes de atualizar
-    const { data: articleCheck } = await supabase
-      .from("articles")
-      .select("id")
-      .eq("id", articleId)
-      .single();
-
-    if (!articleCheck) {
-      console.error(`[${requestId}][CONVERT] Article not found in database after generation`);
-      throw new Error("Article was not persisted correctly");
-    }
-
-    console.log(`[${requestId}][CONVERT] Article ${articleId} confirmed in database`);
-
-    // 5. Atualizar artigo com opportunity_id e funnel_stage (OBRIGATÓRIO)
-    const { error: linkError } = await supabase
-      .from("articles")
-      .update({
-        opportunity_id: opportunityId,
-        funnel_stage: opportunity.funnel_stage,
-        generation_source: 'opportunity',
-      })
-      .eq("id", articleId);
-
-    if (linkError) {
-      console.error(`[${requestId}][CONVERT] CRITICAL: Failed to link article:`, linkError);
-      // Continue anyway - article exists
-    } else {
-      console.log(`[${requestId}][CONVERT] Article linked to opportunity successfully`);
-    }
-
-    // 6. Mapear e atualizar article_goal (valores em PORTUGUÊS conforme constraint)
-    // Constraint: article_goal = ANY (ARRAY['educar', 'autoridade', 'apoiar_vendas', 'converter'])
+    // V5.0: opportunity_id already set in placeholder, but update goal if needed
     const goalMap: Record<string, string> = {
       'lead': 'converter',
       'authority': 'autoridade',
@@ -495,20 +494,12 @@ serve(async (req) => {
     const mappedGoal = opportunity.goal ? goalMap[opportunity.goal] || null : null;
 
     if (mappedGoal) {
-      const { error: goalError } = await supabase
-        .from("articles")
-        .update({ article_goal: mappedGoal })
-        .eq("id", articleId);
-
-      if (goalError) {
-        console.warn(`[${requestId}][CONVERT] Goal update failed (non-blocking):`, goalError);
-      } else {
-        console.log(`[${requestId}][CONVERT] Article goal set to: ${mappedGoal}`);
-      }
+      await supabase.from("articles").update({ article_goal: mappedGoal }).eq("id", articleId);
+      console.log(`[${requestId}][CONVERT] Article goal set to: ${mappedGoal}`);
     }
 
-    // 5. Atualizar oportunidade como convertida
-    const { error: updateOppError } = await supabase
+    // Update opportunity as converted
+    await supabase
       .from("article_opportunities")
       .update({
         status: 'converted',
@@ -517,72 +508,8 @@ serve(async (req) => {
       })
       .eq("id", opportunityId);
 
-    if (updateOppError) {
-      console.error(`[${requestId}][CONVERT] Failed to update opportunity status:`, updateOppError);
-      // Non-blocking - article was created
-    }
-
-    // =========================================================================
-    // 6. GERAR IMAGENS AUTOMATICAMENTE (NOVO!)
-    // Gera imagem de capa + 2 imagens do corpo para artigos convertidos
-    // =========================================================================
-    console.log(`[${requestId}][CONVERT] Generating images for article ${articleId}...`);
-
-    try {
-      // 6.1 Gerar imagem de capa
-      console.log(`[${requestId}][CONVERT] Generating cover image...`);
-      const coverResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-image`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          articleTitle: opportunity.suggested_title,
-          context: 'cover',
-          blog_id: blogId,
-          article_id: articleId,
-        }),
-      });
-
-      if (coverResponse.ok) {
-        const coverResult = await coverResponse.json();
-        console.log(`[${requestId}][CONVERT] Cover image generated: ${coverResult.publicUrl ? 'success' : 'no url'}`);
-      } else {
-        console.warn(`[${requestId}][CONVERT] Cover image generation failed: ${coverResponse.status}`);
-      }
-
-      // 6.2 Gerar imagens do corpo (problem + solution)
-      const bodyContexts = ['problem', 'solution'];
-      for (const ctx of bodyContexts) {
-        console.log(`[${requestId}][CONVERT] Generating ${ctx} image...`);
-        const imgResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-image`, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            articleTitle: opportunity.suggested_title,
-            context: ctx,
-            blog_id: blogId,
-            article_id: articleId,
-          }),
-        });
-
-        if (imgResponse.ok) {
-          const imgResult = await imgResponse.json();
-          console.log(`[${requestId}][CONVERT] ${ctx} image generated: ${imgResult.publicUrl ? 'success' : 'no url'}`);
-        } else {
-          console.warn(`[${requestId}][CONVERT] ${ctx} image generation failed: ${imgResponse.status}`);
-        }
-      }
-
-      console.log(`[${requestId}][CONVERT] ✅ Images generated for article ${articleId}`);
-    } catch (imageError) {
-      // Non-blocking - article was created, images can be generated later
-      console.error(`[${requestId}][CONVERT] Image generation error (non-blocking):`, imageError);
-    }
+    // V5.0: REMOVED redundant image generation (lines 529-585)
+    // Images are already generated inside generate-article-structured pipeline
 
     console.log(`[${requestId}][CONVERT] ✅ Conversion complete: Opportunity ${opportunityId} → Article ${articleId}`);
 
