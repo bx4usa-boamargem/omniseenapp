@@ -1296,12 +1296,12 @@ O leitor é EXCLUSIVAMENTE:
 - Conexão emocional com a rotina real do dono
 - Tom de parceiro de negócio, não de empresa de tecnologia
 
-🎨 BLOCOS VISUAIS OBRIGATÓRIOS (usar 3-5 no artigo):
-Use estes emojis no INÍCIO de parágrafos especiais para criar destaque visual:
-- 💡 para "Verdade Dura" → Insight importante que o dono precisa aceitar
-- ⚠️ para "Alerta" → Erro comum ou risco que precisa evitar
-- 📌 para "Dica Prática" → Ação imediata que pode tomar agora
-Distribua estes blocos ao longo do artigo (mínimo 3, máximo 5).
+🎨 BLOCOS VISUAIS (uso moderado e variado):
+Você PODE usar ATÉ 1 dos seguintes blocos visuais no artigo, APENAS se fizer sentido para o contexto:
+- 💡 "Insight" → Observação relevante baseada em dados ou experiência real
+- ⚠️ "Alerta" → Erro comum que o leitor deve evitar
+- 📌 "Dica Prática" → Ação imediata aplicável
+REGRAS: máximo 1 bloco visual por artigo. NÃO use em todos os artigos. Se nenhum callout fizer sentido, NÃO inclua nenhum.
 
 🧱 ESTRUTURA OBRIGATÓRIA DO ARTIGO (7-9 H2s - ESTILO AUTOMARTICLES):
 
@@ -2016,11 +2016,12 @@ ${HEADING_BLACKLIST_PROMPT}
 
 ## REGRA DE LOCALIZAÇÃO OBRIGATÓRIA
 A cidade principal deste artigo é: ${city}
-- A cidade deve aparecer obrigatoriamente no título H1.
-- A cidade deve ser utilizada de forma natural ao longo do conteúdo.
+- A cidade DEVE aparecer obrigatoriamente no título H1.
+- Pelo menos 1 heading H2 DEVE conter a cidade "${city}".
+- Um segundo H2 PODE conter bairro, zona ou variação semântica local (não precisa repetir a cidade literal).
 - "Brasil" só pode aparecer como contexto secundário.
 - Nunca substituir a cidade principal por "Brasil".
-- Não repetir artificialmente a cidade em todos os headings.
+- NÃO repetir artificialmente a cidade em todos os headings — apenas 1 H2 obrigatório + 1 variação local opcional.
 
 ${HIERARCHY_RULES}
 
@@ -2916,6 +2917,20 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
         sanitizedContent = sanitizedContent
           .replace(/^[ \t]+(#{2,3})/gm, '$1')
           .replace(/([^\n])\n(#{2,3}\s)/g, '$1\n\n$2');
+        
+        // V2.2.1: Safe paragraph splitting (block-based, preserves structure)
+        sanitizedContent = sanitizedContent.split('\n\n').map(block => {
+          // Skip headings, lists, blockquotes, images, CTA sections
+          if (/^#{1,6}\s|^[-*]\s|^>\s|^!\[|^##\s*Próximo passo/m.test(block)) return block;
+          if (block.length <= 800) return block;
+          // Split at last period before midpoint
+          const mid = Math.floor(block.length / 2);
+          const lastPeriod = block.lastIndexOf('. ', mid);
+          if (lastPeriod > 100) {
+            return block.slice(0, lastPeriod + 1) + '\n\n' + block.slice(lastPeriod + 2);
+          }
+          return block;
+        }).join('\n\n');
         
         // V2.2.1: CTA Injection - AFTER sanitize, BEFORE persist
         let ctaInjectionFailed = false;

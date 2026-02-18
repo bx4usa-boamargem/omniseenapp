@@ -192,23 +192,43 @@ Deno.serve(async (req) => {
 
     // V2.2.1: Auto-calculate content score after SERP enhancement
     try {
-      console.log(`[${jobId}][SEO-Job] Dispatching calculate-content-score...`);
-      const scoreResponse = await fetch(`${SUPABASE_URL}/functions/v1/calculate-content-score`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SERVICE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          article_id,
-          blog_id,
-          force: true
-        }),
-      });
-      if (scoreResponse.ok) {
-        console.log(`[${jobId}][SEO-Job] ✅ Content score calculated automatically`);
+      console.log(`[${jobId}][SEO-Job] Fetching article data for score calculation...`);
+      const { data: articleForScore } = await supabase
+        .from('articles')
+        .select('content, title, keywords')
+        .eq('id', article_id)
+        .single();
+
+      if (articleForScore?.content) {
+        const primaryKeyword = Array.isArray(articleForScore.keywords) && articleForScore.keywords.length > 0
+          ? articleForScore.keywords[0]
+          : (keyword || articleForScore.title);
+
+        console.log(`[${jobId}][SEO-Job] Dispatching calculate-content-score with keyword="${primaryKeyword}"...`);
+        const scoreResponse = await fetch(`${SUPABASE_URL}/functions/v1/calculate-content-score`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SERVICE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            articleId: article_id,
+            title: articleForScore.title,
+            content: articleForScore.content,
+            keyword: primaryKeyword,
+            blogId: blog_id,
+            saveScore: true,
+            userInitiated: false
+          }),
+        });
+        if (scoreResponse.ok) {
+          console.log(`[${jobId}][SEO-Job] ✅ Content score calculated automatically`);
+        } else {
+          const errBody = await scoreResponse.text().catch(() => '');
+          console.warn(`[${jobId}][SEO-Job] ⚠️ Score calculation returned ${scoreResponse.status}: ${errBody.substring(0, 200)}`);
+        }
       } else {
-        console.warn(`[${jobId}][SEO-Job] ⚠️ Score calculation returned ${scoreResponse.status}`);
+        console.warn(`[${jobId}][SEO-Job] ⚠️ No article content found for score calculation`);
       }
     } catch (scoreErr) {
       console.warn(`[${jobId}][SEO-Job] Score calculation failed (non-blocking):`, scoreErr);
