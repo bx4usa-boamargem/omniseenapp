@@ -96,6 +96,13 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// ============================================================================
+// SAFE_MODE V1.1 — Estabilização Definitiva do Pipeline
+// Quando true: bypass Elite Engine, footprintChecks, anti-template, mutation,
+// seo-enhancer-job, background images, outline builder, research, localIntelligence
+// ============================================================================
+const SAFE_MODE = true;
+
 // --- Minimal local types (present in original file; re-declared here) ---------
 
 type GenerationMode = 'fast' | 'deep';
@@ -1607,16 +1614,16 @@ serve(async (req) => {
     // ============================================================================
     console.log(`[${requestId}][QualityGate] Step 1: Validating request context...`);
 
-    // V2.2.1: City resolution - PRIORITY ORDER:
-    // 1. requestCity (explicit payload)
-    // 2. territoryData.official_name
-    // 3. business_profile.city
+    // SAFE_MODE V1.1: City resolution - PRIORITY ORDER (business_profile FIRST):
+    // 1. business_profile.city (most reliable - user configured)
+    // 2. requestCity (explicit payload)
+    // 3. territoryData.official_name
     // 4. Regex from theme
     // 5. google_place
     // 6. Fallback "Brasil"
-    let city = requestCity || territoryData?.official_name || '';
+    let city = '';
 
-    // FALLBACK 1: business_profile.city (after requestCity and territory)
+    // PRIORITY 1: business_profile.city (FIRST — most reliable)
     if (!city && blog_id) {
       try {
         const { data: bpCity } = await supabase
@@ -1633,7 +1640,19 @@ serve(async (req) => {
       }
     }
 
-    // FALLBACK 2: Extract city from theme (e.g., "Serviço em Teresina" → "Teresina")
+    // PRIORITY 2: requestCity (explicit payload)
+    if (!city && requestCity && requestCity.trim() !== '') {
+      city = requestCity.trim();
+      console.log(`[${requestId}][CityResolution] From requestCity: ${city}`);
+    }
+
+    // PRIORITY 3: territoryData
+    if (!city && territoryData?.official_name) {
+      city = territoryData.official_name;
+      console.log(`[${requestId}][CityResolution] From territory: ${city}`);
+    }
+
+    // PRIORITY 4: Extract city from theme (e.g., "Serviço em Teresina" → "Teresina")
     if (!city && theme) {
       const cityMatch = theme.match(/\b(?:em|para|de)\s+([A-Z][a-zà-ú]+(?:\s+[A-Z][a-zà-ú]+)?)/i);
       if (cityMatch && cityMatch[1]) {
@@ -1642,19 +1661,19 @@ serve(async (req) => {
       }
     }
 
-    // FALLBACK 3: From google_place if available
+    // PRIORITY 5: From google_place if available
     if (!city && google_place?.official_name && typeof google_place.official_name === 'string') {
       city = google_place.official_name as string;
       console.log(`[${requestId}][CityResolution] From google_place: ${city}`);
     }
     
-    // V4.5: City fallback (nunca abort - usa fallback genérico)
+    // PRIORITY 6: Fallback "Brasil"
     if (!city || city.trim() === '') {
       console.warn(`[${requestId}][CityResolution] No city found, using fallback "Brasil"`);
       city = 'Brasil';
     }
     
-    console.log(`[${requestId}][CityResolution] ✅ effectiveCity="${city}" (requestCity="${requestCity || 'N/A'}", territory="${territoryData?.official_name || 'N/A'}")`);
+    console.log(`[${requestId}][CityResolution] ✅ effectiveCity="${city}" (businessProfile=first, requestCity="${requestCity || 'N/A'}", territory="${territoryData?.official_name || 'N/A'}")`);
 
     // Niche fallback with warning (never 'default')
     let effectiveNiche = niche;
@@ -1681,8 +1700,30 @@ serve(async (req) => {
     let articleEngineOutline: OutlineStructure | null = null;
     let eliteEngineDecision: EditorialDecision | null = null;
     
-    console.log(`[${requestId}][PIPELINE] V6.0: Elite Engine V2 - calling editorialOrchestrator`);
+    console.log(`[${requestId}][PIPELINE] V6.0: Elite Engine V2 - SAFE_MODE=${SAFE_MODE}`);
     
+    if (SAFE_MODE) {
+      // SAFE_MODE V1.1: Skip getEditorialDecision entirely — use static fallback
+      eliteEngineDecision = {
+        version: 'CORE_SAFE_V1.1',
+        structure_type: 'complete_guide',
+        variant: 'chronological',
+        angle: 'practical',
+        style_mode: 'authority',
+        blocks: [],
+        rhythm_profile: '',
+        funnel_mode: funnel_mode || 'middle',
+        article_goal: article_goal || 'educar',
+        local_intelligence: null,
+        anti_collision_metadata: {
+          structure_hash: '',
+          blocks_hash: '',
+          collision_avoided: false,
+          window_size: 0,
+        },
+      } as any;
+      console.log(`[${requestId}][EliteEngine] SAFE_MODE: Using static fallback CORE_SAFE_V1.1`);
+    } else {
     try {
       eliteEngineDecision = await getEditorialDecision({
         supabase,
@@ -1697,7 +1738,6 @@ serve(async (req) => {
       console.log(`[${requestId}][EliteEngine] Decision: structure=${eliteEngineDecision.structure_type}, variant=${eliteEngineDecision.variant}, angle=${eliteEngineDecision.angle}, style=${eliteEngineDecision.style_mode}, blocks=${eliteEngineDecision.blocks.length}`);
     } catch (orchErr) {
       console.error(`[${requestId}][EliteEngine] Orchestrator failed, falling back to intent classification:`, orchErr);
-      // V2.2.1: Never fail silently — persist fallback version
       eliteEngineDecision = {
         version: '2.2.1-fallback',
         structure_type: 'complete_guide',
@@ -1720,10 +1760,11 @@ serve(async (req) => {
       } as any;
       console.warn(`[${requestId}][EliteEngine] Using fallback decision with version 2.2.1-fallback`);
     }
+    } // end !SAFE_MODE
 
     // V2.2.1: Anti-Template Detector — check recent structure_hash repetition
     let forceOutlineVariation = false;
-    if (blog_id && eliteEngineDecision?.anti_collision_metadata?.structure_hash) {
+    if (!SAFE_MODE && blog_id && eliteEngineDecision?.anti_collision_metadata?.structure_hash) {
       try {
         const { data: recentStructures } = await supabase
           .from('articles')
@@ -1745,6 +1786,8 @@ serve(async (req) => {
       } catch (atErr) {
         console.warn(`[${requestId}][AntiTemplate] Check failed (non-blocking):`, atErr);
       }
+    } else if (SAFE_MODE) {
+      console.log(`[${requestId}][AntiTemplate] SAFE_MODE: Skipped`);
     }
 
     // Use orchestrator decision or fallback to classifyIntent
@@ -1767,6 +1810,7 @@ serve(async (req) => {
     console.log(`[${requestId}][STAGE] classifying (15%)`);
 
     // Generate structured outline with fixed template
+    if (!SAFE_MODE) {
     try {
       const territoryName = territoryData?.official_name || city || 'Brasil';
       articleEngineOutline = buildOutlineStructure(
@@ -1781,6 +1825,9 @@ serve(async (req) => {
       console.log(`[Article Engine] Outline generated: ${articleEngineOutline.h2Count} H2s, ${articleEngineOutline.totalTargetWords} target words`);
     } catch (outlineError) {
       console.warn(`[Article Engine] Outline generation failed, continuing:`, outlineError);
+    }
+    } else {
+      console.log(`[${requestId}][Outline] SAFE_MODE: Skipped outline builder`);
     }
 
     // ============================================================================
@@ -1798,6 +1845,23 @@ serve(async (req) => {
     console.log('[Research] Primary keyword:', primaryKeyword);
     console.log('[Research] Territory:', territoryData?.official_name || 'N/A');
 
+    if (SAFE_MODE) {
+      // SAFE_MODE V1.1: Skip Perplexity entirely — use minimal package
+      console.log(`[${requestId}][Research] SAFE_MODE: Skipping Perplexity — using minimal package`);
+      researchPackage = {
+        geo: {
+          facts: [`Informações sobre ${theme} em ${city}`],
+          trends: ['Setor em crescimento'],
+          sources: [],
+          rawQuery: primaryKeyword,
+          fetchedAt: new Date().toISOString(),
+        },
+        serp: { commonTerms: [], topTitles: [], contentGaps: [], averages: {} },
+        sources: [],
+        generatedAt: new Date().toISOString(),
+        provider: 'gemini_fallback',
+      };
+    } else {
     try {
       // LEVEL 1: Try runResearchStage (Perplexity + Firecrawl)
       researchPackage = await runResearchStage({
@@ -1817,10 +1881,8 @@ serve(async (req) => {
       
       await logStage(supabase, blog_id, 'research', 'perplexity', 'research-package', false, 0, { error: msg }, 0, 0, msg);
       
-      // LEVEL 2: Gemini fallback TEMPORARIAMENTE DESABILITADO
       console.log('[Research] ⚠️ Gemini fallback disabled - using minimal package');
 
-      // Minimal fallback package
       researchPackage = {
         geo: {
           facts: [`Informações sobre ${theme} em ${territoryData?.official_name || 'Brasil'}`],
@@ -1842,6 +1904,7 @@ serve(async (req) => {
         perplexity_error: msg,
       });
     }
+    } // end !SAFE_MODE
 
     // ============================================================================
     // (Existing) RATE LIMIT + DEDUP can remain
@@ -2002,7 +2065,30 @@ SIGA ESTA ESTRUTURA EXATAMENTE.
         )
       : '';
 
-    const systemPrompt = `${GEO_WRITER_IDENTITY}
+    // SAFE_MODE V1.1: Simplified system prompt — no extra injections
+    const systemPrompt = SAFE_MODE ? `${GEO_WRITER_IDENTITY}
+
+${buildTerritorialContext((territoryData as unknown as GeoTerritoryData) || null)}
+
+## REGRA DE LOCALIZAÇÃO OBRIGATÓRIA
+A cidade principal deste artigo é: ${city}
+- A cidade DEVE aparecer obrigatoriamente no título H1.
+- Pelo menos 1 heading H2 DEVE conter a cidade "${city}".
+- "Brasil" só pode aparecer como contexto secundário.
+- Nunca substituir a cidade principal por "Brasil".
+- Use "${city}" como localização principal, NUNCA "Brasil" (a menos que a cidade seja de fato "Brasil").
+
+${HIERARCHY_RULES}
+
+${buildMasterPrompt(editorial_template || null, theme, keywords, tone, city, effectiveNiche)}
+
+## REGRAS DE PARÁGRAFO
+- Parágrafos de 2 a 4 linhas no máximo.
+- Nunca blocos longos acima de 5 linhas seguidas.
+- Inserir H2 a cada 150–250 palavras.
+
+Prazo de entrega: Data de referência é Janeiro de 2026.`
+    : `${GEO_WRITER_IDENTITY}
 
 ${GEO_LINKING_RULES}
 
@@ -2034,11 +2120,17 @@ ${buildMasterPrompt(editorial_template || null, theme, keywords, tone, city, eff
 
 Prazo de entrega: Data de referência é Janeiro de 2026. Todos os dados, tendências e referências devem ser contextualizados para esta data.`;
 
-    // V2.2: image_count dinâmico por modo - Authority permite 6-10 imagens
-    const maxImagesByMode = mode === 'authority' ? 10 : 5;
-    const minImagesByMode = mode === 'authority' ? 6 : 3;  // Mínimo garantido
-    const targetImageCount = Math.min(Math.max(image_count || (mode === 'authority' ? 8 : 3), minImagesByMode), maxImagesByMode);
-    console.log(`[IMAGES] Mode: ${mode}, requested: ${image_count}, target: ${targetImageCount} (min: ${minImagesByMode}, max: ${maxImagesByMode})`);
+    // SAFE_MODE V1.1: Only 1 cover image; Normal mode: dynamic count
+    let targetImageCount: number;
+    if (SAFE_MODE) {
+      targetImageCount = 1;
+      console.log(`[IMAGES] SAFE_MODE: targetImageCount=1 (cover only)`);
+    } else {
+      const maxImagesByMode = mode === 'authority' ? 10 : 5;
+      const minImagesByMode = mode === 'authority' ? 6 : 3;
+      targetImageCount = Math.min(Math.max(image_count || (mode === 'authority' ? 8 : 3), minImagesByMode), maxImagesByMode);
+      console.log(`[IMAGES] Mode: ${mode}, requested: ${image_count}, target: ${targetImageCount} (min: ${minImagesByMode}, max: ${maxImagesByMode})`);
+    }
 
     // Tool schema for article generation - only the parameters object, not the full function wrapper
     // V3.3: Added explicit 'introduction' field to enforce separation from content
@@ -2611,7 +2703,7 @@ Reestruture e retorne via tool optimize_article.`;
     await updateStage('images', 88);
     
     // V4.1: Image generation with 5s timeout + async fallback
-    const IMAGE_TIMEOUT_MS = 5000; // 5 seconds max for sync images
+    const IMAGE_TIMEOUT_MS = SAFE_MODE ? 15000 : 5000; // SAFE_MODE: 15s, Normal: 5s
     let imagesTimedOut = false;
     
     if (articleWithImages.image_prompts && articleWithImages.image_prompts.length > 0) {
@@ -2699,6 +2791,7 @@ Reestruture e retorne via tool optimize_article.`;
 
     // ============================================================================
     // V6.1: FOOTPRINT CHECKS - Anti-Commodity Validation + Inline Auto-Mutation
+    // SAFE_MODE V1.1: SKIP ENTIRELY
     // ============================================================================
     const footprintStartMs = Date.now();
     let footprintSimilarityScore = 0;
@@ -2706,7 +2799,7 @@ Reestruture e retorne via tool optimize_article.`;
     let mutationSkippedDueTimeout = false;
     let h2PatternHash = '';
 
-    if (eliteEngineDecision && articleWithImages.content) {
+    if (!SAFE_MODE && eliteEngineDecision && articleWithImages.content) {
       try {
         console.log(`[${requestId}][FootprintChecks] Running anti-commodity validation...`);
         
@@ -2789,10 +2882,8 @@ Reestruture e retorne via tool optimize_article.`;
 
         // Auto-mutation if needed
         if (fpResult.should_mutate && fpResult.mutation_instructions) {
-          // Timeout guardrail: check if we have enough time remaining
-          // Edge functions have ~120s max. Reserve 20s for persistence + background jobs.
           const elapsedMs = Date.now() - footprintStartMs;
-          const totalElapsedMs = Date.now() - (footprintStartMs - elapsedMs); // approximate
+          const totalElapsedMs = Date.now() - (footprintStartMs - elapsedMs);
           const estimatedTimeRemainingMs = 120000 - totalElapsedMs;
           
           if (estimatedTimeRemainingMs < 20000) {
@@ -2836,7 +2927,6 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
                   const mutatedContent = mutationResult.choices?.[0]?.message?.content;
                   
                   if (mutatedContent) {
-                    // Validate mutation didn't destroy content (max 15% reduction)
                     const originalWords = articleWithImages.content.split(/\s+/).length;
                     const mutatedWords = mutatedContent.split(/\s+/).length;
                     const reduction = (originalWords - mutatedWords) / originalWords;
@@ -2845,7 +2935,6 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
                       articleWithImages.content = mutatedContent;
                       h2PatternHash = generateH2PatternHash(mutatedContent);
                       
-                      // Re-run footprint checks on mutated content
                       const fpResult2 = runFootprintChecks({
                         content: mutatedContent,
                         structureHash: currentStructureHash,
@@ -2882,7 +2971,11 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
       } catch (fpErr) {
         console.error(`[${requestId}][FootprintChecks] Error (non-blocking):`, fpErr);
       }
+    } else if (SAFE_MODE) {
+      console.log(`[${requestId}][FootprintChecks] SAFE_MODE: Skipped entirely — defaults: similarity=0, no mutation`);
     }
+
+
 
     // Build final article object for persistence
     const article = {
@@ -3080,7 +3173,22 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
           score_locked: true,
           // V6.0: Save structure_type from Elite Engine (official taxonomy only)
           article_structure_type: eliteEngineDecision?.structure_type || articleEngineTemplate?.template || null,
-          source_payload: eliteEngineDecision ? {
+          // SAFE_MODE V1.1: Always use fixed payload — never depend on eliteEngineDecision
+          source_payload: SAFE_MODE ? {
+            eliteEngine: {
+              version: 'CORE_SAFE_V1.1',
+              safe_mode: true,
+              city: city || null,
+              niche_normalized: normalizeNiche(effectiveNiche),
+              structure_type: 'complete_guide',
+              similarity_score: 0,
+              images_pending: false,
+              serp_pending: false,
+              cta_injected: hasValidCTA(sanitizedContent),
+              cta_injection_failed: ctaInjectionFailed,
+              cta_missing_data: ctaMissingData,
+            }
+          } : (eliteEngineDecision ? {
             ...(articleEnginePayload || {}),
             eliteEngine: {
               version: '2.2.1',
@@ -3107,7 +3215,7 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
               images_pending: imagesTimedOut || false,
               serp_pending: true,
             }
-          } : (articleEnginePayload || null),
+          } : (articleEnginePayload || null)),
           content_images: filteredContentImages.length > 0 ? filteredContentImages : null,
           cta: articleCTA || null,
           generation_stage: 'completed',
@@ -3144,8 +3252,22 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
           nicheProfile?.id || null,
           user?.id,
           // V6.0: Save structure_type from Elite Engine
-          eliteEngineDecision?.structure_type || articleEngineTemplate?.template || null,
-          eliteEngineDecision ? {
+          // SAFE_MODE V1.1: Always use fixed payload for INSERT path
+          SAFE_MODE ? {
+            eliteEngine: {
+              version: 'CORE_SAFE_V1.1',
+              safe_mode: true,
+              city: city || null,
+              niche_normalized: normalizeNiche(effectiveNiche),
+              structure_type: 'complete_guide',
+              similarity_score: 0,
+              images_pending: false,
+              serp_pending: false,
+              cta_injected: hasValidCTA(article.content),
+              cta_injection_failed: ctaInjectionFailedInsert,
+              cta_missing_data: ctaMissingDataInsert,
+            }
+          } : (eliteEngineDecision ? {
             ...(articleEnginePayload || {}),
             eliteEngine: {
               version: '2.2.1',
@@ -3172,7 +3294,7 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
               images_pending: imagesTimedOut || false,
               serp_pending: true,
             }
-          } : articleEnginePayload,
+          } : articleEnginePayload),
           // V4.2: CTA
           articleCTA
         );
@@ -3181,12 +3303,12 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
       
       // ============================================================================
       // V4.0: DISPATCH BACKGROUND SEO ENHANCER JOB
-      // This runs AFTER article is saved - does NOT block the response
+      // SAFE_MODE V1.1: SKIP — no background jobs
       // ============================================================================
       const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
       const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       
-      // Use EdgeRuntime.waitUntil if available, otherwise fire-and-forget
+      if (!SAFE_MODE) {
       const seoJobPayload = {
         article_id: persistedArticle.id,
         blog_id,
@@ -3197,7 +3319,6 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
       
       console.log(`[${requestId}] Dispatching seo-enhancer-job for article ${persistedArticle.id}`);
       
-      // Fire-and-forget background job (non-blocking)
       fetch(`${SUPABASE_URL}/functions/v1/seo-enhancer-job`, {
         method: 'POST',
         headers: {
@@ -3214,9 +3335,12 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
       }).catch(e => {
         console.error(`[${requestId}][SEO-Job] ❌ Failed to dispatch:`, e);
       });
+      } else {
+        console.log(`[${requestId}][SEO-Job] SAFE_MODE: Skipped seo-enhancer-job dispatch`);
+      }
       
       // V4.3: Dispatch background image generation if timed out
-      if (imagesTimedOut && articleWithImages.image_prompts?.length > 0) {
+      if (!SAFE_MODE && imagesTimedOut && articleWithImages.image_prompts?.length > 0) {
         const totalImages = articleWithImages.image_prompts.length;
         console.log(`[${requestId}][STAGE] images - Dispatching background job for ${totalImages} images`);
         
