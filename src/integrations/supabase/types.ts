@@ -6676,11 +6676,14 @@ export type Database = {
           blocks_used: string[] | null
           blog_id: string | null
           city: string | null
+          city_size: string | null
           collision_avoided: boolean | null
           collision_scope: string | null
           created_at: string | null
+          density_strategy: string | null
           engine_version: string | null
           funnel_mode: string | null
+          geo_language_style: string | null
           h2_pattern_hash: string | null
           high_similarity_warning: boolean | null
           niche: string | null
@@ -6704,19 +6707,28 @@ export type Database = {
       elite_engine_angle_distribution: {
         Row: {
           angle: string | null
+          blog_id: string | null
           count: number | null
           niche: string | null
           percentage: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "articles_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       elite_engine_collision_rate: {
         Row: {
-          avg_similarity: number | null
           blog_id: string | null
+          city: string | null
+          collision_rate: number | null
           collisions_avoided: number | null
-          high_similarity_warnings: number | null
-          max_similarity: number | null
+          niche: string | null
           total_articles: number | null
         }
         Relationships: [
