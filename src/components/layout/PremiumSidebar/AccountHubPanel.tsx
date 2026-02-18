@@ -8,6 +8,7 @@ import {
   Plug,
   Bell,
   HelpCircle,
+  Shield,
   Moon,
   Sun,
   LogOut,
@@ -21,6 +22,7 @@ interface AccountHubPanelProps {
   onNavigate: (path: string) => void;
   onLogout: () => void;
   currentPath?: string;
+  isPlatformAdmin?: boolean;
 }
 
 const accountItems = [
@@ -96,7 +98,7 @@ const integrationItems = [
  * Painel flutuante do hub "Conta"
  * Inclui: Perfil, Empresa, Estratégia, Configurações, Integrações expandidas, Tema e Logout
  */
-export function AccountHubPanel({ onNavigate, onLogout, currentPath }: AccountHubPanelProps) {
+export function AccountHubPanel({ onNavigate, onLogout, currentPath, isPlatformAdmin }: AccountHubPanelProps) {
   const { theme, setTheme } = useTheme();
   const [integrationsExpanded, setIntegrationsExpanded] = useState(false);
   const isDark = theme === 'dark';
@@ -157,7 +159,33 @@ export function AccountHubPanel({ onNavigate, onLogout, currentPath }: AccountHu
           Sistema
         </h3>
       </div>
-      <div className="px-2 space-y-0.5">{settingsItems.map(renderItem)}</div>
+      <div className="px-2 space-y-0.5">
+        {isPlatformAdmin && (
+          <button
+            onClick={() => onNavigate('/admin')}
+            className={cn(
+              'w-full flex items-start gap-3 px-3 py-2.5 rounded-lg',
+              'hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors',
+              'focus:outline-none focus:ring-2 focus:ring-orange-500/50',
+              currentPath?.includes('/admin') && 'bg-orange-50 dark:bg-orange-900/20'
+            )}
+            role="menuitem"
+          >
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400">
+              <Shield className="h-4 w-4" />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <span className="text-sm font-medium text-[#111827] dark:text-white block">
+                Painel Admin
+              </span>
+              <p className="text-xs text-[#6B7280] dark:text-gray-500 truncate">
+                Gestão da plataforma
+              </p>
+            </div>
+          </button>
+        )}
+        {settingsItems.map(renderItem)}
+      </div>
 
       {/* Integrações com sub-itens expandíveis */}
       <div className="px-2 mt-0.5">

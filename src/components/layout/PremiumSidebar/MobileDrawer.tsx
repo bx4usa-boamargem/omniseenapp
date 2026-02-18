@@ -11,6 +11,7 @@ interface MobileDrawerProps {
   onNavigate: (path: string) => void;
   onLogout: () => void;
   currentPath?: string;
+  isPlatformAdmin?: boolean;
 }
 
 /**
@@ -25,6 +26,7 @@ export function MobileDrawer({
   onNavigate,
   onLogout,
   currentPath,
+  isPlatformAdmin,
 }: MobileDrawerProps) {
   const [contentExpanded, setContentExpanded] = useState(false);
   const [accountExpanded, setAccountExpanded] = useState(false);
@@ -191,6 +193,7 @@ export function MobileDrawer({
                 onNavigate={handleNavigate}
                 onLogout={onLogout}
                 currentPath={currentPath}
+                isPlatformAdmin={isPlatformAdmin}
               />
             </div>
           )}

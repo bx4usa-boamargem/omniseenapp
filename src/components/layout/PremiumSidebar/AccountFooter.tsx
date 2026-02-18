@@ -10,6 +10,7 @@ interface AccountFooterProps {
   onLogout: () => void;
   currentPath?: string;
   isExpanded?: boolean;
+  isPlatformAdmin?: boolean;
 }
 
 /**
@@ -17,7 +18,7 @@ interface AccountFooterProps {
  * - Exibe avatar + nome do workspace
  * - Clique abre painel flutuante para CIMA com todas as opções de conta/sistema
  */
-export function AccountFooter({ onNavigate, onLogout, currentPath, isExpanded = true }: AccountFooterProps) {
+export function AccountFooter({ onNavigate, onLogout, currentPath, isExpanded = true, isPlatformAdmin }: AccountFooterProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { user } = useAuth();
   const { blog } = useBlog();
@@ -118,6 +119,7 @@ export function AccountFooter({ onNavigate, onLogout, currentPath, isExpanded = 
               onNavigate={handleNavigateAndClose}
               onLogout={handleLogoutAndClose}
               currentPath={currentPath}
+              isPlatformAdmin={isPlatformAdmin}
             />
           </div>
         </>

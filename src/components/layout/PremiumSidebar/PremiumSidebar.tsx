@@ -119,6 +119,7 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
           onLogout={handleLogout}
           currentPath={location.pathname}
           isExpanded={isExpanded}
+          isPlatformAdmin={isPlatformAdmin}
         />
       </aside>
 
@@ -129,6 +130,7 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
         onNavigate={handleNavigate}
         onLogout={handleLogout}
         currentPath={location.pathname}
+        isPlatformAdmin={isPlatformAdmin}
       />
     </>
   );
