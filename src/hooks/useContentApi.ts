@@ -53,6 +53,15 @@ export interface ArticleFull extends ArticleSummary {
   updated_at: string | null;
   faq: { question: string; answer: string }[] | null;
   highlights: unknown | null;
+  content_images: { context: string; url: string; after_section: number }[] | null;
+  cta: {
+    company_name?: string;
+    phone?: string;
+    whatsapp?: string;
+    booking_url?: string;
+    site?: string;
+    email?: string;
+  } | null;
 }
 
 export interface LandingPage {

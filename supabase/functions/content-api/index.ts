@@ -46,7 +46,7 @@ const BLOG_PUBLIC_FIELDS = [
 const ARTICLE_PUBLIC_FIELDS = [
   "id", "title", "slug", "excerpt", "content", "featured_image_url", "featured_image_alt",
   "meta_description", "keywords", "category", "tags", "reading_time", "view_count",
-  "published_at", "updated_at", "faq", "highlights"
+  "published_at", "updated_at", "faq", "highlights", "content_images", "cta"
 ] as const;
 
 const LANDING_PAGE_PUBLIC_FIELDS = [
