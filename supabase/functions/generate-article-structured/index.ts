@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { buildUniversalPrompt, type ClientStrategy, type FunnelMode, type ArticleGoal } from '../_shared/promptTypeCore.ts';
+import { ensureCompanyCTA, ensureCTA, hasValidCTA, type CompanyInfo } from '../_shared/editorialContract.ts';
 import { resolveStrategy } from '../_shared/strategyResolver.ts';
 import { validateArticleQuality, validateGeoArticleQuality, generateCorrectionInstructions } from '../_shared/qualityValidator.ts';
 import { generateAutoKeywords, mergeKeywords } from '../_shared/keywordGenerator.ts';
@@ -1649,29 +1650,54 @@ serve(async (req) => {
     // ============================================================================
     console.log(`[${requestId}][QualityGate] Step 1: Validating request context...`);
 
-    // Extract city with multiple fallbacks
+    // V2.2.1: City resolution - PRIORITY ORDER:
+    // 1. requestCity (explicit payload)
+    // 2. territoryData.official_name
+    // 3. business_profile.city
+    // 4. Regex from theme
+    // 5. google_place
+    // 6. Fallback "Brasil"
     let city = requestCity || territoryData?.official_name || '';
 
-    // FALLBACK 1: Extract city from theme (e.g., "Serviço em Teresina" → "Teresina")
+    // FALLBACK 1: business_profile.city (after requestCity and territory)
+    if (!city && blog_id) {
+      try {
+        const { data: bpCity } = await supabase
+          .from('business_profile')
+          .select('city')
+          .eq('blog_id', blog_id)
+          .maybeSingle();
+        if (bpCity?.city && bpCity.city.trim() !== '') {
+          city = bpCity.city.trim();
+          console.log(`[${requestId}][CityResolution] From business_profile: ${city}`);
+        }
+      } catch (bpErr) {
+        console.warn(`[${requestId}][CityResolution] business_profile fetch error:`, bpErr);
+      }
+    }
+
+    // FALLBACK 2: Extract city from theme (e.g., "Serviço em Teresina" → "Teresina")
     if (!city && theme) {
       const cityMatch = theme.match(/\b(?:em|para|de)\s+([A-Z][a-zà-ú]+(?:\s+[A-Z][a-zà-ú]+)?)/i);
       if (cityMatch && cityMatch[1]) {
         city = cityMatch[1].trim();
-        console.log(`[${requestId}][QualityGate] City extracted from theme: ${city}`);
+        console.log(`[${requestId}][CityResolution] From theme regex: ${city}`);
       }
     }
 
-    // FALLBACK 2: From google_place if available
+    // FALLBACK 3: From google_place if available
     if (!city && google_place?.official_name && typeof google_place.official_name === 'string') {
       city = google_place.official_name as string;
-      console.log(`[${requestId}][QualityGate] City from google_place: ${city}`);
+      console.log(`[${requestId}][CityResolution] From google_place: ${city}`);
     }
     
     // V4.5: City fallback (nunca abort - usa fallback genérico)
     if (!city || city.trim() === '') {
-      console.warn(`[${requestId}][PIPELINE] Forcing draft fallback - city missing, using "Brasil"`);
+      console.warn(`[${requestId}][CityResolution] No city found, using fallback "Brasil"`);
       city = 'Brasil';
     }
+    
+    console.log(`[${requestId}][CityResolution] ✅ effectiveCity="${city}" (requestCity="${requestCity || 'N/A'}", territory="${territoryData?.official_name || 'N/A'}")`);
 
     // Niche fallback with warning (never 'default')
     let effectiveNiche = niche;
@@ -1737,7 +1763,7 @@ serve(async (req) => {
 
     // Generate structured outline with fixed template
     try {
-      const territoryName = territoryData?.official_name || 'Brasil';
+      const territoryName = territoryData?.official_name || city || 'Brasil';
       articleEngineOutline = buildOutlineStructure(
         articleEngineTemplate.template,
         articleEngineTemplate.variant,
@@ -1988,6 +2014,14 @@ ${eliteEngineRhythm}
 ${localIntelligencePrompt}
 ${HEADING_BLACKLIST_PROMPT}
 
+## REGRA DE LOCALIZAÇÃO OBRIGATÓRIA
+A cidade principal deste artigo é: ${city}
+- A cidade deve aparecer obrigatoriamente no título H1.
+- A cidade deve ser utilizada de forma natural ao longo do conteúdo.
+- "Brasil" só pode aparecer como contexto secundário.
+- Nunca substituir a cidade principal por "Brasil".
+- Não repetir artificialmente a cidade em todos os headings.
+
 ${HIERARCHY_RULES}
 
 ${buildMasterPrompt(editorial_template || null, theme, keywords, tone)}
@@ -2075,7 +2109,15 @@ REGRAS CRÍTICAS:
 - Use APENAS as fontes e dados do pacote de pesquisa
 - Inclua links externos (https://...) apontando para FONTES PERMITIDAS
 - Estruture com H2–H3, inclua FAQ + meta tags
-- Não invente estatísticas/tendências. Se faltar dado: "não encontrado nas fontes".`;
+- Não invente estatísticas/tendências. Se faltar dado: "não encontrado nas fontes".
+
+## PADRÃO EDITORIAL OBRIGATÓRIO
+- Parágrafos de 2 a 4 linhas no máximo.
+- Nunca blocos longos acima de 5 linhas seguidas.
+- Inserir H2 a cada 150–250 palavras.
+- Usar listas (- item) quando houver 3+ itens a mencionar.
+- Sempre linha em branco antes e depois de ## e ###.
+- Markdown limpo: nunca espaços antes de ##.`;
 
     // V3.1: Using unified AI Provider Layer (aiProviders.ts)
     // Primary: OpenAI GPT-4o → Fallback: Google Gemini
@@ -2319,7 +2361,7 @@ Reestruture e retorne via tool optimize_article.`;
     if (useEat && niche && niche !== 'default') {
       try {
         console.log(`[Article Engine] Attempting E-E-A-T injection for niche: ${niche}`);
-        const territoryName = territoryData?.official_name || 'Brasil';
+        const territoryName = territoryData?.official_name || city || 'Brasil';
         const neighborhoods = territoryData?.neighborhood_tags?.slice(0, 2) || [];
         
         const eatPhrase = injectLocalExperience(
@@ -2813,6 +2855,38 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
     // V4.2: Build CTA from business profile
     const articleCTA = await buildArticleCTA(supabase, blog_id!);
 
+    // V2.2.1: For INSERT path - inject CTA into article.content before persistArticleToDb
+    // (UPDATE path handles this separately after sanitize)
+    let ctaInjectionFailedInsert = false;
+    let ctaMissingDataInsert = false;
+    if (!incomingArticleId) {
+      const { data: ctaProfileInsert } = await supabase
+        .from('business_profile')
+        .select('company_name, whatsapp, city, niche')
+        .eq('blog_id', blog_id)
+        .maybeSingle();
+      
+      if (ctaProfileInsert?.company_name) {
+        const companyInfoInsert: CompanyInfo = {
+          name: ctaProfileInsert.company_name,
+          city: ctaProfileInsert.city || city,
+          whatsapp: ctaProfileInsert.whatsapp || undefined,
+          niche: ctaProfileInsert.niche || effectiveNiche,
+          articleTitle: article.title
+        };
+        if (!ctaProfileInsert.whatsapp) ctaMissingDataInsert = true;
+        article.content = ensureCompanyCTA(article.content, companyInfoInsert);
+        console.log(`[${requestId}][CTA-INSERT] ✅ Company CTA injected for INSERT path`);
+      } else {
+        article.content = ensureCTA(article.content);
+        console.log(`[${requestId}][CTA-INSERT] Generic CTA injected for INSERT path`);
+      }
+      if (!hasValidCTA(article.content)) {
+        ctaInjectionFailedInsert = true;
+        console.error(`[${requestId}][CTA-INSERT] ❌ INJECTION FAILED`);
+      }
+    }
+
     let persistedArticle;
     try {
       // V5.0: If article_id provided, UPDATE the placeholder instead of INSERT
@@ -2836,7 +2910,46 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
           ? contentImagesForUpdate.filter((img: any) => img.url !== featuredUrl)
           : contentImagesForUpdate;
         
-        const { content: sanitizedContent } = sanitizeContent(article.content || '');
+        let { content: sanitizedContent } = sanitizeContent(article.content || '');
+        
+        // V2.2.1: Normalize headings (remove leading spaces, ensure blank lines)
+        sanitizedContent = sanitizedContent
+          .replace(/^[ \t]+(#{2,3})/gm, '$1')
+          .replace(/([^\n])\n(#{2,3}\s)/g, '$1\n\n$2');
+        
+        // V2.2.1: CTA Injection - AFTER sanitize, BEFORE persist
+        let ctaInjectionFailed = false;
+        let ctaMissingData = false;
+        
+        const { data: ctaProfile } = await supabase
+          .from('business_profile')
+          .select('company_name, whatsapp, city, niche')
+          .eq('blog_id', blog_id)
+          .maybeSingle();
+        
+        if (ctaProfile?.company_name) {
+          const companyInfo: CompanyInfo = {
+            name: ctaProfile.company_name,
+            city: ctaProfile.city || city,
+            whatsapp: ctaProfile.whatsapp || undefined,
+            niche: ctaProfile.niche || effectiveNiche,
+            articleTitle: article.title
+          };
+          if (!ctaProfile.whatsapp) {
+            ctaMissingData = true;
+            console.warn(`[${requestId}][CTA] WhatsApp missing for ${ctaProfile.company_name}`);
+          }
+          sanitizedContent = ensureCompanyCTA(sanitizedContent, companyInfo);
+          console.log(`[${requestId}][CTA] ✅ Company CTA injected for ${ctaProfile.company_name}`);
+        } else {
+          sanitizedContent = ensureCTA(sanitizedContent);
+          console.log(`[${requestId}][CTA] Generic CTA injected (no business_profile)`);
+        }
+        
+        if (!hasValidCTA(sanitizedContent)) {
+          ctaInjectionFailed = true;
+          console.error(`[${requestId}][CTA] ❌ INJECTION FAILED - missing "## Próximo passo"`);
+        }
         
         const updateData: Record<string, any> = {
           title: article.title || 'Artigo sem título',
@@ -2881,6 +2994,10 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
               city: city || null,
               niche_normalized: normalizeNiche(effectiveNiche),
               local_intelligence: eliteEngineDecision.local_intelligence || null,
+              cta_injection_failed: ctaInjectionFailed,
+              cta_missing_data: ctaMissingData,
+              images_pending: imagesTimedOut || false,
+              serp_pending: true,
             }
           } : (articleEnginePayload || null),
           content_images: filteredContentImages.length > 0 ? filteredContentImages : null,
@@ -2942,6 +3059,10 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
               city: city || null,
               niche_normalized: normalizeNiche(effectiveNiche),
               local_intelligence: eliteEngineDecision.local_intelligence || null,
+              cta_injection_failed: ctaInjectionFailedInsert,
+              cta_missing_data: ctaMissingDataInsert,
+              images_pending: imagesTimedOut || false,
+              serp_pending: true,
             }
           } : articleEnginePayload,
           // V4.2: CTA

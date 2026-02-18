@@ -190,6 +190,50 @@ Deno.serve(async (req) => {
 
     console.log(`[${jobId}][SEO-Job] ✅ Article ${article_id} enhanced successfully`);
 
+    // V2.2.1: Auto-calculate content score after SERP enhancement
+    try {
+      console.log(`[${jobId}][SEO-Job] Dispatching calculate-content-score...`);
+      const scoreResponse = await fetch(`${SUPABASE_URL}/functions/v1/calculate-content-score`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SERVICE_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          article_id,
+          blog_id,
+          force: true
+        }),
+      });
+      if (scoreResponse.ok) {
+        console.log(`[${jobId}][SEO-Job] ✅ Content score calculated automatically`);
+      } else {
+        console.warn(`[${jobId}][SEO-Job] ⚠️ Score calculation returned ${scoreResponse.status}`);
+      }
+    } catch (scoreErr) {
+      console.warn(`[${jobId}][SEO-Job] Score calculation failed (non-blocking):`, scoreErr);
+    }
+
+    // V2.2.1: Clear serp_pending flag in eliteEngine
+    try {
+      const { data: currentForFlag } = await supabase
+        .from('articles')
+        .select('source_payload')
+        .eq('id', article_id)
+        .single();
+      
+      if (currentForFlag?.source_payload) {
+        const payload = currentForFlag.source_payload as Record<string, any>;
+        if (payload.eliteEngine) {
+          payload.eliteEngine.serp_pending = false;
+          await supabase.from('articles').update({ source_payload: payload }).eq('id', article_id);
+          console.log(`[${jobId}][SEO-Job] serp_pending cleared`);
+        }
+      }
+    } catch (flagErr) {
+      console.warn(`[${jobId}][SEO-Job] Failed to clear serp_pending:`, flagErr);
+    }
+
     // 6. Log consumption for billing/analytics
     try {
       await supabase.from('consumption_logs').insert({
