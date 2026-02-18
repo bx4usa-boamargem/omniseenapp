@@ -11,6 +11,8 @@
 // deno-lint-ignore-file no-explicit-any
 
 import { classifyIntent, applyAntiPattern, selectVariant, type TemplateType, type TemplateVariant, type TemplateSelectionResult } from './templateSelector.ts';
+import { getCitySize, getCityWindowSize } from './geoUtils.ts';
+import { buildCityProfile, type CityProfile } from './localIntelligence.ts';
 
 // ============================================================================
 // TYPES
@@ -56,6 +58,7 @@ export interface EditorialDecision {
     reason: string;
     scope: 'city_niche' | 'blog_fallback';
   };
+  local_intelligence?: CityProfile;
 }
 
 // ============================================================================
@@ -96,40 +99,9 @@ const RHYTHM_PROFILES: string[] = [
   'Estilo jornalístico: fato → contexto → implicação. Parágrafos objetivos. Use citações indiretas quando possível.',
 ];
 
-// ============================================================================
-// CITY SIZE HEURISTIC
-// ============================================================================
+// City size logic moved to _shared/geoUtils.ts (getCitySize, getCityWindowSize)
+// Re-exported from geoUtils to avoid circular dependencies.
 
-const LARGE_CITIES = new Set([
-  'são paulo', 'rio de janeiro', 'brasília', 'salvador', 'fortaleza',
-  'belo horizonte', 'manaus', 'curitiba', 'recife', 'goiânia',
-  'belém', 'porto alegre', 'guarulhos', 'campinas', 'são luís',
-  'são gonçalo', 'maceió', 'duque de caxias', 'natal', 'teresina',
-  'campo grande', 'são bernardo do campo', 'joão pessoa', 'santo andré',
-  'osasco', 'jaboatão dos guararapes', 'são josé dos campos', 'ribeirão preto',
-  'uberlândia', 'contagem', 'sorocaba', 'aracaju', 'feira de santana',
-  'cuiabá', 'joinville', 'juiz de fora', 'londrina', 'aparecida de goiânia',
-]);
-
-const MEDIUM_CITIES = new Set([
-  'niterói', 'ananindeua', 'belford roxo', 'campos dos goytacazes',
-  'santos', 'são vicente', 'mauá', 'carapicuíba', 'olinda',
-  'piracicaba', 'jundiaí', 'bauru', 'maringá', 'vila velha',
-  'serra', 'diadema', 'vitória', 'betim', 'pelotas',
-  'canoas', 'caucaia', 'cariacica', 'franca', 'ponta grossa',
-  'blumenau', 'petrolina', 'paulista', 'uberaba', 'limeira',
-  'caruaru', 'santarém', 'mossoró', 'cascavel', 'itaquaquecetuba',
-  'suzano', 'governador valadares', 'nova iguaçu', 'praia grande',
-  'taubaté', 'gravataí', 'barueri', 'imperatriz', 'viamão',
-]);
-
-function getCityWindowSize(city: string | undefined): number {
-  if (!city || city === 'Brasil') return 10;
-  const normalized = city.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  if (LARGE_CITIES.has(normalized)) return 25;
-  if (MEDIUM_CITIES.has(normalized)) return 15;
-  return 10;
-}
 
 // ============================================================================
 // HASH HELPERS
@@ -487,6 +459,11 @@ export async function getEditorialDecision(params: {
     console.log(`[EditorialOrchestrator] Collision detected! Original: ${angle}, Alternate: ${alternateAngle.angle}`);
   }
 
+  // 10. Build local intelligence profile (V2.2)
+  const historyCount = history.length;
+  const localIntelligence = buildCityProfile(city, niche, historyCount);
+  console.log(`[EditorialOrchestrator] Local Intelligence: city_size=${localIntelligence.city_size}, density=${localIntelligence.density_strategy}, geo_depth=${localIntelligence.geo_depth}`);
+
   const decision: EditorialDecision = {
     structure_type: antiPattern.template,
     variant: selectedVariant,
@@ -506,6 +483,7 @@ export async function getEditorialDecision(params: {
       reason: antiPattern.applied ? antiPattern.reason : (collisionAvoided ? collisionReason : angleReason),
       scope,
     },
+    local_intelligence: localIntelligence,
   };
 
   console.log(`[EditorialOrchestrator] Decision:`, {

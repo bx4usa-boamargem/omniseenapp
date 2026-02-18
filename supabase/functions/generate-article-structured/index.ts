@@ -57,6 +57,7 @@ import {
   buildAutoFixPrompt
 } from '../_shared/footprintChecks.ts';
 import { normalizeNiche } from '../_shared/editorialOrchestrator.ts';
+import { buildLocalPromptInjection, buildMicroGeoEntities } from '../_shared/localIntelligence.ts';
 
 import { 
   validateBrief, 
@@ -1961,6 +1962,15 @@ SIGA ESTA ESTRUTURA EXATAMENTE.
       ? `\n## RITMO DE ESCRITA\n${eliteEngineDecision.rhythm_profile}\n` 
       : '';
 
+    // V2.2: Local Intelligence prompt injection
+    const localIntelligencePrompt = eliteEngineDecision?.local_intelligence
+      ? buildLocalPromptInjection(
+          eliteEngineDecision.local_intelligence,
+          city,
+          clientStrategy || null
+        )
+      : '';
+
     const systemPrompt = `${GEO_WRITER_IDENTITY}
 
 ${GEO_LINKING_RULES}
@@ -1975,6 +1985,7 @@ ${editorialConfig.instructions}
 ${eliteEngineAngleInstructions}
 ${eliteEnginePromptBlocks}
 ${eliteEngineRhythm}
+${localIntelligencePrompt}
 ${HEADING_BLACKLIST_PROMPT}
 
 ${HIERARCHY_RULES}
@@ -2851,7 +2862,7 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
           source_payload: eliteEngineDecision ? {
             ...(articleEnginePayload || {}),
             eliteEngine: {
-              version: '2.1',
+              version: '2.2',
               structure_type: eliteEngineDecision.structure_type,
               variant: eliteEngineDecision.variant,
               angle: eliteEngineDecision.angle,
@@ -2869,6 +2880,7 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
               mutation_skipped_due_timeout: mutationSkippedDueTimeout || undefined,
               city: city || null,
               niche_normalized: normalizeNiche(effectiveNiche),
+              local_intelligence: eliteEngineDecision.local_intelligence || null,
             }
           } : (articleEnginePayload || null),
           content_images: filteredContentImages.length > 0 ? filteredContentImages : null,
@@ -2911,7 +2923,7 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
           eliteEngineDecision ? {
             ...(articleEnginePayload || {}),
             eliteEngine: {
-              version: '2.1',
+              version: '2.2',
               structure_type: eliteEngineDecision.structure_type,
               variant: eliteEngineDecision.variant,
               angle: eliteEngineDecision.angle,
@@ -2929,6 +2941,7 @@ Retorne APENAS o artigo completo corrigido em Markdown. NÃO inclua explicaçõe
               mutation_skipped_due_timeout: mutationSkippedDueTimeout || undefined,
               city: city || null,
               niche_normalized: normalizeNiche(effectiveNiche),
+              local_intelligence: eliteEngineDecision.local_intelligence || null,
             }
           } : articleEnginePayload,
           // V4.2: CTA
