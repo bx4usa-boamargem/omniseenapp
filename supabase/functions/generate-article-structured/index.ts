@@ -43,6 +43,20 @@ import {
   type TemplateSelectionResult
 } from '../_shared/templateSelector.ts';
 
+// V6.0: Elite Engine V2 imports
+import { 
+  getEditorialDecision, 
+  buildBlocksPromptInjection,
+  buildAnglePromptInstructions,
+  HEADING_BLACKLIST_PROMPT,
+  type EditorialDecision
+} from '../_shared/editorialOrchestrator.ts';
+import { 
+  runFootprintChecks, 
+  generateStructureHash,
+  buildAutoFixPrompt
+} from '../_shared/footprintChecks.ts';
+
 import { 
   validateBrief, 
   buildOutlineStructure,
@@ -1674,34 +1688,48 @@ serve(async (req) => {
     console.log(`[${requestId}][QualityGate] ✅ Context validated:`, { city, niche: effectiveNiche, businessName: effectiveBusinessName });
 
     // ============================================================================
-    // V2.1: ARTICLE ENGINE - Template Selection & Outline
+    // V6.0: ELITE ENGINE V2 - Editorial Orchestrator (Single Source of Truth)
     // ============================================================================
     const primaryKeyword = Array.isArray(keywords) && keywords.length > 0 ? keywords[0] : theme;
     
     let articleEngineTemplate: TemplateSelectionResult | null = null;
     let articleEngineOutline: OutlineStructure | null = null;
+    let eliteEngineDecision: EditorialDecision | null = null;
     
-    // V5.0: Use editorial_model to select template instead of hardcoding
-    console.log(`[${requestId}][PIPELINE] V5.0: Using editorial_model=${editorial_model}`);
+    console.log(`[${requestId}][PIPELINE] V6.0: Elite Engine V2 - calling editorialOrchestrator`);
+    
+    try {
+      eliteEngineDecision = await getEditorialDecision({
+        supabase,
+        blogId: blog_id!,
+        niche: effectiveNiche,
+        city,
+        keyword: primaryKeyword,
+        funnel_mode: funnel_mode || 'middle',
+        article_goal: article_goal || 'educar',
+      });
+      
+      console.log(`[${requestId}][EliteEngine] Decision: structure=${eliteEngineDecision.structure_type}, variant=${eliteEngineDecision.variant}, angle=${eliteEngineDecision.angle}, style=${eliteEngineDecision.style_mode}, blocks=${eliteEngineDecision.blocks.length}`);
+    } catch (orchErr) {
+      console.error(`[${requestId}][EliteEngine] Orchestrator failed, falling back to intent classification:`, orchErr);
+    }
+
+    // Use orchestrator decision or fallback to classifyIntent
     const intent = classifyIntent(primaryKeyword);
-    
-    // V5.0: Map editorial_model to template type
-    const editorialToTemplate: Record<string, TemplateType> = {
-      'traditional': 'complete_guide' as TemplateType,
-      'strategic': 'problem_solution' as TemplateType,
-      'visual_guided': 'educational_steps' as TemplateType,
-    };
-    const selectedTemplate = (incomingArticleStructureType as TemplateType) || editorialToTemplate[editorial_model] || 'complete_guide' as TemplateType;
+    const selectedTemplate = eliteEngineDecision?.structure_type || intent.recommendedTemplate;
+    const selectedVariant = eliteEngineDecision?.variant || 'chronological';
     
     articleEngineTemplate = {
       template: selectedTemplate,
-      variant: 'chronological' as import('../_shared/pipelineStages.ts').TemplateVariant,
+      variant: selectedVariant as import('../_shared/pipelineStages.ts').TemplateVariant,
       intent,
-      reason: `V5.0: editorial_model=${editorial_model}, template=${selectedTemplate}`,
-      antiPatternApplied: false
+      reason: eliteEngineDecision 
+        ? `V6.0: Elite Engine - ${eliteEngineDecision.structure_type}/${eliteEngineDecision.variant}/${eliteEngineDecision.angle}`
+        : `V6.0 fallback: intent=${intent.type}`,
+      antiPatternApplied: eliteEngineDecision?.anti_collision_metadata?.collision_avoided || false
     };
     
-    // V5.0: Update stage to classifying
+    // V6.0: Update stage to classifying
     await updateStage('classifying', 15);
     console.log(`[${requestId}][STAGE] classifying (15%)`);
 
@@ -1921,6 +1949,17 @@ SIGA ESTA ESTRUTURA EXATAMENTE.
 `;
     }
 
+    // V6.0: Elite Engine V2 - Inject blocks, angle, and heading blacklist into prompt
+    const eliteEnginePromptBlocks = eliteEngineDecision 
+      ? buildBlocksPromptInjection(eliteEngineDecision.blocks) 
+      : '';
+    const eliteEngineAngleInstructions = eliteEngineDecision 
+      ? `\n## ÂNGULO EDITORIAL OBRIGATÓRIO\n${buildAnglePromptInstructions(eliteEngineDecision.angle)}\n` 
+      : '';
+    const eliteEngineRhythm = eliteEngineDecision?.rhythm_profile 
+      ? `\n## RITMO DE ESCRITA\n${eliteEngineDecision.rhythm_profile}\n` 
+      : '';
+
     const systemPrompt = `${GEO_WRITER_IDENTITY}
 
 ${GEO_LINKING_RULES}
@@ -1932,6 +1971,10 @@ ${nichePromptBlock}
 ${outlineInstruction}
 
 ${editorialConfig.instructions}
+${eliteEngineAngleInstructions}
+${eliteEnginePromptBlocks}
+${eliteEngineRhythm}
+${HEADING_BLACKLIST_PROMPT}
 
 ${HIERARCHY_RULES}
 
@@ -2615,9 +2658,25 @@ Reestruture e retorne via tool optimize_article.`;
           niche_profile_id: nicheProfile?.id || null,
           niche_locked: true,
           score_locked: true,
-          // V5.0: Save editorial_model as article_structure_type for rotation
-          article_structure_type: editorial_model || articleEngineTemplate?.template || null,
-          source_payload: articleEnginePayload || null,
+          // V6.0: Save structure_type from Elite Engine (official taxonomy only)
+          article_structure_type: eliteEngineDecision?.structure_type || articleEngineTemplate?.template || null,
+          source_payload: eliteEngineDecision ? {
+            ...(articleEnginePayload || {}),
+            eliteEngine: {
+              version: '2.0',
+              structure_type: eliteEngineDecision.structure_type,
+              variant: eliteEngineDecision.variant,
+              angle: eliteEngineDecision.angle,
+              style_mode: eliteEngineDecision.style_mode,
+              blocks: eliteEngineDecision.blocks.map(b => b.block_key),
+              rhythm_profile: eliteEngineDecision.rhythm_profile,
+              funnel_mode: eliteEngineDecision.funnel_mode,
+              article_goal: eliteEngineDecision.article_goal,
+              structure_hash: eliteEngineDecision.anti_collision_metadata.structure_hash,
+              blocks_hash: eliteEngineDecision.anti_collision_metadata.blocks_hash,
+              anti_collision: eliteEngineDecision.anti_collision_metadata,
+            }
+          } : (articleEnginePayload || null),
           content_images: filteredContentImages.length > 0 ? filteredContentImages : null,
           cta: articleCTA || null,
           generation_stage: 'completed',
@@ -2653,9 +2712,25 @@ Reestruture e retorne via tool optimize_article.`;
           inferredTags,
           nicheProfile?.id || null,
           user?.id,
-          // V5.0: Save editorial_model for rotation instead of template name
-          editorial_model || articleEngineTemplate?.template || null,
-          articleEnginePayload,
+          // V6.0: Save structure_type from Elite Engine
+          eliteEngineDecision?.structure_type || articleEngineTemplate?.template || null,
+          eliteEngineDecision ? {
+            ...(articleEnginePayload || {}),
+            eliteEngine: {
+              version: '2.0',
+              structure_type: eliteEngineDecision.structure_type,
+              variant: eliteEngineDecision.variant,
+              angle: eliteEngineDecision.angle,
+              style_mode: eliteEngineDecision.style_mode,
+              blocks: eliteEngineDecision.blocks.map((b: any) => b.block_key),
+              rhythm_profile: eliteEngineDecision.rhythm_profile,
+              funnel_mode: eliteEngineDecision.funnel_mode,
+              article_goal: eliteEngineDecision.article_goal,
+              structure_hash: eliteEngineDecision.anti_collision_metadata.structure_hash,
+              blocks_hash: eliteEngineDecision.anti_collision_metadata.blocks_hash,
+              anti_collision: eliteEngineDecision.anti_collision_metadata,
+            }
+          } : articleEnginePayload,
           // V4.2: CTA
           articleCTA
         );

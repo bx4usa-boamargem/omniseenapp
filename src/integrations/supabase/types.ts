@@ -2790,6 +2790,42 @@ export type Database = {
           },
         ]
       }
+      content_blocks: {
+        Row: {
+          active: boolean | null
+          block_key: string
+          compatible_structures: string[] | null
+          constraints_json: Json | null
+          created_at: string | null
+          display_name: string
+          id: string
+          niche: string
+          prompt_snippet: string
+        }
+        Insert: {
+          active?: boolean | null
+          block_key: string
+          compatible_structures?: string[] | null
+          constraints_json?: Json | null
+          created_at?: string | null
+          display_name: string
+          id?: string
+          niche?: string
+          prompt_snippet: string
+        }
+        Update: {
+          active?: boolean | null
+          block_key?: string
+          compatible_structures?: string[] | null
+          constraints_json?: Json | null
+          created_at?: string | null
+          display_name?: string
+          id?: string
+          niche?: string
+          prompt_snippet?: string
+        }
+        Relationships: []
+      }
       content_clusters: {
         Row: {
           blog_id: string

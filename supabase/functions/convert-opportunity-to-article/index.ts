@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { getNextStructureWithTemplate, type StructureType } from "../_shared/structureRotation.ts";
-import { getNextEditorialModel, type EditorialModel } from "../_shared/editorialRotation.ts";
+// V6.0: Legacy rotation imports removed - orchestrator handles everything in generate-article-structured
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -226,26 +225,8 @@ serve(async (req) => {
       .eq("blog_id", blogId)
       .maybeSingle();
 
-    // 3. ROTAÇÃO ESTRUTURAL - Determinar próximo modelo editorial
-    console.log(`[${requestId}][CONVERT] Calculating next structure type for blog ${blogId}...`);
-    const { structureType, template, activitySlug } = await getNextStructureWithTemplate(
-      supabase,
-      blogId,
-      profile?.niche,
-      profile?.services
-    );
-    
-    console.log(`[${requestId}][CONVERT] Structure rotation: type=${structureType}, activity=${activitySlug}, template=${template?.display_name || 'fallback'}`);
-
-    // 3b. ROTAÇÃO EDITORIAL - Determinar próximo modelo de conteúdo
-    console.log(`[${requestId}][CONVERT] Calculating next editorial model for blog ${blogId}...`);
-    const editorialModel: EditorialModel = await getNextEditorialModel(
-      supabase,
-      blogId,
-      profile?.niche
-    );
-    
-    console.log(`[${requestId}][CONVERT] Editorial rotation: model=${editorialModel}`);
+    // V6.0: Legacy rotation calls removed - orchestrator in generate-article-structured handles everything
+    console.log(`[${requestId}][CONVERT] V6.0: Editorial decisions delegated to Elite Engine orchestrator`);
     // 4. Buscar dados adicionais para GEO mode (território e whatsapp)
     const { data: territory } = await supabase
       .from("territories")
@@ -367,12 +348,7 @@ serve(async (req) => {
       // Links for GEO
       internal_links: internalLinks,
       whatsapp: profile?.whatsapp || null,
-      // Parâmetros de estrutura editorial
-      article_structure_type: structureType,
-      structure_prompt: template?.generation_prompt || null,
-      activity_slug: activitySlug,
-      // ROTAÇÃO EDITORIAL - Modelo de conteúdo
-      editorial_model: editorialModel,
+      // V6.0: No longer sending structure/editorial params - orchestrator decides
       // D) Propagar request_id para generate-article-structured
       request_id: requestId,
     };
