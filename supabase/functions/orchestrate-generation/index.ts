@@ -1356,7 +1356,11 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
       public_updated_at: new Date().toISOString(),
     })
     .eq('id', jobId).is('locked_by', null);
-  if (lockError) { console.error(`[ORCHESTRATOR] Lock failed for ${jobId}:`, lockError); return; }
+  if (lockError) {
+    console.error(`[ENGINE] LEGACY_EXECUTION_BLOCKED job_id=${jobId} — another orchestrator holds the lock`);
+    return;
+  }
+  console.log(`[ENGINE] LOCK_ACQUIRED job_id=${jobId} lockId=${lockId}`);
 
   // Load completed steps
   const completedSteps = new Set<string>();
