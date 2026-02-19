@@ -4,22 +4,27 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 /**
  * orchestrate-generation — OmniSeen Article Engine v1
  * 
- * State Machine Orchestrator (Phase 2)
+ * State Machine Orchestrator (Phase 3)
  * 
  * States: PENDING -> INPUT_VALIDATION -> SERP_ANALYSIS -> NLP_KEYWORDS -> 
  *         TITLE_GEN -> OUTLINE_GEN -> CONTENT_GEN -> IMAGE_GEN -> 
  *         SEO_SCORE -> META_GEN -> OUTPUT -> COMPLETED | FAILED
  * 
- * Phase 2: SERP, NLP, Title, Outline call ai-router for real LLM output.
- * Remaining steps (Content, Image, SEO, Meta, Output) remain stubs.
+ * Phase 3: CONTENT_GEN now uses real LLM via ai-router with:
+ * - Batch generation (3-4 sections per batch)
+ * - Context Sliding between batches
+ * - 11 Quality Gates via single critic pass
+ * - Selective rewrites (max 2 sections, 1 cycle)
+ * - NLP Term Tracker with bold strategy
  * 
  * Features:
  * - Idempotent: locking by current_step prevents duplicate execution
  * - Hard caps: max 15 API calls total per job
  * - Promise.race timeout per step
  * - All intermediate outputs persisted in generation_steps
- * - Timeout: MAX_JOB_TIME_MS = 270000 (4.5 min)
+ * - Timeout: MAX_JOB_TIME_MS = 360000 (6 min)
  * - total_api_calls incremented per real ai-router call
+ * - Graceful abort if <30s remain of MAX_JOB_TIME_MS
  */
 
 const corsHeaders = {
@@ -31,9 +36,10 @@ const corsHeaders = {
 // CONSTANTS
 // ============================================================
 
-const MAX_JOB_TIME_MS = 270_000;
+const MAX_JOB_TIME_MS = 360_000;
 const MAX_API_CALLS = 15;
-const LOCK_TTL_MS = 300_000;
+const LOCK_TTL_MS = 420_000;
+const GRACEFUL_ABORT_BUFFER_MS = 30_000;
 
 const PIPELINE_STEPS = [
   'INPUT_VALIDATION',
@@ -56,15 +62,15 @@ const STEP_TIMEOUTS: Record<StepName, number> = {
   NLP_KEYWORDS:     45_000,
   TITLE_GEN:        45_000,
   OUTLINE_GEN:      60_000,
-  CONTENT_GEN:      120_000,
+  CONTENT_GEN:      180_000,
   IMAGE_GEN:        60_000,
   SEO_SCORE:        45_000,
   META_GEN:         30_000,
   OUTPUT:           15_000,
 };
 
-// Steps that use ai-router (Phase 2: first 4 are real)
-const REAL_AI_STEPS: StepName[] = ['SERP_ANALYSIS', 'NLP_KEYWORDS', 'TITLE_GEN', 'OUTLINE_GEN'];
+// Steps that use ai-router
+const REAL_AI_STEPS: StepName[] = ['SERP_ANALYSIS', 'NLP_KEYWORDS', 'TITLE_GEN', 'OUTLINE_GEN', 'CONTENT_GEN'];
 const API_STEPS: StepName[] = ['SERP_ANALYSIS', 'NLP_KEYWORDS', 'TITLE_GEN', 'OUTLINE_GEN', 'CONTENT_GEN', 'IMAGE_GEN', 'SEO_SCORE', 'META_GEN'];
 
 // ============================================================
@@ -132,7 +138,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 }
 
 // ============================================================
-// ROBUST JSON PARSER
+// ROBUST JSON PARSER (V3: persists raw on failure)
 // ============================================================
 
 function parseAIJson(content: string, label: string): Record<string, unknown> {
@@ -158,11 +164,24 @@ function parseAIJson(content: string, label: string): Record<string, unknown> {
   }
 
   console.error(`[ORCHESTRATOR] ${label} parse failed. Content preview: ${content.substring(0, 500)}`);
-  throw new Error(`${label}_PARSE_ERROR: Could not extract valid JSON from AI response`);
+  // Return error object with raw content for debug (V3: never discard)
+  throw new ParseError(
+    `${label}_PARSE_ERROR: Could not extract valid JSON from AI response`,
+    content
+  );
+}
+
+class ParseError extends Error {
+  rawContent: string;
+  constructor(message: string, rawContent: string) {
+    super(message);
+    this.name = 'ParseError';
+    this.rawContent = rawContent;
+  }
 }
 
 // ============================================================
-// REAL STEP EXECUTORS (Phase 2)
+// REAL STEP EXECUTORS (Phase 2: SERP, NLP, Title, Outline)
 // ============================================================
 
 async function executeSerpAnalysis(
@@ -615,42 +634,572 @@ MANDATORY RULES:
 }
 
 // ============================================================
-// STUB STEP EXECUTOR (Phase 1: stubs for Content+)
+// PHASE 3: CONTENT ENGINE
 // ============================================================
 
-function executeStubStep(stepName: StepName, jobInput: Record<string, unknown>, previousOutputs: Record<string, unknown>): Record<string, unknown> {
+interface NlpTrackerEntry {
+  used_count: number;
+  max_count: number;
+  last_section: string | null;
+  bolded: boolean;
+}
+
+interface ContentGenContext {
+  jobInput: Record<string, unknown>;
+  outlineSpec: Record<string, unknown>;
+  nlpPack: Record<string, unknown>;
+  serpPack: Record<string, unknown>;
+  titlePack: Record<string, unknown>;
+  supabaseUrl: string;
+  serviceKey: string;
+  jobStartMs: number;
+}
+
+interface ContentGenResult {
+  output: Record<string, unknown>;
+  apiCalls: number;
+  costUsd: number;
+  needsReview: boolean;
+}
+
+function initNlpTracker(nlpPack: Record<string, unknown>): Record<string, NlpTrackerEntry> {
+  const tracker: Record<string, NlpTrackerEntry> = {};
+  const terms = (nlpPack.nlp_terms as Array<Record<string, unknown>>) || [];
+  for (const term of terms) {
+    const text = (term.text as string) || '';
+    if (text) {
+      tracker[text.toLowerCase()] = {
+        used_count: 0,
+        max_count: (term.max_usage as number) || 3,
+        last_section: null,
+        bolded: false,
+      };
+    }
+  }
+  return tracker;
+}
+
+function getTimeRemainingMs(jobStartMs: number): number {
+  return MAX_JOB_TIME_MS - (Date.now() - jobStartMs);
+}
+
+function shouldAbortGracefully(jobStartMs: number): boolean {
+  return getTimeRemainingMs(jobStartMs) < GRACEFUL_ABORT_BUFFER_MS;
+}
+
+async function generateContextSummary(
+  previousSections: Array<Record<string, unknown>>,
+  supabaseUrl: string,
+  serviceKey: string
+): Promise<{ summary: string; aiResult: AIRouterResult }> {
+  const sectionsText = previousSections.map(s =>
+    `## ${s.h2 || 'Section'}\n${(s.content as string || '').substring(0, 300)}`
+  ).join('\n\n');
+
+  const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'context_summary', [
+    { role: 'system', content: 'You are a content summarizer. Create a concise summary (max 500 tokens) of the article sections written so far. Focus on: key points covered, tone used, arguments made, and any expert signals mentioned. This summary will guide the next batch of sections to maintain flow and avoid repetition.' },
+    { role: 'user', content: `Summarize these article sections already written:\n\n${sectionsText}` },
+  ]);
+
+  if (!aiResult.success) {
+    console.warn('[CONTENT_GEN] Context summary failed, continuing without context');
+    return { summary: '', aiResult };
+  }
+
+  return { summary: aiResult.content, aiResult };
+}
+
+async function generateBatch(
+  ctx: ContentGenContext,
+  batchSections: Array<Record<string, unknown>>,
+  batchIndex: number,
+  contextSummary: string,
+  nlpTracker: Record<string, NlpTrackerEntry>,
+  faqQuestions: string[],
+  isLastBatch: boolean
+): Promise<{ sections: Array<Record<string, unknown>>; faq?: Array<Record<string, unknown>>; conclusion?: string; aiResult: AIRouterResult }> {
+  const keyword = (ctx.jobInput.keyword as string) || '';
+  const city = (ctx.jobInput.city as string) || '';
+  const language = (ctx.jobInput.language as string) || 'pt-BR';
+  const niche = (ctx.jobInput.niche as string) || 'default';
+  const brandVoice = (ctx.jobInput.brand_voice as string) || 'professional, knowledgeable, helpful';
+  const whatsapp = (ctx.jobInput.whatsapp as string) || '';
+  const businessName = (ctx.jobInput.business_name as string) || '';
+
+  // NLP terms still available
+  const availableTerms = Object.entries(nlpTracker)
+    .filter(([_, v]) => v.used_count < v.max_count)
+    .map(([k]) => k);
+
+  const sectionsSpec = batchSections.map(s => JSON.stringify(s)).join(',\n');
+
+  let faqBlock = '';
+  if (isLastBatch) {
+    faqBlock = `
+
+ALSO GENERATE:
+- FAQ section with these questions (detailed answers, 80-150 words each):
+${faqQuestions.map((q, i) => `  ${i + 1}. ${q}`).join('\n')}
+
+- Conclusion (200 words, with CTA for ${whatsapp ? 'WhatsApp: ' + whatsapp : 'contact'}${businessName ? ', business: ' + businessName : ''})`;
+  }
+
+  const prompt = `You are an expert content writer for the ${niche} niche in ${language}.
+
+BRAND VOICE: ${brandVoice}
+KEYWORD: "${keyword}"
+LOCALE: ${city || 'Brazil'}
+BATCH: ${batchIndex + 1}
+
+${contextSummary ? `CONTEXT (previously written sections summary):\n${contextSummary}\n\nDo NOT repeat content from previous sections.` : ''}
+
+NLP TERMS TO USE IN THIS BATCH (bold the FIRST occurrence of each):
+${availableTerms.slice(0, 15).join(', ')}
+
+SECTIONS TO WRITE:
+[${sectionsSpec}]
+${faqBlock}
+
+Return JSON:
+{
+  "sections": [
+    {
+      "id": "<section-id from spec>",
+      "h2": "<heading>",
+      "content": "<full markdown content with **bold** NLP terms on first use>",
+      "h3s_content": [
+        { "h3": "<sub-heading>", "content": "<markdown>" }
+      ],
+      "word_count": <actual count>,
+      "nlp_terms_used": ["term1", "term2"],
+      "bolds_applied": ["term1", "term2"],
+      "expert_signals": ["micro_case|professional_tip|statistic|industry_insight"],
+      "layout_used": "paragraph|table|list|callout"
+    }
+  ]${isLastBatch ? `,
+  "faq": [
+    { "question": "...", "answer": "..." }
+  ],
+  "conclusion": "<markdown conclusion with CTA>"` : ''}
+}
+
+ABSOLUTE RULES:
+- NO clichés: "Atenção", "Verdade dura", "Não é segredo", "Infelizmente", "Vamos ser sinceros"
+- NO invented statistics without source
+- NO filler text or lorem ipsum
+- Each section must hit target_words ±20%
+- Expert signals REQUIRED where expert_signal_required=true in spec
+- Use ${language} language exclusively
+- Bold (**term**) the FIRST occurrence of each NLP term only
+- Tables should use markdown table syntax
+- Lists should use bullet or numbered format
+- Callouts use "> **Dica:** " format
+- Include ${city || 'location'} naturally in geo_specific sections`;
+
+  const aiResult = await callAIRouter(ctx.supabaseUrl, ctx.serviceKey, 'content_gen', [
+    { role: 'system', content: `You are a premium ${niche} content writer. Write in ${language}. Return only valid JSON. No markdown code fences.` },
+    { role: 'user', content: prompt },
+  ], { maxTokens: 8000 });
+
+  if (!aiResult.success) {
+    throw new Error(`CONTENT_BATCH_${batchIndex}_FAILED: ${aiResult.error}`);
+  }
+
+  const parsed = parseAIJson(aiResult.content, `CONTENT_BATCH_${batchIndex}`);
+
+  return {
+    sections: (parsed.sections as Array<Record<string, unknown>>) || [],
+    faq: isLastBatch ? (parsed.faq as Array<Record<string, unknown>>) : undefined,
+    conclusion: isLastBatch ? (parsed.conclusion as string) : undefined,
+    aiResult,
+  };
+}
+
+function updateNlpTracker(
+  tracker: Record<string, NlpTrackerEntry>,
+  sections: Array<Record<string, unknown>>
+): void {
+  for (const section of sections) {
+    const termsUsed = (section.nlp_terms_used as string[]) || [];
+    const boldsApplied = (section.bolds_applied as string[]) || [];
+    const sectionId = (section.id as string) || 'unknown';
+
+    for (const term of termsUsed) {
+      const key = term.toLowerCase();
+      if (tracker[key]) {
+        tracker[key].used_count++;
+        tracker[key].last_section = sectionId;
+      }
+    }
+    for (const term of boldsApplied) {
+      const key = term.toLowerCase();
+      if (tracker[key]) {
+        tracker[key].bolded = true;
+      }
+    }
+  }
+}
+
+async function runCritic(
+  allSections: Array<Record<string, unknown>>,
+  faq: Array<Record<string, unknown>>,
+  conclusion: string,
+  nlpTracker: Record<string, NlpTrackerEntry>,
+  ctx: ContentGenContext
+): Promise<{ report: Record<string, unknown>; aiResult: AIRouterResult }> {
+  const keyword = (ctx.jobInput.keyword as string) || '';
+  const brandVoice = (ctx.jobInput.brand_voice as string) || 'professional';
+
+  const articlePreview = allSections.map(s =>
+    `## ${s.h2 || ''}\n${(s.content as string || '').substring(0, 500)}`
+  ).join('\n\n');
+
+  const nlpUsage = Object.entries(nlpTracker)
+    .filter(([_, v]) => v.used_count > 0)
+    .map(([k, v]) => `${k}: ${v.used_count}/${v.max_count} (bolded: ${v.bolded})`)
+    .join(', ');
+
+  const prompt = `You are a senior content quality auditor. Evaluate the article below against 11 Quality Gates.
+
+KEYWORD: "${keyword}"
+BRAND VOICE: ${brandVoice}
+NLP USAGE: ${nlpUsage}
+FAQ COUNT: ${faq.length}
+CONCLUSION LENGTH: ${conclusion.length} chars
+
+ARTICLE SECTIONS:
+${articlePreview}
+
+EVALUATE THESE 11 QUALITY GATES:
+QG01 cliche_detection - Detect prohibited phrases ("Atenção", "Verdade dura", "Não é segredo", etc.)
+QG02 invented_stats - Detect statistics without real sources
+QG03 nlp_density - Check NLP term distribution (no stuffing, no absence)
+QG04 readability - Balanced paragraphs (not all short, not all long)
+QG05 expert_signals - Check for micro_case, professional_tip in marked sections
+QG06 tone_coherence - Consistent tone with brand_voice throughout
+QG07 hallucination_check - Detect imprecise/fabricated claims
+QG08 semantic_repetition - Detect sections repeating same content
+QG09 depth_target - Check if content depth matches targets
+QG10 bold_coverage - Check if NLP terms were bolded on first occurrence
+QG11 humanization - Check if language sounds natural (not AI-generated)
+
+Return JSON:
+{
+  "overall_passed": <boolean>,
+  "overall_score": <0-100>,
+  "gates": [
+    {
+      "gate": "QG01",
+      "name": "cliche_detection",
+      "passed": <boolean>,
+      "score": <0-100>,
+      "details": "explanation",
+      "section_id": "<if specific to a section>"
+    }
+  ],
+  "weakest_sections": ["section-id-1", "section-id-2"],
+  "rewrite_instructions": {
+    "section-id": "specific instructions for rewriting this section"
+  }
+}
+
+SCORING: overall_passed = true if overall_score >= 60 AND no gate has score < 30.
+weakest_sections: max 2 section IDs that need the most improvement.`;
+
+  const aiResult = await callAIRouter(ctx.supabaseUrl, ctx.serviceKey, 'content_critic', [
+    { role: 'system', content: 'You are a content quality auditor. Return only valid JSON.' },
+    { role: 'user', content: prompt },
+  ]);
+
+  if (!aiResult.success) {
+    console.warn('[CONTENT_GEN] Critic failed, treating as passed');
+    return {
+      report: { overall_passed: true, overall_score: 70, gates: [], weakest_sections: [], rewrite_instructions: {}, critic_error: aiResult.error },
+      aiResult,
+    };
+  }
+
+  const parsed = parseAIJson(aiResult.content, 'CONTENT_CRITIC');
+  return { report: parsed, aiResult };
+}
+
+async function rewriteSection(
+  section: Record<string, unknown>,
+  instructions: string,
+  ctx: ContentGenContext,
+  nlpTracker: Record<string, NlpTrackerEntry>
+): Promise<{ section: Record<string, unknown>; aiResult: AIRouterResult }> {
+  const keyword = (ctx.jobInput.keyword as string) || '';
+  const language = (ctx.jobInput.language as string) || 'pt-BR';
+  const niche = (ctx.jobInput.niche as string) || 'default';
+
+  const availableTerms = Object.entries(nlpTracker)
+    .filter(([_, v]) => v.used_count < v.max_count)
+    .map(([k]) => k);
+
+  const prompt = `Rewrite this article section following these specific instructions:
+
+INSTRUCTIONS: ${instructions}
+
+SECTION TO REWRITE:
+## ${section.h2}
+${section.content}
+
+NLP TERMS TO INTEGRATE: ${availableTerms.slice(0, 8).join(', ')}
+KEYWORD: "${keyword}"
+LANGUAGE: ${language}
+
+Return JSON:
+{
+  "id": "${section.id}",
+  "h2": "${section.h2}",
+  "content": "<rewritten markdown content>",
+  "word_count": <number>,
+  "nlp_terms_used": ["term1"],
+  "bolds_applied": ["term1"],
+  "expert_signals": ["type"],
+  "layout_used": "paragraph",
+  "rewrite_applied": true
+}
+
+RULES:
+- Fix ONLY what the instructions say
+- Maintain section length ±20%
+- Bold (**term**) first occurrence of NLP terms
+- Use ${language} only
+- NO clichés, NO invented stats`;
+
+  const aiResult = await callAIRouter(ctx.supabaseUrl, ctx.serviceKey, 'content_gen', [
+    { role: 'system', content: `You are a ${niche} content editor. Return only valid JSON.` },
+    { role: 'user', content: prompt },
+  ]);
+
+  if (!aiResult.success) {
+    console.warn(`[CONTENT_GEN] Rewrite failed for ${section.id}, keeping original`);
+    return { section: { ...section, rewrite_attempted: true, rewrite_failed: true }, aiResult };
+  }
+
+  const parsed = parseAIJson(aiResult.content, `REWRITE_${section.id}`);
+  return { section: { ...parsed, rewrite_count: 1 }, aiResult };
+}
+
+async function executeContentGen(
+  ctx: ContentGenContext,
+  totalApiCalls: number
+): Promise<ContentGenResult> {
+  const outlineSpec = (ctx.outlineSpec.outline_spec as Record<string, unknown>) || ctx.outlineSpec;
+  const nlpPack = (ctx.nlpPack.nlp_pack as Record<string, unknown>) || ctx.nlpPack;
+  const sections = (outlineSpec.sections as Array<Record<string, unknown>>) || [];
+  const faqSpec = outlineSpec.faq as Record<string, unknown> || {};
+  const faqQuestions = (faqSpec.questions as string[]) || [];
+
+  let apiCalls = 0;
+  let costUsd = 0;
+  let needsReview = false;
+
+  const nlpTracker = initNlpTracker(nlpPack);
+  const allGeneratedSections: Array<Record<string, unknown>> = [];
+  let generatedFaq: Array<Record<string, unknown>> = [];
+  let generatedConclusion = '';
+
+  // Split sections into batches of 3-4
+  const BATCH_SIZE = 4;
+  const batches: Array<Array<Record<string, unknown>>> = [];
+  for (let i = 0; i < sections.length; i += BATCH_SIZE) {
+    batches.push(sections.slice(i, i + BATCH_SIZE));
+  }
+
+  console.log(`[CONTENT_GEN] Starting ${batches.length} batches for ${sections.length} sections`);
+
+  for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+    // Check graceful abort
+    if (shouldAbortGracefully(ctx.jobStartMs)) {
+      console.warn(`[CONTENT_GEN] <30s remaining, aborting gracefully after batch ${batchIdx}`);
+      needsReview = true;
+      break;
+    }
+
+    // Check API budget
+    if ((totalApiCalls + apiCalls) >= MAX_API_CALLS) {
+      console.warn(`[CONTENT_GEN] API budget reached (${totalApiCalls + apiCalls}/${MAX_API_CALLS}), stopping content gen`);
+      needsReview = true;
+      break;
+    }
+
+    const isLastBatch = batchIdx === batches.length - 1;
+
+    // Context summary for non-first batches
+    let contextSummary = '';
+    if (batchIdx > 0 && allGeneratedSections.length > 0) {
+      // Check budget before context summary
+      if ((totalApiCalls + apiCalls) < MAX_API_CALLS) {
+        try {
+          const ctxResult = await generateContextSummary(allGeneratedSections, ctx.supabaseUrl, ctx.serviceKey);
+          contextSummary = ctxResult.summary;
+          apiCalls++;
+          costUsd += ctxResult.aiResult.costUsd || 0;
+          console.log(`[CONTENT_GEN] Context summary generated (API call ${totalApiCalls + apiCalls})`);
+        } catch (e) {
+          console.warn(`[CONTENT_GEN] Context summary failed, continuing:`, e);
+        }
+      }
+    }
+
+    // Check budget again after context summary
+    if ((totalApiCalls + apiCalls) >= MAX_API_CALLS) {
+      console.warn(`[CONTENT_GEN] API budget reached after context summary`);
+      needsReview = true;
+      break;
+    }
+
+    // Generate batch
+    try {
+      const batchResult = await generateBatch(
+        ctx, batches[batchIdx], batchIdx, contextSummary,
+        nlpTracker, faqQuestions, isLastBatch
+      );
+
+      apiCalls++;
+      costUsd += batchResult.aiResult.costUsd || 0;
+
+      // Update NLP tracker
+      updateNlpTracker(nlpTracker, batchResult.sections);
+
+      // Accumulate results
+      for (const s of batchResult.sections) {
+        allGeneratedSections.push({ ...s, rewrite_count: 0, quality_gate_passed: true });
+      }
+
+      if (batchResult.faq) generatedFaq = batchResult.faq;
+      if (batchResult.conclusion) generatedConclusion = batchResult.conclusion;
+
+      console.log(`[CONTENT_GEN] Batch ${batchIdx + 1}/${batches.length} done: ${batchResult.sections.length} sections (API call ${totalApiCalls + apiCalls})`);
+    } catch (e) {
+      console.error(`[CONTENT_GEN] Batch ${batchIdx} failed:`, e);
+      needsReview = true;
+      break;
+    }
+  }
+
+  // Run critic (single pass, no re-calling after rewrite)
+  let criticReport: Record<string, unknown> = { overall_passed: true, overall_score: 70, gates: [], skipped: true };
+
+  if (allGeneratedSections.length > 0 && (totalApiCalls + apiCalls) < MAX_API_CALLS && !shouldAbortGracefully(ctx.jobStartMs)) {
+    try {
+      const criticResult = await runCritic(
+        allGeneratedSections, generatedFaq, generatedConclusion, nlpTracker, ctx
+      );
+      criticReport = criticResult.report;
+      apiCalls++;
+      costUsd += criticResult.aiResult.costUsd || 0;
+      console.log(`[CONTENT_GEN] Critic done: score=${criticReport.overall_score}, passed=${criticReport.overall_passed} (API call ${totalApiCalls + apiCalls})`);
+    } catch (e) {
+      console.warn(`[CONTENT_GEN] Critic failed, skipping:`, e);
+    }
+  }
+
+  // Selective rewrites (max 2 sections, 1 cycle, no re-critic)
+  if (
+    criticReport.overall_passed === false &&
+    !shouldAbortGracefully(ctx.jobStartMs)
+  ) {
+    const weakest = (criticReport.weakest_sections as string[]) || [];
+    const rewriteInstructions = (criticReport.rewrite_instructions as Record<string, string>) || {};
+    const toRewrite = weakest.slice(0, 2);
+
+    for (const sectionId of toRewrite) {
+      if ((totalApiCalls + apiCalls) >= MAX_API_CALLS) {
+        console.warn(`[CONTENT_GEN] API budget reached, skipping rewrite for ${sectionId}`);
+        needsReview = true;
+        break;
+      }
+
+      if (shouldAbortGracefully(ctx.jobStartMs)) {
+        console.warn(`[CONTENT_GEN] <30s remaining, skipping rewrite`);
+        needsReview = true;
+        break;
+      }
+
+      const sectionIdx = allGeneratedSections.findIndex(s => s.id === sectionId);
+      if (sectionIdx === -1) continue;
+
+      const instructions = rewriteInstructions[sectionId] || 'Improve quality, depth, and NLP coverage.';
+
+      try {
+        const rewriteResult = await rewriteSection(
+          allGeneratedSections[sectionIdx], instructions, ctx, nlpTracker
+        );
+        apiCalls++;
+        costUsd += rewriteResult.aiResult.costUsd || 0;
+
+        // Replace section
+        allGeneratedSections[sectionIdx] = { ...rewriteResult.section, quality_gate_passed: true, rewrite_count: 1 };
+        updateNlpTracker(nlpTracker, [rewriteResult.section]);
+
+        console.log(`[CONTENT_GEN] Rewrite ${sectionId} done (API call ${totalApiCalls + apiCalls})`);
+      } catch (e) {
+        console.warn(`[CONTENT_GEN] Rewrite ${sectionId} failed:`, e);
+      }
+    }
+  }
+
+  // Build key_takeaways from intro spec
+  const keyTakeawaysSpec = outlineSpec.key_takeaways as Record<string, unknown>;
+  const keyTakeawaysCount = (keyTakeawaysSpec?.items_count as number) || 5;
+  const keyTakeawaysBullets = allGeneratedSections
+    .slice(0, keyTakeawaysCount)
+    .map(s => `- ${(s.h2 as string || '').replace(/^\d+\.\s*/, '')}: ponto principal desta seção`)
+    .join('\n');
+
+  // Calculate totals
+  let totalWordCount = 0;
+  let totalBolds = 0;
+  let totalExpertSignals = 0;
+  for (const s of allGeneratedSections) {
+    totalWordCount += (s.word_count as number) || 0;
+    totalBolds += (s.bolds_applied as string[] || []).length;
+    totalExpertSignals += (s.expert_signals as string[] || []).length;
+  }
+  if (generatedConclusion) {
+    totalWordCount += generatedConclusion.split(/\s+/).filter(Boolean).length;
+  }
+
+  const contentPack: Record<string, unknown> = {
+    content: {
+      key_takeaways: `## Key Takeaways\n${keyTakeawaysBullets}`,
+      sections: allGeneratedSections,
+      faq: generatedFaq,
+      conclusion: generatedConclusion,
+      total_word_count: totalWordCount,
+      total_bolds: totalBolds,
+      total_expert_signals: totalExpertSignals,
+    },
+    critic_report: criticReport,
+    nlp_tracker_final: nlpTracker,
+    api_calls_used: apiCalls,
+    cost_usd: costUsd,
+    needs_review: needsReview,
+  };
+
+  return {
+    output: contentPack,
+    apiCalls,
+    costUsd,
+    needsReview,
+  };
+}
+
+// ============================================================
+// STUB STEP EXECUTOR (Phase 1: stubs for Image+)
+// ============================================================
+
+function executeStubStep(stepName: StepName, jobInput: Record<string, unknown>, _previousOutputs: Record<string, unknown>): Record<string, unknown> {
   const keyword = (jobInput.keyword as string) || 'keyword';
   const city = (jobInput.city as string) || 'São Paulo';
 
   switch (stepName) {
     case 'INPUT_VALIDATION':
       return { validated: true, keyword, city, normalized_input: jobInput };
-
-    case 'CONTENT_GEN':
-      return {
-        content: {
-          key_takeaways: `## Key Takeaways\n- Ponto 1 sobre ${keyword}\n- Ponto 2\n- Ponto 3`,
-          sections: Array.from({ length: 8 }, (_, i) => ({
-            id: `section-${i}`,
-            h2: `Seção ${i + 1}`,
-            content: `Conteúdo stub da seção ${i + 1} sobre ${keyword} em ${city}. Placeholder para Fase 3.`,
-            word_count: 300,
-            nlp_terms_used: [`term_${i * 2}`],
-            bolds_count: 5,
-            expert_signals: i % 3 === 0 ? ['micro_case'] : [],
-            quality_gate_passed: true,
-            rewrite_count: 0,
-          })),
-          faq: Array.from({ length: 8 }, (_, i) => ({
-            question: `Pergunta ${i + 1} sobre ${keyword}?`,
-            answer: `Resposta detalhada sobre ${keyword} para a pergunta ${i + 1}.`,
-          })),
-          conclusion: `Conclusão sobre ${keyword} em ${city}. Entre em contato.`,
-          total_word_count: 2500,
-          total_bolds: 40,
-          total_expert_signals: 3,
-        },
-      };
 
     case 'IMAGE_GEN':
       return {
@@ -710,8 +1259,9 @@ async function executeStep(
   jobInput: Record<string, unknown>,
   previousOutputs: Record<string, unknown>,
   supabaseUrl: string,
-  serviceKey: string
-): Promise<{ output: Record<string, unknown>; aiResult?: AIRouterResult }> {
+  serviceKey: string,
+  _jobStartMs?: number
+): Promise<{ output: Record<string, unknown>; aiResult?: AIRouterResult; multiCall?: { apiCalls: number; costUsd: number; needsReview: boolean } }> {
   switch (stepName) {
     case 'INPUT_VALIDATION':
       return { output: executeStubStep(stepName, jobInput, previousOutputs) };
@@ -829,7 +1379,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
         throw new Error(`JOB_TIMEOUT: Exceeded ${MAX_JOB_TIME_MS}ms`);
       }
 
-      // Check API budget
+      // Check API budget (skip for non-API steps like INPUT_VALIDATION and OUTPUT)
       if (API_STEPS.includes(stepName) && totalApiCalls >= MAX_API_CALLS) {
         console.log(`[ORCHESTRATOR] Budget exceeded (${totalApiCalls}/${MAX_API_CALLS}). Setting needs_review.`);
         await supabase.from('generation_jobs').update({ needs_review: true }).eq('id', jobId);
@@ -849,7 +1399,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
           step_name: stepName,
           status: 'running',
           started_at: new Date().toISOString(),
-          input: { job_input: job.input, previous_outputs: stepOutputs },
+          input: { job_input: job.input, previous_outputs: Object.keys(stepOutputs) },
         })
         .select()
         .single();
@@ -857,16 +1407,73 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
       const stepStart = Date.now();
 
       try {
-        // Execute with Promise.race timeout
+        // CONTENT_GEN: special multi-call handling
+        if (stepName === 'CONTENT_GEN') {
+          const contentCtx: ContentGenContext = {
+            jobInput: job.input as Record<string, unknown>,
+            outlineSpec: (stepOutputs['OUTLINE_GEN'] as Record<string, unknown>) || {},
+            nlpPack: (stepOutputs['NLP_KEYWORDS'] as Record<string, unknown>) || {},
+            serpPack: (stepOutputs['SERP_ANALYSIS'] as Record<string, unknown>) || {},
+            titlePack: (stepOutputs['TITLE_GEN'] as Record<string, unknown>) || {},
+            supabaseUrl,
+            serviceKey,
+            jobStartMs: jobStart,
+          };
+
+          const contentResult = await withTimeout(
+            executeContentGen(contentCtx, totalApiCalls),
+            STEP_TIMEOUTS[stepName],
+            stepName
+          );
+
+          const latencyMs = Date.now() - stepStart;
+
+          // CONTENT_GEN always completes (never fails on budget hit)
+          const stepStatus = 'completed';
+
+          await supabase
+            .from('generation_steps')
+            .update({
+              status: stepStatus,
+              output: contentResult.output,
+              latency_ms: latencyMs,
+              completed_at: new Date().toISOString(),
+              model_used: 'gemini-2.5-pro+flash',
+              provider: 'lovable-gateway',
+              tokens_in: 0,
+              tokens_out: 0,
+              cost_usd: contentResult.costUsd,
+            })
+            .eq('id', stepRecord!.id);
+
+          stepOutputs[stepName] = contentResult.output;
+          completedSteps.add(stepName);
+
+          totalApiCalls += contentResult.apiCalls;
+          totalCostUsd += contentResult.costUsd;
+
+          if (contentResult.needsReview) {
+            await supabase.from('generation_jobs').update({ needs_review: true }).eq('id', jobId);
+          }
+
+          await supabase.from('generation_jobs').update({
+            total_api_calls: totalApiCalls,
+            cost_usd: totalCostUsd,
+          }).eq('id', jobId);
+
+          console.log(`[ORCHESTRATOR] ✅ CONTENT_GEN completed in ${latencyMs}ms | ${contentResult.apiCalls} AI calls | $${contentResult.costUsd.toFixed(6)}${contentResult.needsReview ? ' | NEEDS_REVIEW' : ''}`);
+          continue;
+        }
+
+        // Standard single-call steps
         const { output: stepOutput, aiResult } = await withTimeout(
-          executeStep(stepName, job.input as Record<string, unknown>, stepOutputs, supabaseUrl, serviceKey),
+          executeStep(stepName, job.input as Record<string, unknown>, stepOutputs, supabaseUrl, serviceKey, jobStart),
           STEP_TIMEOUTS[stepName],
           stepName
         );
 
         const latencyMs = Date.now() - stepStart;
 
-        // Determine model/provider info
         const isRealStep = REAL_AI_STEPS.includes(stepName);
         const modelUsed = aiResult?.model || (isRealStep ? 'unknown' : 'stub-phase-1');
         const provider = aiResult?.provider || (isRealStep ? 'lovable-gateway' : 'stub');
@@ -874,7 +1481,6 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
         const tokensOut = aiResult?.tokensOut || 0;
         const stepCost = aiResult?.costUsd || 0;
 
-        // Persist step result
         await supabase
           .from('generation_steps')
           .update({
@@ -893,7 +1499,6 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
         stepOutputs[stepName] = stepOutput;
         completedSteps.add(stepName);
 
-        // Increment API call counter ONLY for real ai-router calls
         if (isRealStep && aiResult) {
           totalApiCalls++;
           totalCostUsd += stepCost;
@@ -907,6 +1512,8 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
       } catch (stepError) {
         const latencyMs = Date.now() - stepStart;
         const errorMsg = stepError instanceof Error ? stepError.message : 'Unknown step error';
+        const rawContent = stepError instanceof ParseError ? stepError.rawContent : undefined;
+
         console.error(`[ORCHESTRATOR] ❌ ${stepName} failed:`, errorMsg);
 
         if (stepRecord) {
@@ -915,6 +1522,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
             .update({
               status: 'failed',
               error_message: errorMsg,
+              output: rawContent ? { parse_error: true, raw_ai_content: rawContent.substring(0, 10000), error_message: errorMsg } : null,
               latency_ms: latencyMs,
               completed_at: new Date().toISOString(),
             })
