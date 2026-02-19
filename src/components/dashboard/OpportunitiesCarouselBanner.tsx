@@ -68,7 +68,7 @@ export function OpportunitiesCarouselBanner({ blogId, className }: Opportunities
         mode: 'fast'
       });
 
-      navigate(`/client/create?${params.toString()}`);
+      navigate(`/client/articles/engine/new?${params.toString()}`);
     } catch (error) {
       console.error('Error checking limits:', error);
       toast.error('Erro ao verificar limites');

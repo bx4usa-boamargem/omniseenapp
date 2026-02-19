@@ -50,7 +50,7 @@ export function TopOpportunitiesTable({
       images: '1'
     });
     
-    navigate(`/client/create?${params.toString()}`);
+    navigate(`/client/articles/engine/new?${params.toString()}`);
   };
 
   if (topOpportunities.length === 0) {

@@ -34,7 +34,7 @@ export function QuickArticleModal({ open, onOpenChange, blogId, isClientContext 
     // Navigate to article creation with pre-filled theme
     // The generation will use intelligent defaults automatically
     onOpenChange(false);
-    const basePath = isClient ? '/client/create' : '/articles/new';
+    const basePath = isClient ? '/client/articles/engine/new' : '/articles/new';
     navigate(`${basePath}?theme=${encodeURIComponent(theme.trim())}&quick=true`);
     
     setLoading(false);
@@ -43,7 +43,7 @@ export function QuickArticleModal({ open, onOpenChange, blogId, isClientContext 
 
   const handleCustomize = () => {
     onOpenChange(false);
-    const basePath = isClient ? '/client/create' : '/articles/new';
+    const basePath = isClient ? '/client/articles/engine/new' : '/articles/new';
     if (theme.trim()) {
       navigate(`${basePath}?theme=${encodeURIComponent(theme.trim())}`);
     } else {

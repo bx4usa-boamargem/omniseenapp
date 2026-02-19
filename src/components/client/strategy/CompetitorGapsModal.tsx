@@ -91,7 +91,7 @@ export function CompetitorGapsModal({
     
     onGapConverted?.();
     onClose();
-    navigate(`/client/create?${params.toString()}`);
+    navigate(`/client/articles/engine/new?${params.toString()}`);
   };
 
   const getFunnelLabel = (stage: string) => {

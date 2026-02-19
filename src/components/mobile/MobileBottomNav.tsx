@@ -37,7 +37,7 @@ export function MobileBottomNav({ showAdvanced }: MobileBottomNavProps) {
     if (path === '/client/articles') {
       return location.pathname.startsWith('/client/articles') || 
              location.pathname.startsWith('/client/landing-pages') ||
-             location.pathname.startsWith('/client/create') ||
+             location.pathname.startsWith('/client/articles/engine') ||
              location.pathname.startsWith('/client/radar');
     }
     if (path === '/client/settings') {

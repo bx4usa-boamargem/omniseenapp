@@ -32,7 +32,7 @@ export default function ClientDashboardMvp() {
           <p className="text-muted-foreground mt-1">{subdomain}.omniseen.com</p>
         </div>
         <Button
-          onClick={() => navigate("/client/create")}
+          onClick={() => navigate("/client/articles/engine/new")}
           className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 shadow-lg shadow-primary/25"
         >
           <Sparkles className="h-4 w-4" />

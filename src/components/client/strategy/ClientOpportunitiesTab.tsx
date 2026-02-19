@@ -173,7 +173,7 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
       images: '1'
     });
     
-    navigate(`/client/create?${params.toString()}`);
+    navigate(`/client/articles/engine/new?${params.toString()}`);
   };
 
   const getSourceBadge = (opportunity: Opportunity) => {

@@ -226,7 +226,7 @@ const ClientRoutes = () => (
             path="landing-pages/:id" 
             element={<ClientLandingPageEditor key="lp-edit" />} 
           />
-          <Route path="create" element={<ClientArticleEditor />} />
+          <Route path="create" element={<Navigate to="/client/articles/engine/new" replace />} />
           <Route path="articles/:id/edit" element={<ClientArticleEditor />} />
           <Route path="review/:id" element={<ClientReviewCenter />} />
           <Route path="ebooks" element={<ClientEbooks />} />

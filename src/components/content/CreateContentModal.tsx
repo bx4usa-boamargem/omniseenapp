@@ -69,7 +69,7 @@ export function CreateContentModal({ open, onOpenChange, blogId, isClientContext
         setFunnelModalOpen(true);
         break;
       case "import":
-        navigate(isClient ? "/client/create" : "/articles/new");
+        navigate(isClient ? "/client/articles/engine/new" : "/articles/new");
         break;
     }
   };

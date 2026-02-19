@@ -277,7 +277,7 @@ export default function ClientDashboard() {
       <WelcomeHeader 
         userName={userFullName}
         blogName={blog?.name}
-        onCreateArticle={() => navigate('/client/create')}
+        onCreateArticle={() => navigate('/client/articles/engine/new')}
       />
 
       {/* 5 Metric Cards Row */}
@@ -438,7 +438,7 @@ export default function ClientDashboard() {
           <div className="text-center py-8">
             <p className="text-gray-500 dark:text-gray-400 mb-4">Nenhum artigo publicado ainda.</p>
             <Button 
-              onClick={() => navigate('/client/create')}
+              onClick={() => navigate('/client/articles/engine/new')}
               className="client-btn-primary"
             >
               Criar Primeiro Artigo

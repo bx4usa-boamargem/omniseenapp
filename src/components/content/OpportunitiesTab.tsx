@@ -323,7 +323,7 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
       images: '1'
     });
     
-    const basePath = isClient ? '/client/create' : '/app/articles/new';
+    const basePath = isClient ? '/client/articles/engine/new' : '/app/articles/new';
     navigate(`${basePath}?${params.toString()}`);
   };
 

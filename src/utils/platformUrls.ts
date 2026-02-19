@@ -207,7 +207,7 @@ export const getClientArticlesListPath = (): string => '/client/articles';
 /**
  * Retorna path para criar novo artigo
  */
-export const getClientArticleCreatePath = (): string => '/client/create';
+export const getClientArticleCreatePath = (): string => '/client/articles/engine/new';
 
 /**
  * Retorna path para editar artigo

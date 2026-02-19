@@ -71,7 +71,7 @@ export default function ClientPosts() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => navigate('/client/create?mode=manual')}>
+          <Button variant="outline" onClick={() => navigate('/client/articles/engine/new?mode=manual')}>
             <Pencil className="h-4 w-4 mr-2" />
             Escrever manualmente
           </Button>

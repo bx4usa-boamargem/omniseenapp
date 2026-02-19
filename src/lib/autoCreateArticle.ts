@@ -26,7 +26,7 @@ export function startQuickArticle(
     images: config.generateImages !== false ? '1' : '0',
   }).toString();
 
-  navigate(`/client/create?${query}`);
+  navigate(`/client/articles/engine/new?${query}`);
 }
 
 /**

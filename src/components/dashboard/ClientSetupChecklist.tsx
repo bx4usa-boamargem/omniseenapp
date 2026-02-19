@@ -100,7 +100,7 @@ export function ClientSetupChecklist({ blogId, userId, onComplete }: ClientSetup
             description: 'Crie conteúdo inicial',
             tooltip: TOOLTIPS.article,
             icon: <FileText className="h-4 w-4" />,
-            path: '/client/create',
+            path: '/client/articles/engine/new',
             completed: hasPublishedArticle
           },
           {

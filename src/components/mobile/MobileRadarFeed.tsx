@@ -100,7 +100,7 @@ export function MobileRadarFeed({ blogId }: MobileRadarFeedProps) {
     setGeneratingId(opportunity.id);
     
     // Navigate to creation page with quick mode
-    navigate(`/client/create?quick=true&fromOpportunity=${opportunity.id}`);
+    navigate(`/client/articles/engine/new?quick=true&fromOpportunity=${opportunity.id}`);
   };
 
   const getOpportunityLevel = (score: number | null) => {

@@ -113,7 +113,7 @@ export function MobileDashboardView({
       {/* Quick Actions - Large touch-friendly buttons */}
       <div className="space-y-3">
         <Button 
-          onClick={() => navigate('/client/create')}
+          onClick={() => navigate('/client/articles/engine/new')}
           className="w-full h-14 text-base gap-3 client-btn-primary"
         >
           <Plus className="h-6 w-6" />

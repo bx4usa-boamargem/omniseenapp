@@ -151,7 +151,7 @@ export function ContentIdeaCard({
       params.set('fromOpportunity', opportunityId);
     }
     
-    navigate(`/client/create?${params.toString()}`);
+    navigate(`/client/articles/engine/new?${params.toString()}`);
   };
   
   return (

@@ -21,7 +21,7 @@ const TOOLS: Tool[] = [
     name: 'Postagem de Blog com 1 Clique',
     description: 'Crie o artigo perfeito usando apenas o título. Gere e publique com um clique.',
     tag: { emoji: '⚡', text: 'Relâmpago' },
-    path: '/client/create',
+    path: '/client/articles/engine/new',
   },
   {
     id: 'bulk',

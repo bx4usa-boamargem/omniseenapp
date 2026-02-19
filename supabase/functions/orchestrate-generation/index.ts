@@ -1508,6 +1508,21 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "job_id is required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
+    // Idempotency guard: skip if job already started/finished
+    const { data: existingJob } = await supabase
+      .from('generation_jobs')
+      .select('status')
+      .eq('id', job_id)
+      .single();
+
+    if (existingJob && ['running', 'completed', 'failed'].includes(existingJob.status)) {
+      console.log(`[ORCHESTRATOR:SKIP] job=${job_id} already ${existingJob.status}. Ignoring duplicate invocation.`);
+      return new Response(
+        JSON.stringify({ skipped: true, reason: `Job already ${existingJob.status}` }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     await orchestrate(job_id, supabase, supabaseUrl, serviceKey);
     return new Response(JSON.stringify({ success: true, job_id }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
