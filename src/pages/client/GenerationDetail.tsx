@@ -6,6 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft, Download, Eye, Edit, CheckCircle, XCircle, Loader2, Clock, AlertTriangle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { useIsSubAccount } from "@/hooks/useIsSubAccount";
+
+// Safe projections - subaccounts get minimal fields only
+const JOB_SELECT_FULL = '*';
+const JOB_SELECT_SAFE = 'id, status, seo_score, started_at, completed_at, current_step, article_id, input, blog_id, needs_review, error_message, created_at';
+const STEPS_SELECT_FULL = 'step_name, status, latency_ms, cost_usd, started_at, completed_at, output';
+const STEPS_SELECT_SAFE = 'step_name, status';
 
 const STEP_LABELS: Record<string, string> = {
   'INPUT_VALIDATION': '✅ Validando entrada',
@@ -30,21 +37,27 @@ const ZOMBIE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
 export default function GenerationDetail() {
   const { jobId } = useParams<{ jobId: string }>();
   const navigate = useNavigate();
+  const { isSubAccount, loading: roleLoading } = useIsSubAccount();
   const [job, setJob] = useState<any>(null);
   const [steps, setSteps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isZombie, setIsZombie] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
-  useEffect(() => {
-    if (!jobId) return;
+  // Determine safe projections based on role
+  const isClient = isSubAccount;
+  const jobSelect = isClient ? JOB_SELECT_SAFE : JOB_SELECT_FULL;
+  const stepsSelect = isClient ? STEPS_SELECT_SAFE : STEPS_SELECT_FULL;
 
-    console.log(`[FRONT:DETAIL_LOADED] job=${jobId}`);
+  useEffect(() => {
+    if (!jobId || roleLoading) return;
+
+    console.log(`[FRONT:DETAIL_LOADED] job=${jobId} mode=${isClient ? 'client' : 'internal'}`);
 
     const load = async () => {
       const [jobRes, stepsRes] = await Promise.all([
-        supabase.from('generation_jobs').select('*').eq('id', jobId).single(),
-        supabase.from('generation_steps').select('step_name, status, latency_ms, cost_usd, started_at, completed_at, output').eq('job_id', jobId).order('started_at', { ascending: true }),
+        supabase.from('generation_jobs').select(jobSelect).eq('id', jobId).single(),
+        supabase.from('generation_steps').select(stepsSelect).eq('job_id', jobId).order('started_at', { ascending: true }),
       ]);
       setJob(jobRes.data);
       setSteps(stepsRes.data || []);
@@ -55,21 +68,30 @@ export default function GenerationDetail() {
     const channel = supabase.channel(`gen-job-${jobId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'generation_jobs', filter: `id=eq.${jobId}` }, (p) => {
         const newJob = p.new as any;
+        // For subaccounts, strip sensitive fields from realtime payloads
+        if (isClient) {
+          delete newJob?.cost_usd;
+          delete newJob?.total_api_calls;
+          delete newJob?.seo_breakdown;
+          delete newJob?.output;
+        }
         setJob(newJob);
         console.log(`[FRONT:JOB_UPDATE] job=${jobId} status=${newJob?.status} step=${newJob?.current_step}`);
 
         if (newJob?.status === 'completed') {
           console.log(`[FRONT:JOB_COMPLETED] job=${jobId} article=${newJob?.article_id} seo=${newJob?.seo_score}`);
         } else if (newJob?.status === 'failed') {
-          console.error(`[FRONT:JOB_FAILED] job=${jobId} error="${newJob?.error_message}"`);
+          if (!isClient) {
+            console.error(`[FRONT:JOB_FAILED] job=${jobId} error="${newJob?.error_message}"`);
+          }
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'generation_steps', filter: `job_id=eq.${jobId}` }, () => {
-        supabase.from('generation_steps').select('step_name, status, latency_ms, cost_usd, started_at, completed_at, output').eq('job_id', jobId).order('started_at', { ascending: true }).then(r => setSteps(r.data || []));
+        supabase.from('generation_steps').select(stepsSelect).eq('job_id', jobId).order('started_at', { ascending: true }).then(r => setSteps(r.data || []));
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [jobId]);
+  }, [jobId, roleLoading, isClient, jobSelect, stepsSelect]);
 
   // Zombie detection
   useEffect(() => {
@@ -128,7 +150,7 @@ export default function GenerationDetail() {
     }
   };
 
-  if (loading) return <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div>;
+  if (loading || roleLoading) return <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div>;
   if (!job) return <div className="text-center py-12 text-muted-foreground">Job não encontrado</div>;
 
   const input = job.input as Record<string, any> || {};
