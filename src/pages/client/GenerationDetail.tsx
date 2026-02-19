@@ -10,15 +10,14 @@ import { useIsSubAccount } from "@/hooks/useIsSubAccount";
 import { cn } from "@/lib/utils";
 
 // ============================================================
-// SAFE PROJECTIONS — subaccounts get minimal fields only
+// SAFE PROJECTIONS — subaccounts get ONLY public fields
 // ============================================================
 const JOB_SELECT_FULL = '*';
-const JOB_SELECT_SAFE = 'id, status, seo_score, started_at, completed_at, current_step, article_id, input, blog_id, needs_review, created_at';
+const JOB_SELECT_SAFE = 'id, status, seo_score, started_at, completed_at, article_id, input, blog_id, needs_review, created_at, public_stage, public_progress, public_message, public_updated_at';
 const STEPS_SELECT_FULL = 'step_name, status, latency_ms, cost_usd, started_at, completed_at, output';
-const STEPS_SELECT_SAFE = 'step_name, status';
 
 // ============================================================
-// INTERNAL PIPELINE (admin only)
+// INTERNAL PIPELINE (admin only) — these identifiers NEVER reach client
 // ============================================================
 const STEP_LABELS: Record<string, string> = {
   'INPUT_VALIDATION': '✅ Validando entrada',
@@ -38,14 +37,21 @@ const SEO_METRICS = ['topic_coverage','entity_coverage','intent_match','depth_sc
 const SEO_LABELS: Record<string,string> = { topic_coverage:'Cobertura', entity_coverage:'Entidades', intent_match:'Intenção', depth_score:'Profundidade', eeat_signals:'E-E-A-T', structure:'Estrutura', readability:'Legibilidade' };
 
 // ============================================================
-// CLIENT PIPELINE (subaccounts only) — 4 simplified stages
+// CLIENT PIPELINE — 4 stages driven ENTIRELY by public_stage field
 // ============================================================
 const CLIENT_STAGES = [
-  { label: 'Analisando mercado', icon: Search, maps: ['INPUT_VALIDATION', 'SERP_ANALYSIS', 'NLP_KEYWORDS'] },
-  { label: 'Criando conteúdo', icon: FileText, maps: ['TITLE_GEN', 'OUTLINE_GEN', 'CONTENT_GEN'] },
-  { label: 'Preparando imagens', icon: Image, maps: ['IMAGE_GEN'] },
-  { label: 'Finalizando artigo', icon: Brain, maps: ['SEO_SCORE', 'META_GEN', 'OUTPUT'] },
-];
+  { key: 'ANALYZING_MARKET', label: 'Analisando mercado', icon: Search },
+  { key: 'WRITING_CONTENT', label: 'Criando conteúdo', icon: FileText },
+  { key: 'PREPARING_IMAGES', label: 'Preparando imagens', icon: Image },
+  { key: 'FINALIZING', label: 'Finalizando artigo', icon: Brain },
+] as const;
+
+const CLIENT_STAGE_ORDER: Record<string, number> = {
+  'ANALYZING_MARKET': 0,
+  'WRITING_CONTENT': 1,
+  'PREPARING_IMAGES': 2,
+  'FINALIZING': 3,
+};
 
 // ============================================================
 // CLIENT-FRIENDLY STATUS MESSAGES
@@ -60,28 +66,25 @@ const CLIENT_STATUS_MSG: Record<string, { label: string; sub: string }> = {
 const ZOMBIE_THRESHOLD_MS = 10 * 60 * 1000;
 
 // ============================================================
-// CLIENT PIPELINE VIEW
+// CLIENT PIPELINE VIEW — uses ONLY public_stage from DB, zero internal leaks
 // ============================================================
-function ClientPipelineView({ steps, jobStatus, currentStep, perceivedProgress }: {
-  steps: any[];
+function ClientPipelineView({ publicStage, publicProgress, publicMessage, jobStatus }: {
+  publicStage: string | null;
+  publicProgress: number;
+  publicMessage: string | null;
   jobStatus: string;
-  currentStep: string | null;
-  perceivedProgress: number;
 }) {
-  const completedStepNames = new Set(steps.filter(s => s.status === 'completed').map(s => s.step_name));
-  const failedStepNames = new Set(steps.filter(s => s.status === 'failed').map(s => s.step_name));
+  const currentIdx = publicStage ? (CLIENT_STAGE_ORDER[publicStage] ?? -1) : -1;
 
-  const getStageStatus = (stage: typeof CLIENT_STAGES[0]) => {
-    const allDone = stage.maps.every(s => completedStepNames.has(s));
-    if (allDone) return 'completed';
-    const anyFailed = stage.maps.some(s => failedStepNames.has(s));
-    if (anyFailed) return 'failed';
-    const anyRunning = stage.maps.some(s => s === currentStep) || stage.maps.some(s => {
-      const step = steps.find(st => st.step_name === s);
-      return step?.status === 'running';
-    });
-    if (anyRunning) return 'running';
-    // If previous stages are done and this one hasn't started, it's pending
+  const getStageStatus = (stageKey: string) => {
+    const stageIdx = CLIENT_STAGE_ORDER[stageKey] ?? -1;
+    if (jobStatus === 'completed') return 'completed';
+    if (jobStatus === 'failed') {
+      if (stageIdx <= currentIdx) return stageIdx === currentIdx ? 'failed' : 'completed';
+      return 'pending';
+    }
+    if (stageIdx < currentIdx) return 'completed';
+    if (stageIdx === currentIdx) return 'running';
     return 'pending';
   };
 
@@ -89,18 +92,22 @@ function ClientPipelineView({ steps, jobStatus, currentStep, perceivedProgress }
     <div className="border rounded-lg p-4 bg-card space-y-4">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-foreground">Progresso</span>
-        <span className="text-sm text-muted-foreground">{Math.round(perceivedProgress)}%</span>
+        <span className="text-sm text-muted-foreground">{Math.round(publicProgress)}%</span>
       </div>
       <div className="relative h-2 bg-muted rounded-full overflow-hidden">
         <div
           className="absolute inset-y-0 left-0 bg-gradient-to-r from-primary via-primary/80 to-primary rounded-full transition-all duration-700 ease-out"
-          style={{ width: `${perceivedProgress}%` }}
+          style={{ width: `${publicProgress}%` }}
         />
       </div>
 
+      {publicMessage && (
+        <p className="text-sm text-muted-foreground italic">{publicMessage}</p>
+      )}
+
       <div className="space-y-2 pt-2">
         {CLIENT_STAGES.map((stage, idx) => {
-          const status = getStageStatus(stage);
+          const status = getStageStatus(stage.key);
           const Icon = stage.icon;
           return (
             <div
@@ -196,47 +203,66 @@ export default function GenerationDetail() {
   const [isZombie, setIsZombie] = useState(false);
   const [retrying, setRetrying] = useState(false);
 
-  // PART 5 — Perceived progress (smooth animation for clients)
+  // Perceived progress for clients (smooth animation driven by public_progress)
   const [perceivedProgress, setPerceivedProgress] = useState(0);
   const progressTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const isClient = isSubAccount;
   const jobSelect = isClient ? JOB_SELECT_SAFE : JOB_SELECT_FULL;
-  const stepsSelect = isClient ? STEPS_SELECT_SAFE : STEPS_SELECT_FULL;
 
   // Data loading + realtime
   useEffect(() => {
     if (!jobId || roleLoading) return;
 
     const load = async () => {
-      const [jobRes, stepsRes] = await Promise.all([
-        supabase.from('generation_jobs').select(jobSelect).eq('id', jobId).single(),
-        supabase.from('generation_steps').select(stepsSelect).eq('job_id', jobId).order('started_at', { ascending: true }),
-      ]);
-      setJob(jobRes.data);
-      setSteps(stepsRes.data || []);
+      // Client: query ONLY generation_jobs with safe projection. NO generation_steps query.
+      // Admin: query both generation_jobs (full) and generation_steps (full).
+      if (isClient) {
+        const jobRes = await supabase.from('generation_jobs').select(jobSelect).eq('id', jobId).single();
+        setJob(jobRes.data);
+      } else {
+        const [jobRes, stepsRes] = await Promise.all([
+          supabase.from('generation_jobs').select(jobSelect).eq('id', jobId).single(),
+          supabase.from('generation_steps').select(STEPS_SELECT_FULL).eq('job_id', jobId).order('started_at', { ascending: true }),
+        ]);
+        setJob(jobRes.data);
+        setSteps(stepsRes.data || []);
+      }
       setLoading(false);
     };
     load();
 
+    // Realtime: client subscribes ONLY to generation_jobs (safe fields via public_*)
+    // Admin subscribes to both generation_jobs + generation_steps
     const channel = supabase.channel(`gen-job-${jobId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'generation_jobs', filter: `id=eq.${jobId}` }, (p) => {
         const newJob = p.new as any;
         if (isClient) {
-          delete newJob?.cost_usd;
-          delete newJob?.total_api_calls;
-          delete newJob?.seo_breakdown;
-          delete newJob?.output;
-          delete newJob?.error_message;
+          // Strip any internal fields that might leak via realtime payload
+          const safeJob = {
+            id: newJob.id, status: newJob.status, seo_score: newJob.seo_score,
+            started_at: newJob.started_at, completed_at: newJob.completed_at,
+            article_id: newJob.article_id, input: newJob.input, blog_id: newJob.blog_id,
+            needs_review: newJob.needs_review, created_at: newJob.created_at,
+            public_stage: newJob.public_stage, public_progress: newJob.public_progress,
+            public_message: newJob.public_message, public_updated_at: newJob.public_updated_at,
+          };
+          setJob(safeJob);
+        } else {
+          setJob(newJob);
         }
-        setJob(newJob);
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'generation_steps', filter: `job_id=eq.${jobId}` }, () => {
-        supabase.from('generation_steps').select(stepsSelect).eq('job_id', jobId).order('started_at', { ascending: true }).then(r => setSteps(r.data || []));
-      })
-      .subscribe();
+      });
+
+    // Admin only: subscribe to generation_steps for internal pipeline view
+    if (!isClient) {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'generation_steps', filter: `job_id=eq.${jobId}` }, () => {
+        supabase.from('generation_steps').select(STEPS_SELECT_FULL).eq('job_id', jobId).order('started_at', { ascending: true }).then(r => setSteps(r.data || []));
+      });
+    }
+
+    channel.subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [jobId, roleLoading, isClient, jobSelect, stepsSelect]);
+  }, [jobId, roleLoading, isClient, jobSelect]);
 
   // Zombie detection
   useEffect(() => {
@@ -250,7 +276,7 @@ export default function GenerationDetail() {
     }
   }, [job?.status, job?.created_at]);
 
-  // Real progress calculation
+  // Real progress calculation (admin only, from steps)
   const realProgress = useMemo(() => {
     if (!steps || steps.length === 0) return 0;
     const completed = steps.filter(s => s.status === 'completed').length;
@@ -258,7 +284,7 @@ export default function GenerationDetail() {
     return Math.round((completed / total) * 100);
   }, [steps]);
 
-  // PART 5 — Perceived progress: smooth advance even while waiting
+  // Perceived progress for clients: driven by public_progress from DB + smooth animation
   useEffect(() => {
     if (!job) return;
 
@@ -272,19 +298,19 @@ export default function GenerationDetail() {
       return;
     }
 
-    // Always keep perceived >= real
-    if (realProgress > perceivedProgress) {
-      setPerceivedProgress(realProgress);
+    // For clients: use public_progress from DB as the target
+    const dbProgress = job.public_progress || 0;
+    if (dbProgress > perceivedProgress) {
+      setPerceivedProgress(dbProgress);
     }
 
-    // Auto-advance perceived progress when running
+    // Auto-advance perceived progress slowly when running (cap at 95%)
     if (job.status === 'running' || job.status === 'pending') {
       if (progressTimerRef.current) clearInterval(progressTimerRef.current);
       progressTimerRef.current = setInterval(() => {
         setPerceivedProgress(prev => {
-          // Cap at 95% until truly complete, advance slowly
-          const maxPerceived = Math.max(realProgress + 15, 30);
-          const cap = Math.min(maxPerceived, 95);
+          const target = isClient ? Math.max(dbProgress + 5, 10) : Math.max(realProgress + 15, 30);
+          const cap = Math.min(target, 95);
           if (prev >= cap) return prev;
           return prev + 0.5;
         });
@@ -292,22 +318,22 @@ export default function GenerationDetail() {
     }
 
     return () => { if (progressTimerRef.current) clearInterval(progressTimerRef.current); };
-  }, [job?.status, realProgress]);
+  }, [job?.status, job?.public_progress, realProgress, isClient]);
 
-  // PART 5 — Health check: auto-recovery for stalled pending jobs
+  // Auto-recovery for stalled pending jobs
   useEffect(() => {
     if (!job || !jobId) return;
-    if (job.status !== 'pending' || steps.length > 0) return;
+    if (job.status !== 'pending') return;
 
     const timer = setTimeout(() => {
-      if (job.status === 'pending' && steps.length === 0) {
-        console.log('[ENGINE:RECOVERY_TRIGGERED] job still pending with 0 steps after 30s');
+      if (job.status === 'pending') {
+        console.log('[ENGINE:RECOVERY_TRIGGERED] job still pending after 30s');
         handleRetry();
       }
     }, 30000);
 
     return () => clearTimeout(timer);
-  }, [job?.status, steps.length, jobId]);
+  }, [job?.status, jobId]);
 
   const handleRetry = async () => {
     if (!job?.input || !jobId) return;
@@ -340,22 +366,10 @@ export default function GenerationDetail() {
   if (!job) return <div className="text-center py-12 text-muted-foreground">Job não encontrado</div>;
 
   const input = job.input as Record<string, any> || {};
-  const seoBreakdown = (job.seo_breakdown as Record<string, any>) || {};
-  const elapsed = job.completed_at && job.started_at ? Math.round((new Date(job.completed_at).getTime() - new Date(job.started_at).getTime()) / 1000) : null;
   const statusMsg = CLIENT_STATUS_MSG[job.status] || CLIENT_STATUS_MSG.running;
 
-  const downloadHtml = () => {
-    const output = job.output as Record<string, any>;
-    const outputStep = output?.OUTPUT as Record<string, any>;
-    const html = output?.html_structured || outputStep?.html_structured || '<p>HTML não disponível</p>';
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = `${input.keyword || 'artigo'}.html`; a.click();
-    URL.revokeObjectURL(url);
-  };
-
   // ============================================================
-  // CLIENT RENDER
+  // CLIENT RENDER — zero internal pipeline, zero cost, zero tech
   // ============================================================
   if (isClient) {
     return (
@@ -384,16 +398,16 @@ export default function GenerationDetail() {
           )}
 
           {/* Status message */}
-          <p className="text-sm text-muted-foreground mt-3">{statusMsg.sub}</p>
+          <p className="text-sm text-muted-foreground mt-3">{job.public_message || statusMsg.sub}</p>
         </div>
 
-        {/* Client pipeline */}
+        {/* Client pipeline — driven entirely by public_stage from DB */}
         {(job.status === 'running' || job.status === 'pending') && (
           <ClientPipelineView
-            steps={steps}
+            publicStage={job.public_stage}
+            publicProgress={perceivedProgress}
+            publicMessage={job.public_message}
             jobStatus={job.status}
-            currentStep={job.current_step}
-            perceivedProgress={perceivedProgress}
           />
         )}
 
@@ -435,7 +449,19 @@ export default function GenerationDetail() {
   // ============================================================
   // INTERNAL/ADMIN RENDER
   // ============================================================
+  const seoBreakdown = (job.seo_breakdown as Record<string, any>) || {};
+  const elapsed = job.completed_at && job.started_at ? Math.round((new Date(job.completed_at).getTime() - new Date(job.started_at).getTime()) / 1000) : null;
   const completedCount = steps.filter(s => s.status === 'completed').length;
+
+  const downloadHtml = () => {
+    const output = job.output as Record<string, any>;
+    const outputStep = output?.OUTPUT as Record<string, any>;
+    const html = output?.html_structured || outputStep?.html_structured || '<p>HTML não disponível</p>';
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `${input.keyword || 'artigo'}.html`; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">

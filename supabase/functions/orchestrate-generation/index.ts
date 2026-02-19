@@ -35,8 +35,49 @@ const corsHeaders = {
 
 const MAX_JOB_TIME_MS = 360_000;
 const MAX_API_CALLS = 15;
-const LOCK_TTL_MS = 420_000;
+const LOCK_TTL_MS = 300_000; // 5 min (was 7 min) — stale locks auto-recover
 const GRACEFUL_ABORT_BUFFER_MS = 30_000;
+
+// ============================================================
+// PUBLIC STAGE MAPPING (client-facing progress)
+// ============================================================
+const PUBLIC_STAGE_MAP: Record<string, { stage: string; progress: number; message: string }> = {
+  'INPUT_VALIDATION': { stage: 'ANALYZING_MARKET', progress: 5, message: 'Inicializando inteligência artificial...' },
+  'SERP_ANALYSIS':    { stage: 'ANALYZING_MARKET', progress: 15, message: 'Analisando mercado e concorrentes...' },
+  'NLP_KEYWORDS':     { stage: 'ANALYZING_MARKET', progress: 30, message: 'Extraindo palavras-chave estratégicas...' },
+  'TITLE_GEN':        { stage: 'WRITING_CONTENT', progress: 35, message: 'Criando seu conteúdo...' },
+  'OUTLINE_GEN':      { stage: 'WRITING_CONTENT', progress: 45, message: 'Estruturando o artigo...' },
+  'CONTENT_GEN':      { stage: 'WRITING_CONTENT', progress: 75, message: 'Escrevendo conteúdo completo...' },
+  'IMAGE_GEN':        { stage: 'PREPARING_IMAGES', progress: 85, message: 'Preparando imagens e otimizações...' },
+  'SEO_SCORE':        { stage: 'FINALIZING', progress: 90, message: 'Finalizando seu artigo...' },
+  'META_GEN':         { stage: 'FINALIZING', progress: 95, message: 'Finalizando seu artigo...' },
+  'OUTPUT':           { stage: 'FINALIZING', progress: 98, message: 'Montando artigo final...' },
+};
+
+async function updatePublicStatus(
+  supabase: ReturnType<typeof createClient>,
+  jobId: string,
+  stepName: string,
+  completed: boolean,
+  lockId?: string,
+) {
+  const mapping = PUBLIC_STAGE_MAP[stepName];
+  if (!mapping) return;
+
+  const updateData: Record<string, unknown> = {
+    public_stage: mapping.stage,
+    public_progress: mapping.progress,
+    public_message: completed ? mapping.message : mapping.message,
+    public_updated_at: new Date().toISOString(),
+  };
+
+  // Heartbeat: refresh lock on every step transition to prevent zombie locks
+  if (lockId) {
+    updateData.locked_at = new Date().toISOString();
+  }
+
+  await supabase.from('generation_jobs').update(updateData).eq('id', jobId);
+}
 
 // RULE 1: Budget reservations
 const BUDGET = {
@@ -1195,16 +1236,33 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
     niche: jobInput.niche,
   })}`);
 
-  // Lock
+  // Lock with auto-recovery for stale locks (5 min TTL)
   if (job.locked_at) {
     const lockAge = Date.now() - new Date(job.locked_at).getTime();
-    if (lockAge < LOCK_TTL_MS) { console.log(`[ORCHESTRATOR] Job ${jobId} locked (${lockAge}ms).`); return; }
+    if (lockAge < LOCK_TTL_MS) {
+      console.log(`[ORCHESTRATOR] Job ${jobId} locked (${lockAge}ms). Skipping.`);
+      return;
+    }
+    // Stale lock detected — auto-recover
+    console.warn(`[ORCHESTRATOR:STALE_LOCK_RECOVERY] Job ${jobId} locked for ${lockAge}ms (TTL=${LOCK_TTL_MS}ms). Releasing stale lock.`);
+    await supabase.from('generation_jobs')
+      .update({ locked_at: null, locked_by: null })
+      .eq('id', jobId);
   }
 
   const lockId = crypto.randomUUID();
   const { error: lockError } = await supabase.from('generation_jobs')
-    .update({ locked_at: new Date().toISOString(), locked_by: lockId, status: 'running', started_at: job.started_at || new Date().toISOString() })
-    .eq('id', jobId).is('locked_by', job.locked_by || null);
+    .update({
+      locked_at: new Date().toISOString(),
+      locked_by: lockId,
+      status: 'running',
+      started_at: job.started_at || new Date().toISOString(),
+      public_stage: 'ANALYZING_MARKET',
+      public_progress: 1,
+      public_message: 'Inicializando inteligência artificial...',
+      public_updated_at: new Date().toISOString(),
+    })
+    .eq('id', jobId).is('locked_by', null);
   if (lockError) { console.error(`[ORCHESTRATOR] Lock failed for ${jobId}:`, lockError); return; }
 
   // Load completed steps
@@ -1226,6 +1284,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
 
       console.log(`[ORCHESTRATOR] Executing: ${stepName} (API: ${totalApiCalls}/${MAX_API_CALLS})`);
       await supabase.from('generation_jobs').update({ current_step: stepName }).eq('id', jobId);
+      await updatePublicStatus(supabase, jobId, stepName, false, lockId);
 
       const { data: stepRecord } = await supabase.from('generation_steps').insert({
         job_id: jobId, step_name: stepName, status: 'running', started_at: new Date().toISOString(),
@@ -1259,6 +1318,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
           completedSteps.add(stepName);
           totalApiCalls += contentResult.apiCalls;
           totalCostUsd += contentResult.costUsd;
+          await updatePublicStatus(supabase, jobId, stepName, true, lockId);
 
           if (contentResult.needsReview) await supabase.from('generation_jobs').update({ needs_review: true }).eq('id', jobId);
           await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
@@ -1281,6 +1341,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
 
           stepOutputs[stepName] = imgPack as unknown as Record<string, unknown>;
           completedSteps.add(stepName);
+          await updatePublicStatus(supabase, jobId, stepName, true, lockId);
           console.log(`[ORCHESTRATOR] ✅ IMAGE_GEN ${latencyMs}ms (0 API calls)`);
           continue;
         }
@@ -1318,6 +1379,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
 
           stepOutputs[stepName] = seoRes.seoResult;
           completedSteps.add(stepName);
+          await updatePublicStatus(supabase, jobId, stepName, true, lockId);
           await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
           console.log(`[ORCHESTRATOR] ✅ SEO_SCORE ${latencyMs}ms | score=${seoRes.seoResult.score_total} | $${seoRes.costUsd.toFixed(6)}`);
           continue;
@@ -1357,6 +1419,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
 
           stepOutputs[stepName] = metaRes.metaPack;
           completedSteps.add(stepName);
+          await updatePublicStatus(supabase, jobId, stepName, true, lockId);
           await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
           console.log(`[ORCHESTRATOR] ✅ META_GEN ${latencyMs}ms | $${(metaRes.aiResult.costUsd || 0).toFixed(6)}`);
           continue;
@@ -1383,6 +1446,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
 
           stepOutputs[stepName] = outputResult;
           completedSteps.add(stepName);
+          await updatePublicStatus(supabase, jobId, stepName, true, lockId);
           console.log(`[ORCHESTRATOR] ✅ OUTPUT ${latencyMs}ms | article_id=${outputResult.article_id}`);
           continue;
         }
@@ -1407,6 +1471,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
 
         stepOutputs[stepName] = stepOutput;
         completedSteps.add(stepName);
+        await updatePublicStatus(supabase, jobId, stepName, true, lockId);
 
         if (isRealStep && aiResult) {
           totalApiCalls++;
@@ -1463,6 +1528,8 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
       needs_review: (seoScore !== null && seoScore < 70) || false,
       cost_usd: totalCostUsd, total_api_calls: totalApiCalls,
       completed_at: new Date().toISOString(), locked_at: null, locked_by: null,
+      public_stage: 'FINALIZING', public_progress: 100,
+      public_message: 'Artigo pronto!', public_updated_at: new Date().toISOString(),
     }).eq('id', jobId);
 
     const completedStepNames = Array.from(completedSteps);
@@ -1481,6 +1548,9 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
       output: Object.keys(stepOutputs).length > 0 ? stepOutputs : null,
       cost_usd: totalCostUsd, total_api_calls: totalApiCalls,
       completed_at: new Date().toISOString(), locked_at: null, locked_by: null,
+      public_stage: 'FINALIZING', public_progress: 0,
+      public_message: 'Ocorreu um problema. Tente novamente.',
+      public_updated_at: new Date().toISOString(),
     }).eq('id', jobId);
 
     // RULE 6c: Fallback TEMPORARILY DISABLED until 30 consecutive successes

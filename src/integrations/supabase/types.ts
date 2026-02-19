@@ -3555,6 +3555,10 @@ export type Database = {
           needs_review: boolean
           output: Json | null
           parent_job_id: string | null
+          public_message: string | null
+          public_progress: number | null
+          public_stage: string | null
+          public_updated_at: string | null
           published: boolean | null
           published_at: string | null
           published_url: string | null
@@ -3592,6 +3596,10 @@ export type Database = {
           needs_review?: boolean
           output?: Json | null
           parent_job_id?: string | null
+          public_message?: string | null
+          public_progress?: number | null
+          public_stage?: string | null
+          public_updated_at?: string | null
           published?: boolean | null
           published_at?: string | null
           published_url?: string | null
@@ -3629,6 +3637,10 @@ export type Database = {
           needs_review?: boolean
           output?: Json | null
           parent_job_id?: string | null
+          public_message?: string | null
+          public_progress?: number | null
+          public_stage?: string | null
+          public_updated_at?: string | null
           published?: boolean | null
           published_at?: string | null
           published_url?: string | null
