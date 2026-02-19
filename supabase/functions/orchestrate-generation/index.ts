@@ -107,7 +107,7 @@ type StepName = typeof PIPELINE_STEPS[number];
 
 const STEP_TIMEOUTS: Record<StepName, number> = {
   INPUT_VALIDATION: 5_000,
-  SERP_ANALYSIS:    60_000,
+  SERP_ANALYSIS:    120_000,
   NLP_KEYWORDS:     45_000,
   TITLE_GEN:        45_000,
   OUTLINE_GEN:      60_000,
@@ -1230,7 +1230,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
 
   // LOG: ORCHESTRATOR:START
   const jobInput = job.input as Record<string, unknown> || {};
-  console.log(`[ORCHESTRATOR:START] job_id=${jobId} engine=${job.engine_version} input=${JSON.stringify({
+  console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] job_id=${jobId} engine=${job.engine_version} input=${JSON.stringify({
     keyword: jobInput.keyword,
     city: jobInput.city,
     niche: jobInput.niche,
@@ -1278,11 +1278,159 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
   const maxContentCalls = MAX_API_CALLS - FIXED_CALLS - RESERVED_CALLS; // = 7
 
   try {
-    for (const stepName of PIPELINE_STEPS) {
+    // ============================================================
+    // PARALLEL PHASE 1: SERP_ANALYSIS + NLP_KEYWORDS in parallel
+    // SERP failure is non-fatal — pipeline continues with fallback
+    // ============================================================
+    
+    // INPUT_VALIDATION first (sequential, fast)
+    if (!completedSteps.has('INPUT_VALIDATION')) {
+      console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] Executing: INPUT_VALIDATION (API: ${totalApiCalls}/${MAX_API_CALLS})`);
+      await supabase.from('generation_jobs').update({ current_step: 'INPUT_VALIDATION' }).eq('id', jobId);
+      await updatePublicStatus(supabase, jobId, 'INPUT_VALIDATION', false, lockId);
+
+      const { data: stepRecord } = await supabase.from('generation_steps').insert({
+        job_id: jobId, step_name: 'INPUT_VALIDATION', status: 'running', started_at: new Date().toISOString(),
+        input: { job_input: job.input, previous_outputs: Object.keys(stepOutputs) },
+      }).select().single();
+
+      const stepStart = Date.now();
+      const { output: stepOutput } = await withTimeout(
+        executeStep('INPUT_VALIDATION', job.input as Record<string, unknown>, stepOutputs, supabaseUrl, serviceKey),
+        STEP_TIMEOUTS['INPUT_VALIDATION'], 'INPUT_VALIDATION'
+      );
+      const latencyMs = Date.now() - stepStart;
+
+      await supabase.from('generation_steps').update({
+        status: 'completed', output: stepOutput, latency_ms: latencyMs,
+        completed_at: new Date().toISOString(), model_used: 'validation', provider: 'programmatic',
+      }).eq('id', stepRecord!.id);
+
+      stepOutputs['INPUT_VALIDATION'] = stepOutput;
+      completedSteps.add('INPUT_VALIDATION');
+      await updatePublicStatus(supabase, jobId, 'INPUT_VALIDATION', true, lockId);
+      console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ✅ INPUT_VALIDATION ${latencyMs}ms`);
+    }
+
+    // PARALLEL: SERP + NLP
+    const needsSerp = !completedSteps.has('SERP_ANALYSIS');
+    const needsNlp = !completedSteps.has('NLP_KEYWORDS');
+
+    if (needsSerp || needsNlp) {
+      console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] Executing PARALLEL: SERP_ANALYSIS + NLP_KEYWORDS (API: ${totalApiCalls}/${MAX_API_CALLS})`);
+      await updatePublicStatus(supabase, jobId, 'SERP_ANALYSIS', false, lockId);
+
+      // Create step records for both
+      const serpRecordPromise = needsSerp ? supabase.from('generation_steps').insert({
+        job_id: jobId, step_name: 'SERP_ANALYSIS', status: 'running', started_at: new Date().toISOString(),
+        input: { job_input: job.input },
+      }).select().single() : null;
+
+      const nlpRecordPromise = needsNlp ? supabase.from('generation_steps').insert({
+        job_id: jobId, step_name: 'NLP_KEYWORDS', status: 'running', started_at: new Date().toISOString(),
+        input: { job_input: job.input },
+      }).select().single() : null;
+
+      const [serpRecordRes, nlpRecordRes] = await Promise.all([serpRecordPromise, nlpRecordPromise]);
+
+      // SERP fallback defaults (used if SERP fails)
+      const SERP_FALLBACK: Record<string, unknown> = {
+        confidence: 'fallback',
+        serp_pack: {
+          top_results_count: 10, avg_word_count: 2000, avg_h2_count: 8,
+          dominant_intent: (job.input as Record<string, unknown>)?.intent || 'informational',
+          common_topics: [(job.input as Record<string, unknown>)?.keyword || ''],
+          depth_scores: [], gap_map: [], paa_questions: [],
+          content_patterns: { avg_intro_words: 200, avg_conclusion_words: 200, common_h2_patterns: [], common_cta_types: ['phone'] },
+        },
+      };
+
+      const parallelStart = Date.now();
+
+      // Run SERP with non-fatal wrapper
+      const serpPromise = needsSerp ? (async () => {
+        try {
+          const result = await withTimeout(
+            executeSerpAnalysis(job.input as Record<string, unknown>, supabaseUrl, serviceKey),
+            STEP_TIMEOUTS['SERP_ANALYSIS'], 'SERP_ANALYSIS'
+          );
+          return { success: true, output: result.output, aiResult: result.aiResult };
+        } catch (e) {
+          const errMsg = e instanceof Error ? e.message : 'Unknown SERP error';
+          console.warn(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ⚠️ SERP_ANALYSIS failed (non-fatal): ${errMsg}`);
+          return { success: false, output: SERP_FALLBACK, aiResult: null, error: errMsg };
+        }
+      })() : Promise.resolve({ success: true, output: stepOutputs['SERP_ANALYSIS'] as Record<string, unknown>, aiResult: null });
+
+      // Run NLP in parallel (uses empty SERP context initially, will get real data if SERP finishes first)
+      const nlpPromise = needsNlp ? (async () => {
+        // NLP can start with empty SERP — it works with degraded quality but doesn't fail
+        const serpCtx = (stepOutputs['SERP_ANALYSIS'] as Record<string, unknown>) || SERP_FALLBACK;
+        const result = await withTimeout(
+          executeNlpKeywords(job.input as Record<string, unknown>, serpCtx, supabaseUrl, serviceKey),
+          STEP_TIMEOUTS['NLP_KEYWORDS'], 'NLP_KEYWORDS'
+        );
+        return { output: result.output, aiResult: result.aiResult };
+      })() : Promise.resolve({ output: stepOutputs['NLP_KEYWORDS'] as Record<string, unknown>, aiResult: null });
+
+      const [serpResult, nlpResult] = await Promise.all([serpPromise, nlpPromise]);
+      const parallelLatency = Date.now() - parallelStart;
+
+      // Persist SERP result
+      if (needsSerp && serpRecordRes?.data) {
+        const serpStatus = serpResult.success ? 'completed' : 'completed'; // non-fatal, always "completed"
+        await supabase.from('generation_steps').update({
+          status: serpStatus, output: serpResult.output, latency_ms: parallelLatency,
+          completed_at: new Date().toISOString(),
+          model_used: serpResult.aiResult?.model || 'fallback',
+          provider: serpResult.aiResult?.provider || 'fallback',
+          tokens_in: serpResult.aiResult?.tokensIn || 0, tokens_out: serpResult.aiResult?.tokensOut || 0,
+          cost_usd: serpResult.aiResult?.costUsd || 0,
+          error_message: serpResult.success ? null : (serpResult as { error?: string }).error || 'SERP fallback used',
+        }).eq('id', serpRecordRes.data.id);
+
+        if (serpResult.aiResult) {
+          totalApiCalls++;
+          totalCostUsd += serpResult.aiResult.costUsd || 0;
+        }
+      }
+      stepOutputs['SERP_ANALYSIS'] = serpResult.output;
+      completedSteps.add('SERP_ANALYSIS');
+
+      // Persist NLP result
+      if (needsNlp && nlpRecordRes?.data) {
+        await supabase.from('generation_steps').update({
+          status: 'completed', output: nlpResult.output, latency_ms: parallelLatency,
+          completed_at: new Date().toISOString(),
+          model_used: nlpResult.aiResult?.model || 'unknown',
+          provider: nlpResult.aiResult?.provider || 'lovable-gateway',
+          tokens_in: nlpResult.aiResult?.tokensIn || 0, tokens_out: nlpResult.aiResult?.tokensOut || 0,
+          cost_usd: nlpResult.aiResult?.costUsd || 0,
+        }).eq('id', nlpRecordRes.data.id);
+
+        if (nlpResult.aiResult) {
+          totalApiCalls++;
+          totalCostUsd += nlpResult.aiResult.costUsd || 0;
+        }
+      }
+      stepOutputs['NLP_KEYWORDS'] = nlpResult.output;
+      completedSteps.add('NLP_KEYWORDS');
+
+      await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
+      await updatePublicStatus(supabase, jobId, 'NLP_KEYWORDS', true, lockId);
+      console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ✅ PARALLEL SERP+NLP ${parallelLatency}ms | SERP=${serpResult.success ? 'OK' : 'FALLBACK'} | API: ${totalApiCalls}/${MAX_API_CALLS}`);
+    }
+
+    // ============================================================
+    // SEQUENTIAL PHASE 2: TITLE → OUTLINE → CONTENT → IMAGE → SEO → META → OUTPUT
+    // ============================================================
+    const SEQUENTIAL_STEPS: StepName[] = ['TITLE_GEN', 'OUTLINE_GEN', 'CONTENT_GEN', 'IMAGE_GEN', 'SEO_SCORE', 'META_GEN', 'OUTPUT'];
+
+    for (const stepName of SEQUENTIAL_STEPS) {
       if (completedSteps.has(stepName)) continue;
       if (Date.now() - jobStart > MAX_JOB_TIME_MS) throw new Error(`JOB_TIMEOUT: Exceeded ${MAX_JOB_TIME_MS}ms`);
 
-      console.log(`[ORCHESTRATOR] Executing: ${stepName} (API: ${totalApiCalls}/${MAX_API_CALLS})`);
+      console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] Executing: ${stepName} (API: ${totalApiCalls}/${MAX_API_CALLS})`);
       await supabase.from('generation_jobs').update({ current_step: stepName }).eq('id', jobId);
       await updatePublicStatus(supabase, jobId, stepName, false, lockId);
 
@@ -1310,8 +1458,8 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
 
           await supabase.from('generation_steps').update({
             status: 'completed', output: contentResult.output, latency_ms: latencyMs,
-            completed_at: new Date().toISOString(), model_used: 'gemini-2.5-pro+flash',
-            provider: 'lovable-gateway', cost_usd: contentResult.costUsd,
+            completed_at: new Date().toISOString(), model_used: 'openai/gpt-5+gemini-2.5-flash',
+            provider: 'multi-provider', cost_usd: contentResult.costUsd,
           }).eq('id', stepRecord!.id);
 
           stepOutputs[stepName] = contentResult.output;
@@ -1322,7 +1470,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
 
           if (contentResult.needsReview) await supabase.from('generation_jobs').update({ needs_review: true }).eq('id', jobId);
           await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
-          console.log(`[ORCHESTRATOR] ✅ CONTENT_GEN ${latencyMs}ms | ${contentResult.apiCalls} calls | $${contentResult.costUsd.toFixed(6)}${contentResult.needsReview ? ' | NEEDS_REVIEW' : ''}`);
+          console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ✅ CONTENT_GEN ${latencyMs}ms | ${contentResult.apiCalls} calls | $${contentResult.costUsd.toFixed(6)}${contentResult.needsReview ? ' | NEEDS_REVIEW' : ''}`);
           continue;
         }
 
@@ -1342,14 +1490,14 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
           stepOutputs[stepName] = imgPack as unknown as Record<string, unknown>;
           completedSteps.add(stepName);
           await updatePublicStatus(supabase, jobId, stepName, true, lockId);
-          console.log(`[ORCHESTRATOR] ✅ IMAGE_GEN ${latencyMs}ms (0 API calls)`);
+          console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ✅ IMAGE_GEN ${latencyMs}ms (0 API calls)`);
           continue;
         }
 
         // SEO_SCORE: real with RULES 3+4+5
         if (stepName === 'SEO_SCORE') {
           if (totalApiCalls >= MAX_API_CALLS) {
-            console.log(`[ORCHESTRATOR] Budget exhausted, skipping SEO_SCORE`);
+            console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] Budget exhausted, skipping SEO_SCORE`);
             const stubSeo = { score_total: 70, score_breakdown: {}, weakest_sections: [], improvement_suggestions: [], budget_skipped: true };
             await supabase.from('generation_steps').update({ status: 'completed', output: stubSeo, completed_at: new Date().toISOString() }).eq('id', stepRecord!.id);
             stepOutputs[stepName] = stubSeo;
@@ -1373,7 +1521,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
 
           await supabase.from('generation_steps').update({
             status: 'completed', output: seoRes.seoResult, latency_ms: latencyMs,
-            completed_at: new Date().toISOString(), model_used: 'gemini-2.5-flash',
+            completed_at: new Date().toISOString(), model_used: 'google/gemini-2.5-flash',
             provider: 'lovable-gateway', cost_usd: seoRes.costUsd,
           }).eq('id', stepRecord!.id);
 
@@ -1381,14 +1529,14 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
           completedSteps.add(stepName);
           await updatePublicStatus(supabase, jobId, stepName, true, lockId);
           await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
-          console.log(`[ORCHESTRATOR] ✅ SEO_SCORE ${latencyMs}ms | score=${seoRes.seoResult.score_total} | $${seoRes.costUsd.toFixed(6)}`);
+          console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ✅ SEO_SCORE ${latencyMs}ms | score=${seoRes.seoResult.score_total} | $${seoRes.costUsd.toFixed(6)}`);
           continue;
         }
 
         // META_GEN: real with RULE 5
         if (stepName === 'META_GEN') {
           if (totalApiCalls >= MAX_API_CALLS) {
-            console.log(`[ORCHESTRATOR] Budget exhausted, generating stub meta`);
+            console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] Budget exhausted, generating stub meta`);
             const kw = (job.input as Record<string, unknown>)?.keyword as string || '';
             const ct = (job.input as Record<string, unknown>)?.city as string || '';
             const stubMeta = { meta_title: `${kw} em ${ct}`.substring(0, 60), meta_description: `Guia completo sobre ${kw} em ${ct}.`.substring(0, 155), slug: kw.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''), excerpt: `Descubra tudo sobre ${kw} em ${ct}.`, faq_items: [] };
@@ -1414,14 +1562,14 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
           await supabase.from('generation_steps').update({
             status: 'completed', output: metaRes.metaPack, latency_ms: latencyMs,
             completed_at: new Date().toISOString(), model_used: metaRes.aiResult.model,
-            provider: 'lovable-gateway', cost_usd: metaRes.aiResult.costUsd,
+            provider: metaRes.aiResult.provider || 'lovable-gateway', cost_usd: metaRes.aiResult.costUsd,
           }).eq('id', stepRecord!.id);
 
           stepOutputs[stepName] = metaRes.metaPack;
           completedSteps.add(stepName);
           await updatePublicStatus(supabase, jobId, stepName, true, lockId);
           await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
-          console.log(`[ORCHESTRATOR] ✅ META_GEN ${latencyMs}ms | $${(metaRes.aiResult.costUsd || 0).toFixed(6)}`);
+          console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ✅ META_GEN ${latencyMs}ms | $${(metaRes.aiResult.costUsd || 0).toFixed(6)}`);
           continue;
         }
 
@@ -1447,11 +1595,11 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
           stepOutputs[stepName] = outputResult;
           completedSteps.add(stepName);
           await updatePublicStatus(supabase, jobId, stepName, true, lockId);
-          console.log(`[ORCHESTRATOR] ✅ OUTPUT ${latencyMs}ms | article_id=${outputResult.article_id}`);
+          console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ✅ OUTPUT ${latencyMs}ms | article_id=${outputResult.article_id}`);
           continue;
         }
 
-        // Standard single-call steps (SERP, NLP, Title, Outline)
+        // Standard single-call steps (TITLE_GEN, OUTLINE_GEN)
         const { output: stepOutput, aiResult } = await withTimeout(
           executeStep(stepName, job.input as Record<string, unknown>, stepOutputs, supabaseUrl, serviceKey),
           STEP_TIMEOUTS[stepName], stepName
@@ -1479,14 +1627,14 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
           await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
         }
 
-        console.log(`[ORCHESTRATOR] ✅ ${stepName} ${latencyMs}ms${aiResult ? ` | $${(aiResult.costUsd || 0).toFixed(6)}` : ' (stub)'}`);
+        console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ✅ ${stepName} ${latencyMs}ms${aiResult ? ` | model=${aiResult.model} | $${(aiResult.costUsd || 0).toFixed(6)}` : ' (programmatic)'}`);
 
       } catch (stepError) {
         const latencyMs = Date.now() - stepStart;
         const errorMsg = stepError instanceof Error ? stepError.message : 'Unknown step error';
         const rawContent = stepError instanceof ParseError ? stepError.rawContent : undefined;
 
-        console.error(`[ORCHESTRATOR] ❌ ${stepName} failed:`, errorMsg);
+        console.error(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ❌ ${stepName} failed:`, errorMsg);
 
         if (stepRecord) {
           await supabase.from('generation_steps').update({
