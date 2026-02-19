@@ -415,387 +415,52 @@ serve(async (req) => {
           console.log(`[${executionId}] Using PDF chunk content for generation (${item.chunk_content.length} chars)`);
         }
 
-        // ========== USE STRUCTURED ARTICLE GENERATION WITH UNIVERSAL PROMPT ==========
-        const generateResponse = await fetch(`${supabaseUrl}/functions/v1/generate-article-structured`, {
+        // ========== ENGINE V1: Delegate to create-generation-job ==========
+        console.log(`[${executionId}] Delegating to Engine v1 via create-generation-job`);
+        
+        const jobResponse = await fetch(`${supabaseUrl}/functions/v1/create-generation-job`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${supabaseServiceKey}`,
           },
           body: JSON.stringify({
-            theme: generationTheme,
-            keywords: item.keywords || [],
-            tone: automation?.tone || 'friendly',
-            category: blogData.name || 'general',
-            editorial_template: editorialTemplate,
-            source: item.generation_source || 'form',
+            keyword: generationTheme,
             blog_id: item.blog_id,
-            // CAMPOS UNIVERSAL PROMPT TYPE OBRIGATÓRIO
-            funnel_mode: item.funnel_stage || 'top',
-            article_goal: item.funnel_stage === 'bottom' ? 'converter' : item.funnel_stage === 'middle' ? 'autoridade' : 'educar'
+            city: '',
+            niche: editorialTemplate?.target_niche || 'default',
+            country: 'BR',
+            language: 'pt-BR',
+            job_type: 'article',
+            intent: item.funnel_stage === 'bottom' ? 'transactional' : 'informational',
+            target_words: 2500,
+            image_count: 4,
           }),
         });
 
-        const generateData = await generateResponse.json();
+        const jobData = await jobResponse.json();
 
-        if (!generateResponse.ok) {
-          const errorCode = generateData.error || 'GENERATION_FAILED';
-          const errorMsg = generateData.message || `Article generation failed: ${generateResponse.status}`;
-          console.error(`[${executionId}] Article generation error: ${errorCode} - ${errorMsg}`);
-          throw new Error(`${errorCode}: ${errorMsg}`);
+        if (!jobResponse.ok) {
+          const errorCode = jobData.error || 'JOB_CREATION_FAILED';
+          console.error(`[${executionId}] Engine v1 job creation error: ${errorCode}`);
+          throw new Error(`${errorCode}`);
         }
 
-        if (!generateData.success || !generateData.article) {
-          throw new Error('AI_OUTPUT_INVALID: No article in response');
-        }
-
-        const articleData = generateData.article;
-        console.log(`[${executionId}] Article received: "${articleData.title}" (${articleData.content?.length || 0} chars)`);
-
-        // Generate slug
-        const slug = articleData.title
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '')
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/(^-|-$)/g, '')
-          .substring(0, 100);
-
-        // ========== GENERATE AND UPLOAD FEATURED IMAGE ==========
-        const placeholderImages = [
-          'https://images.unsplash.com/photo-1557683316-973673baf926?w=1200&h=630&fit=crop',
-          'https://images.unsplash.com/photo-1557682250-33bd709cbe85?w=1200&h=630&fit=crop',
-          'https://images.unsplash.com/photo-1557682224-5b8590cd9ec5?w=1200&h=630&fit=crop',
-          'https://images.unsplash.com/photo-1557682260-96773eb01377?w=1200&h=630&fit=crop',
-          'https://images.unsplash.com/photo-1614850523459-c2f4c699c52e?w=1200&h=630&fit=crop'
-        ];
-        const randomPlaceholder = placeholderImages[Math.floor(Math.random() * placeholderImages.length)];
+        console.log(`[${executionId}] Engine v1 job created: ${jobData.job_id}`);
         
-        let featuredImageUrl: string = randomPlaceholder;
-        let imagesGeneratedCount = 0;
-        const shouldGenerateImage = automation?.generate_images !== false;
-        
-        if (shouldGenerateImage) {
-          try {
-            // Use realistic cover prompt based on niche
-            const niche = editorialTemplate?.target_niche || 'service business';
-            const coverPrompt = `Realistic photo style: ${niche} business owner at work, genuine expression, real workplace environment. NOT corporate stock photo. Natural lighting, authentic scene. Article topic: ${articleData.title}`;
-            
-            console.log(`[${executionId}] Generating featured image for article...`);
-            const imageResponse = await fetch(`${supabaseUrl}/functions/v1/generate-image`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${supabaseServiceKey}`,
-              },
-              body: JSON.stringify({
-                prompt: coverPrompt,
-                context: 'hero',
-                articleTheme: item.suggested_theme,
-                targetAudience: 'business owners'
-              }),
-            });
-
-            if (imageResponse.ok) {
-              const imageData = await imageResponse.json();
-              if (imageData.imageBase64) {
-                // Upload to storage instead of storing base64 in database
-                try {
-                  const base64Data = imageData.imageBase64.replace(/^data:image\/\w+;base64,/, '');
-                  const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-                  
-                  const fileName = `${item.blog_id}/${slug}-hero-${Date.now()}.png`;
-                  
-                  const { error: uploadError } = await supabase.storage
-                    .from('article-images')
-                    .upload(fileName, binaryData, {
-                      contentType: 'image/png',
-                      upsert: false
-                    });
-
-                  if (uploadError) {
-                    console.error(`[${executionId}] Failed to upload image to storage:`, uploadError);
-                    console.log(`[${executionId}] Using placeholder image as fallback`);
-                  } else {
-                    const { data: publicUrlData } = supabase.storage
-                      .from('article-images')
-                      .getPublicUrl(fileName);
-                    
-                    featuredImageUrl = publicUrlData.publicUrl;
-                    imagesGeneratedCount++;
-                    console.log(`[${executionId}] Featured image uploaded successfully:`, featuredImageUrl);
-                  }
-                } catch (uploadError) {
-                  console.error(`[${executionId}] Error processing image upload:`, uploadError);
-                  console.log(`[${executionId}] Using placeholder image as fallback`);
-                }
-              } else {
-                console.log(`[${executionId}] No image in response, using placeholder`);
-              }
-            } else {
-              const errText = await imageResponse.text();
-              console.error(`[${executionId}] Image generation failed:`, imageResponse.status, errText);
-              console.log(`[${executionId}] Using placeholder image as fallback`);
-            }
-          } catch (imageError) {
-            console.error(`[${executionId}] Error generating featured image:`, imageError);
-            console.log(`[${executionId}] Using placeholder image as fallback`);
-          }
-        } else {
-          console.log(`[${executionId}] Image generation disabled, using placeholder`);
-        }
-
-        // ========== GENERATE CONTENT IMAGES ==========
-        const contentImages: ContentImage[] = [];
-        let imagePrompts: ImagePrompt[] = articleData.image_prompts || [];
-        
-        // Calculate expected internal images based on word count
-        const wordCount = articleData.content?.split(/\s+/).length || 1000;
-        const expectedInternalImages = calculateInternalImageCount(wordCount);
-        console.log(`[${executionId}] Article has ${wordCount} words, expecting ${expectedInternalImages} internal images`);
-
-        // If we don't have enough image prompts from AI, generate them based on H2 sections
-        if (shouldGenerateImage && imagePrompts.length < expectedInternalImages) {
-          const h2Matches = articleData.content?.match(/<h2[^>]*>(.*?)<\/h2>/gi) || [];
-          const sections = h2Matches.map((h2: string) => h2.replace(/<[^>]*>/g, '').trim());
-          
-          for (let i = imagePrompts.length; i < expectedInternalImages && i < sections.length; i++) {
-            const niche = editorialTemplate?.target_niche || 'professional services';
-            imagePrompts.push({
-              context: sections[i] || `Section ${i + 1}`,
-              prompt: `Realistic photo: ${sections[i] || 'professional setting'}. Related to ${niche}. Authentic, natural lighting.`,
-              after_section: i + 1
-            });
-          }
-        }
-
-        if (shouldGenerateImage && imagePrompts.length > 0) {
-          // Limit to expected number of internal images
-          const imagesToGenerate = imagePrompts.slice(0, expectedInternalImages);
-          console.log(`[${executionId}] Generating ${imagesToGenerate.length} content images...`);
-          
-          for (const imgPrompt of imagesToGenerate) {
-            try {
-              console.log(`[${executionId}] Generating image for context: ${imgPrompt.context}`);
-              
-              const contentImageResponse = await fetch(`${supabaseUrl}/functions/v1/generate-image`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${supabaseServiceKey}`,
-                },
-                body: JSON.stringify({
-                  prompt: imgPrompt.prompt,
-                  context: imgPrompt.context,
-                  articleTheme: item.suggested_theme,
-                  targetAudience: 'business owners'
-                }),
-              });
-
-              if (contentImageResponse.ok) {
-                const contentImageData = await contentImageResponse.json();
-                
-                if (contentImageData.imageBase64) {
-                  // Upload to storage
-                  const base64Data = contentImageData.imageBase64.replace(/^data:image\/\w+;base64,/, '');
-                  const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-                  
-                  const contentFileName = `${item.blog_id}/${slug}-${imgPrompt.context.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.png`;
-                  
-                  const { error: contentUploadError } = await supabase.storage
-                    .from('article-images')
-                    .upload(contentFileName, binaryData, {
-                      contentType: 'image/png',
-                      upsert: false
-                    });
-
-                  if (!contentUploadError) {
-                    const { data: contentPublicUrl } = supabase.storage
-                      .from('article-images')
-                      .getPublicUrl(contentFileName);
-                    
-                    contentImages.push({
-                      context: imgPrompt.context,
-                      url: contentPublicUrl.publicUrl,
-                      after_section: imgPrompt.after_section
-                    });
-                    
-                    imagesGeneratedCount++;
-                    console.log(`[${executionId}] Content image ${imgPrompt.context} uploaded: ${contentPublicUrl.publicUrl}`);
-                  } else {
-                    console.error(`[${executionId}] Failed to upload ${imgPrompt.context} image:`, contentUploadError);
-                  }
-                }
-              } else {
-                console.error(`[${executionId}] Failed to generate ${imgPrompt.context} image: HTTP ${contentImageResponse.status}`);
-              }
-            } catch (contentImgError) {
-              console.error(`[${executionId}] Failed to generate ${imgPrompt.context} image:`, contentImgError);
-              // Continue with other images, don't fail the whole article
-            }
-          }
-          
-          console.log(`[${executionId}] Generated ${contentImages.length} of ${expectedInternalImages} expected content images`);
-        }
-
-        // ========== PROTEÇÃO CONTRA PERSISTÊNCIA DUPLA ==========
-        // Se generate-article-structured já persistiu o artigo, NÃO inserir novamente
-        let article: { id: string; title: string } | null = null;
-        
-        if (generateData.article?.id) {
-          // Artigo já foi persistido pela edge function generate-article-structured
-          console.log(`[${executionId}] Article already persisted by generate-article-structured: ${generateData.article.id}`);
-          article = { id: generateData.article.id, title: articleData.title };
-          
-          // Apenas atualizar campos adicionais (imagens, status baseado em mode)
-          if (featuredImageUrl || contentImages.length > 0) {
-            await supabase
-              .from('articles')
-              .update({
-                featured_image_url: featuredImageUrl,
-                content_images: contentImages.length > 0 ? contentImages : null,
-                status: articleStatus,
-                published_at: articleStatus === 'published' ? new Date().toISOString() : null,
-              })
-              .eq('id', generateData.article.id);
-            console.log(`[${executionId}] Updated article ${generateData.article.id} with images and status: ${articleStatus}`);
-          }
-        } else {
-          // Fallback: inserir se generate-article-structured não persistiu (não deveria acontecer)
-          console.log(`[${executionId}] WARN: Article not persisted by generate-article-structured, checking for duplicates...`);
-          
-          // REGRA DE OURO: Verificar se artigo com mesmo título já existe
-          const { data: existingByTitle } = await supabase
-            .from('articles')
-            .select('id')
-            .eq('blog_id', item.blog_id)
-            .ilike('title', articleData.title.trim().toLowerCase())
-            .maybeSingle();
-
-          if (existingByTitle) {
-            // Artigo já existe - usar UPDATE ao invés de INSERT
-            console.log(`[${executionId}] [GUARD] Duplicate prevented! Using UPDATE on existing article: ${existingByTitle.id}`);
-            
-            const { data: updatedArticle, error: updateError } = await supabase
-              .from('articles')
-              .update({
-                content: articleData.content,
-                excerpt: articleData.excerpt || articleData.meta_description || '',
-                meta_description: articleData.meta_description || articleData.excerpt || '',
-                faq: articleData.faq || [],
-                keywords: item.keywords || [],
-                featured_image_url: featuredImageUrl,
-                content_images: contentImages.length > 0 ? contentImages : null,
-                status: articleStatus,
-                published_at: articleStatus === 'published' ? new Date().toISOString() : null,
-                reading_time: articleData.reading_time || Math.ceil(articleData.content?.split(' ').length / 200) || 5,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', existingByTitle.id)
-              .select()
-              .single();
-
-            if (updateError) {
-              throw new Error(`DB_UPDATE_FAILED: ${updateError.message}`);
-            }
-            
-            article = updatedArticle;
-          } else {
-            // Nenhum duplicado - INSERT permitido
-            console.log(`[${executionId}] No duplicate found, inserting new article...`);
-            
-            const { data: insertedArticle, error: insertError } = await supabase
-              .from('articles')
-              .insert({
-                blog_id: item.blog_id,
-                title: articleData.title,
-                slug: `${slug}-${Date.now()}`,
-                content: articleData.content,
-                excerpt: articleData.excerpt || articleData.meta_description || '',
-                meta_description: articleData.meta_description || articleData.excerpt || '',
-                faq: articleData.faq || [],
-                keywords: item.keywords || [],
-                featured_image_url: featuredImageUrl,
-                content_images: contentImages.length > 0 ? contentImages : null,
-                status: articleStatus,
-                published_at: articleStatus === 'published' ? new Date().toISOString() : null,
-                reading_time: articleData.reading_time || Math.ceil(articleData.content?.split(' ').length / 200) || 5
-              })
-              .select()
-              .single();
-
-            if (insertError) {
-              throw new Error(`DB_INSERT_FAILED: ${insertError.message}`);
-            }
-            
-            article = insertedArticle;
-          }
-        }
-        
-        if (!article) {
-          throw new Error('ARTICLE_CREATE_FAILED: No article data after persistence');
-        }
-
-        // Update queue item to completed (status baseado em mode)
+        // Engine v1 runs asynchronously — article will be created by orchestrator
+        // Engine v1 runs asynchronously — article will be created by orchestrator
+        // Mark queue item as processing with job reference
         await supabase
           .from('article_queue')
           .update({
-            status: articleStatus === 'published' ? 'published' : 'generated',
-            article_id: article.id,
-            error_message: null
+            status: 'generating',
+            error_message: `Engine v1 job: ${jobData.job_id}`,
+            updated_at: new Date().toISOString(),
           })
           .eq('id', item.id);
 
-        // Update usage tracking
-        const currentMonth = new Date().toISOString().substring(0, 7) + '-01';
-        
-        // ========== NOTIFICAÇÃO CUSTOMIZADA POR MODO (ETAPA 3) ==========
-        notificationMessage = automationMode === 'suggest'
-          ? `"${articleData.title}" foi gerado e está aguardando sua aprovação. ${imagesGeneratedCount} imagem(ns) gerada(s).`
-          : `"${articleData.title}" foi publicado automaticamente. ${imagesGeneratedCount} imagem(ns) gerada(s).`;
-        
-        await supabase
-          .from('automation_notifications')
-          .insert({
-            user_id: blogData.user_id,
-            blog_id: item.blog_id,
-            notification_type: notificationType,
-            title: notificationTitle,
-            message: notificationMessage,
-            article_id: article.id
-          });
-        
-        // First try to get existing record
-        const { data: existingUsage } = await supabase
-          .from('usage_tracking')
-          .select('id, articles_generated, images_generated')
-          .eq('user_id', blogData.user_id)
-          .eq('month', currentMonth)
-          .single();
-
-        if (existingUsage) {
-          // Update existing record
-          await supabase
-            .from('usage_tracking')
-            .update({
-              articles_generated: (existingUsage.articles_generated || 0) + 1,
-              images_generated: (existingUsage.images_generated || 0) + imagesGeneratedCount,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', existingUsage.id);
-        } else {
-          // Insert new record
-          await supabase
-            .from('usage_tracking')
-            .insert({
-              user_id: blogData.user_id,
-              month: currentMonth,
-              articles_generated: 1,
-              images_generated: imagesGeneratedCount
-            });
-        }
-
-        console.log(`[${executionId}] Successfully processed: ${item.id} -> Article: ${article.id} (status: ${articleStatus}, ${imagesGeneratedCount} images)`);
+        console.log(`[${executionId}] Successfully delegated: ${item.id} -> Job: ${jobData.job_id}`);
         processedIds.push(item.id);
         processed++;
 

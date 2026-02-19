@@ -1095,6 +1095,7 @@ async function executeOutput(
     generation_stage: 'completed',
     generation_source: 'engine_v1',
     generation_progress: 100,
+    engine_version: 'v1',
   }).select('id').single();
 
   if (articleError) {
@@ -1418,6 +1419,24 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
       }
     }
 
+    // GUARD: Verify article_id exists before marking completed
+    const { data: updatedJob } = await supabase
+      .from('generation_jobs')
+      .select('article_id')
+      .eq('id', jobId)
+      .single();
+
+    if (!updatedJob?.article_id) {
+      console.error(`[ORCHESTRATOR:NO_ARTICLE] job_id=${jobId} — Pipeline completed but article_id is NULL. Marking as failed.`);
+      await supabase.from('generation_jobs').update({
+        status: 'failed',
+        error_message: 'Pipeline completed but no article was saved. article_id is NULL.',
+        needs_review: true,
+        completed_at: new Date().toISOString(), locked_at: null, locked_by: null,
+      }).eq('id', jobId);
+      throw new Error('article_id is NULL after OUTPUT step');
+    }
+
     // Job completed
     const seoOutput = stepOutputs['SEO_SCORE'] as Record<string, unknown> | undefined;
     const seoScore = (seoOutput?.score_total as number) || null;
@@ -1431,7 +1450,8 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
     }).eq('id', jobId);
 
     const completedStepNames = Array.from(completedSteps);
-    console.log(`[ORCHESTRATOR:COMPLETE] job_id=${jobId} steps=${completedStepNames.join(',')} api_calls=${totalApiCalls} seo_score=${seoScore} duration=${Date.now() - jobStart}ms cost=$${totalCostUsd.toFixed(6)}`);
+    const articleId = updatedJob.article_id;
+    console.log(`[ORCHESTRATOR:COMPLETE] job_id=${jobId} article_id=${articleId} steps=${completedStepNames.join(',')} api_calls=${totalApiCalls} seo_score=${seoScore} duration=${Date.now() - jobStart}ms cost=$${totalCostUsd.toFixed(6)}`);
 
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown orchestration error';

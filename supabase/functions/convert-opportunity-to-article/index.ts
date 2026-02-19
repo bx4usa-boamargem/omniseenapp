@@ -361,97 +361,69 @@ serve(async (req) => {
       request_id: requestId
     });
 
-    let generateResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-article-structured`, {
+    // ENGINE V1: Delegate to create-generation-job → orchestrate-generation
+    console.log(`[${requestId}][CONVERT] Delegating to Engine v1 via create-generation-job`);
+    
+    const jobPayload = {
+      keyword: opportunity.suggested_title,
+      blog_id: blogId,
+      city: resolvedCity,
+      niche: profile?.niche || 'default',
+      country: 'BR',
+      language: 'pt-BR',
+      job_type: 'article' as const,
+      intent: (opportunity.funnel_stage === 'bottom' ? 'transactional' : 'informational') as const,
+      target_words: 2500,
+      image_count: 4,
+    };
+
+    const generateResponse = await fetch(`${SUPABASE_URL}/functions/v1/create-generation-job`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(generatePayload),
+      body: JSON.stringify(jobPayload),
     });
 
-    // Parse response body as text first to debug
-    let responseText = await generateResponse.text();
-    
-    // FALLBACK: If QA failed (422), retry without geo_mode
-    if (generateResponse.status === 422) {
-      console.warn(`[${requestId}][CONVERT] GEO mode QA failed, retrying with geo_mode=false (fallback)...`);
-      
-      const fallbackPayload = {
-        ...generatePayload,
-        generation_mode: 'fast',
-        mode: 'entry',  // HOTFIX: Alinhar mode com generation_mode fast
-        geo_mode: false,
-        word_count: 800,
-        request_id: requestId,
-        article_id: placeholderArticleId, // V5.0: Keep article_id for update
-      };
-      
-      generateResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-article-structured`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(fallbackPayload),
-      });
-      
-      responseText = await generateResponse.text();
-      
-      if (generateResponse.ok) {
-        console.log(`[${requestId}][CONVERT] Fallback generation succeeded`);
-      }
-    }
+    const responseText = await generateResponse.text();
     
     if (!generateResponse.ok) {
-      console.error(`[${requestId}][CONVERT] Article generation failed:`, responseText);
+      console.error(`[${requestId}][CONVERT] Engine v1 job creation failed:`, responseText);
       
-      // V5.0: Mark placeholder as failed
+      // Mark placeholder as failed
       await supabase.from("articles").update({
         status: 'draft',
         generation_stage: 'failed',
         title: opportunity.suggested_title,
       }).eq("id", placeholderArticleId);
       
-      try {
-        const errorData = JSON.parse(responseText);
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error_type: 'GENERATION_FAILED',
-            reason_code: errorData.code || errorData.error || 'unknown',
-            message: errorData.message || `Falha na geração do artigo (erro interno)`,
-            request_id: requestId,
-            article_id: placeholderArticleId, // V5.0: Return placeholder ID for cleanup
-          }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      } catch {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error_type: 'GENERATION_FAILED',
-            message: `Falha na geração do artigo (erro interno)`,
-            request_id: requestId,
-            article_id: placeholderArticleId,
-          }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error_type: 'GENERATION_FAILED',
+          message: `Falha ao criar job de geração Engine v1`,
+          request_id: requestId,
+          article_id: placeholderArticleId,
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // Parse successful response
-    let generatedResult;
+    let jobResult;
     try {
-      generatedResult = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error(`[${requestId}][CONVERT] Failed to parse generation response:`, responseText.substring(0, 500));
-      throw new Error("Failed to parse article generation response");
+      jobResult = JSON.parse(responseText);
+    } catch {
+      throw new Error("Failed to parse job creation response");
     }
 
-    // V5.0: Article ID is the placeholder we created (generator updated it)
+    console.log(`[${requestId}][CONVERT] Engine v1 job created: ${jobResult.job_id}`);
+
+    // The job runs asynchronously via orchestrator
+    // The article will be created by the orchestrator's OUTPUT step
+    // For now, return the placeholder article ID — the orchestrator will update it
     const articleId = placeholderArticleId;
-    const articleSlug = generatedResult.article?.slug || generatedResult.slug;
+    const articleSlug = null; // Will be set by orchestrator
 
     console.log(`[${requestId}][CONVERT] Article generated successfully, id: ${articleId}`);
 

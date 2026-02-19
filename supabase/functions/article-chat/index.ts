@@ -101,104 +101,52 @@ Contexto do Negócio:
         url: `/blog/${a.slug}`
       })) || [];
 
-      // DELEGAR para generate-article-structured (Motor Universal)
-      // V2.0: Chat agora usa geo_mode=true e generation_mode='deep' (OmniCore padrão)
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/generate-article-structured`, {
+      // ENGINE V1: Delegate to create-generation-job → orchestrate-generation
+      console.log('[CHAT→ENGINE_V1] Delegating article generation to Engine v1');
+      
+      const jobResponse = await fetch(`${SUPABASE_URL}/functions/v1/create-generation-job`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          theme,
+          keyword: theme,
           blog_id: blogId,
-          source: 'chat',
-          geo_mode: true, // V2.0: ALWAYS true
-          generation_mode: 'deep', // GEO mode requires deep
-          funnel_mode: 'top',
-          article_goal: 'educar',
-          word_count: 1500, // GEO minimum
-          include_faq: true,
-          include_visual_blocks: true,
-          // GEO data
-          territoryId: territory?.id,
-          google_place: territory ? {
-            official_name: territory.official_name,
-            lat: territory.lat,
-            lng: territory.lng,
-            neighborhood_tags: territory.neighborhood_tags || []
-          } : undefined,
-          internal_links: internalLinks,
-          whatsapp: businessProfile?.whatsapp || null
+          city: territory?.official_name || '',
+          niche: businessProfile?.niche || 'default',
+          country: 'BR',
+          language: 'pt-BR',
+          job_type: 'article',
+          intent: 'informational',
+          target_words: 2500,
+          image_count: 4,
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('[CHAT→UNIVERSAL] Pipeline error:', errorData);
+      if (!jobResponse.ok) {
+        const errorData = await jobResponse.json().catch(() => ({}));
+        console.error('[CHAT→ENGINE_V1] Job creation error:', errorData);
         
-        if (response.status === 429) {
+        if (jobResponse.status === 429) {
           return new Response(
             JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
             { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
-        if (response.status === 402) {
-          return new Response(
-            JSON.stringify({ error: 'Payment required. Please add credits.' }),
-            { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
         
-        throw new Error(errorData.message || 'Failed to generate article');
+        throw new Error(errorData.error || 'Failed to create generation job');
       }
 
-      const result = await response.json();
-      
-      if (!result.success || !result.article) {
-        throw new Error('Invalid response from universal pipeline');
-      }
-
-      console.log(`[CHAT→UNIVERSAL] Article generated: "${result.article.title}"`);
-
-      // Gerar imagem de destaque se houver prompts
-      let featuredImageUrl = null;
-      const imagePrompts = result.article.image_prompts || [];
-      
-      if (imagePrompts.length > 0) {
-        try {
-          const imageResponse = await fetch(`${SUPABASE_URL}/functions/v1/generate-image`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              prompt: imagePrompts[0]?.prompt || `Professional photo for article: ${result.article.title}`,
-              context: 'hero',
-              articleTheme: theme,
-            }),
-          });
-
-          if (imageResponse.ok) {
-            const imageData = await imageResponse.json();
-            featuredImageUrl = imageData.imageUrl || imageData.imageBase64;
-          }
-        } catch (imgError) {
-          console.error('[CHAT→UNIVERSAL] Image generation error:', imgError);
-          // Continue without image
-        }
-      }
+      const jobResult = await jobResponse.json();
+      console.log(`[CHAT→ENGINE_V1] Job created: ${jobResult.job_id}`);
 
       return new Response(
         JSON.stringify({ 
-          type: 'article',
-          article: {
-            ...result.article,
-            featured_image_url: featuredImageUrl
-          },
-          source: 'universal_pipeline',
-          prompt_system: 'universal_v1'
+          type: 'job_created',
+          job_id: jobResult.job_id,
+          message: 'Artigo sendo gerado pelo Engine v1. Acompanhe o progresso na dashboard.',
+          source: 'engine_v1',
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

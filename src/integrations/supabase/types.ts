@@ -1127,6 +1127,7 @@ export type Database = {
           conversion_visibility_count: number | null
           created_at: string
           cta: Json | null
+          engine_version: string | null
           excerpt: string | null
           external_post_id: string | null
           external_post_url: string | null
@@ -1196,6 +1197,7 @@ export type Database = {
           conversion_visibility_count?: number | null
           created_at?: string
           cta?: Json | null
+          engine_version?: string | null
           excerpt?: string | null
           external_post_id?: string | null
           external_post_url?: string | null
@@ -1265,6 +1267,7 @@ export type Database = {
           conversion_visibility_count?: number | null
           created_at?: string
           cta?: Json | null
+          engine_version?: string | null
           excerpt?: string | null
           external_post_id?: string | null
           external_post_url?: string | null

@@ -1,3 +1,7 @@
+/**
+ * @deprecated Use create-generation-job + GenerationDetail com Realtime.
+ * Este arquivo será removido na próxima versão.
+ */
 import { supabase } from '@/integrations/supabase/client';
 
 export interface ImagePrompt {
