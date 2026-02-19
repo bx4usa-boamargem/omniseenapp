@@ -175,50 +175,27 @@ export async function streamArticle(options: StreamArticleOptions): Promise<void
       }
     }, 2000);
 
-    // Use structured endpoint via supabase.functions.invoke (sends user JWT automatically)
-    // CORE_V1: Select engine based on toggle
-    const useCore = options.generationEngine === 'core';
-    const functionName = useCore ? 'generate-article-core' : 'generate-article-structured';
-    console.log(`[V4.7.2] invoking ${functionName}`, { theme, blogId, engine: useCore ? 'core' : 'elite' });
+    // ENGINE V1: All generation goes through create-generation-job → orchestrate-generation
+    console.log(`[V4.7.2] invoking create-generation-job`, { theme, blogId });
     
     let data: any;
     let invokeError: any;
     
     try {
-      const bodyPayload = useCore
-        ? {
-            blog_id: blogId,
-            keyword: theme,
-            city: options.city,
-            niche: options.niche,
-            language: 'pt-BR',
-            targetImages: imageCount ?? 3,
-            incomingArticleId: options.articleId,
-          }
-        : { 
-            theme, 
-            keywords, 
-            tone, 
-            category,
-            editorial_template: editorialTemplate,
-            image_count: imageCount ?? 3,
-            word_count: wordCount,
-            section_count: sectionCount,
-            include_faq: includeFaq,
-            include_conclusion: includeConclusion,
-            include_visual_blocks: includeVisualBlocks,
-            optimize_for_ai: optimizeForAI,
-            source: source || 'form',
-            blog_id: blogId,
-            user_id: user?.id,
-            funnel_mode: funnelMode || 'middle',
-            article_goal: articleGoal || null,
-            editorial_model: editorialModel || 'traditional',
-            generation_mode: resolvedGenerationMode,
-            auto_publish: options.autoPublish !== false
-          };
+      const bodyPayload = {
+        keyword: theme,
+        blog_id: blogId,
+        city: options.city || '',
+        niche: options.niche || 'default',
+        country: 'BR',
+        language: 'pt-BR',
+        job_type: 'article' as const,
+        intent: 'informational' as const,
+        target_words: wordCount || 2500,
+        image_count: imageCount ?? 4,
+      };
 
-      const result = await supabase.functions.invoke(functionName, {
+      const result = await supabase.functions.invoke('create-generation-job', {
         body: bodyPayload,
       });
       data = result.data;

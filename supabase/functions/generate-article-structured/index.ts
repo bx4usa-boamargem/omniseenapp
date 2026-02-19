@@ -1479,6 +1479,24 @@ serve(async (req) => {
   }
 
   try {
+    // ENGINE V1 GUARD: Block direct calls — only allow orchestrator fallback
+    const clonedReq = req.clone();
+    let bodyCheck: Record<string, unknown> = {};
+    try { bodyCheck = await clonedReq.json(); } catch { /* empty body */ }
+    
+    if (!bodyCheck.fallback_from_job_id) {
+      console.error(`[BLOCKED] generate-article-structured called directly (requestId=${requestId}). Must go through create-generation-job → orchestrate-generation.`);
+      return new Response(
+        JSON.stringify({ 
+          success: false,
+          error: 'Chamada direta bloqueada. Use o Engine v1 via create-generation-job.',
+          redirect: 'create-generation-job'
+        }),
+        { status: 410, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    console.log(`[FALLBACK] generate-article-structured invoked as fallback for job ${bodyCheck.fallback_from_job_id}`);
+
     const authHeader = req.headers.get('Authorization')!;
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

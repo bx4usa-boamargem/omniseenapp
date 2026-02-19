@@ -1046,6 +1046,34 @@ async function executeOutput(
 
   const keyTakeawaysHtml = markdownToHtml(keyTakeaways);
   const htmlStructured = buildArticleHtml(sections, imagePack, metaPack, selectedTitle, keyTakeawaysHtml, faqItems, conclusion);
+
+  // HTML OUTPUT VALIDATION — block raw text or invalid HTML
+  function validateHtmlOutput(html: string): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    if (!html || html.length < 500) errors.push('HTML vazio ou muito curto (< 500 chars)');
+    if (!html.includes('<h1')) errors.push('HTML não contém <h1>');
+    if (!html.includes('<section')) errors.push('HTML não contém <section>');
+    if (!html.includes('<img')) errors.push('HTML não contém imagens');
+    if (!html.includes('itemscope') || !html.includes('itemprop')) errors.push('HTML não contém FAQ microdata');
+    if (!html.includes('<style') && !html.includes('style=')) errors.push('HTML não contém CSS');
+    return { valid: errors.length === 0, errors };
+  }
+
+  const validation = validateHtmlOutput(htmlStructured);
+  if (!validation.valid) {
+    console.error(`[OUTPUT:INVALID] job_id=${jobId} errors=${JSON.stringify(validation.errors)}`);
+    await supabase.from('generation_jobs').update({
+      status: 'failed',
+      error_message: `OUTPUT validation failed: ${validation.errors.join('; ')}`,
+      needs_review: true,
+    }).eq('id', jobId);
+    await supabase.from('generation_steps').update({
+      status: 'failed',
+      output: { html_attempted: htmlStructured.substring(0, 5000), validation_errors: validation.errors },
+    }).eq('job_id', jobId).eq('step_name', 'OUTPUT');
+    throw new Error(`OUTPUT validation failed: ${validation.errors.join('; ')}`);
+  }
+
   const markdownClean = sections.map(s => `## ${s.h2 || ''}\n\n${s.content || ''}`).join('\n\n---\n\n');
   const totalWords = (content.total_word_count as number) || sections.reduce((s, c) => s + ((c.word_count as number) || 0), 0);
 
@@ -1141,6 +1169,14 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
   const { data: job, error: jobError } = await supabase.from('generation_jobs').select('*').eq('id', jobId).single();
   if (jobError || !job) { console.error(`[ORCHESTRATOR] Job ${jobId} not found:`, jobError); return; }
   if (['completed', 'failed', 'cancelled'].includes(job.status)) { console.log(`[ORCHESTRATOR] Job ${jobId} already ${job.status}.`); return; }
+
+  // LOG: ORCHESTRATOR:START
+  const jobInput = job.input as Record<string, unknown> || {};
+  console.log(`[ORCHESTRATOR:START] job_id=${jobId} engine=${job.engine_version} input=${JSON.stringify({
+    keyword: jobInput.keyword,
+    city: jobInput.city,
+    niche: jobInput.niche,
+  })}`);
 
   // Lock
   if (job.locked_at) {
@@ -1394,9 +1430,8 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
       completed_at: new Date().toISOString(), locked_at: null, locked_by: null,
     }).eq('id', jobId);
 
-    console.log(`[ORCHESTRATOR] ✅ Job ${jobId} COMPLETED in ${Date.now() - jobStart}ms | SEO: ${seoScore} | API: ${totalApiCalls} | Cost: $${totalCostUsd.toFixed(6)}`);
-
-    // RULE 6: Fallback on failure is handled in catch block below
+    const completedStepNames = Array.from(completedSteps);
+    console.log(`[ORCHESTRATOR:COMPLETE] job_id=${jobId} steps=${completedStepNames.join(',')} api_calls=${totalApiCalls} seo_score=${seoScore} duration=${Date.now() - jobStart}ms cost=$${totalCostUsd.toFixed(6)}`);
 
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown orchestration error';
@@ -1412,24 +1447,9 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
       completed_at: new Date().toISOString(), locked_at: null, locked_by: null,
     }).eq('id', jobId);
 
-    // RULE 6c: Fallback to generate-article-structured on v1 failure
-    try {
-      const jobData = await supabase.from('generation_jobs').select('engine_version, input').eq('id', jobId).single();
-      if (jobData.data?.engine_version === 'v1') {
-        console.log(`[FALLBACK] Engine v1 failed for ${jobId}. Triggering structured fallback.`);
-        fetch(`${supabaseUrl}/functions/v1/generate-article-structured`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...(jobData.data.input as Record<string, unknown>), fallback_from_job_id: jobId }),
-        }).catch(e => console.error('[FALLBACK] Trigger failed:', e));
-
-        await supabase.from('generation_jobs').update({
-          error_message: `${errorMsg} | Fallback triggered: generate-article-structured`,
-        }).eq('id', jobId);
-      }
-    } catch (fbErr) {
-      console.error('[FALLBACK] Error:', fbErr);
-    }
+    // RULE 6c: Fallback TEMPORARILY DISABLED until 30 consecutive successes
+    // All failures are recorded for diagnosis — no legacy engine invocations
+    console.log(`[ORCHESTRATOR:FAILED] job_id=${jobId} failed_at=${failedStep || 'unknown'} error=${errorMsg} api_calls=${totalApiCalls} duration=${Date.now() - jobStart}ms`);
   }
 }
 

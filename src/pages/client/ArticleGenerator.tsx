@@ -248,26 +248,26 @@ export default function ArticleGenerator() {
         generation_mode: formData.mode === 'authority' ? 'deep' : 'fast',
       };
       
-      console.log('[V5.0] Invoking edge function...');
+      console.log('[V5.0] Invoking Engine v1 via create-generation-job...');
       
-      // CORE_V1: Select engine — use 'core' for clean pipeline
-      const useCore = formData.mode === 'authority'; // Authority mode uses core engine
-      const functionName = useCore ? 'generate-article-core' : 'generate-article-structured';
-      const finalPayload = useCore
-        ? {
-            blog_id: blog.id,
-            keyword: formData.keyword.trim(),
-            city: formData.city.trim(),
-            niche: formData.niche,
-            language: 'pt-BR',
-            targetImages: 3,
-            article_id: articleId,
-          }
-        : payload;
+      // ENGINE V1: All generation goes through create-generation-job → orchestrate-generation
+      const enginePayload = {
+        keyword: formData.keyword.trim(),
+        blog_id: blog.id,
+        city: formData.city.trim(),
+        state: formData.state || undefined,
+        country: 'BR',
+        language: 'pt-BR',
+        niche: formData.niche || 'default',
+        job_type: 'article' as const,
+        intent: 'informational' as const,
+        target_words: formData.mode === 'authority' ? 2500 : 1200,
+        image_count: formData.mode === 'authority' ? 8 : 4,
+      };
 
       // V5.0: Fire-and-forget — polling handles completion/failure
-      supabase.functions.invoke(functionName, {
-        body: finalPayload
+      supabase.functions.invoke('create-generation-job', {
+        body: enginePayload
       }).then(({ data, error }) => {
         if (error) {
           const errorMsg = error.message || '';
