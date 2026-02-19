@@ -145,6 +145,11 @@ async function callAiRouterAndPersist(
 ): Promise<AIRouterResult> {
   const result = await callAIRouter(supabaseUrl, serviceKey, task, messages, options);
 
+  // PATCH 1: Anti-stub guard — fail loudly if deployed version has stubs
+  if (result?.model === 'stub-phase-1' || result?.provider === 'stub') {
+    throw new Error(`[ANTI-STUB] Step ${stepName} returned stub provider/model. Deploy is outdated or step not implemented.`);
+  }
+
   // Persist raw response
   try {
     const { data: step } = await supabase
@@ -1140,8 +1145,19 @@ async function executeStep(
   serviceKey: string,
 ): Promise<{ output: Record<string, unknown>; aiResult?: AIRouterResult }> {
   switch (stepName) {
-    case 'INPUT_VALIDATION':
-      return { output: { validated: true, keyword: jobInput.keyword, city: jobInput.city, normalized_input: jobInput } };
+    case 'INPUT_VALIDATION': {
+      const errors: string[] = [];
+      if (!jobInput?.keyword || (jobInput.keyword as string).trim().length < 2) errors.push('keyword obrigatório (min 2 chars)');
+      if (!jobInput?.niche || (jobInput.niche as string).trim().length < 2) errors.push('niche obrigatório');
+      if (jobInput?.city && (jobInput.city as string).trim().length < 2) errors.push('city inválido');
+      if (jobInput?.target_words) {
+        jobInput.target_words = Math.max(1500, Math.min(4000, jobInput.target_words as number));
+      }
+      if (errors.length > 0) {
+        throw new Error(`Input validation failed: ${errors.join('; ')}`);
+      }
+      return { output: { validated: true, keyword: jobInput.keyword, city: jobInput.city, niche: jobInput.niche, normalized_input: jobInput } };
+    }
 
     case 'SERP_ANALYSIS':
       return await executeSerpAnalysis(jobInput, supabaseUrl, serviceKey);
