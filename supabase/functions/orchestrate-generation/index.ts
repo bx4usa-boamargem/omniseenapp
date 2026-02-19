@@ -233,6 +233,42 @@ async function callAiRouterAndPersist(
 // TIMEOUT WRAPPER
 // ============================================================
 
+// Safe insert: sequential DB insert with timeout (no AbortController)
+async function safeInsert(
+  supabase: ReturnType<typeof createClient>,
+  jobId: string,
+  stepName: string,
+  input: Record<string, unknown>,
+  timeoutMs = 8000
+): Promise<{ data: { id: string } }> {
+  const insertPromise = supabase.from('generation_steps').insert({
+    job_id: jobId, step_name: stepName, status: 'running',
+    started_at: new Date().toISOString(), input,
+  }).select().single();
+
+  const result = await Promise.race([
+    insertPromise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`DB_TIMEOUT:${stepName}`)), timeoutMs)
+    ),
+  ]);
+
+  if (result.error) {
+    console.error(`[ENGINE] STEP RECORD INSERT FAILED: ${stepName}`, result.error);
+    throw new Error(`DB_INSERT_FAILED:${stepName}: ${result.error.message}`);
+  }
+
+  console.log(`[ENGINE] STEP RECORD CREATED: ${stepName}`);
+
+  // Heartbeat: refresh lock to prevent zombie detection
+  await supabase.from('generation_jobs')
+    .update({ locked_at: new Date().toISOString() })
+    .eq('id', jobId);
+  console.log(`[ENGINE] LOCK_REFRESH: ${stepName}`);
+
+  return { data: result.data };
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   const softMs = SOFT_TIMEOUT_THRESHOLDS[label as StepName];
   if (softMs) {
@@ -1377,18 +1413,19 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
       console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] Executing PARALLEL: SERP_ANALYSIS + NLP_KEYWORDS (API: ${totalApiCalls}/${MAX_API_CALLS})`);
       await updatePublicStatus(supabase, jobId, 'SERP_ANALYSIS', false, lockId);
 
-      // Create step records for both
-      const serpRecordPromise = needsSerp ? supabase.from('generation_steps').insert({
-        job_id: jobId, step_name: 'SERP_ANALYSIS', status: 'running', started_at: new Date().toISOString(),
-        input: { job_input: job.input },
-      }).select().single() : null;
+      // SEQUENTIAL step record inserts (prevents Promise.all deadlock on DB contention)
+      let serpRecordRes: { data: { id: string } } | null = null;
+      let nlpRecordRes: { data: { id: string } } | null = null;
 
-      const nlpRecordPromise = needsNlp ? supabase.from('generation_steps').insert({
-        job_id: jobId, step_name: 'NLP_KEYWORDS', status: 'running', started_at: new Date().toISOString(),
-        input: { job_input: job.input },
-      }).select().single() : null;
+      if (needsSerp) {
+        serpRecordRes = await safeInsert(supabase, jobId, 'SERP_ANALYSIS', { job_input: job.input });
+        console.log(`[ENGINE] STEP EXECUTION START: SERP_ANALYSIS`);
+      }
 
-      const [serpRecordRes, nlpRecordRes] = await Promise.all([serpRecordPromise, nlpRecordPromise]);
+      if (needsNlp) {
+        nlpRecordRes = await safeInsert(supabase, jobId, 'NLP_KEYWORDS', { job_input: job.input });
+        console.log(`[ENGINE] STEP EXECUTION START: NLP_KEYWORDS`);
+      }
 
       // SERP fallback defaults (used if SERP fails)
       const SERP_FALLBACK: Record<string, unknown> = {
