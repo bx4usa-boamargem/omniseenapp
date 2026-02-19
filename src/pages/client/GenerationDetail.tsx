@@ -1,20 +1,31 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, Download, Eye, Edit, CheckCircle, XCircle, Loader2, Clock, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Download, Eye, Edit, CheckCircle, XCircle, Loader2, Clock, AlertTriangle, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 
-const STEPS = ['INPUT_VALIDATION','SERP_ANALYSIS','NLP_KEYWORDS','TITLE_GEN','OUTLINE_GEN','CONTENT_GEN','IMAGE_GEN','SEO_SCORE','META_GEN','OUTPUT'] as const;
 const STEP_LABELS: Record<string, string> = {
-  INPUT_VALIDATION: 'Validação', SERP_ANALYSIS: 'SERP', NLP_KEYWORDS: 'NLP',
-  TITLE_GEN: 'Título', OUTLINE_GEN: 'Outline', CONTENT_GEN: 'Conteúdo',
-  IMAGE_GEN: 'Imagens', SEO_SCORE: 'SEO', META_GEN: 'Meta', OUTPUT: 'Output',
+  'INPUT_VALIDATION': '✅ Validando entrada',
+  'SERP_ANALYSIS': '🔍 Analisando SERP',
+  'NLP_KEYWORDS': '📊 Extraindo keywords',
+  'TITLE_GEN': '✏️ Gerando título',
+  'OUTLINE_GEN': '📋 Criando outline',
+  'CONTENT_GEN': '📝 Escrevendo conteúdo',
+  'IMAGE_GEN': '🖼️ Gerando imagens',
+  'SEO_SCORE': '📈 Pontuando SEO',
+  'META_GEN': '🏷️ Gerando meta tags',
+  'OUTPUT': '📦 Montando HTML',
 };
+
+const ORDERED_STEPS = ['INPUT_VALIDATION','SERP_ANALYSIS','NLP_KEYWORDS','TITLE_GEN','OUTLINE_GEN','CONTENT_GEN','IMAGE_GEN','SEO_SCORE','META_GEN','OUTPUT'] as const;
 
 const SEO_METRICS = ['topic_coverage','entity_coverage','intent_match','depth_score','eeat_signals','structure','readability'];
 const SEO_LABELS: Record<string,string> = { topic_coverage:'Cobertura', entity_coverage:'Entidades', intent_match:'Intenção', depth_score:'Profundidade', eeat_signals:'E-E-A-T', structure:'Estrutura', readability:'Legibilidade' };
+
+const ZOMBIE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
 
 export default function GenerationDetail() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -22,13 +33,18 @@ export default function GenerationDetail() {
   const [job, setJob] = useState<any>(null);
   const [steps, setSteps] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isZombie, setIsZombie] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     if (!jobId) return;
+
+    console.log(`[FRONT:DETAIL_LOADED] job=${jobId}`);
+
     const load = async () => {
       const [jobRes, stepsRes] = await Promise.all([
         supabase.from('generation_jobs').select('*').eq('id', jobId).single(),
-        supabase.from('generation_steps').select('step_name, status, latency_ms, cost_usd').eq('job_id', jobId),
+        supabase.from('generation_steps').select('step_name, status, latency_ms, cost_usd, started_at, completed_at, output').eq('job_id', jobId).order('started_at', { ascending: true }),
       ]);
       setJob(jobRes.data);
       setSteps(stepsRes.data || []);
@@ -37,20 +53,87 @@ export default function GenerationDetail() {
     load();
 
     const channel = supabase.channel(`gen-job-${jobId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'generation_jobs', filter: `id=eq.${jobId}` }, (p) => setJob(p.new))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'generation_jobs', filter: `id=eq.${jobId}` }, (p) => {
+        const newJob = p.new as any;
+        setJob(newJob);
+        console.log(`[FRONT:JOB_UPDATE] job=${jobId} status=${newJob?.status} step=${newJob?.current_step}`);
+
+        if (newJob?.status === 'completed') {
+          console.log(`[FRONT:JOB_COMPLETED] job=${jobId} article=${newJob?.article_id} seo=${newJob?.seo_score}`);
+        } else if (newJob?.status === 'failed') {
+          console.error(`[FRONT:JOB_FAILED] job=${jobId} error="${newJob?.error_message}"`);
+        }
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'generation_steps', filter: `job_id=eq.${jobId}` }, () => {
-        supabase.from('generation_steps').select('step_name, status, latency_ms, cost_usd').eq('job_id', jobId).then(r => setSteps(r.data || []));
+        supabase.from('generation_steps').select('step_name, status, latency_ms, cost_usd, started_at, completed_at, output').eq('job_id', jobId).order('started_at', { ascending: true }).then(r => setSteps(r.data || []));
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [jobId]);
 
+  // Zombie detection
+  useEffect(() => {
+    if (!job || job.status !== 'running') {
+      setIsZombie(false);
+      return;
+    }
+    const createdAt = new Date(job.created_at).getTime();
+    if (Date.now() - createdAt > ZOMBIE_THRESHOLD_MS) {
+      setIsZombie(true);
+    } else {
+      const timeout = setTimeout(() => setIsZombie(true), ZOMBIE_THRESHOLD_MS - (Date.now() - createdAt));
+      return () => clearTimeout(timeout);
+    }
+  }, [job?.status, job?.created_at]);
+
+  // Dynamic progress calculation
+  const { progress, completedCount, totalCount } = useMemo(() => {
+    if (!steps || steps.length === 0) return { progress: 0, completedCount: 0, totalCount: ORDERED_STEPS.length };
+    const completed = steps.filter(s => s.status === 'completed').length;
+    const total = Math.max(steps.length, ORDERED_STEPS.length);
+    return { progress: Math.round((completed / total) * 100), completedCount: completed, totalCount: total };
+  }, [steps]);
+
+  const handleRetry = async () => {
+    if (!job?.input || !jobId) return;
+    setRetrying(true);
+    try {
+      const input = job.input as Record<string, any>;
+      const { data, error } = await supabase.functions.invoke('create-generation-job', {
+        body: {
+          keyword: input.keyword,
+          blog_id: job.blog_id,
+          city: input.city || '',
+          niche: input.niche || '',
+          country: input.country || 'BR',
+          language: input.language || 'pt-BR',
+          job_type: input.job_type || 'article',
+          intent: input.intent || 'informational',
+          target_words: input.target_words || 2500,
+          image_count: input.image_count || 4,
+          brand_voice: input.brand_voice,
+          business: input.business,
+        },
+      });
+      if (error) throw error;
+      if (data?.job_id) {
+        console.log(`[FRONT:JOB_RETRY] old=${jobId} new=${data.job_id}`);
+        toast.success('Novo job criado!');
+        navigate(`/client/articles/engine/${data.job_id}`, { replace: true });
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Erro ao recriar job');
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   if (loading) return <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div>;
   if (!job) return <div className="text-center py-12 text-muted-foreground">Job não encontrado</div>;
 
   const input = job.input as Record<string, any> || {};
-  const completedSteps = new Set(steps.filter(s => s.status === 'completed').map(s => s.step_name));
-  const failedSteps = new Set(steps.filter(s => s.status === 'failed').map(s => s.step_name));
+  const completedStepNames = new Set(steps.filter(s => s.status === 'completed').map(s => s.step_name));
+  const failedStepNames = new Set(steps.filter(s => s.status === 'failed').map(s => s.step_name));
   const seoBreakdown = (job.seo_breakdown as Record<string, any>) || {};
   const elapsed = job.completed_at && job.started_at ? Math.round((new Date(job.completed_at).getTime() - new Date(job.started_at).getTime()) / 1000) : null;
 
@@ -77,7 +160,7 @@ export default function GenerationDetail() {
           </div>
           <div className="flex items-center gap-2">
             {job.needs_review && <Badge className="bg-yellow-500/20 text-yellow-700"><AlertTriangle className="w-3 h-3 mr-1" />Revisão</Badge>}
-            <Badge className={job.status === 'completed' ? 'bg-green-500/20 text-green-700' : job.status === 'failed' ? 'bg-red-500/20 text-red-700' : 'bg-blue-500/20 text-blue-700'}>
+            <Badge className={job.status === 'completed' ? 'bg-green-500/20 text-green-700' : job.status === 'failed' ? 'bg-red-500/20 text-red-700' : job.status === 'pending' ? 'bg-muted text-muted-foreground' : 'bg-blue-500/20 text-blue-700'}>
               {job.status === 'running' ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
               {job.status}
             </Badge>
@@ -91,18 +174,54 @@ export default function GenerationDetail() {
         </div>
       </div>
 
-      {/* Pipeline Progress */}
+      {/* Zombie warning */}
+      {isZombie && job.status === 'running' && (
+        <div className="border rounded-lg p-4 bg-yellow-500/10 border-yellow-500/30 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-yellow-600" />
+            <span className="text-sm text-yellow-700">Esta geração está demorando mais que o esperado.</span>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleRetry} disabled={retrying}>
+            {retrying ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+            Tentar Novamente
+          </Button>
+        </div>
+      )}
+
+      {/* Progress bar */}
+      {(job.status === 'running' || job.status === 'pending') && (
+        <div className="border rounded-lg p-4 bg-card">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-foreground">Progresso</span>
+            <span className="text-sm text-muted-foreground">{completedCount}/{totalCount} steps • {progress}%</span>
+          </div>
+          <Progress value={progress} className="h-2" />
+          {job.status === 'pending' && <p className="text-xs text-muted-foreground mt-2">Iniciando pipeline...</p>}
+        </div>
+      )}
+
+      {/* Pipeline Steps */}
       <div className="border rounded-lg p-4 bg-card">
         <h3 className="font-semibold mb-3 text-foreground">Pipeline</h3>
-        <div className="flex flex-wrap gap-1">
-          {STEPS.map(s => {
-            const done = completedSteps.has(s);
-            const failed = failedSteps.has(s);
+        <div className="space-y-1">
+          {ORDERED_STEPS.map(s => {
+            const stepData = steps.find(st => st.step_name === s);
+            const done = completedStepNames.has(s);
+            const failed = failedStepNames.has(s);
             const running = job.current_step === s && job.status === 'running';
+            const modelUsed = stepData?.output?.model_used || stepData?.output?.model;
+            const duration = stepData?.latency_ms ? `${(stepData.latency_ms / 1000).toFixed(1)}s` : null;
+
             return (
-              <div key={s} className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium ${done ? 'bg-green-100 text-green-700' : failed ? 'bg-red-100 text-red-700' : running ? 'bg-blue-100 text-blue-700 animate-pulse' : 'bg-muted text-muted-foreground'}`}>
-                {done ? <CheckCircle className="w-3 h-3" /> : failed ? <XCircle className="w-3 h-3" /> : running ? <Loader2 className="w-3 h-3 animate-spin" /> : <Clock className="w-3 h-3" />}
-                {STEP_LABELS[s]}
+              <div key={s} className={`flex items-center justify-between px-3 py-2 rounded text-sm ${done ? 'bg-green-100 text-green-700' : failed ? 'bg-red-100 text-red-700' : running ? 'bg-blue-100 text-blue-700 animate-pulse' : 'bg-muted text-muted-foreground'}`}>
+                <div className="flex items-center gap-2">
+                  {done ? <CheckCircle className="w-4 h-4" /> : failed ? <XCircle className="w-4 h-4" /> : running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Clock className="w-4 h-4" />}
+                  <span className="font-medium">{STEP_LABELS[s] || s}</span>
+                </div>
+                <div className="flex items-center gap-3 text-xs">
+                  {modelUsed && <span className="opacity-70">{modelUsed}</span>}
+                  {duration && <span className="opacity-70">{duration}</span>}
+                </div>
               </div>
             );
           })}
@@ -129,14 +248,36 @@ export default function GenerationDetail() {
         </div>
       )}
 
-      {/* Actions */}
-      {job.status === 'completed' && (
-        <div className="flex gap-2">
-          {job.article_id && <Button onClick={() => navigate(`/client/articles/${job.article_id}/preview`)}><Eye className="w-4 h-4 mr-1" />Preview</Button>}
-          {job.article_id && <Button variant="outline" onClick={() => navigate(`/client/articles/${job.article_id}/edit`)}><Edit className="w-4 h-4 mr-1" />Editar</Button>}
-          <Button variant="outline" onClick={downloadHtml}><Download className="w-4 h-4 mr-1" />Download HTML</Button>
+      {/* Error message */}
+      {job.status === 'failed' && job.error_message && (
+        <div className="border rounded-lg p-4 bg-red-500/10 border-red-500/30">
+          <div className="flex items-center gap-2 mb-2">
+            <XCircle className="w-5 h-5 text-red-600" />
+            <span className="font-semibold text-red-700">Erro na geração</span>
+          </div>
+          <p className="text-sm text-red-600">{job.error_message}</p>
         </div>
       )}
+
+      {/* Actions */}
+      <div className="flex gap-2 flex-wrap">
+        {job.status === 'completed' && (
+          <>
+            {job.article_id && <Button onClick={() => navigate(`/client/articles/${job.article_id}/preview`)}><Eye className="w-4 h-4 mr-1" />Abrir Artigo</Button>}
+            {job.article_id && <Button variant="outline" onClick={() => navigate(`/client/articles/${job.article_id}/edit`)}><Edit className="w-4 h-4 mr-1" />Editar</Button>}
+            <Button variant="outline" onClick={downloadHtml}><Download className="w-4 h-4 mr-1" />Download HTML</Button>
+          </>
+        )}
+        {(job.status === 'failed' || (job.needs_review && job.status === 'completed')) && (
+          <Button variant="outline" onClick={handleRetry} disabled={retrying}>
+            {retrying ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-1" />}
+            Tentar Novamente
+          </Button>
+        )}
+        {job.needs_review && job.article_id && (
+          <Button variant="outline" onClick={() => navigate(`/client/articles/${job.article_id}/edit`)}><Edit className="w-4 h-4 mr-1" />Revisar Artigo</Button>
+        )}
+      </div>
     </div>
   );
 }
