@@ -1,161 +1,82 @@
 
 
-# SAFE_MODE V1.1 — Estabilizacao Definitiva do Pipeline
+# Engine Hard Reset — Remove Legacy Engine Completely
 
-## Diagnostico
+## Summary
 
-O arquivo `generate-article-structured/index.ts` tem 3353 linhas com multiplas camadas que executam incondicionalmente. Nao existe nenhum SAFE_MODE flag. Todas as camadas (Elite Engine, footprintChecks, anti-template, mutation, SEO job, image background job, localIntelligence, outline builder, research) rodam sempre, causando:
+Audit confirms the Engine V1 architecture is already mostly clean. The single entry point (`create-generation-job` -> `orchestrate-generation`) is working correctly with lock-based idempotency. However, several legacy edge functions still exist as deployed code and need to be removed or fully blocked.
 
-- Timeouts por excesso de chamadas AI (writer + SEO + QA + mutation + images)
-- Cidade "Brasil" porque o prompt fica gigante e o modelo ignora instrucoes
-- CTA destruido pela mutation pos-CTA
-- Payload null quando getEditorialDecision falha
-- Imagens inconsistentes com timeout de 5s + background job complexo
+## Current State
 
-## Plano de Implementacao
+| Component | Status | Action |
+|-----------|--------|--------|
+| `create-generation-job` | Active, correct | Keep |
+| `orchestrate-generation` | Active, correct | Keep + add hard guard |
+| `ai-router` | Active, correct | Keep |
+| `generate-article-core` | Returns HTTP 410 (blocked) | Delete function |
+| `generate-article-structured` | Returns HTTP 410 for direct calls | Delete function |
+| `generate-article` | Legacy standalone generator, NOT called from frontend | Delete function |
+| `process-queue` | Already delegates to `create-generation-job` | Keep (queue system uses Engine V1) |
+| `article-chat` | Already delegates to `create-generation-job` | Keep |
+| `convert-opportunity-to-article` | Already delegates to `create-generation-job` | Keep |
 
-### 1. Adicionar flag SAFE_MODE (linha ~98)
+**Frontend:** No code calls legacy engines directly. All generation goes through `create-generation-job`.
 
-Adicionar `const SAFE_MODE = true;` apos corsHeaders.
+## Changes
 
-### 2. Corrigir prioridade de cidade (linhas 1610-1657)
+### 1. Delete Legacy Edge Functions (3 functions)
 
-A prioridade atual e: requestCity > territory > business_profile. O pedido exige business_profile primeiro.
+Remove completely from codebase and deployed functions:
 
-Reordenar para:
-1. business_profile.city (buscar ANTES de tudo)
-2. requestCity
-3. territoryData
-4. regex no theme
-5. google_place
-6. "Brasil"
+- `supabase/functions/generate-article-core/` — deprecated stub (HTTP 410)
+- `supabase/functions/generate-article-structured/` — deprecated stub (HTTP 410)
+- `supabase/functions/generate-article/` — legacy standalone generator, no frontend references
 
-Mover o bloco de business_profile (linhas 1620-1634) para ANTES da linha 1617, e ajustar a logica de fallback.
+### 2. Add Hard Guard to Orchestrator
 
-### 3. Bypass do Elite Engine em SAFE_MODE (linhas 1686-1722)
-
-Envolver `getEditorialDecision()` em `if (!SAFE_MODE)`. Quando SAFE_MODE, usar fallback estatico direto com `version: 'CORE_SAFE_V1.1'`.
-
-### 4. Bypass anti-template detector (linhas 1724-1748)
-
-Envolver em `if (!SAFE_MODE)`.
-
-### 5. Bypass outline builder (linhas 1770-1784)
-
-Envolver em `if (!SAFE_MODE)`.
-
-### 6. Bypass Research/Perplexity (linhas 1801-1844)
-
-Envolver em `if (!SAFE_MODE)`. Quando SAFE_MODE, usar pacote minimo direto (sem chamada Perplexity).
-
-### 7. Simplificar system prompt em SAFE_MODE (linhas 2005-2035)
-
-Quando SAFE_MODE, remover do systemPrompt:
-- `nichePromptBlock`
-- `outlineInstruction`
-- `editorialConfig.instructions`
-- `eliteEngineAngleInstructions`
-- `eliteEnginePromptBlocks`
-- `eliteEngineRhythm`
-- `localIntelligencePrompt`
-- `HEADING_BLACKLIST_PROMPT`
-
-Manter apenas: GEO_WRITER_IDENTITY, territorial context, buildMasterPrompt, regra de localizacao, HIERARCHY_RULES.
-
-### 8. Imagens em SAFE_MODE (linhas 2037-2041 + 2610-2660)
-
-Quando SAFE_MODE:
-- `targetImageCount = 1` (apenas capa)
-- Timeout = 15000ms (em vez de 5000ms)
-- Seed baseada no articleId para evitar repeticao
-- Sem placeholders Unsplash automaticos — so fallback real
-
-### 9. Bypass footprintChecks completo (linhas 2700-2884)
-
-Envolver todo o bloco em `if (!SAFE_MODE)`. Valores default para similarity_score, h2PatternHash, etc.
-
-### 10. Enforcement de cidade no H1 pos-writer (linhas 2406-2452)
-
-Manter a logica atual (ja existe), mas simplificar: usar `content.replace(/^# (.*)$/m, ...)` conforme pedido do usuario — substituir "Brasil" pela cidade no H1, ou adicionar " em {city}" se ausente.
-
-### 11. Paragrafos — usar threshold de 700 chars (linhas 2475-2484)
-
-Ajustar threshold de 700 para 700 (ja esta). Manter logica existente que e segura.
-
-### 12. CTA como ultimo passo (linhas 2952-2981 e 3028-3060)
-
-A logica de CTA ja executa APOS sanitize. Em SAFE_MODE, como footprintChecks esta desativado, nao ha risco de mutation destruir o CTA. Adicionar flag `cta_injected: hasValidCTA(contentFinal)` no payload.
-
-### 13. Persistencia SEMPRE preenchida (linhas 3083-3110 e 3148-3175)
-
-Quando SAFE_MODE, o `source_payload` nao depende de `eliteEngineDecision` (que pode ser null). Usar payload fixo:
+In `supabase/functions/orchestrate-generation/index.ts`, the lock guard already exists at line 1333-1358 (checks `locked_by`, uses atomic CAS via `.is('locked_by', null)`). Enhance it with explicit legacy block log:
 
 ```text
-source_payload: {
-  eliteEngine: {
-    version: 'CORE_SAFE_V1.1',
-    safe_mode: true,
-    city: city,
-    niche_normalized: normalizeNiche(effectiveNiche),
-    structure_type: 'complete_guide',
-    similarity_score: 0,
-    images_pending: false,
-    serp_pending: false,
-    cta_injected: hasValidCTA(finalContent)
-  }
-}
+// After lock acquisition succeeds, add:
+console.log(`[ENGINE] LOCK_ACQUIRED job_id=${jobId} lockId=${lockId}`);
 ```
 
-Substituir a condicao ternaria `eliteEngineDecision ? {...} : articleEnginePayload` por payload fixo em SAFE_MODE.
+If lock acquisition fails (another orchestrator already running), log:
+```text
+console.log(`[ENGINE] LEGACY_EXECUTION_BLOCKED job_id=${jobId} — another orchestrator holds the lock`);
+```
 
-### 14. Desativar seo-enhancer-job dispatch (linhas 3200-3216)
+### 3. Cancel Zombie Jobs (Database)
 
-Envolver em `if (!SAFE_MODE)`.
+Run SQL to clean up stuck jobs:
 
-### 15. Desativar background image dispatch (linhas 3218-3267)
+```sql
+UPDATE generation_jobs
+SET status = 'cancelled', locked_by = NULL, locked_at = NULL
+WHERE status = 'running';
 
-Envolver em `if (!SAFE_MODE)`.
+DELETE FROM generation_steps WHERE status = 'running';
+```
 
-## Resumo de Impacto
+### 4. Redeploy Clean
 
-| Camada | Antes | SAFE_MODE V1.1 |
-|--------|-------|-----------------|
-| getEditorialDecision | Sempre (falha frequente) | SKIP — fallback estatico |
-| Anti-Template | Sempre (query DB) | SKIP |
-| Outline Builder | Sempre | SKIP |
-| Research (Perplexity) | Sempre (pode falhar) | SKIP — pacote minimo |
-| System Prompt | ~2000 chars de injecoes extras | Limpo e direto |
-| Imagens | 3-10 com timeout 5s + background | 1 imagem, timeout 15s |
-| FootprintChecks + Mutation | Sempre (query 30+ rows + AI call) | SKIP |
-| SEO Enhancer Job | Fire-and-forget | SKIP |
-| Background Images Job | Fire-and-forget | SKIP |
-| Persistencia payload | Depende de eliteEngineDecision | Sempre preenchido |
+After deleting legacy functions and updating the orchestrator:
+- Delete deployed functions: `generate-article-core`, `generate-article-structured`, `generate-article`
+- Redeploy: `orchestrate-generation`, `ai-router`, `create-generation-job`
 
-Tempo estimado de geracao: de 60-120s para 15-30s.
+## What Does NOT Change
 
-## Arquivo Modificado
+- `process-queue` stays (it correctly delegates to `create-generation-job`)
+- `article-chat` stays (it correctly delegates to `create-generation-job`)
+- `convert-opportunity-to-article` stays (it correctly delegates to `create-generation-job`)
+- Multi-provider routing, soft timeouts, sequential inserts, lock heartbeat — all preserved
+- `locked_by` column stays as-is (already TEXT, already used for CAS locking)
 
-| Arquivo | Mudanca |
-|---------|---------|
-| `supabase/functions/generate-article-structured/index.ts` | SAFE_MODE flag + 12 bypasses condicionais + cidade prioridade corrigida + payload fixo |
+## Validation
 
-## O que NAO sera alterado
-
-- aiProviders.ts, aiConfig.ts, templateSelector.ts
-- editorialOrchestrator.ts, footprintChecks.ts, localIntelligence.ts
-- editorialContract.ts (CTA injection)
-- seo-enhancer-job/index.ts
-- buildMasterPrompt (modelo local ja reescrito — manter como esta)
-- buildImagePrompts (ja reescrito por nicho — manter)
-- Queue, polling, integracoes externas
-
-## Sequencia de Deploy
-
-1. Adicionar SAFE_MODE flag e todos os bypasses
-2. Corrigir prioridade de cidade
-3. Simplificar system prompt
-4. Payload fixo em SAFE_MODE
-5. Deploy edge function
-6. Gerar 1 artigo teste
-7. Validar: cidade no H1, CTA presente, payload preenchido, sem timeout
+After deploy, logs must show:
+- `[ENGINE] LOCK_ACQUIRED` (exactly once per job)
+- No `generate-article-core`, `generate-article-structured`, or `generate-article` in active function list
+- API calls increment past 0
+- Pipeline progresses past SERP_ANALYSIS
 
