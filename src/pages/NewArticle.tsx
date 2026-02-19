@@ -21,7 +21,7 @@ import { OpportunityCard } from "@/components/content/OpportunityCard";
 import { ArticleForm } from "@/components/ArticleForm";
 import { ArticlePreview } from "@/components/ArticlePreview";
 import { PublishWithTranslationDialog } from "@/components/editor/PublishWithTranslationDialog";
-import { streamArticle, type ArticleData } from "@/utils/streamArticle";
+import { type ArticleData } from "@/types/article";
 import { generateContentImages, type ContentImage, type ImageGenerationProgress } from "@/utils/generateContentImages";
 import { 
   ArrowLeft, 
@@ -532,86 +532,53 @@ export default function NewArticle() {
   };
 
   const handleGenerate = async (params: GenerationParams) => {
-    if (!params) return;
+    if (!params || !blogId) return;
     
     setCurrentParams(params);
     setIsGenerating(true);
-    setStreamingText("");
-    setArticle(null);
-    setFeaturedImage(null);
-    setContentImages([]);
-    setImageProgress(null);
     setGenerationError(null);
 
-    await streamArticle({
-      theme: params.theme,
-      keywords: params.keywords,
-      tone: params.tone,
-      category: params.category,
-      blogId: blogId || undefined,
-      imageCount: params.generateContentImages ? params.contentImageCount : 0,
-      wordCount: params.wordCount,
-      sectionCount: params.sectionCount,
-      includeFaq: params.includeFaq,
-      includeConclusion: params.includeConclusion,
-      includeVisualBlocks: params.includeVisualBlocks,
-      optimizeForAI: params.optimizeForAI,
-      source: generationSource,
-      funnelMode: params.funnelMode || 'middle',
-      articleGoal: params.articleGoal || null,
-      generationMode: params.generationMode || 'deep', // NUNCA undefined - default é deep
-      onDelta: (text) => {
-        setStreamingText((prev) => prev + text);
-      },
-      onDone: (result) => {
-        setIsGenerating(false);
-        if (result) {
-          setArticle(result);
-          
-          const shouldGenerateImages = params.generateCoverImage || params.generateContentImages;
-          
-          toast({
-            title: "Artigo gerado!",
-            description: shouldGenerateImages 
-              ? "Revise o conteúdo. Gerando imagens..." 
-              : "Revise o conteúdo e salve quando estiver pronto.",
-          });
-          
-          if (shouldGenerateImages) {
-            generateAllImages(result, params);
-          }
-        }
-      },
-      onError: (error) => {
-        setIsGenerating(false);
-        
-        // Try to parse structured error
-        let errorData: { code?: string; message?: string; suggestion?: string } = {};
-        try {
-          errorData = JSON.parse(error);
-        } catch {
-          errorData = { message: error };
-        }
-        
-        // Toast with clear message
-        toast({
-          variant: "destructive",
-          title: errorData.code === 'AI_OUTPUT_TOO_SHORT' 
-            ? "Artigo não atingiu o tamanho mínimo" 
-            : "Erro ao gerar artigo",
-          description: errorData.message || error,
-        });
-        
-        // Show error card instead of blank screen
-        setGenerationError({
-          title: errorData.code === 'AI_OUTPUT_TOO_SHORT' 
-            ? "Conteúdo Insuficiente" 
-            : "Erro na Geração",
-          message: errorData.message || error,
-          suggestion: errorData.suggestion || "Tente novamente com mais detalhes sobre o tema."
-        });
-      },
-    });
+    try {
+      // Engine v1: create async job and redirect
+      const { data, error } = await supabase.functions.invoke('create-generation-job', {
+        body: {
+          keyword: params.theme,
+          blog_id: blogId,
+          city: '',
+          niche: 'default',
+          country: 'BR',
+          language: 'pt-BR',
+          job_type: 'article',
+          intent: 'informational',
+          target_words: params.wordCount || 2500,
+          image_count: params.generateContentImages ? params.contentImageCount : 4,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data?.job_id) {
+        console.log(`[FRONT:JOB_CREATED] job=${data.job_id} keyword="${params.theme}"`);
+        navigate(`/client/articles/engine/${data.job_id}`);
+      } else {
+        throw new Error(data?.error || 'Erro desconhecido');
+      }
+    } catch (err: any) {
+      setIsGenerating(false);
+      const msg = err?.message || '';
+      
+      if (msg.includes('429') || msg.includes('MAX_CONCURRENT')) {
+        toast({ variant: "destructive", title: "Limite atingido", description: "Você já tem artigos em geração. Aguarde." });
+      } else {
+        toast({ variant: "destructive", title: "Erro ao gerar artigo", description: msg || 'Tente novamente.' });
+      }
+      
+      setGenerationError({
+        title: "Erro na Geração",
+        message: msg || 'Erro desconhecido',
+        suggestion: "Tente novamente com mais detalhes sobre o tema."
+      });
+    }
   };
 
   const handleSave = async (publish: boolean, translateLanguages: string[] = []) => {

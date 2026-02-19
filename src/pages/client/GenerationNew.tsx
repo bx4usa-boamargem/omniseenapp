@@ -26,17 +26,65 @@ export default function GenerationNew() {
 
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
+  // Validation
+  const getValidationErrors = (): string[] => {
+    const errors: string[] = [];
+    const trimmedKeyword = form.keyword?.trim() || '';
+    const trimmedNiche = form.niche?.trim() || '';
+    const trimmedCity = form.city?.trim() || '';
+    const tw = parseInt(form.target_words);
+
+    if (trimmedKeyword.length < 2) errors.push('Keyword deve ter pelo menos 2 caracteres');
+    if (trimmedNiche.length < 2) errors.push('Nicho é obrigatório');
+    if (trimmedCity && trimmedCity.length < 2) errors.push('Cidade inválida');
+    if (tw && (tw < 1500 || tw > 4000)) errors.push('Palavras alvo: entre 1500 e 4000');
+
+    return errors;
+  };
+
+  const validationErrors = getValidationErrors();
+  const isValid = validationErrors.length === 0;
+
   const handleSubmit = async () => {
-    if (!form.keyword || form.keyword.trim().length < 2) { toast.error('Palavra-chave é obrigatória (min 2 chars)'); return; }
-    if (!form.city.trim()) { toast.error('Cidade é obrigatória'); return; }
-    if (!form.niche.trim()) { toast.error('Nicho é obrigatório'); return; }
+    if (!isValid) {
+      validationErrors.forEach(e => toast.error(e));
+      return;
+    }
     if (!currentTenant?.id) { toast.error('Blog não encontrado'); return; }
+
+    const trimmedKeyword = form.keyword.trim();
+    const blogId = currentTenant.id;
+
+    // Anti-duplication: check for existing pending/running jobs with same keyword
+    try {
+      const { data: existingJobs } = await supabase
+        .from('generation_jobs')
+        .select('id, status, input')
+        .eq('blog_id', blogId)
+        .in('status', ['pending', 'running'])
+        .order('created_at', { ascending: false });
+
+      const normalizedKeyword = trimmedKeyword.toLowerCase();
+      const duplicate = existingJobs?.find(job => {
+        const jobInput = job.input as Record<string, any> | null;
+        const jobKeyword = (jobInput?.keyword || '').trim().toLowerCase();
+        return jobKeyword === normalizedKeyword;
+      });
+
+      if (duplicate) {
+        toast.info('Já existe uma geração em andamento para esta keyword.');
+        navigate(`/client/articles/engine/${duplicate.id}`);
+        return;
+      }
+    } catch (e) {
+      console.warn('[FRONT:ANTI_DUP] Error checking duplicates, proceeding', e);
+    }
 
     setLoading(true);
     try {
       const payload: Record<string, unknown> = {
-        keyword: form.keyword.trim(),
-        blog_id: currentTenant.id,
+        keyword: trimmedKeyword,
+        blog_id: blogId,
         city: form.city.trim(),
         state: form.state.trim() || undefined,
         country: 'BR',
@@ -55,20 +103,30 @@ export default function GenerationNew() {
       const { data, error } = await supabase.functions.invoke('create-generation-job', { body: payload });
 
       if (error) {
-        const msg = error.message || 'Erro ao criar job';
-        if (msg.includes('MAX_CONCURRENT_JOBS') || msg.includes('429')) { toast.error('Você já tem 3 artigos em geração. Aguarde.'); }
-        else { toast.error(msg); }
+        const msg = error.message || '';
+        if (msg.includes('MAX_CONCURRENT_JOBS') || msg.includes('429')) {
+          toast.warning('Você já tem artigos em geração. Aguarde a conclusão.');
+        } else if (msg.includes('402')) {
+          toast.warning('Créditos insuficientes. Atualize seu plano.');
+        } else if (msg.includes('400') || msg.includes('VALIDATION')) {
+          toast.error(msg || 'Dados inválidos. Verifique os campos.');
+        } else {
+          toast.error('Erro ao criar artigo. Tente novamente.');
+          console.error(`[FRONT:JOB_ERROR]`, error);
+        }
         return;
       }
 
       if (data?.job_id) {
+        console.log(`[FRONT:JOB_CREATED] job=${data.job_id} keyword="${trimmedKeyword}"`);
         toast.success('Job criado! Acompanhe o progresso.');
         navigate(`/client/articles/engine/${data.job_id}`);
       } else {
         toast.error(data?.error || 'Erro desconhecido');
       }
     } catch (e: any) {
-      toast.error(e.message || 'Erro ao criar job');
+      toast.error('Erro ao criar artigo. Tente novamente.');
+      console.error(`[FRONT:JOB_ERROR]`, e);
     } finally {
       setLoading(false);
     }
@@ -91,7 +149,7 @@ export default function GenerationNew() {
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label>Cidade *</Label>
+            <Label>Cidade</Label>
             <Input placeholder="ex: São Paulo" value={form.city} onChange={e => set('city', e.target.value)} />
           </div>
           <div className="space-y-2">
@@ -123,9 +181,11 @@ export default function GenerationNew() {
             <Select value={form.target_words} onValueChange={v => set('target_words', v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="1500">1.500</SelectItem>
                 <SelectItem value="2000">2.000</SelectItem>
                 <SelectItem value="2500">2.500</SelectItem>
                 <SelectItem value="3000">3.000</SelectItem>
+                <SelectItem value="4000">4.000</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -163,9 +223,15 @@ export default function GenerationNew() {
           </div>
         )}
 
-        <Button className="w-full" size="lg" onClick={handleSubmit} disabled={loading}>
+        <Button className="w-full" size="lg" onClick={handleSubmit} disabled={loading || !isValid}>
           {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Criando job...</> : '🚀 Gerar Artigo'}
         </Button>
+
+        {validationErrors.length > 0 && form.keyword.length > 0 && (
+          <div className="text-sm text-destructive space-y-1">
+            {validationErrors.map((e, i) => <p key={i}>• {e}</p>)}
+          </div>
+        )}
       </div>
     </div>
   );

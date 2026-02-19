@@ -9,7 +9,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { streamArticle, type ArticleData, type GenerationStage } from '@/utils/streamArticle';
+import { type ArticleData, type GenerationStage } from '@/types/article';
 import { SimpleArticleForm, type SimpleFormData } from '@/components/client/SimpleArticleForm';
 import { ArticlePreview } from '@/components/ArticlePreview';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
@@ -489,150 +489,44 @@ export default function ClientArticleEditor() {
           return;
         }
 
-        // Se nao encontrou artigo real, continuar com geracao normal
-        console.log("[loadExistingArticle] No existing article found, starting stream");
-        setExistingArticleId(data.id);
-        setTitle(data.title || '');
-        setPhase('generating');
-        setIsGenerating(true);
-        setGenerationStage('analyzing');
-        setGenerationProgress(0);
+        // Engine v1: redirect to async generation flow instead of streaming
+        console.log("[loadExistingArticle] No existing article found, redirecting to Engine v1 async flow");
         
-        // Retrieve stored form data from localStorage
-        let storedFormData: {
-          theme?: string;
-          generationMode?: 'fast' | 'deep';
-          generateImages?: boolean;
-          scheduleMode?: string;
-          scheduledDate?: string;
-          scheduledTime?: string;
-        } = {};
+        // Mark placeholder as draft so it doesn't loop
+        await supabase.from('articles').update({ status: 'draft', generation_stage: 'failed' }).eq('id', data.id);
         
+        // Create async job via Engine v1
         try {
-          const stored = localStorage.getItem('pendingArticleGeneration');
-          if (stored) {
-            storedFormData = JSON.parse(stored);
-            localStorage.removeItem('pendingArticleGeneration');
+          const { data: jobData, error: jobError } = await supabase.functions.invoke('create-generation-job', {
+            body: {
+              keyword: data.title || 'artigo',
+              blog_id: blog?.id || data.blog_id,
+              city: '',
+              niche: 'default',
+              country: 'BR',
+              language: 'pt-BR',
+              job_type: 'article',
+              intent: 'informational',
+              target_words: 2500,
+              image_count: 4,
+            },
+          });
+          
+          if (!jobError && jobData?.job_id) {
+            console.log(`[FRONT:JOB_CREATED] job=${jobData.job_id} from placeholder=${data.id}`);
+            navigate(`/client/articles/engine/${jobData.job_id}`, { replace: true });
+            return;
           }
         } catch (e) {
-          console.warn('[loadExistingArticle] Could not parse stored form data');
+          console.error('[loadExistingArticle] Failed to create Engine v1 job', e);
         }
         
-        const shouldGenerateImages = storedFormData.generateImages !== false;
-        const generationMode = storedFormData.generationMode || 'fast';
-        
-        await streamArticle({
-          theme: data.title,
-          blogId: blog?.id || data.blog_id,
-          generationMode,
-          tone: 'friendly',
-          autoPublish: true,
-          onStage: (stage) => {
-            console.log('[UI] stage recebido:', stage);
-            setGenerationStage(stage);
-          },
-          onProgress: (percent) => setGenerationProgress(percent),
-          onDelta: (text) => setStreamingText((prev) => prev + text),
-          onDone: async (result) => {
-            setIsGenerating(false);
-            setGenerationStage(null);
-            generationLockRef.current = false;
-
-            if (result) {
-              // Update state
-              setTitle(result.title);
-              setContent(result.content);
-              setExcerpt(result.excerpt);
-              setMetaDescription(result.meta_description);
-              setFaq(result.faq || []);
-              
-              // Update placeholder with generated content
-              await supabase
-                .from('articles')
-                .update({
-                  title: result.title,
-                  content: result.content,
-                  excerpt: result.excerpt,
-                  meta_description: result.meta_description,
-                  faq: result.faq || [],
-                  status: 'published',
-                  published_at: new Date().toISOString(),
-                })
-                .eq('id', data.id);
-
-              setPhase('editing');
-              toast.success('Artigo gerado!');
-              
-              // Generate images if enabled
-              if (shouldGenerateImages) {
-                toast.info('Gerando imagens...');
-                await generateImagesWithArticleId(result, data.id);
-              }
-            }
-          },
-          onError: async (error) => {
-            const isTimeout =
-              error.includes('Failed to fetch') ||
-              error.includes('FunctionsFetchError') ||
-              error.includes('Failed to send');
-
-            if (isTimeout && blog?.id) {
-              console.log('[V4.7.3] Timeout no Editor. Verificando artigo salvo...');
-
-              await new Promise(resolve => setTimeout(resolve, 5000));
-
-              const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-              const { data: article } = await supabase
-                .from('articles')
-                .select('id, title, slug, status, content, excerpt, meta_description, faq')
-                .eq('blog_id', blog.id)
-                .eq('status', 'published')
-                .gte('created_at', fiveMinAgo)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
-
-              if (article && article.content) {
-                console.log('[V4.7.3] Artigo recuperado apos timeout:', article.id);
-
-                await supabase
-                  .from('articles')
-                  .update({
-                    title: article.title,
-                    content: article.content,
-                    excerpt: article.excerpt,
-                    meta_description: article.meta_description,
-                    faq: article.faq || [],
-                    status: 'published',
-                    published_at: new Date().toISOString(),
-                  })
-                  .eq('id', data.id);
-
-                setTitle(article.title || '');
-                setContent(article.content || '');
-                setExcerpt(article.excerpt || '');
-                setMetaDescription(article.meta_description || '');
-                setFaq(Array.isArray(article.faq) ? (article.faq as unknown as Array<{ question: string; answer: string }>) : []);
-
-                setIsGenerating(false);
-                setGenerationStage(null);
-                generationLockRef.current = false;
-                setPhase('editing');
-                toast.success('Artigo gerado com sucesso!');
-                return;
-              }
-            }
-
-            // Erro real
-            setIsGenerating(false);
-            setGenerationStage(null);
-            generationLockRef.current = false;
-            toast.error(error || 'Erro ao gerar artigo');
-            supabase.from('articles').update({ status: 'draft' }).eq('id', data.id);
-            setPhase('form');
-          },
-        });
-        return; // Early return - generation in progress
+        // Fallback: just show editor with empty content
+        setExistingArticleId(data.id);
+        setTitle(data.title || '');
+        setPhase('editing');
+        toast.info('Artigo sem conteúdo. Use o Engine v1 para gerar.');
+        return; // Early return
       }
 
       // Normal flow for existing articles

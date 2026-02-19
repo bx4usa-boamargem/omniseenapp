@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { base64ToBlob, uploadImageToStorage } from "@/utils/imageUtils";
-import type { ImagePrompt } from "./streamArticle";
+import type { ImagePrompt } from "@/types/article";
 
 export interface ContentImage {
   context: 'hero' | 'problem' | 'solution' | 'result' | 'section_1' | 'section_2' | 'section_3' | 'section_4';
