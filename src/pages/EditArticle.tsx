@@ -23,7 +23,7 @@ import { ImproveArticleDialog } from "@/components/editor/ImproveArticleDialog";
 import { PublishWithTranslationDialog } from "@/components/editor/PublishWithTranslationDialog";
 import { KeywordDensityChecker } from "@/components/editor/KeywordDensityChecker";
 import { KeywordPositionGuide } from "@/components/editor/KeywordPositionGuide";
-// streamArticle removed — Engine v1 async only
+// Engine v1 async only — no legacy imports
 import { getArticleUrl } from "@/utils/blogUrl";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";

@@ -11,9 +11,8 @@ export interface QuickArticleConfig {
 }
 
 /**
- * Start quick article creation with auto-generation.
- * Navigates to /client/create with query params that trigger auto-run.
- * The editor will auto-generate and redirect to /client/articles/{id}/edit.
+ * Start quick article creation via Engine v1.
+ * Navigates to /client/articles/engine/new with query params.
  */
 export function startQuickArticle(
   config: QuickArticleConfig,
