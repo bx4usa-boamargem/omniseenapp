@@ -138,97 +138,56 @@ serve(async (req) => {
 
     console.log(`[CREATE_JOB] ✅ Job ${job.id} created for user ${user.id} | keyword: "${input.keyword}"`);
 
-    // ============================================================
-    // PART 1 — FIRE-AND-FORGET ENGINE WAKE (non-blocking)
-    // The orchestrator runs for minutes; we just confirm it started.
-    // ============================================================
-    let wakeOk = false;
-    try {
-      const abortCtrl = new AbortController();
-      const wakeTimeout = setTimeout(() => abortCtrl.abort(), 8000); // 8s to confirm start
+    // === DOUBLE-START PROTECTION ===
+    const { data: running } = await supabase
+      .from('generation_jobs')
+      .select('id')
+      .eq('id', job.id)
+      .eq('status', 'running')
+      .maybeSingle();
 
-      const orchestrateResp = await fetch(
-        `${supabaseUrl}/functions/v1/orchestrate-generation`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${supabaseServiceKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ job_id: job.id }),
-          signal: abortCtrl.signal,
-        }
-      ).catch((err: Error) => {
-        // AbortError means the function started but we didn't wait for completion — that's OK
-        if (err.name === 'AbortError') {
-          console.log(`[ENGINE:WAKE_SENT] job_id=${job.id} (fire-and-forget, orchestrator running)`);
-          return { ok: true, status: 200 } as Response;
-        }
-        throw err;
-      });
-
-      clearTimeout(wakeTimeout);
-
-      if (orchestrateResp.ok) {
-        wakeOk = true;
-        console.log(`[ENGINE:WAKE_OK] job_id=${job.id}`);
-      } else {
-        console.error(`[ENGINE:WAKE_FAILED] job=${job.id} status=${orchestrateResp.status}`);
-      }
-    } catch (wakeErr) {
-      console.error(`[ENGINE:WAKE_ERROR] job=${job.id}:`, wakeErr);
+    if (running) {
+      console.log(`[ENGINE_ALREADY_RUNNING] job=${job.id}`);
+      return new Response(
+        JSON.stringify({ success: true, job_id: job.id, status: 'running' }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // ============================================================
-    // PART 2 — ENGINE START VERIFICATION (poll for INPUT_VALIDATION step)
-    // ============================================================
-    if (wakeOk) {
-      let engineStarted = false;
-      for (let i = 0; i < 10; i++) {
-        const { data } = await supabase
-          .from('generation_steps')
-          .select('id')
-          .eq('job_id', job.id)
-          .eq('step_name', 'INPUT_VALIDATION')
-          .maybeSingle();
-        if (data) { engineStarted = true; break; }
-        await sleep(1000);
-      }
+    // === ENGINE WAKE (async-safe, fire-and-forget via invoke) ===
+    supabase.functions.invoke(
+      'orchestrate-generation',
+      { body: { job_id: job.id } }
+    ).catch(err =>
+      console.error('[ENGINE_WAKE_ASYNC_ERROR]', err)
+    );
 
-      if (!engineStarted) {
-        console.warn(`[ENGINE:NOT_STARTED] job=${job.id} — No INPUT_VALIDATION step after 10s`);
-        await supabase.from('generation_jobs').update({
-          status: 'failed',
-          error_message: 'ENGINE_NOT_STARTED',
-          public_message: 'O motor não iniciou. Tente novamente.',
-          completed_at: new Date().toISOString(),
-        }).eq('id', job.id);
+    console.log(`[ENGINE_WAKE_SENT] job=${job.id}`);
 
-        return new Response(
-          JSON.stringify({
-            success: false,
-            job_id: job.id,
-            status: 'failed',
-            message: 'Engine did not start. Please retry.',
-          }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+    // === START VERIFICATION (poll for INPUT_VALIDATION) ===
+    let started = false;
+    for (let i = 0; i < 8; i++) {
+      const { data } = await supabase
+        .from('generation_steps')
+        .select('id')
+        .eq('job_id', job.id)
+        .eq('step_name', 'INPUT_VALIDATION')
+        .maybeSingle();
+      if (data) { started = true; break; }
+      await sleep(1200);
     }
 
-    // If wake completely failed, mark job as failed
-    if (!wakeOk) {
-      await supabase.from('generation_jobs')
-        .update({ status: 'failed', error_message: 'ENGINE_START_TIMEOUT: Orchestrator did not start', completed_at: new Date().toISOString() })
-        .eq('id', job.id);
+    if (!started) {
+      console.warn(`[ENGINE_NOT_STARTED] job=${job.id}`);
+      await supabase.from('generation_jobs').update({
+        status: 'failed',
+        error_message: 'ENGINE_NOT_STARTED',
+        public_message: 'O motor nao iniciou. Tente novamente.',
+        completed_at: new Date().toISOString(),
+      }).eq('id', job.id);
 
       return new Response(
-        JSON.stringify({
-          success: false,
-          job_id: job.id,
-          status: 'failed',
-          message: 'Engine failed to start. Please retry.',
-        }),
+        JSON.stringify({ success: false, job_id: job.id, status: 'failed' }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
