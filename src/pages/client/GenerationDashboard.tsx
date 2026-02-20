@@ -105,10 +105,10 @@ export default function GenerationDashboard() {
   }, [user, isClient]);
 
   // Page title based on role
-  const pageTitle = isClient ? 'Meus Artigos' : 'Article Engine v1';
+  const pageTitle = isClient ? 'Meus Artigos' : 'Geração de Artigos';
   const pageSubtitle = isClient
     ? 'Acompanhe a geração dos seus artigos'
-    : 'Pipeline completo de geração com SEO Score e Quality Gates';
+    : 'Geração automatizada com SEO Score e Quality Gates';
 
   return (
     <div className="space-y-6">

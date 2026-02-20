@@ -79,8 +79,8 @@ type TaskType =
 // ============================================================
 
 const MODEL_ROUTING: Record<TaskType, { model: string; temperature: number; maxTokens: number }> = {
-  serp_analysis:   { model: 'openai/gpt-5-mini',            temperature: 0.3, maxTokens: 8000 },
-  nlp_keywords:    { model: 'openai/gpt-5-mini',            temperature: 0.2, maxTokens: 8000 },
+  serp_analysis:   { model: 'google/gemini-2.5-flash',       temperature: 0.3, maxTokens: 8000 },
+  nlp_keywords:    { model: 'google/gemini-2.5-flash',       temperature: 0.2, maxTokens: 8000 },
   title_gen:       { model: 'google/gemini-2.5-flash',       temperature: 0.7, maxTokens: 8000 },
   outline_gen:     { model: 'google/gemini-2.5-flash',       temperature: 0.4, maxTokens: 8000 },
   content_gen:     { model: 'google/gemini-2.5-flash',       temperature: 0.5, maxTokens: 8000 },
@@ -96,8 +96,6 @@ const COST_TABLE: Record<string, { input: number; output: number }> = {
   'google/gemini-2.5-pro':         { input: 1.25, output: 10.0 },
   'google/gemini-2.5-flash':       { input: 0.15, output: 0.60 },
   'google/gemini-2.5-flash-image': { input: 0.15, output: 0.60 },
-  'openai/gpt-5':                  { input: 2.50, output: 10.0 },
-  'openai/gpt-5-mini':             { input: 0.40, output: 1.60 },
 };
 
 function estimateCost(model: string, tokensIn: number, tokensOut: number): number {
@@ -124,20 +122,13 @@ async function callGateway(params: AICallParams): Promise<AICallResult> {
   const temperature = params.temperature ?? routing.temperature;
   const maxTokens = params.maxTokens ?? routing.maxTokens;
 
-  // OpenAI models require max_completion_tokens and may not support custom temperature
-  const isOpenAI = model.startsWith('openai/');
+  // Production mode: single provider (Gemini), no tools/function calling
   const body: Record<string, unknown> = {
     model,
     messages: params.messages,
-    ...(isOpenAI ? {} : { temperature }),
-    ...(isOpenAI ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens }),
+    temperature,
+    max_tokens: maxTokens,
   };
-
-  // Add tools if provided
-  if (params.tools && params.tools.length > 0) {
-    body.tools = params.tools;
-    if (params.toolChoice) body.tool_choice = params.toolChoice;
-  }
 
   const startMs = Date.now();
 

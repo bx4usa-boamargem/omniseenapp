@@ -137,8 +137,8 @@ export default function GenerationNew() {
       <Button variant="ghost" size="sm" onClick={() => navigate('/client/articles/engine')}><ArrowLeft className="w-4 h-4 mr-1" />Voltar</Button>
 
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Novo Artigo — Engine v1</h1>
-        <p className="text-muted-foreground">Pipeline completo: SERP → NLP → Title → Outline → Content → SEO Score</p>
+        <h1 className="text-2xl font-bold text-foreground">Criar Novo Artigo</h1>
+        <p className="text-muted-foreground">Seu artigo será gerado automaticamente pela IA</p>
       </div>
 
       <div className="border rounded-lg p-6 bg-card space-y-4">
