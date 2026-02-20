@@ -245,7 +245,7 @@ async function safeInsert(
   const insertPromise = supabase.from('generation_steps').insert({
     job_id: jobId, step_name: stepName, status: 'running',
     started_at: new Date().toISOString(), input,
-  }).select().single();
+  }).select('id').maybeSingle();
 
   const result = await Promise.race([
     insertPromise,
@@ -260,12 +260,6 @@ async function safeInsert(
   }
 
   console.log(`[ENGINE] STEP RECORD CREATED: ${stepName}`);
-
-  // Heartbeat: refresh lock to prevent zombie detection
-  await supabase.from('generation_jobs')
-    .update({ locked_at: new Date().toISOString() })
-    .eq('id', jobId);
-  console.log(`[ENGINE] LOCK_REFRESH: ${stepName}`);
 
   return { data: result.data };
 }
@@ -1242,6 +1236,10 @@ async function executeOutput(
   totalApiCalls: number,
   totalCostUsd: number
 ): Promise<Record<string, unknown>> {
+  // Guard: validate blog_id before proceeding
+  const blogId = (jobInput.blog_id as string);
+  if (!blogId) throw new Error('blog_id missing from jobInput');
+
   const content = (contentOutput.content as Record<string, unknown>) || contentOutput;
   const sections = (content.sections as Array<Record<string, unknown>>) || [];
   const faqItems = (content.faq as Array<Record<string, unknown>>) || [];
@@ -1286,7 +1284,7 @@ async function executeOutput(
   // PATCH 3: Guaranteed article insert with 3x retry
   let articleId: string | null = null;
   const insertPayload = {
-    blog_id: blogId,
+    blog_id: (jobInput.blog_id as string),
     title: selectedTitle,
     slug: (metaPack.slug as string) || selectedTitle.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '').substring(0, 80),
     content: htmlStructured,
@@ -1446,6 +1444,44 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
   }
   console.log(`[ENGINE] LOCK_ACQUIRED job_id=${jobId} lockId=${lockId}`);
 
+  // ============================================================
+  // HEARTBEAT LOOP: refresh lock every 10s to prevent zombie detection
+  // ============================================================
+  let heartbeatRunning = true;
+  const heartbeatInterval = setInterval(async () => {
+    if (!heartbeatRunning) { clearInterval(heartbeatInterval); return; }
+    try {
+      await supabase.from('generation_jobs')
+        .update({ locked_at: new Date().toISOString() })
+        .eq('id', jobId).eq('locked_by', lockId);
+    } catch (e) { console.warn('[HEARTBEAT] Error:', e); }
+  }, 10_000);
+
+  // ============================================================
+  // PROGRESS WATCHDOG: fail job if no progress for 90s
+  // ============================================================
+  let lastProgressAt = Date.now();
+  let watchdogTriggered = false;
+  const watchdogInterval = setInterval(async () => {
+    if (Date.now() - lastProgressAt > 90_000 && !watchdogTriggered) {
+      watchdogTriggered = true;
+      console.error(`[WATCHDOG] ❌ No progress for 90s. Failing job ${jobId}`);
+      try {
+        await supabase.from('generation_jobs').update({
+          status: 'failed',
+          error_message: 'ENGINE_STUCK_NO_PROGRESS_90S',
+          public_message: 'O gerador travou. Tente novamente.',
+          locked_by: null, locked_at: null,
+          completed_at: new Date().toISOString(),
+          public_updated_at: new Date().toISOString(),
+        }).eq('id', jobId);
+      } catch (e) { console.error('[WATCHDOG] Failed to update job:', e); }
+      heartbeatRunning = false;
+      clearInterval(heartbeatInterval);
+      clearInterval(watchdogInterval);
+    }
+  }, 15_000);
+
   // Load completed steps
   const completedSteps = new Set<string>();
   const { data: existingSteps } = await supabase.from('generation_steps').select('step_name, status, output').eq('job_id', jobId).eq('status', 'completed');
@@ -1459,6 +1495,8 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
   const maxContentCalls = MAX_API_CALLS - FIXED_CALLS - RESERVED_CALLS; // = 7
 
   try {
+    // Bail if watchdog already triggered
+    if (watchdogTriggered) throw new Error('ENGINE_STUCK_NO_PROGRESS_90S');
     // ============================================================
     // PARALLEL PHASE 1: SERP_ANALYSIS + NLP_KEYWORDS in parallel
     // SERP failure is non-fatal — pipeline continues with fallback
@@ -1491,6 +1529,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
       completedSteps.add('INPUT_VALIDATION');
       await updatePublicStatus(supabase, jobId, 'INPUT_VALIDATION', true, lockId);
       console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ✅ INPUT_VALIDATION ${latencyMs}ms`);
+      lastProgressAt = Date.now();
     }
 
     // PARALLEL: SERP + NLP
@@ -1601,6 +1640,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
       await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
       await updatePublicStatus(supabase, jobId, 'NLP_KEYWORDS', true, lockId);
       console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ✅ PARALLEL SERP+NLP ${parallelLatency}ms | SERP=${serpResult.success ? 'OK' : 'FALLBACK'} | API: ${totalApiCalls}/${MAX_API_CALLS}`);
+      lastProgressAt = Date.now();
     }
 
     // ============================================================
@@ -1610,6 +1650,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
 
     for (const stepName of SEQUENTIAL_STEPS) {
       if (completedSteps.has(stepName)) continue;
+      if (watchdogTriggered) throw new Error('ENGINE_STUCK_NO_PROGRESS_90S');
       if (Date.now() - jobStart > MAX_JOB_TIME_MS) throw new Error(`JOB_TIMEOUT: Exceeded ${MAX_JOB_TIME_MS}ms`);
 
       console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] Executing: ${stepName} (API: ${totalApiCalls}/${MAX_API_CALLS})`);
@@ -1653,6 +1694,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
           if (contentResult.needsReview) await supabase.from('generation_jobs').update({ needs_review: true }).eq('id', jobId);
           await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
           console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ✅ CONTENT_GEN ${latencyMs}ms | ${contentResult.apiCalls} calls | $${contentResult.costUsd.toFixed(6)}${contentResult.needsReview ? ' | NEEDS_REVIEW' : ''}`);
+          lastProgressAt = Date.now();
           continue;
         }
 
@@ -1673,6 +1715,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
           completedSteps.add(stepName);
           await updatePublicStatus(supabase, jobId, stepName, true, lockId);
           console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ✅ IMAGE_GEN ${latencyMs}ms (0 API calls)`);
+          lastProgressAt = Date.now();
           continue;
         }
 
@@ -1712,6 +1755,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
           await updatePublicStatus(supabase, jobId, stepName, true, lockId);
           await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
           console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ✅ SEO_SCORE ${latencyMs}ms | score=${seoRes.seoResult.score_total} | $${seoRes.costUsd.toFixed(6)}`);
+          lastProgressAt = Date.now();
           continue;
         }
 
@@ -1778,6 +1822,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
           completedSteps.add(stepName);
           await updatePublicStatus(supabase, jobId, stepName, true, lockId);
           console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ✅ OUTPUT ${latencyMs}ms | article_id=${outputResult.article_id}`);
+          lastProgressAt = Date.now();
           continue;
         }
 
@@ -1807,6 +1852,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
           totalApiCalls++;
           totalCostUsd += aiResult.costUsd || 0;
           await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
+          lastProgressAt = Date.now();
         }
 
         if (ENGINE_MODE !== 'production') console.log(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ✅ ${stepName} ${latencyMs}ms${aiResult ? ` | model=${aiResult.model} | $${(aiResult.costUsd || 0).toFixed(6)}` : ' (programmatic)'}`);
@@ -1957,6 +2003,18 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
     // RULE 6c: Fallback TEMPORARILY DISABLED until 30 consecutive successes
     // All failures are recorded for diagnosis — no legacy engine invocations
     console.log(`[ORCHESTRATOR:FAILED] job_id=${jobId} failed_at=${failedStep || 'unknown'} error=${errorMsg} api_calls=${totalApiCalls} duration=${Date.now() - jobStart}ms`);
+  } finally {
+    // Always clean up heartbeat and watchdog
+    heartbeatRunning = false;
+    clearInterval(heartbeatInterval);
+    clearInterval(watchdogInterval);
+    // Release lock if still held
+    try {
+      await supabase.from('generation_jobs')
+        .update({ locked_by: null, locked_at: null })
+        .eq('id', jobId).eq('locked_by', lockId);
+    } catch (e) { console.warn('[FINALIZER] Lock release failed:', e); }
+    console.log(`[ENGINE] FINALIZER: job_id=${jobId} intervals_cleared lock_released`);
   }
 }
 

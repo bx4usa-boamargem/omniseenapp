@@ -180,28 +180,46 @@ serve(async (req) => {
     }
 
     // ============================================================
-    // PART 2 — ENGINE START CONFIRMATION (verify job status updated)
+    // PART 2 — ENGINE START VERIFICATION (poll for INPUT_VALIDATION step)
     // ============================================================
     if (wakeOk) {
-      await sleep(3000);
+      let engineStarted = false;
+      for (let i = 0; i < 10; i++) {
+        const { data } = await supabase
+          .from('generation_steps')
+          .select('id')
+          .eq('job_id', job.id)
+          .eq('step_name', 'INPUT_VALIDATION')
+          .maybeSingle();
+        if (data) { engineStarted = true; break; }
+        await sleep(1000);
+      }
 
-      // Check if orchestrator updated job status to 'running'
-      const { data: jobCheck } = await supabase
-        .from('generation_jobs')
-        .select('status')
-        .eq('id', job.id)
-        .single();
+      if (!engineStarted) {
+        console.warn(`[ENGINE:NOT_STARTED] job=${job.id} — No INPUT_VALIDATION step after 10s`);
+        await supabase.from('generation_jobs').update({
+          status: 'failed',
+          error_message: 'ENGINE_NOT_STARTED',
+          public_message: 'O motor não iniciou. Tente novamente.',
+          completed_at: new Date().toISOString(),
+        }).eq('id', job.id);
 
-      if (jobCheck?.status === 'pending') {
-        console.warn(`[ENGINE:STILL_PENDING] job=${job.id} — orchestrator may be slow, trusting fire-and-forget`);
-        // Don't retry — orchestrator is already running, just slow to update status
+        return new Response(
+          JSON.stringify({
+            success: false,
+            job_id: job.id,
+            status: 'failed',
+            message: 'Engine did not start. Please retry.',
+          }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
     }
 
     // If wake completely failed, mark job as failed
     if (!wakeOk) {
       await supabase.from('generation_jobs')
-        .update({ status: 'failed', error_message: 'ENGINE_START_TIMEOUT: Orchestrator did not start' })
+        .update({ status: 'failed', error_message: 'ENGINE_START_TIMEOUT: Orchestrator did not start', completed_at: new Date().toISOString() })
         .eq('id', job.id);
 
       return new Response(
