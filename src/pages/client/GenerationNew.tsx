@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useTenantContext } from "@/contexts/TenantContext";
+import { useBlog } from "@/hooks/useBlog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,6 +15,7 @@ export default function GenerationNew() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { currentTenant } = useTenantContext();
+  const { blog } = useBlog();
   const [loading, setLoading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
@@ -50,10 +52,10 @@ export default function GenerationNew() {
       validationErrors.forEach(e => toast.error(e));
       return;
     }
-    if (!currentTenant?.id) { toast.error('Blog não encontrado'); return; }
+    if (!blog?.id) { toast.error('Blog não encontrado'); return; }
 
     const trimmedKeyword = form.keyword.trim();
-    const blogId = currentTenant.id;
+    const blogId = blog.id;
 
     // Anti-duplication: check for existing pending/running jobs with same keyword
     try {
