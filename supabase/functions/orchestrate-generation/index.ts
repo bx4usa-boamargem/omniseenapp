@@ -362,26 +362,9 @@ Return a JSON object with this exact structure:
 IMPORTANT: Generate exactly 10 results in depth_scores. depth_score 40-95. gap_map 5-8 items. paa_questions 6-10 items.`;
 
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'serp_analysis', [
-    { role: 'system', content: 'You are an SEO SERP analyst. Return only valid JSON. No markdown, no code blocks.' },
+    { role: 'system', content: 'You are an SEO SERP analyst. Respond ONLY with valid JSON. No markdown, no code blocks, no explanations.' },
     { role: 'user', content: prompt },
-  ], {
-    tools: [{
-      type: "function",
-      function: {
-        name: "serp_analysis_result",
-        description: "Return SERP analysis data",
-        parameters: {
-          type: "object",
-          properties: {
-            confidence: { type: "string", enum: ["simulated"] },
-            serp_pack: { type: "object", properties: { top_results_count: { type: "number" }, avg_word_count: { type: "number" }, avg_h2_count: { type: "number" }, dominant_intent: { type: "string" }, common_topics: { type: "array", items: { type: "string" } }, depth_scores: { type: "array", items: { type: "object" } }, gap_map: { type: "array", items: { type: "string" } }, paa_questions: { type: "array", items: { type: "string" } }, content_patterns: { type: "object" } }, required: ["top_results_count", "avg_word_count", "avg_h2_count", "dominant_intent", "common_topics", "depth_scores", "gap_map", "paa_questions"] },
-          },
-          required: ["confidence", "serp_pack"],
-        },
-      },
-    }],
-    toolChoice: { type: "function", function: { name: "serp_analysis_result" } },
-  });
+  ]);
 
   if (!aiResult.success) throw new Error(`SERP_ANALYSIS_FAILED: ${aiResult.error}`);
   return { output: parseAIJson(aiResult.content, 'SERP_ANALYSIS'), aiResult };
@@ -414,23 +397,9 @@ Return JSON: { "nlp_pack": { "primary": "${keyword}", "secondary": ["8-20 keywor
 RULES: secondary 8-20, nlp_terms 20-60, entities 10-30, interlink_anchors 5-10.`;
 
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'nlp_keywords', [
-    { role: 'system', content: 'You are an NLP keyword extraction expert. Return only valid JSON.' },
+    { role: 'system', content: 'You are an NLP keyword extraction expert. Respond ONLY with valid JSON. No markdown, no code blocks.' },
     { role: 'user', content: prompt },
-  ], {
-    tools: [{
-      type: "function",
-      function: {
-        name: "nlp_keywords_result",
-        description: "Return NLP keyword extraction data",
-        parameters: {
-          type: "object",
-          properties: { nlp_pack: { type: "object", properties: { primary: { type: "string" }, secondary: { type: "array", items: { type: "string" } }, nlp_terms: { type: "array", items: { type: "object" } }, entities: { type: "array", items: { type: "object" } }, interlink_anchors: { type: "array", items: { type: "string" } } }, required: ["primary", "secondary", "nlp_terms", "entities", "interlink_anchors"] } },
-          required: ["nlp_pack"],
-        },
-      },
-    }],
-    toolChoice: { type: "function", function: { name: "nlp_keywords_result" } },
-  });
+  ]);
 
   if (!aiResult.success) throw new Error(`NLP_KEYWORDS_FAILED: ${aiResult.error}`);
   return { output: parseAIJson(aiResult.content, 'NLP_KEYWORDS'), aiResult };
@@ -466,23 +435,9 @@ Return JSON: { "title_pack": { "candidates": [{"title":"text","type":"informatio
 RULES: All titles must contain keyword. ${city ? `At least 4 must include "${city}".` : ''} Max 65 chars. Year [2026] in at least 2.`;
 
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'title_gen', [
-    { role: 'system', content: 'You are an SEO title generation expert. Return only valid JSON.' },
+    { role: 'system', content: 'You are an SEO title generation expert. Respond ONLY with valid JSON. No markdown, no code blocks, no explanations.' },
     { role: 'user', content: prompt },
-  ], {
-    tools: [{
-      type: "function",
-      function: {
-        name: "title_gen_result",
-        description: "Return title generation data",
-        parameters: {
-          type: "object",
-          properties: { title_pack: { type: "object", properties: { candidates: { type: "array", items: { type: "object" } }, selected_index: { type: "number" }, selected_title: { type: "string" }, selection_reason: { type: "string" } }, required: ["candidates", "selected_index", "selected_title", "selection_reason"] } },
-          required: ["title_pack"],
-        },
-      },
-    }],
-    toolChoice: { type: "function", function: { name: "title_gen_result" } },
-  });
+  ]);
 
   if (!aiResult.success) throw new Error(`TITLE_GEN_FAILED: ${aiResult.error}`);
   
@@ -565,23 +520,9 @@ Return JSON: { "outline_spec": { "h1": "${selectedTitle}", "key_takeaways": {"ta
 RULES: key_takeaways FIRST. Min ${Math.max(8, Number(avgH2))} H2 sections. expert_signal_required true for ≥30%. At least 1 "table" and 1 "list" layout_hint. FAQ from PAA+gaps.`;
 
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'outline_gen', [
-    { role: 'system', content: 'You are a content strategy expert. Return only valid JSON.' },
+    { role: 'system', content: 'You are a content strategy expert. Respond ONLY with valid JSON. No markdown, no code blocks, no explanations.' },
     { role: 'user', content: prompt },
-  ], {
-    tools: [{
-      type: "function",
-      function: {
-        name: "outline_gen_result",
-        description: "Return article outline specification",
-        parameters: {
-          type: "object",
-          properties: { outline_spec: { type: "object", properties: { h1: { type: "string" }, key_takeaways: { type: "object" }, introduction: { type: "object" }, sections: { type: "array", items: { type: "object" } }, faq: { type: "object" }, conclusion: { type: "object" }, total_target_words: { type: "number" }, total_sections: { type: "number" }, estimated_h2_count: { type: "number" } }, required: ["h1", "key_takeaways", "sections", "faq", "conclusion"] } },
-          required: ["outline_spec"],
-        },
-      },
-    }],
-    toolChoice: { type: "function", function: { name: "outline_gen_result" } },
-  });
+  ]);
 
   if (!aiResult.success) throw new Error(`OUTLINE_GEN_FAILED: ${aiResult.error}`);
   return { output: parseAIJson(aiResult.content, 'OUTLINE_GEN'), aiResult };
@@ -726,13 +667,43 @@ RULES: Fix ONLY what instructions say. Maintain length ±20%. NO clichés, NO in
   return { section: { ...parseAIJson(aiResult.content, `REWRITE_${section.id}`), rewrite_count: 1 }, aiResult };
 }
 
+// Helper: normalize outline sections from various AI response formats
+function getOutlineSections(outlineSpec: Record<string, unknown>): Array<Record<string, unknown>> {
+  // Try all known paths
+  const candidates = [
+    outlineSpec.sections,
+    (outlineSpec.outline_spec as Record<string, unknown>)?.sections,
+    (outlineSpec as Record<string, unknown>)?.outline?.sections,
+  ];
+  for (const c of candidates) {
+    if (Array.isArray(c) && c.length > 0) return c as Array<Record<string, unknown>>;
+  }
+  console.error(`[CONTENT_GEN] ❌ No sections found. Keys: ${Object.keys(outlineSpec).join(',')}`);
+  return [];
+}
+
 // RULE 1+2: executeContentGen with maxCalls budget
 async function executeContentGen(ctx: ContentGenContext, totalApiCalls: number, maxContentCalls: number): Promise<ContentGenResult> {
   const outlineSpec = (ctx.outlineSpec.outline_spec as Record<string, unknown>) || ctx.outlineSpec;
   const nlpPack = (ctx.nlpPack.nlp_pack as Record<string, unknown>) || ctx.nlpPack;
-  let sections = (outlineSpec.sections as Array<Record<string, unknown>>) || [];
+  let sections = getOutlineSections(outlineSpec);
   const faqSpec = outlineSpec.faq as Record<string, unknown> || {};
   const faqQuestions = (faqSpec.questions as string[]) || [];
+
+  // PATCH C: Diagnostic logging
+  const timeRemaining = getTimeRemainingMs(ctx.jobStartMs);
+  const abortCheck = shouldAbortGracefully(ctx.jobStartMs);
+  console.log(`[CONTENT_GEN] INIT: sectionsCount=${sections.length} maxContentCalls=${maxContentCalls} timeRemainingMs=${timeRemaining} shouldAbort=${abortCheck}`);
+
+  // PATCH C: Fail early if sections empty
+  if (sections.length === 0) {
+    throw new Error('CONTENT_GEN_ZERO_SECTIONS: Outline has 0 sections. Cannot generate content.');
+  }
+
+  // PATCH C: Fail early if abort would trigger before first batch
+  if (abortCheck) {
+    throw new Error('CONTENT_GEN_ABORT_EARLY: shouldAbortGracefully=true before first batch. Insufficient time remaining.');
+  }
 
   let apiCalls = 0;
   let costUsd = 0;
@@ -830,6 +801,12 @@ async function executeContentGen(ctx: ContentGenContext, totalApiCalls: number, 
     totalExpertSignals += (s.expert_signals as string[] || []).length;
   }
   if (generatedConclusion) totalWordCount += generatedConclusion.split(/\s+/).filter(Boolean).length;
+
+  // PATCH C: Guard against 0 API calls when sections exist
+  if (apiCalls === 0 && sections.length > 0) {
+    console.error(`[CONTENT_GEN] ❌ ZERO API CALLS with ${sections.length} sections! This should never happen.`);
+    throw new Error('CONTENT_GEN_ZERO_CALLS: Batching loop produced 0 API calls despite having sections.');
+  }
 
   return {
     output: {
@@ -1731,9 +1708,56 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
         const latencyMs = Date.now() - stepStart;
         const errorMsg = stepError instanceof Error ? stepError.message : 'Unknown step error';
         const rawContent = stepError instanceof ParseError ? stepError.rawContent : undefined;
+        const isRetryable = errorMsg.includes('PARSE_ERROR') || errorMsg.includes('EMPTY_MODEL_OUTPUT') || errorMsg.includes('CONTENT_GEN_ZERO_CALLS') || errorMsg.includes('CONTENT_GEN_ZERO_SECTIONS') || errorMsg.includes('CONTENT_GEN_ABORT_EARLY');
 
-        console.error(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ❌ ${stepName} failed:`, errorMsg);
+        console.error(`[ORCHESTRATOR:ENGINE_V1_PUBLIC] ❌ ${stepName} failed: ${errorMsg} | retryable=${isRetryable}`);
 
+        // PATCH D: Update public_message with specific error info
+        await supabase.from('generation_jobs').update({
+          public_message: `Falha no passo ${stepName}. ${isRetryable ? 'Tentando novamente...' : 'Erro fatal.'}`,
+          public_updated_at: new Date().toISOString(),
+        }).eq('id', jobId);
+
+        // PATCH D: 1x retry for retryable errors (ParseError, EMPTY_MODEL_OUTPUT, CONTENT_GEN_ZERO_CALLS)
+        if (isRetryable && !completedSteps.has(`${stepName}_RETRIED`)) {
+          console.log(`[ORCHESTRATOR:RETRY] 🔄 Retrying ${stepName} (1x)...`);
+          completedSteps.add(`${stepName}_RETRIED`); // prevent infinite retry
+
+          // Update step record to show retry
+          if (stepRecord) {
+            await supabase.from('generation_steps').update({
+              status: 'failed', error_message: `${errorMsg} (will retry)`,
+              output: rawContent ? { parse_error: true, raw_ai_content: rawContent.substring(0, 10000), error_message: errorMsg, retrying: true } : { error_message: errorMsg, retrying: true },
+              latency_ms: latencyMs, completed_at: new Date().toISOString(),
+            }).eq('id', stepRecord.id);
+          }
+
+          // Wait 2s before retry
+          await new Promise(r => setTimeout(r, 2000));
+
+          // Re-insert step record for retry attempt
+          const { data: retryStepRecord } = await supabase.from('generation_steps').insert({
+            job_id: jobId, step_name: stepName, status: 'running', started_at: new Date().toISOString(),
+            input: { retry: true, previous_error: errorMsg },
+          }).select().single();
+
+          try {
+            // Re-execute the step (same logic as the main loop — delegated via continue)
+            // We need to NOT mark it as completed so the main loop picks it up
+            // Simplest: just continue the loop — the step is not in completedSteps so it will re-execute
+            continue;
+          } catch (retryError) {
+            console.error(`[ORCHESTRATOR:RETRY] ❌ ${stepName} retry also failed:`, retryError);
+            if (retryStepRecord) {
+              await supabase.from('generation_steps').update({
+                status: 'failed', error_message: retryError instanceof Error ? retryError.message : 'Retry failed',
+                completed_at: new Date().toISOString(),
+              }).eq('id', retryStepRecord.id);
+            }
+          }
+        }
+
+        // No retry or retry failed — persist failure
         if (stepRecord) {
           await supabase.from('generation_steps').update({
             status: 'failed', error_message: errorMsg,

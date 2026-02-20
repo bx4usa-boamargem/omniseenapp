@@ -181,13 +181,56 @@ async function callGateway(params: AICallParams): Promise<AICallResult> {
 
     const data = await response.json();
     
-    // Extract content (handle both regular and tool_calls responses)
+    // PATCH B: Robust content extraction with multiple fallbacks
     let content = '';
     const choice = data.choices?.[0];
+    
+    // Path 1: tool_calls (function calling)
     if (choice?.message?.tool_calls?.[0]) {
-      content = choice.message.tool_calls[0].function?.arguments || '';
-    } else {
-      content = choice?.message?.content || '';
+      const tc = choice.message.tool_calls[0];
+      content = tc.function?.arguments || tc?.args || '';
+      // Fallback: if tool_calls returned empty, try message.content
+      if (!content && choice.message?.content) {
+        console.warn(`[AI_ROUTER] ${params.task}: tool_calls.arguments empty, falling back to message.content`);
+        content = choice.message.content;
+      }
+    }
+    // Path 2: regular content
+    if (!content) {
+      // Handle string content
+      if (typeof choice?.message?.content === 'string') {
+        content = choice.message.content;
+      }
+      // Handle array content (some models return [{type:"text", text:"..."}])
+      else if (Array.isArray(choice?.message?.content)) {
+        content = choice.message.content
+          .filter((c: Record<string, unknown>) => c.type === 'text')
+          .map((c: Record<string, unknown>) => c.text)
+          .join('');
+      }
+    }
+    
+    // Path 3: If still empty, log warning with safe dump
+    if (!content || content.trim() === '') {
+      const safeDump = JSON.stringify({
+        has_tool_calls: !!choice?.message?.tool_calls,
+        tool_calls_length: choice?.message?.tool_calls?.length || 0,
+        content_type: typeof choice?.message?.content,
+        content_preview: typeof choice?.message?.content === 'string' 
+          ? choice.message.content.substring(0, 200) 
+          : JSON.stringify(choice?.message?.content)?.substring(0, 200),
+        finish_reason: choice?.finish_reason,
+      });
+      console.error(`[AI_ROUTER] ${params.task}: ⚠️ EMPTY_MODEL_OUTPUT | dump=${safeDump}`);
+      
+      return {
+        success: false, content: '', model, provider: 'lovable-gateway',
+        tokensIn: data.usage?.prompt_tokens || 0,
+        tokensOut: data.usage?.completion_tokens || 0,
+        costUsd: estimateCost(model, data.usage?.prompt_tokens || 0, data.usage?.completion_tokens || 0),
+        latencyMs,
+        error: 'EMPTY_MODEL_OUTPUT',
+      };
     }
 
     const tokensIn = data.usage?.prompt_tokens || 0;
