@@ -1397,11 +1397,21 @@ async function executeStep(
 // ============================================================
 
 async function orchestrate(jobId: string, supabase: ReturnType<typeof createClient>, supabaseUrl: string, serviceKey: string): Promise<void> {
+ try { // TOP-LEVEL SAFETY NET — catches ANY crash including pre-pipeline
   const jobStart = Date.now();
 
   const { data: job, error: jobError } = await supabase.from('generation_jobs').select('*').eq('id', jobId).single();
   if (jobError || !job) { console.error(`[ORCHESTRATOR] Job ${jobId} not found:`, jobError); return; }
   if (['completed', 'failed', 'cancelled'].includes(job.status)) { console.log(`[ORCHESTRATOR] Job ${jobId} already ${job.status}.`); return; }
+
+  // Immediately signal that orchestrator has booted
+  await supabase.from('generation_jobs').update({
+    public_stage: 'INITIALIZING',
+    public_progress: 3,
+    public_message: 'Inicializando motor de geracao...',
+    public_updated_at: new Date().toISOString(),
+  }).eq('id', jobId);
+  console.log('[ORCHESTRATOR_BOOT]', jobId);
 
   // LOG: ORCHESTRATOR:START
   const jobInput = job.input as Record<string, unknown> || {};
@@ -2016,6 +2026,23 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
     } catch (e) { console.warn('[FINALIZER] Lock release failed:', e); }
     console.log(`[ENGINE] FINALIZER: job_id=${jobId} intervals_cleared lock_released`);
   }
+
+ } catch (fatalErr) {
+    // TOP-LEVEL SAFETY NET: catch crashes BEFORE pipeline try/catch (job load, lock, heartbeat setup)
+    console.error('[ORCHESTRATOR_FATAL]', jobId, fatalErr);
+    try {
+      await supabase.from('generation_jobs').update({
+        status: 'failed',
+        error_message: 'ENGINE_FATAL_CRASH',
+        public_message: 'Falha interna ao iniciar o gerador.',
+        locked_by: null,
+        locked_at: null,
+        completed_at: new Date().toISOString(),
+        public_updated_at: new Date().toISOString(),
+      }).eq('id', jobId);
+    } catch (e) { console.error('[FATAL_CLEANUP_FAILED]', e); }
+    throw fatalErr;
+  }
 }
 
 // ============================================================
@@ -2033,6 +2060,7 @@ serve(async (req) => {
 
   try {
     const { job_id } = await req.json();
+    console.log('[ORCHESTRATOR_HANDLER_ENTRY]', job_id);
     if (!job_id) {
       return new Response(JSON.stringify({ error: "job_id is required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
