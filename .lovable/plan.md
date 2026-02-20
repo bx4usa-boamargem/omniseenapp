@@ -1,172 +1,97 @@
 
 
-# Engine V1 Hotfix — Anti-Zombie + blogId Fix + Heartbeat + Watchdog
+# Engine Start Hard Guard — Top-Level Safety Net
 
-## Root Cause Analysis
+## Problem
 
-The latest job `a6dd9c3a` completed ALL steps (INPUT through META_GEN) successfully, then crashed at OUTPUT with **`blogId is not defined`** — a simple JavaScript reference error. The variable `blogId` on line 1289 of `orchestrate-generation/index.ts` was never declared. It should be `(jobInput.blog_id as string)`.
+If `orchestrate-generation` crashes before reaching the pipeline's `try/catch` block (e.g., during job loading, lock acquisition, or step loading on lines 1399-1496), the job stays frozen at 5% because:
+- No `INPUT_VALIDATION` step is created (so `create-generation-job` verification fails)
+- The job status remains `running` with no error message
+- Locks are never released
 
-Additionally, the orchestrator has structural reliability gaps: no heartbeat loop, no progress watchdog, `safeInsert` uses `.select().single()` (deadlock risk), and lock refresh logic inside `safeInsert` adds contention.
+## Root Cause
 
----
+The `orchestrate()` function has a `try/catch/finally` block starting at line 1497, but lines 1399-1496 (job load, lock acquisition, heartbeat/watchdog setup, step loading) are **outside** this safety net. Any crash there silently abandons the job.
 
 ## Changes
 
-### Fix 1 — blogId Reference Error (THE BLOCKER)
+### File: `supabase/functions/orchestrate-generation/index.ts`
 
-**File:** `supabase/functions/orchestrate-generation/index.ts` (line 1289)
+#### 1. Add INITIALIZING status update (after job load, line 1404)
 
-Replace the undeclared `blogId` with `(jobInput.blog_id as string)` in the `executeOutput` function's insert payload. Add a guard at the top of `executeOutput` to extract and validate `blogId` before proceeding.
+Right after validating the job exists and is not completed/failed/cancelled, immediately update:
 
-### Fix 2 — Heartbeat Loop
-
-**File:** `supabase/functions/orchestrate-generation/index.ts`
-
-After acquiring the lock (around line 1447), start a `setInterval` every 10 seconds that updates `generation_jobs.locked_at` and `public_message`. Clear it in both the success path and the catch/finally block.
-
-### Fix 3 — Progress Watchdog
-
-**File:** `supabase/functions/orchestrate-generation/index.ts`
-
-Track `lastProgressAt = Date.now()` and update it after each step completes. Add a `setInterval` (every 15s) that checks if 90 seconds pass without progress. If triggered, mark the job as `failed` with `ENGINE_STUCK_NO_PROGRESS_90S`, release the lock, and stop execution.
-
-### Fix 4 — safeInsert Hardening
-
-**File:** `supabase/functions/orchestrate-generation/index.ts` (lines 238-271)
-
-- Change `.select().single()` to `.select('id').maybeSingle()` to prevent blocking on no-row-return
-- Remove the lock refresh logic (lines 265-268) from inside `safeInsert` — the heartbeat loop handles lock refresh now
-
-### Fix 5 — try/catch/finally Finalizer
-
-**File:** `supabase/functions/orchestrate-generation/index.ts`
-
-Wrap the pipeline in `try/catch/finally`. In `finally`: if job status is not `completed`, release the lock. Clear heartbeat and watchdog intervals.
-
-### Fix 6 — create-generation-job Start Verification
-
-**File:** `supabase/functions/create-generation-job/index.ts`
-
-After firing the orchestrator, poll `generation_steps` for `INPUT_VALIDATION` every 1 second for up to 10 seconds. If it never appears, mark the job as `failed` with `ENGINE_NOT_STARTED` and return an error to the frontend.
-
-### Fix 7 — Deploy and Clean
-
-- Redeploy `orchestrate-generation` and `create-generation-job`
-- Cancel any stuck running jobs via SQL
-
----
-
-## Technical Details
-
-### blogId fix (line 1289)
-```
-// BEFORE (broken):
-blog_id: blogId,
-
-// AFTER:
-blog_id: (jobInput.blog_id as string),
-```
-
-With guard at top of executeOutput:
 ```typescript
-const blogId = (jobInput.blog_id as string);
-if (!blogId) throw new Error('blog_id missing from jobInput');
+// Immediately signal that orchestrator has booted
+await supabase.from('generation_jobs').update({
+  public_stage: 'INITIALIZING',
+  public_progress: 3,
+  public_message: 'Inicializando motor de geracao...',
+  public_updated_at: new Date().toISOString(),
+}).eq('id', jobId);
+console.log('[ORCHESTRATOR_BOOT]', jobId);
 ```
 
-### Heartbeat (after lock acquired, ~line 1447)
-```typescript
-let heartbeatRunning = true;
-const heartbeatInterval = setInterval(async () => {
-  if (!heartbeatRunning) { clearInterval(heartbeatInterval); return; }
-  await supabase.from('generation_jobs')
-    .update({ locked_at: new Date().toISOString() })
-    .eq('id', jobId).eq('locked_by', lockId);
-}, 10_000);
-```
+This gives the frontend a signal before lock acquisition even starts.
 
-### Progress Watchdog (after lock acquired)
+#### 2. Wrap entire `orchestrate()` body in top-level try/catch
+
+Move the existing content of `orchestrate()` (lines 1400-2018) inside a new outer try/catch that catches ANY crash and marks the job as failed:
+
 ```typescript
-let lastProgressAt = Date.now();
-const watchdogInterval = setInterval(async () => {
-  if (Date.now() - lastProgressAt > 90_000) {
-    await supabase.from('generation_jobs').update({
-      status: 'failed',
-      error_message: 'ENGINE_STUCK_NO_PROGRESS_90S',
-      public_message: 'O gerador travou. Tente novamente.',
-      locked_by: null, locked_at: null,
-      completed_at: new Date().toISOString(),
-    }).eq('id', jobId);
-    heartbeatRunning = false;
-    clearInterval(watchdogInterval);
-    clearInterval(heartbeatInterval);
+async function orchestrate(...): Promise<void> {
+  try {
+    // ... entire existing body (job load, lock, heartbeat, pipeline, finally)
+  } catch (fatalErr) {
+    console.error('[ORCHESTRATOR_FATAL]', jobId, fatalErr);
+    try {
+      await supabase.from('generation_jobs').update({
+        status: 'failed',
+        error_message: 'ENGINE_FATAL_CRASH',
+        public_message: 'Falha interna ao iniciar o gerador.',
+        locked_by: null,
+        locked_at: null,
+        completed_at: new Date().toISOString(),
+        public_updated_at: new Date().toISOString(),
+      }).eq('id', jobId);
+    } catch (e) { console.error('[FATAL_CLEANUP_FAILED]', e); }
+    throw fatalErr;
   }
-}, 15_000);
-```
-
-Update `lastProgressAt = Date.now()` after each step completion (in both parallel and sequential phases).
-
-### safeInsert fix
-```typescript
-// BEFORE:
-.select().single();
-
-// AFTER:
-.select('id').maybeSingle();
-```
-
-Remove lines 265-268 (lock refresh inside safeInsert).
-
-### Finally block
-```typescript
-} catch (error) {
-  // existing error handling...
-} finally {
-  heartbeatRunning = false;
-  clearInterval(heartbeatInterval);
-  clearInterval(watchdogInterval);
-  // Release lock if not already released
-  await supabase.from('generation_jobs')
-    .update({ locked_by: null, locked_at: null })
-    .eq('id', jobId).eq('locked_by', lockId);
 }
 ```
 
-### create-generation-job start verification
+This ensures that even if the crash happens before the heartbeat/watchdog setup or before the inner try/catch, the job is marked as `failed` with a clear error and the lock is released.
+
+#### 3. Add boot log to the HTTP handler (line 2034)
+
+Add a console.log at the very first line of the handler's try block:
+
 ```typescript
-// After orchestrator wake, replace current sleep(3000) check with:
-let engineStarted = false;
-for (let i = 0; i < 10; i++) {
-  const { data } = await supabase
-    .from('generation_steps')
-    .select('id')
-    .eq('job_id', job.id)
-    .eq('step_name', 'INPUT_VALIDATION')
-    .maybeSingle();
-  if (data) { engineStarted = true; break; }
-  await sleep(1000);
-}
-if (!engineStarted) {
-  await supabase.from('generation_jobs').update({
-    status: 'failed',
-    error_message: 'ENGINE_NOT_STARTED',
-    public_message: 'O motor nao iniciou. Tente novamente.',
-  }).eq('id', job.id);
-}
+try {
+  const { job_id } = await req.json();
+  console.log('[ORCHESTRATOR_HANDLER_ENTRY]', job_id);
+  // ... rest
 ```
 
----
+This confirms the function was actually invoked.
 
-## Files Modified
+## What changes
 
-| File | Change |
+| Area | Change |
 |------|--------|
-| `supabase/functions/orchestrate-generation/index.ts` | blogId fix, heartbeat, watchdog, safeInsert, finalizer |
-| `supabase/functions/create-generation-job/index.ts` | Start verification polling |
+| `orchestrate()` function | Outer try/catch wrapping entire body |
+| After job load (line ~1404) | INITIALIZING status update |
+| HTTP handler (line ~2034) | Boot log |
 
-## What Does NOT Change
+## What does NOT change
 
-- No frontend changes
-- No architecture changes
-- No new features
-- No model changes
+- `create-generation-job` (no changes)
+- Frontend (no changes)
+- `ai-router` (no changes)
+- Pipeline logic (no changes)
+- Heartbeat/watchdog (unchanged, now inside the outer try/catch)
+
+## Deploy
+
+Redeploy only `orchestrate-generation`.
 
