@@ -65,8 +65,7 @@ function validateInput(body: Record<string, unknown>): { valid: boolean; input?:
   return { valid: true, input };
 }
 
-// Helper: wait ms
-const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -138,59 +137,15 @@ serve(async (req) => {
 
     console.log(`[CREATE_JOB] ✅ Job ${job.id} created for user ${user.id} | keyword: "${input.keyword}"`);
 
-    // === DOUBLE-START PROTECTION ===
-    const { data: running } = await supabase
-      .from('generation_jobs')
-      .select('id')
-      .eq('id', job.id)
-      .eq('status', 'running')
-      .maybeSingle();
-
-    if (running) {
-      console.log(`[ENGINE_ALREADY_RUNNING] job=${job.id}`);
-      return new Response(
-        JSON.stringify({ success: true, job_id: job.id, status: 'running' }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // === ENGINE WAKE (async-safe, fire-and-forget via invoke) ===
+    // === FIRE-AND-FORGET: invoke orchestrator ===
     supabase.functions.invoke(
       'orchestrate-generation',
       { body: { job_id: job.id } }
     ).catch(err =>
-      console.error('[ENGINE_WAKE_ASYNC_ERROR]', err)
+      console.error('[ENGINE_WAKE_ERROR]', err)
     );
 
-    console.log(`[ENGINE_WAKE_SENT] job=${job.id}`);
-
-    // === START VERIFICATION (poll for INPUT_VALIDATION) ===
-    let started = false;
-    for (let i = 0; i < 8; i++) {
-      const { data } = await supabase
-        .from('generation_steps')
-        .select('id')
-        .eq('job_id', job.id)
-        .eq('step_name', 'INPUT_VALIDATION')
-        .maybeSingle();
-      if (data) { started = true; break; }
-      await sleep(1200);
-    }
-
-    if (!started) {
-      console.warn(`[ENGINE_NOT_STARTED] job=${job.id}`);
-      await supabase.from('generation_jobs').update({
-        status: 'failed',
-        error_message: 'ENGINE_NOT_STARTED',
-        public_message: 'O motor nao iniciou. Tente novamente.',
-        completed_at: new Date().toISOString(),
-      }).eq('id', job.id);
-
-      return new Response(
-        JSON.stringify({ success: false, job_id: job.id, status: 'failed' }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    console.log(`[CREATE_JOB] ✅ Job ${job.id} created, orchestrator invoked.`);
 
     return new Response(
       JSON.stringify({

@@ -71,6 +71,35 @@ async function updatePublicStatus(
 }
 
 // ============================================================
+// SAFE STEP INSERT — createStepOrFail
+// ============================================================
+
+async function createStepOrFail(
+  supabase: ReturnType<typeof createClient>,
+  jobId: string,
+  stepName: string,
+  input: Record<string, unknown>,
+): Promise<string> {
+  const { data, error } = await supabase
+    .from('generation_steps')
+    .insert({
+      job_id: jobId,
+      step_name: stepName,
+      status: 'running',
+      started_at: new Date().toISOString(),
+      input,
+    })
+    .select('id')
+    .maybeSingle();
+
+  if (error || !data?.id) {
+    console.error(`[STEP_INSERT_FAILED] ${stepName} job=${jobId}`, error);
+    throw new Error(`STEP_INSERT_RETURNED_NULL:${stepName}:${error?.message || 'no_id'}`);
+  }
+  return data.id;
+}
+
+// ============================================================
 // AI ROUTER CALLER
 // ============================================================
 
@@ -595,10 +624,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
     await updatePublicStatus(supabase, jobId, 'INPUT_VALIDATION', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'INPUT_VALIDATION' }).eq('id', jobId);
 
-    const { data: valRecord } = await supabase.from('generation_steps').insert({
-      job_id: jobId, step_name: 'INPUT_VALIDATION', status: 'running', started_at: new Date().toISOString(),
-      input: { job_input: job.input },
-    }).select('id').single();
+    const valStepId = await createStepOrFail(supabase, jobId, 'INPUT_VALIDATION', { job_input: job.input });
 
     const valStart = Date.now();
     const valOutput = executeInputValidation(jobInput);
@@ -607,7 +633,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
     await supabase.from('generation_steps').update({
       status: 'completed', output: valOutput, latency_ms: valLatency,
       completed_at: new Date().toISOString(), model_used: 'validation', provider: 'programmatic',
-    }).eq('id', valRecord!.id);
+    }).eq('id', valStepId);
     await updatePublicStatus(supabase, jobId, 'INPUT_VALIDATION', true, lockId);
     console.log(`[V2] ✅ INPUT_VALIDATION ${valLatency}ms`);
 
@@ -618,14 +644,12 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
     await updatePublicStatus(supabase, jobId, 'SERP_SUMMARY', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'SERP_SUMMARY' }).eq('id', jobId);
 
-    const { data: serpRecord } = await supabase.from('generation_steps').insert({
-      job_id: jobId, step_name: 'SERP_SUMMARY', status: 'running', started_at: new Date().toISOString(),
-      input: { keyword: jobInput.keyword, city: jobInput.city },
-    }).select('id').single();
-
+    let serpStepId: string | null = null;
     let serpSummaryText = '';
     const serpStart = Date.now();
     try {
+      serpStepId = await createStepOrFail(supabase, jobId, 'SERP_SUMMARY', { keyword: jobInput.keyword, city: jobInput.city });
+
       const serpResult = await withTimeout(
         executeSerpSummary(jobInput, supabaseUrl, serviceKey),
         30_000, 'SERP_SUMMARY'
@@ -639,16 +663,18 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
         completed_at: new Date().toISOString(), model_used: serpResult.aiResult.model,
         provider: serpResult.aiResult.provider, cost_usd: serpResult.aiResult.costUsd,
         tokens_in: serpResult.aiResult.tokensIn, tokens_out: serpResult.aiResult.tokensOut,
-      }).eq('id', serpRecord!.id);
+      }).eq('id', serpStepId);
       console.log(`[V2] ✅ SERP_SUMMARY ${Date.now() - serpStart}ms`);
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : 'SERP failed';
       console.warn(`[V2] ⚠️ SERP_SUMMARY failed (non-fatal): ${errMsg}`);
-      await supabase.from('generation_steps').update({
-        status: 'completed', output: { serp_summary: '', error: errMsg }, latency_ms: Date.now() - serpStart,
-        completed_at: new Date().toISOString(), model_used: 'fallback', provider: 'fallback',
-        error_message: errMsg,
-      }).eq('id', serpRecord!.id);
+      if (serpStepId) {
+        await supabase.from('generation_steps').update({
+          status: 'completed', output: { serp_summary: '', error: errMsg }, latency_ms: Date.now() - serpStart,
+          completed_at: new Date().toISOString(), model_used: 'fallback', provider: 'fallback',
+          error_message: errMsg,
+        }).eq('id', serpStepId);
+      }
     }
     await updatePublicStatus(supabase, jobId, 'SERP_SUMMARY', true, lockId);
     await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
@@ -660,10 +686,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
     await updatePublicStatus(supabase, jobId, 'ARTICLE_GEN_SINGLE_PASS', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'ARTICLE_GEN_SINGLE_PASS' }).eq('id', jobId);
 
-    const { data: genRecord } = await supabase.from('generation_steps').insert({
-      job_id: jobId, step_name: 'ARTICLE_GEN_SINGLE_PASS', status: 'running', started_at: new Date().toISOString(),
-      input: { keyword: jobInput.keyword, serp_summary_length: serpSummaryText.length },
-    }).select('id').single();
+    const genStepId = await createStepOrFail(supabase, jobId, 'ARTICLE_GEN_SINGLE_PASS', { keyword: jobInput.keyword, serp_summary_length: serpSummaryText.length });
 
     const genStart = Date.now();
     let articleData: Record<string, unknown>;
@@ -684,7 +707,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
         model_used: genResult.aiResult.model, provider: genResult.aiResult.provider,
         cost_usd: genResult.aiResult.costUsd, tokens_in: genResult.aiResult.tokensIn,
         tokens_out: genResult.aiResult.tokensOut,
-      }).eq('id', genRecord!.id);
+      }).eq('id', genStepId);
     } catch (firstErr) {
       console.warn(`[V2] ARTICLE_GEN first attempt failed: ${firstErr instanceof Error ? firstErr.message : 'unknown'}. Retrying...`);
       await new Promise(r => setTimeout(r, 2000));
@@ -702,7 +725,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
         latency_ms: Date.now() - genStart, completed_at: new Date().toISOString(),
         model_used: retryResult.aiResult.model, provider: retryResult.aiResult.provider,
         cost_usd: retryResult.aiResult.costUsd,
-      }).eq('id', genRecord!.id);
+      }).eq('id', genStepId);
     }
 
     await updatePublicStatus(supabase, jobId, 'ARTICLE_GEN_SINGLE_PASS', true, lockId);
@@ -716,10 +739,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
     await updatePublicStatus(supabase, jobId, 'SAVE_ARTICLE', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'SAVE_ARTICLE' }).eq('id', jobId);
 
-    const { data: saveRecord } = await supabase.from('generation_steps').insert({
-      job_id: jobId, step_name: 'SAVE_ARTICLE', status: 'running', started_at: new Date().toISOString(),
-      input: { title: articleData!.title },
-    }).select('id').single();
+    const saveStepId = await createStepOrFail(supabase, jobId, 'SAVE_ARTICLE', { title: articleData!.title });
 
     const saveStart = Date.now();
     const saveOutput = await executeSaveArticle(jobId, articleData!, jobInput, supabase, totalApiCalls, totalCostUsd);
@@ -728,7 +748,7 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
     await supabase.from('generation_steps').update({
       status: 'completed', output: saveOutput, latency_ms: saveLatency,
       completed_at: new Date().toISOString(), model_used: 'programmatic', provider: 'programmatic',
-    }).eq('id', saveRecord!.id);
+    }).eq('id', saveStepId);
     await updatePublicStatus(supabase, jobId, 'SAVE_ARTICLE', true, lockId);
     console.log(`[V2] ✅ SAVE_ARTICLE ${saveLatency}ms | article_id=${saveOutput.article_id}`);
 
@@ -739,35 +759,41 @@ async function orchestrate(jobId: string, supabase: ReturnType<typeof createClie
     await updatePublicStatus(supabase, jobId, 'IMAGE_GEN_ASYNC', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'IMAGE_GEN_ASYNC' }).eq('id', jobId);
 
-    const { data: imgRecord } = await supabase.from('generation_steps').insert({
-      job_id: jobId, step_name: 'IMAGE_GEN_ASYNC', status: 'running', started_at: new Date().toISOString(),
-      input: { image_prompt: ((articleData!.image_prompt as string) || '').substring(0, 200) },
-    }).select('id').single();
+    let imgStepId: string | null = null;
+    try {
+      imgStepId = await createStepOrFail(supabase, jobId, 'IMAGE_GEN_ASYNC', { image_prompt: ((articleData!.image_prompt as string) || '').substring(0, 200) });
 
-    const imgStart = Date.now();
-    const imgOutput = await withTimeout(
-      executeImageGenAsync(
-        saveOutput.article_id as string | null,
-        (articleData!.image_prompt as string) || '',
-        jobInput,
-        supabase
-      ),
-      60_000, 'IMAGE_GEN_ASYNC'
-    );
-    const imgLatency = Date.now() - imgStart;
+      const imgStart = Date.now();
+      const imgOutput = await withTimeout(
+        executeImageGenAsync(
+          saveOutput.article_id as string | null,
+          (articleData!.image_prompt as string) || '',
+          jobInput,
+          supabase
+        ),
+        60_000, 'IMAGE_GEN_ASYNC'
+      );
+      const imgLatency = Date.now() - imgStart;
 
-    await supabase.from('generation_steps').update({
-      status: 'completed', output: imgOutput, latency_ms: imgLatency,
-      completed_at: new Date().toISOString(),
-      model_used: imgOutput.fallback ? 'picsum-fallback' : 'gemini-2.5-flash-image',
-      provider: imgOutput.fallback ? 'fallback' : 'lovable-gateway',
-    }).eq('id', imgRecord!.id);
-    await updatePublicStatus(supabase, jobId, 'IMAGE_GEN_ASYNC', true, lockId);
+      await supabase.from('generation_steps').update({
+        status: 'completed', output: imgOutput, latency_ms: imgLatency,
+        completed_at: new Date().toISOString(),
+        model_used: imgOutput.fallback ? 'picsum-fallback' : 'gemini-2.5-flash-image',
+        provider: imgOutput.fallback ? 'fallback' : 'lovable-gateway',
+      }).eq('id', imgStepId);
 
-    if (!imgOutput.fallback) {
-      totalApiCalls++;
+      if (!imgOutput.fallback) totalApiCalls++;
+      console.log(`[V2] ✅ IMAGE_GEN_ASYNC ${imgLatency}ms | ${imgOutput.fallback ? 'FALLBACK' : 'AI_GENERATED'}`);
+    } catch (imgErr) {
+      const imgErrMsg = imgErr instanceof Error ? imgErr.message : 'Image gen failed';
+      console.warn(`[V2] ⚠️ IMAGE_GEN_ASYNC failed (non-fatal): ${imgErrMsg}`);
+      if (imgStepId) {
+        await supabase.from('generation_steps').update({
+          status: 'failed', error_message: imgErrMsg, completed_at: new Date().toISOString(),
+        }).eq('id', imgStepId);
+      }
     }
-    console.log(`[V2] ✅ IMAGE_GEN_ASYNC ${imgLatency}ms | ${imgOutput.fallback ? 'FALLBACK' : 'AI_GENERATED'}`);
+    await updatePublicStatus(supabase, jobId, 'IMAGE_GEN_ASYNC', true, lockId);
 
     // ============================================================
     // COMPLETED
