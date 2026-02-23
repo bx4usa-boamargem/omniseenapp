@@ -313,6 +313,17 @@ export default function GenerationDetail() {
     return () => { if (progressTimerRef.current) clearInterval(progressTimerRef.current); };
   }, [job?.status, job?.public_progress, realProgress, isClient]);
 
+  // Auto-redirect to editor when job completes
+  useEffect(() => {
+    if (!job) return;
+    if (job.status === 'completed' && job.article_id) {
+      const timer = setTimeout(() => {
+        navigate(`/client/articles/${job.article_id}/edit`, { replace: true });
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [job?.status, job?.article_id, navigate]);
+
   // Auto-recovery for stalled pending jobs
   useEffect(() => {
     if (!job || !jobId) return;
@@ -426,6 +437,15 @@ export default function GenerationDetail() {
           </div>
         )}
 
+        {/* Completion state — redirecting */}
+        {job.status === 'completed' && job.article_id && (
+          <div className="border rounded-lg p-4 bg-green-500/10 border-green-500/30 text-center space-y-2">
+            <CheckCircle className="w-8 h-8 text-green-600 mx-auto" />
+            <p className="text-sm font-medium text-green-700">Artigo pronto! Redirecionando para o editor...</p>
+            <Loader2 className="w-4 h-4 animate-spin mx-auto text-green-600" />
+          </div>
+        )}
+
         {/* Actions — client */}
         <div className="flex gap-2 flex-wrap">
           {job.status === 'completed' && (
@@ -478,7 +498,7 @@ export default function GenerationDetail() {
         <div className="grid grid-cols-4 gap-4 mt-4 text-sm">
           <div><span className="text-muted-foreground">SEO Score</span><p className="font-bold text-lg">{job.seo_score ?? '—'}/100</p></div>
           <div><span className="text-muted-foreground">Tempo</span><p className="font-bold">{elapsed ? `${Math.floor(elapsed/60)}m ${elapsed%60}s` : '—'}</p></div>
-          <div><span className="text-muted-foreground">API Calls</span><p className="font-bold">{job.total_api_calls || 0}/15</p></div>
+          <div><span className="text-muted-foreground">API Calls</span><p className="font-bold">{job.total_api_calls || 0}/5</p></div>
           <div><span className="text-muted-foreground">Custo</span><p className="font-bold">${(job.cost_usd || 0).toFixed(4)}</p></div>
         </div>
       </div>
@@ -540,6 +560,15 @@ export default function GenerationDetail() {
             <span className="font-semibold text-red-700">Erro na geração</span>
           </div>
           <p className="text-sm text-red-600">{job.error_message}</p>
+        </div>
+      )}
+
+      {/* Completion state — admin redirecting */}
+      {job.status === 'completed' && job.article_id && (
+        <div className="border rounded-lg p-4 bg-green-500/10 border-green-500/30 text-center space-y-2">
+          <CheckCircle className="w-8 h-8 text-green-600 mx-auto" />
+          <p className="text-sm font-medium text-green-700">Artigo pronto! Redirecionando para o editor...</p>
+          <Loader2 className="w-4 h-4 animate-spin mx-auto text-green-600" />
         </div>
       )}
 

@@ -318,6 +318,32 @@ OUTPUT FORMAT (STRICT JSON):
 }
 
 // ============================================================
+// CTA HTML INJECTION
+// ============================================================
+
+function injectCtaIntoHtml(html: string, cta: Record<string, unknown> | null): string {
+  if (!cta || !cta.value) return html;
+
+  const ctaUrl = cta.type === 'whatsapp'
+    ? `https://wa.me/${(cta.value as string).replace(/\D/g, '')}?text=${encodeURIComponent('Olá! Vi seu artigo e gostaria de saber mais.')}`
+    : cta.value as string;
+
+  const ctaBlock = `
+<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 32px; margin: 32px 0; text-align: center;">
+  <h3 style="color: white; font-size: 1.4em; margin-bottom: 12px;">Gostou do conteúdo?</h3>
+  <p style="color: rgba(255,255,255,0.9); margin-bottom: 20px;">${cta.label || 'Entre em contato'}</p>
+  <a href="${ctaUrl}" target="_blank" rel="noopener" style="display: inline-block; background: white; color: #667eea; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 1.1em;">
+    ${cta.type === 'whatsapp' ? '💬 Falar no WhatsApp' : cta.label || 'Saiba mais'}
+  </a>
+</div>`;
+
+  if (html.includes('</body>')) {
+    return html.replace('</body>', ctaBlock + '</body>');
+  }
+  return html + ctaBlock;
+}
+
+// ============================================================
 // STEP 4: SAVE_ARTICLE
 // ============================================================
 
@@ -343,12 +369,13 @@ async function executeSaveArticle(
     throw new Error('SAVE_ARTICLE: HTML content too short');
   }
 
-  // Generate slug
-  const slug = title.toLowerCase()
+  // Generate unique slug (with timestamp suffix to avoid duplicates)
+  const baseSlug = title.toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')
-    .substring(0, 80);
+    .substring(0, 70);
+  const slug = `${baseSlug}-${Date.now().toString(36)}`;
 
   // Generate excerpt
   const excerpt = metaDescription || title;
@@ -358,22 +385,38 @@ async function executeSaveArticle(
   const wordCount = textContent.split(/\s+/).filter(Boolean).length;
   const readingTime = Math.ceil(wordCount / 200);
 
-  // Build CTA from job input
+  // Fetch CTA config from blog
+  const { data: blogData } = await supabase
+    .from('blogs')
+    .select('cta_type, cta_url, cta_text, header_cta_text, header_cta_url, city')
+    .eq('id', blogId)
+    .single();
+
+  // Build CTA: prioritize job input, fallback to blog config
   const whatsapp = (jobInput.whatsapp as string) || '';
   const businessName = (jobInput.business_name as string) || '';
-  const city = (jobInput.city as string) || '';
-  const cta = whatsapp ? {
-    type: 'whatsapp',
-    value: whatsapp,
-    label: businessName ? `Fale com ${businessName}` : 'Fale conosco pelo WhatsApp',
-    city: city,
-  } : null;
+  const city = (jobInput.city as string) || blogData?.city || '';
+
+  let cta: Record<string, unknown> | null = null;
+  if (whatsapp) {
+    cta = { type: 'whatsapp', value: whatsapp, label: businessName ? `Fale com ${businessName}` : 'Fale conosco pelo WhatsApp', city };
+  } else if (blogData?.cta_url || blogData?.header_cta_url) {
+    cta = {
+      type: blogData.cta_type || 'link',
+      value: blogData.cta_url || blogData.header_cta_url,
+      label: blogData.cta_text || blogData.header_cta_text || 'Saiba mais',
+      city,
+    };
+  }
+
+  // Inject CTA into HTML
+  const finalHtml = injectCtaIntoHtml(htmlArticle, cta);
 
   const insertPayload = {
     blog_id: blogId,
     title,
     slug,
-    content: htmlArticle,
+    content: finalHtml,
     meta_description: metaDescription,
     excerpt,
     faq: faqItems as unknown,
