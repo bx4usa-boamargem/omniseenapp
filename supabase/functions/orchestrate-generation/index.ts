@@ -65,7 +65,7 @@ const PIPELINE_STEPS = [
 type StepName = typeof PIPELINE_STEPS[number];
 
 async function updatePublicStatus(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   jobId: string,
   stepName: string,
   completed: boolean,
@@ -93,7 +93,7 @@ async function updatePublicStatus(
 // ============================================================
 
 async function createStepOrFail(
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   jobId: string,
   stepName: string,
   input: Record<string, unknown>,
@@ -629,7 +629,7 @@ async function executeSaveArticle(
   jobId: string,
   articleData: Record<string, unknown>,
   jobInput: Record<string, unknown>,
-  supabase: ReturnType<typeof createClient>,
+  supabase: any,
   totalApiCalls: number,
   totalCostUsd: number,
   contentType: 'article' | 'super_page'
@@ -833,7 +833,7 @@ async function executeImageGenGeminiNanoBanana(
   articleData: Record<string, unknown>,
   outline: OutlineData,
   jobInput: Record<string, unknown>,
-  supabase: ReturnType<typeof createClient>
+  supabase: any
 ): Promise<Record<string, unknown>> {
   if (!articleId) return { skipped: true, reason: "no_article_id" };
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
@@ -913,7 +913,7 @@ async function executeInternalLinkEngine(
   blogId: string,
   keyword: string,
   title: string,
-  supabase: ReturnType<typeof createClient>
+  supabase: any
 ): Promise<Record<string, unknown>> {
   if (!articleId) return { skipped: true, reason: "no_article_id" };
   try {
@@ -953,7 +953,7 @@ async function executeQualityGate(
   entityCoverageScore: number,
   seoScoreResult: Record<string, unknown>,
   jobType: "article" | "super_page",
-  supabase: ReturnType<typeof createClient>
+  supabase: any
 ): Promise<Record<string, unknown>> {
   if (!articleId) return { passed: false, reason: "no_article_id" };
   const html = (articleData.html_article as string) || "";
@@ -998,7 +998,7 @@ async function executeQualityGate(
 // ORCHESTRATOR CORE (TRUE SUPER PAGE ENGINE)
 // ============================================================
 
-async function orchestrate(jobId: string, supabase: ReturnType<typeof createClient>, supabaseUrl: string, serviceKey: string): Promise<void> {
+async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, serviceKey: string): Promise<void> {
  try { // TOP-LEVEL SAFETY NET
   const jobStart = Date.now();
 
@@ -1478,7 +1478,7 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const supabase = createClient(supabaseUrl, serviceKey);
+  const supabase: any = createClient(supabaseUrl, serviceKey);
 
   try {
     const { job_id } = await req.json();
