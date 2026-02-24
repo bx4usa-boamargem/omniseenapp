@@ -372,7 +372,7 @@ serve(async (req) => {
       country: 'BR',
       language: 'pt-BR',
       job_type: 'article' as const,
-      intent: (opportunity.funnel_stage === 'bottom' ? 'transactional' : 'informational') as const,
+      intent: opportunity.funnel_stage === 'bottom' ? 'transactional' as const : 'informational' as const,
       target_words: 2500,
       image_count: 4,
     };
