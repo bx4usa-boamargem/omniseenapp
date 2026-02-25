@@ -97,12 +97,15 @@ export function useBlog(): UseBlogResult {
         setIsPlatformAdmin(true);
       }
 
-      // 2. Check if user owns a blog
-      const { data: ownedBlog, error: blogError } = await supabase
+      // 2. Check if user owns a blog (pick the first one if multiple exist)
+      const { data: ownedBlogs, error: blogError } = await supabase
         .from("blogs")
         .select("*")
         .eq("user_id", user.id)
-        .maybeSingle();
+        .order("created_at", { ascending: true })
+        .limit(1);
+
+      const ownedBlog = ownedBlogs?.[0] ?? null;
 
       console.log('useBlog: Blog próprio', { 
         blogId: ownedBlog?.id, 
