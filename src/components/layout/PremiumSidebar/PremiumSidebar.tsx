@@ -70,7 +70,7 @@ export function PremiumSidebar({ isPlatformAdmin, onHelpClick }: PremiumSidebarP
         onMouseEnter={() => setIsExpanded(true)}
         onMouseLeave={() => setIsExpanded(false)}
         className={cn(
-          'hidden lg:flex fixed left-0 top-0 h-screen z-40',
+          'flex fixed left-0 top-0 h-screen z-40',
           'flex-col bg-white dark:bg-gray-900',
           'border-r border-[#E5E7EB] dark:border-gray-700',
           'transition-all duration-300 overflow-hidden',
