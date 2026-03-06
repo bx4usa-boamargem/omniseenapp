@@ -709,11 +709,8 @@ async function executeSaveArticle(
     engine_version: 'v2',
     reading_time: readingTime,
     cta: cta as unknown,
-    source_payload: { image_prompt: imagePrompt } as unknown,
-    content_type: contentType,
-    word_count_target: wordCountTarget,
+    source_payload: { image_prompt: imagePrompt, content_type: contentType, word_count_target: wordCountTarget, schema_json: schemaJson } as unknown,
   };
-  if (schemaJson) insertPayload.schema_json = schemaJson;
 
   // 3x retry insert
   let articleId: string | null = null;
