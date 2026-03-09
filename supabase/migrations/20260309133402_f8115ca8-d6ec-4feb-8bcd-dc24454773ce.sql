@@ -1,0 +1,1 @@
+UPDATE generation_jobs SET status = 'failed', updated_at = now() WHERE id IN ('2823d167-5bb7-437e-b862-9479d2e0b196', 'a6b91b34-8086-4bf7-b8ff-a2e581d356e3') AND status = 'running'
