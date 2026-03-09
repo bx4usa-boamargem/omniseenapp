@@ -1281,28 +1281,39 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     console.log(`[V2] ✅ SAVE_ARTICLE ${saveLatency}ms | article_id=${saveOutput.article_id}`);
 
     // ============================================================
-    // STEP: IMAGE_GEN (Gemini Nano Banana — hero + section + contextual)
+    // STEP: IMAGE_GEN (ASYNC — fire-and-forget to avoid timeout)
     // ============================================================
     console.log(`[V2] Step: IMAGE_GEN`);
     await updatePublicStatus(supabase, jobId, 'IMAGE_GEN', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'IMAGE_GEN' }).eq('id', jobId);
-    let imgStepId: string | null = null;
     try {
-      imgStepId = await createStepOrFail(supabase, jobId, 'IMAGE_GEN', { article_id: saveOutput.article_id });
-      const imgStart = Date.now();
-      const imgOutput = await withTimeout(
-        executeImageGenGeminiNanoBanana(saveOutput.article_id as string | null, articleData!, outline, jobInput, supabase),
-        180_000, 'IMAGE_GEN'
-      );
-      await supabase.from('generation_steps').update({
-        status: 'completed', output: imgOutput, latency_ms: Date.now() - imgStart,
-        completed_at: new Date().toISOString(), model_used: GEMINI_IMAGE_MODEL, provider: 'gemini-nano-banana',
-      }).eq('id', imgStepId);
-      console.log(`[V2] ✅ IMAGE_GEN ${Date.now() - imgStart}ms`);
+      const imgStepId = await createStepOrFail(supabase, jobId, 'IMAGE_GEN', { article_id: saveOutput.article_id });
+
+      // Mark article as images_pending so the UI knows to poll
+      await supabase.from('articles').update({ images_pending: true }).eq('id', saveOutput.article_id);
+
+      // Fire-and-forget: invoke async image generation function
+      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+      fetch(`${supabaseUrl}/functions/v1/generate-article-images-async`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${supabaseServiceKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          article_id: saveOutput.article_id,
+          keyword: jobInput.keyword || '',
+          outline_h2: outline?.h2 || [],
+          job_id: jobId,
+          step_id: imgStepId,
+        }),
+      }).catch(e => console.warn('[V2] IMAGE_GEN async invoke error (non-fatal):', e));
+
+      console.log(`[V2] ✅ IMAGE_GEN dispatched async for article ${saveOutput.article_id}`);
     } catch (imgErr) {
-      const imgErrMsg = imgErr instanceof Error ? imgErr.message : 'Image gen failed';
+      const imgErrMsg = imgErr instanceof Error ? imgErr.message : 'Image gen dispatch failed';
       console.warn(`[V2] ⚠️ IMAGE_GEN failed (non-fatal): ${imgErrMsg}`);
-      if (imgStepId) await supabase.from('generation_steps').update({ status: 'failed', error_message: imgErrMsg, completed_at: new Date().toISOString() }).eq('id', imgStepId);
     }
     await updatePublicStatus(supabase, jobId, 'IMAGE_GEN', true, lockId);
 
