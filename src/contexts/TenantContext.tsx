@@ -76,7 +76,37 @@ export function TenantProvider({ children }: TenantProviderProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchMemberships = useCallback(async () => {
+  // Fallback: resolver tenant via tabela blogs
+  const fetchTenantViaBlogs = useCallback(async (): Promise<TenantMembership | null> => {
+    if (!user) return null;
+    try {
+      console.log('[TenantContext] Trying fallback via blogs...');
+      const { data: userBlogs, error: blogsError } = await supabase
+        .from('blogs')
+        .select('tenant_id, tenants(*)')
+        .eq('user_id', user.id)
+        .not('tenant_id', 'is', null)
+        .limit(1);
+
+      if (blogsError || !userBlogs?.length) return null;
+
+      const blogTenant = userBlogs[0].tenants as unknown as Tenant;
+      if (!blogTenant) return null;
+
+      return {
+        id: 'fallback-blog',
+        tenant_id: blogTenant.id,
+        user_id: user.id,
+        role: 'owner',
+        joined_at: null,
+        tenant: blogTenant,
+      };
+    } catch {
+      return null;
+    }
+  }, [user]);
+
+  const fetchMemberships = useCallback(async (retryCount = 0) => {
     if (!user) {
       setCurrentTenant(null);
       setCurrentMembership(null);
@@ -89,9 +119,8 @@ export function TenantProvider({ children }: TenantProviderProps) {
       setLoading(true);
       setError(null);
 
-      console.log('[TenantContext] Fetching memberships for user:', user.id);
+      console.log('[TenantContext] Fetching memberships for user:', user.id, retryCount > 0 ? `(retry ${retryCount})` : '');
 
-      // Buscar todas as memberships do usuário com dados do tenant
       const membershipsResult = await withTimeout(
         Promise.resolve(
           supabase
@@ -122,13 +151,44 @@ export function TenantProvider({ children }: TenantProviderProps) {
 
       if (membershipsError) {
         console.error('[TenantContext] Error fetching memberships:', membershipsError);
-        setError('Erro ao carregar dados do tenant');
+        
+        // Retry até 2 vezes antes de tentar fallback
+        if (retryCount < 2) {
+          console.log('[TenantContext] Retrying in', (retryCount + 1) * 2, 'seconds...');
+          setTimeout(() => fetchMemberships(retryCount + 1), (retryCount + 1) * 2000);
+          return;
+        }
+
+        // Tentar fallback via blogs
+        const fallback = await fetchTenantViaBlogs();
+        if (fallback) {
+          console.log('[TenantContext] Fallback via blogs succeeded:', fallback.tenant.name);
+          setAllMemberships([fallback]);
+          setCurrentMembership(fallback);
+          setCurrentTenant(fallback.tenant);
+          setLoading(false);
+          return;
+        }
+
+        setError('Erro ao carregar dados do tenant. O backend pode estar instável.');
         setLoading(false);
         return;
       }
 
       if (!memberships || memberships.length === 0) {
-        console.log('[TenantContext] No memberships found');
+        console.log('[TenantContext] No memberships found, trying fallback...');
+        
+        // Tentar fallback via blogs antes de desistir
+        const fallback = await fetchTenantViaBlogs();
+        if (fallback) {
+          console.log('[TenantContext] Fallback via blogs succeeded:', fallback.tenant.name);
+          setAllMemberships([fallback]);
+          setCurrentMembership(fallback);
+          setCurrentTenant(fallback.tenant);
+          setLoading(false);
+          return;
+        }
+
         setAllMemberships([]);
         setCurrentTenant(null);
         setCurrentMembership(null);
@@ -136,9 +196,8 @@ export function TenantProvider({ children }: TenantProviderProps) {
         return;
       }
 
-      // Transformar dados para o formato esperado
       const formattedMemberships: TenantMembership[] = memberships
-        .filter(m => m.tenant) // Garantir que tem tenant
+        .filter(m => m.tenant)
         .map(m => ({
           id: m.id,
           tenant_id: m.tenant_id,
@@ -150,7 +209,6 @@ export function TenantProvider({ children }: TenantProviderProps) {
 
       setAllMemberships(formattedMemberships);
 
-      // Selecionar tenant atual: preferir owner, ou primeiro da lista
       const ownerMembership = formattedMemberships.find(m => m.role === 'owner');
       const selectedMembership = ownerMembership || formattedMemberships[0];
 
@@ -163,7 +221,25 @@ export function TenantProvider({ children }: TenantProviderProps) {
     } catch (err) {
       if (err instanceof Error && err.message === 'MEMBERSHIPS_TIMEOUT') {
         console.error('[TenantContext] Timeout fetching memberships');
-        setError('O backend está demorando para carregar sua conta. Tente novamente em instantes.');
+        
+        // Retry automático em timeout
+        if (retryCount < 2) {
+          console.log('[TenantContext] Timeout, retrying in', (retryCount + 1) * 2, 'seconds...');
+          setTimeout(() => fetchMemberships(retryCount + 1), (retryCount + 1) * 2000);
+          return;
+        }
+
+        // Fallback via blogs
+        const fallback = await fetchTenantViaBlogs();
+        if (fallback) {
+          setAllMemberships([fallback]);
+          setCurrentMembership(fallback);
+          setCurrentTenant(fallback.tenant);
+          setLoading(false);
+          return;
+        }
+
+        setError('O backend está demorando para responder. Tente novamente em instantes.');
         return;
       }
 
@@ -172,7 +248,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, fetchTenantViaBlogs]);
 
   // Refetch quando user muda
   useEffect(() => {
