@@ -200,6 +200,7 @@ const ClientRoutes = () => (
         }}
       >
         <Routes>
+          <Route path="onboarding" element={<ClientOnboarding />} />
           <Route path="dashboard" element={<ClientDashboard />} />
           
           {/* Resultados & ROI */}
