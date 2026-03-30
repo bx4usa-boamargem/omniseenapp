@@ -1,4 +1,5 @@
 import { MessageCircle } from 'lucide-react';
+import { sanitizeHTML } from '@/lib/sanitize';
 
 interface ContentImage {
   context: string;
@@ -112,7 +113,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
             transform: scale(1.02);
           }
         `}</style>
-        <div dangerouslySetInnerHTML={{ __html: processedHtml }} />
+        <div dangerouslySetInnerHTML={{ __html: sanitizeHTML(processedHtml) }} />
       </article>
     );
   }
@@ -133,7 +134,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
           .replace(/\*(.+?)\*/g, "<em>$1</em>")
           .replace(/_(.+?)_/g, "<em>$1</em>");
         elements.push(
-          <p key={`p-${elements.length}`} dangerouslySetInnerHTML={{ __html: processLinks(processedLine) }} />
+          <p key={`p-${elements.length}`} dangerouslySetInnerHTML={{ __html: sanitizeHTML(processLinks(processedLine)) }} />
         );
         pendingParagraph = [];
       }
@@ -145,7 +146,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         elements.push(
           <ListTag key={elements.length} className={listType === "ul" ? "list-disc" : "list-decimal"}>
             {listItems.map((item, i) => (
-              <li key={i} dangerouslySetInnerHTML={{ __html: processLinks(item) }} />
+              <li key={i} dangerouslySetInnerHTML={{ __html: sanitizeHTML(processLinks(item)) }} />
             ))}
           </ListTag>
         );
@@ -242,7 +243,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         elements.push(
           <div key={index} className="bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-500 p-4 rounded-r-lg my-4">
             <span className="font-bold text-purple-700 dark:text-purple-400">💡 Verdade Dura</span>
-            <p className="text-purple-900 dark:text-purple-200 mt-1" dangerouslySetInnerHTML={{ __html: processLinks(trimmedLine.slice(3)) }} />
+            <p className="text-purple-900 dark:text-purple-200 mt-1" dangerouslySetInnerHTML={{ __html: sanitizeHTML(processLinks(trimmedLine.slice(3))) }} />
           </div>
         );
         return;
@@ -254,7 +255,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         elements.push(
           <div key={index} className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 rounded-r-lg my-4">
             <span className="font-bold text-red-700 dark:text-red-400">⚠️ Atenção</span>
-            <p className="text-red-900 dark:text-red-200 mt-1" dangerouslySetInnerHTML={{ __html: processLinks(trimmedLine.slice(3)) }} />
+            <p className="text-red-900 dark:text-red-200 mt-1" dangerouslySetInnerHTML={{ __html: sanitizeHTML(processLinks(trimmedLine.slice(3))) }} />
           </div>
         );
         return;
@@ -266,7 +267,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         elements.push(
           <div key={index} className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 p-4 rounded-r-lg my-4">
             <span className="font-bold text-blue-700 dark:text-blue-400">📌 Dica Prática</span>
-            <p className="text-blue-900 dark:text-blue-200 mt-1" dangerouslySetInnerHTML={{ __html: processLinks(trimmedLine.slice(3)) }} />
+            <p className="text-blue-900 dark:text-blue-200 mt-1" dangerouslySetInnerHTML={{ __html: sanitizeHTML(processLinks(trimmedLine.slice(3))) }} />
           </div>
         );
         return;
@@ -278,7 +279,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         elements.push(
           <div key={index} className="bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500 p-4 rounded-r-lg my-4">
             <span className="font-bold text-green-700 dark:text-green-400">✅ Resumo Rápido</span>
-            <p className="text-green-900 dark:text-green-200 mt-1" dangerouslySetInnerHTML={{ __html: processLinks(trimmedLine.slice(3)) }} />
+            <p className="text-green-900 dark:text-green-200 mt-1" dangerouslySetInnerHTML={{ __html: sanitizeHTML(processLinks(trimmedLine.slice(3))) }} />
           </div>
         );
         return;
@@ -290,7 +291,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         const quoteContent = trimmedLine.replace(/^[❝❞]\s?/, '');
         elements.push(
           <blockquote key={index} className="bg-gradient-to-r from-primary/10 to-transparent border-l-4 border-primary p-6 my-8 rounded-r-lg">
-            <p className="text-xl italic font-serif text-foreground leading-relaxed" dangerouslySetInnerHTML={{ __html: processLinks(quoteContent) }} />
+            <p className="text-xl italic font-serif text-foreground leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitizeHTML(processLinks(quoteContent)) }} />
           </blockquote>
         );
         return;
@@ -334,7 +335,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         flushList();
         elements.push(
           <blockquote key={index} className="border-l-4 border-primary pl-4 py-2 my-4 bg-primary/5 rounded-r-lg italic text-muted-foreground">
-            <span dangerouslySetInnerHTML={{ __html: processLinks(trimmedLine.replace("> ", "")) }} />
+            <span dangerouslySetInnerHTML={{ __html: sanitizeHTML(processLinks(trimmedLine.replace("> ", ""))) }} />
           </blockquote>
         );
         return;

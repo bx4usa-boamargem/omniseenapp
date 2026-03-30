@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { sanitizeHTML } from "@/lib/sanitize";
 import { useTranslation } from "react-i18next";
 import { getBlogPath } from "@/utils/blogUrl";
 import { Button } from "@/components/ui/button";
@@ -227,7 +228,7 @@ export function BlogFooter({
           {footerText && (
             <div 
               className="text-white/60 text-sm text-center mb-4"
-              dangerouslySetInnerHTML={{ __html: footerText }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHTML(footerText) }}
             />
           )}
 
