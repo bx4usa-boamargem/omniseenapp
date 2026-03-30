@@ -267,7 +267,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         elements.push(
           <div key={index} className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 p-4 rounded-r-lg my-4">
             <span className="font-bold text-blue-700 dark:text-blue-400">📌 Dica Prática</span>
-            <p className="text-blue-900 dark:text-blue-200 mt-1" dangerouslySetInnerHTML={{ __html: processLinks(trimmedLine.slice(3)) }} />
+            <p className="text-blue-900 dark:text-blue-200 mt-1" dangerouslySetInnerHTML={{ __html: sanitizeHTML(processLinks(trimmedLine.slice(3))) }} />
           </div>
         );
         return;
