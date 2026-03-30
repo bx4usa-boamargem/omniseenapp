@@ -60,6 +60,21 @@ function normalizeSubdomain(subdomain: string | null | undefined): string | null
     .replace(/\/$/, ''); // Remove trailing slash
 }
 
+function isPlatformOrPreviewHost(): boolean {
+  if (typeof window === 'undefined') return false;
+
+  const host = window.location.hostname;
+  return (
+    host === 'app.omniseen.app' ||
+    host === 'omniseenapp.lovable.app' ||
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '0.0.0.0' ||
+    host.includes('lovable.app') ||
+    host.includes('lovableproject.com')
+  );
+}
+
 /**
  * Get the base URL for a blog
  * Priority: 1. Custom domain (if verified), 2. Platform subdomain, 3. Fallback path
@@ -74,8 +89,8 @@ export function getBlogUrl(blog: BlogWithDomain): string {
     return `https://${cleanDomain}`;
   }
   
-  // Priority 2: Platform subdomain (only in production) - NOVO PADRÃO: {slug}.app.omniseen.app
-  if (isProductionEnvironment()) {
+  // Priority 2: Preserve public-domain navigation only when already inside blog domain access
+  if (!isPlatformOrPreviewHost() && isBlogDomainAccess()) {
     const subdomain = normalizeSubdomain(blog.platform_subdomain) || blog.slug;
     return `https://${subdomain}${SUBDOMAIN_SUFFIX}`;
   }
@@ -149,8 +164,8 @@ export function getArticleUrl(blog: BlogWithDomain, articleSlug: string): string
     return `https://${cleanDomain}/${articleSlug}`;
   }
   
-  // Priority 2: Platform subdomain (only in production) - NOVO PADRÃO: {slug}.app.omniseen.app
-  if (isProductionEnvironment()) {
+  // Priority 2: Preserve public-domain navigation only when already inside blog domain access
+  if (!isPlatformOrPreviewHost() && isBlogDomainAccess()) {
     const subdomain = normalizeSubdomain(blog.platform_subdomain) || blog.slug;
     return `https://${subdomain}${SUBDOMAIN_SUFFIX}/${articleSlug}`;
   }

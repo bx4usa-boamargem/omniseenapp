@@ -49,6 +49,11 @@ const ARTICLE_PUBLIC_FIELDS = [
   "published_at", "updated_at", "faq", "highlights", "content_images", "cta"
 ] as const;
 
+const ARTICLE_SUMMARY_FIELDS = [
+  "id", "title", "slug", "excerpt", "featured_image_url", "featured_image_alt",
+  "category", "tags", "reading_time", "published_at"
+] as const;
+
 const LANDING_PAGE_PUBLIC_FIELDS = [
   "id", "title", "slug", "page_data", "seo_title", "seo_description",
   "featured_image_url", "published_at", "updated_at"
@@ -379,7 +384,7 @@ async function handleBlogHome(
 
   const { data: articles, error, count } = await supabase
     .from("articles")
-    .select(ARTICLE_PUBLIC_FIELDS.join(", "), { count: "exact" })
+    .select(ARTICLE_SUMMARY_FIELDS.join(", "), { count: "exact" })
     .eq("blog_id", blogId)
     .eq("status", "published")
     .order("published_at", { ascending: false })
@@ -458,7 +463,7 @@ async function handleBlogCategory(
 
   const { data: articles, error, count } = await supabase
     .from("articles")
-    .select(ARTICLE_PUBLIC_FIELDS.join(", "), { count: "exact" })
+    .select(ARTICLE_SUMMARY_FIELDS.join(", "), { count: "exact" })
     .eq("blog_id", blogId)
     .eq("status", "published")
     .eq("category", category)
@@ -488,7 +493,7 @@ async function handleBlogTag(
 
   const { data: articles, error, count } = await supabase
     .from("articles")
-    .select(ARTICLE_PUBLIC_FIELDS.join(", "), { count: "exact" })
+    .select(ARTICLE_SUMMARY_FIELDS.join(", "), { count: "exact" })
     .eq("blog_id", blogId)
     .eq("status", "published")
     .contains("tags", [tag])
@@ -521,7 +526,7 @@ async function handleBlogSearch(
   
   const { data: articles, error, count } = await supabase
     .from("articles")
-    .select(ARTICLE_PUBLIC_FIELDS.join(", "), { count: "exact" })
+    .select(ARTICLE_SUMMARY_FIELDS.join(", "), { count: "exact" })
     .eq("blog_id", blogId)
     .eq("status", "published")
     .or(`title.ilike.${searchPattern},excerpt.ilike.${searchPattern}`)
