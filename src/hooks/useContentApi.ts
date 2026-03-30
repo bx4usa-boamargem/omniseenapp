@@ -466,14 +466,25 @@ interface UseAgentConfigResult {
   loading: boolean;
 }
 
-export function useAgentConfig(): UseAgentConfigResult {
+export function useAgentConfig(options?: { blogId?: string; blogSlug?: string }): UseAgentConfigResult {
   const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
   const [businessProfile, setBusinessProfile] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const blogId = options?.blogId;
+  const blogSlug = options?.blogSlug;
+
   useEffect(() => {
     const fetch = async () => {
-      const result = await fetchContentApi<AgentConfigData>("agent.config");
+      let result: ContentApiResponse<AgentConfigData> | null = null;
+
+      if (blogId) {
+        result = await fetchContentApiByBlogId<AgentConfigData>("agent.config", blogId);
+      } else if (blogSlug) {
+        result = await fetchContentApiByBlogSlug<AgentConfigData>("agent.config", blogSlug);
+      } else {
+        result = await fetchContentApi<AgentConfigData>("agent.config");
+      }
 
       if (result) {
         setAgentConfig(result.data.agent);
@@ -484,7 +495,7 @@ export function useAgentConfig(): UseAgentConfigResult {
     };
 
     fetch();
-  }, []);
+  }, [blogId, blogSlug]);
 
   return { agentConfig, businessProfile, loading };
 }
