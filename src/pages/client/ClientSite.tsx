@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Globe, ExternalLink, Copy, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getCanonicalBlogUrl } from '@/utils/blogUrl';
+import { getCanonicalBlogUrl, getBlogUrl } from '@/utils/blogUrl';
 import { MiniSiteEditor } from '@/components/client/minisite/MiniSiteEditor';
 import { MiniSitePreview } from '@/components/client/minisite/MiniSitePreview';
 import { ContactButton } from '@/components/client/minisite/sections/ContactButtonsSection';
