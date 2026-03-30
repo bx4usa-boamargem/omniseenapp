@@ -57,7 +57,7 @@ function formatContent(content: string): JSX.Element[] {
               <span
                 className="text-muted-foreground"
                 dangerouslySetInnerHTML={{
-                  __html: item.replace(/\*\*(.*?)\*\*/g, "<strong class='text-foreground'>$1</strong>"),
+                  __html: sanitizeHTML(item.replace(/\*\*(.*?)\*\*/g, "<strong class='text-foreground'>$1</strong>")),
                 }}
               />
             </li>
