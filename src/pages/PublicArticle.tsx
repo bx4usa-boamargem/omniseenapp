@@ -70,11 +70,12 @@ const calculateReadingTime = (content?: string | null): number => {
 const PublicArticle = () => {
   const { t } = useTranslation();
   const { formatDateLong, formatNumber } = useLocaleFormat();
-  const { blogSlug, articleSlug } = useParams<{ blogSlug: string; articleSlug: string }>();
+  const { blogSlug: rawBlogSlug, articleSlug } = useParams<{ blogSlug: string; articleSlug: string }>();
+  const blogSlug = rawBlogSlug && !rawBlogSlug.startsWith(':') ? rawBlogSlug : undefined;
   
   // Use content-api hooks with blogSlug for preview environment support
   const { blog, article, related, loading, error } = useBlogArticle(articleSlug, { blogSlug });
-  const { agentConfig, businessProfile } = useAgentConfig();
+  const { agentConfig, businessProfile } = useAgentConfig({ blogSlug });
   
   const [selectedLanguage, setSelectedLanguage] = useState<string>('pt-BR');
   const [isFocusMode, setIsFocusMode] = useState(false);

@@ -60,7 +60,7 @@ export default function CustomDomainArticle({ blogId, blogSlug: propBlogSlug }: 
   const { blog, article, related, loading, error } = useBlogArticle(articleSlug, { 
     blogId: blogId || undefined 
   });
-  const { agentConfig, businessProfile } = useAgentConfig();
+  const { agentConfig, businessProfile } = useAgentConfig({ blogId: blogId || undefined });
   const [isFocusedMode, setIsFocusedMode] = useState(false);
 
   const primaryColor = useMemo(() => blog?.primary_color || "#6366f1", [blog?.primary_color]);
