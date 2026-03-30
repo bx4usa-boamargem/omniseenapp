@@ -6,6 +6,7 @@
  */
 
 import { useParams, useNavigate } from 'react-router-dom';
+import { checkContentQuality } from '@/utils/contentQualityChecker';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -111,6 +112,16 @@ export default function ArticleAdvancedPreview() {
   const handlePublish = async () => {
     if (!article) return;
     
+    // Quality check before publishing
+    const quality = checkContentQuality(article.content || '', article.title);
+    if (!quality.canPublish) {
+      toast.error(quality.issues.filter(i => i.type === 'error').map(i => i.message).join('; '));
+      return;
+    }
+    if (quality.issues.length > 0) {
+      toast.warning(`Qualidade (${quality.score}/100): ${quality.issues.map(i => i.message).join('; ')}`, { duration: 8000 });
+    }
+
     try {
       const { error } = await supabase
         .from('articles')

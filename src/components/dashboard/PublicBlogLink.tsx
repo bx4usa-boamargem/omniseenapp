@@ -13,7 +13,7 @@ import {
   Globe
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getCanonicalBlogUrl } from '@/utils/blogUrl';
+import { getCanonicalBlogUrl, getBlogUrl } from '@/utils/blogUrl';
 import { QRCodeModal } from './QRCodeModal';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -68,7 +68,9 @@ export function PublicBlogLink({ blog }: PublicBlogLinkProps) {
 
   const handleOpenBlog = () => {
     trackEvent('link_open');
-    window.open(publicUrl, '_blank');
+    // Use environment-aware URL for opening (works in preview/dev)
+    const navigableUrl = getBlogUrl(blog);
+    window.open(navigableUrl, '_blank');
   };
 
   const handleOpenQR = () => {
