@@ -110,28 +110,28 @@ export default function ArticleGenerator() {
   });
   
   const [isGenerating, setIsGenerating] = useState(false);
-  const [placeholderArticleId, setPlaceholderArticleId] = useState<string | null>(null);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
   const [showTemplatePreview, setShowTemplatePreview] = useState(false);
   
   // Refs
   const timeoutWarningRef = useRef<NodeJS.Timeout | null>(null);
   
-  // V5.0: Real polling from DB
-  const polling = useGenerationPolling({
-    articleId: placeholderArticleId,
-    enabled: isGenerating && !!placeholderArticleId,
-    intervalMs: 1500,
-    onComplete: useCallback(() => {
-      console.log('[V5.0] ✅ Polling detected completion for', placeholderArticleId);
+  // V6.0: Poll generation_jobs table via job_id (not placeholder article)
+  const polling = useJobPolling({
+    jobId: currentJobId,
+    enabled: isGenerating && !!currentJobId,
+    intervalMs: 2000,
+    onComplete: useCallback((articleId: string) => {
+      console.log('[V6.0] ✅ Job completed, article:', articleId);
       setIsGenerating(false);
       setShowTimeoutWarning(false);
       if (timeoutWarningRef.current) clearTimeout(timeoutWarningRef.current);
       toast.success('Artigo gerado com sucesso!');
-      navigate(`/client/articles/${placeholderArticleId}/preview`);
-    }, [placeholderArticleId, navigate]),
+      navigate(`/client/articles/${articleId}/preview`);
+    }, [navigate]),
     onError: useCallback((error: string) => {
-      console.error('[V5.0] ❌ Polling detected failure:', error);
+      console.error('[V6.0] ❌ Job failed:', error);
       setIsGenerating(false);
       setShowTimeoutWarning(false);
       if (timeoutWarningRef.current) clearTimeout(timeoutWarningRef.current);
@@ -139,11 +139,9 @@ export default function ArticleGenerator() {
     }, [])
   });
 
-  // V5.0: Derive progress from polling stage (DB is source of truth)
-  const currentStage = isGenerating ? (polling.stage || 'validating') : null;
-  const currentProgress = isGenerating 
-    ? (polling.progress || STAGE_PROGRESS_MAP[polling.stage] || 5)
-    : 0;
+  // V6.0: Derive progress from job polling
+  const currentStage = isGenerating ? (polling.stage || 'pending') : null;
+  const currentProgress = isGenerating ? (polling.progress || 5) : 0;
   
   // Validation
   const isValid = formData.keyword.trim().length >= 3 && formData.city.trim().length > 0;
