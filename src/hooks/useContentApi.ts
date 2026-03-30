@@ -148,6 +148,35 @@ export async function fetchLandingPageDirect(
 }
 
 /**
+ * Retry helper for edge function calls (handles WORKER_LIMIT / 5xx)
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = 2,
+  delayMs = 1500
+): Promise<T> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      const isRetryable =
+        err instanceof Error &&
+        (err.message?.includes("WORKER_LIMIT") ||
+          err.message?.includes("546") ||
+          err.message?.includes("502") ||
+          err.message?.includes("503"));
+      if (attempt < retries && isRetryable) {
+        console.warn(`[useContentApi] Retry ${attempt + 1}/${retries} after error:`, err);
+        await new Promise((r) => setTimeout(r, delayMs * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("Unreachable");
+}
+
+/**
  * Core function to call the content-api Edge Function
  */
 export async function fetchContentApi<T>(
@@ -168,6 +197,11 @@ export async function fetchContentApi<T>(
     });
 
     if (error) {
+      // Check if retryable
+      const errMsg = typeof error === "object" ? JSON.stringify(error) : String(error);
+      if (errMsg.includes("WORKER_LIMIT") || errMsg.includes("546")) {
+        throw new Error(errMsg); // Let retry wrapper handle it
+      }
       console.error("[useContentApi] Edge function error:", error);
       return null;
     }
