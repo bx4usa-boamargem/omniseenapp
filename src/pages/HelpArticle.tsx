@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { sanitizeHTML } from "@/lib/sanitize";
 import { useParams, useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
