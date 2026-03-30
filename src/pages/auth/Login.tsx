@@ -116,8 +116,13 @@ function LoginContent() {
     return () => clearTimeout(timer);
   }, [authLoading]);
 
-  // REMOVIDO: Auto-redirect durante mount causa race condition
-  // O redirect agora só acontece após ação explícita do usuário (handleSubmit ou OAuth callback)
+  // Auto-redirect se já está autenticado
+  useEffect(() => {
+    if (!authLoading && user) {
+      console.log('[Login] User already authenticated, redirecting to /app');
+      safeRedirect('/app');
+    }
+  }, [authLoading, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
