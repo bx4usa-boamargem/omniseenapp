@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,7 +10,7 @@ import { ArticleCard } from "@/components/public/ArticleCard";
 import { CategoryFilter } from "@/components/public/CategoryFilter";
 import { WhatsAppFloatButton } from "@/components/public/WhatsAppFloatButton";
 import { BrandSalesAgentWidget } from "@/components/public/BrandSalesAgentWidget";
-import { useBrandAgentConfig } from "@/hooks/useBrandAgentConfig";
+import { useBlogHome, useAgentConfig } from "@/hooks/useContentApi";
 import { useGlobalWhatsApp } from "@/hooks/useGlobalWhatsApp";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
@@ -37,6 +37,7 @@ interface Blog {
   slug: string;
   description: string | null;
   logo_url: string | null;
+   favicon_url?: string | null;
   logo_negative_url: string | null;
   primary_color: string | null;
   secondary_color: string | null;
@@ -65,6 +66,7 @@ interface Blog {
   header_cta_url: string | null;
   show_categories_footer: boolean | null;
   banner_overlay_opacity: number | null;
+   platform_subdomain?: string | null;
 }
 
 interface Article {
@@ -80,86 +82,99 @@ interface Article {
 
 const PublicBlog = () => {
   const { t } = useTranslation();
-  const { blogSlug } = useParams<{ blogSlug: string }>();
-  const [blog, setBlog] = useState<Blog | null>(null);
-  const [articles, setArticles] = useState<Article[]>([]);
+  const { blogSlug: rawBlogSlug } = useParams<{ blogSlug: string }>();
+  const blogSlug = rawBlogSlug && !rawBlogSlug.startsWith(':') ? rawBlogSlug : undefined;
   const [categories, setCategories] = useState<Category[]>([]);
   const [contactButtons, setContactButtons] = useState<ContactButton[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const { blog: publicBlog, articles, loading, error } = useBlogHome({ blogSlug, limit: 50 });
   
-  // Brand Sales Agent
-  const { agentConfig, businessProfile } = useBrandAgentConfig(blog?.id || null);
+  const { agentConfig, businessProfile } = useAgentConfig({ blogSlug });
   
   // Global WhatsApp configuration (inherited from parent account)
   const { buildLink: buildWhatsAppLink } = useGlobalWhatsApp();
 
+  const blog = useMemo<Blog | null>(() => {
+    if (!publicBlog) return null;
+
+    return {
+      id: publicBlog.id,
+      name: publicBlog.name,
+      slug: publicBlog.slug,
+      description: publicBlog.description,
+      logo_url: publicBlog.logo_url,
+      favicon_url: publicBlog.favicon_url,
+      logo_negative_url: null,
+      primary_color: publicBlog.primary_color,
+      secondary_color: publicBlog.secondary_color,
+      author_name: publicBlog.author_name,
+      author_photo_url: publicBlog.author_photo_url,
+      author_bio: publicBlog.author_bio,
+      custom_domain: publicBlog.custom_domain,
+      domain_verified: true,
+      cta_type: null,
+      cta_text: publicBlog.header_cta_text,
+      cta_url: publicBlog.header_cta_url,
+      banner_title: publicBlog.banner_title,
+      banner_description: publicBlog.banner_description,
+      banner_enabled: publicBlog.banner_enabled,
+      banner_image_url: publicBlog.banner_image_url,
+      brand_description: null,
+      show_powered_by: publicBlog.show_powered_by,
+      footer_text: publicBlog.footer_text,
+      tracking_config: null,
+      script_head: null,
+      script_body: null,
+      city: null,
+      show_search: true,
+      header_cta_text: publicBlog.header_cta_text,
+      header_cta_url: publicBlog.header_cta_url,
+      show_categories_footer: true,
+      banner_overlay_opacity: 50,
+      platform_subdomain: publicBlog.platform_subdomain,
+    };
+  }, [publicBlog]);
+
   useEffect(() => {
-    const fetchBlogAndArticles = async () => {
-      if (!blogSlug) return;
+    const fetchAuxiliaryData = async () => {
+      if (!blog?.id) {
+        setCategories([]);
+        setContactButtons([]);
+        return;
+      }
 
       try {
-        // Fetch blog
-        const { data: blogData, error: blogError } = await supabase
-          .from("blogs")
-          .select("*")
-          .eq("slug", blogSlug)
-          .single();
+        const [categoriesResult, contactButtonsResult] = await Promise.all([
+          supabase
+            .from("blog_categories")
+            .select("id, name, slug")
+            .eq("blog_id", blog.id)
+            .order("sort_order", { ascending: true }),
+          supabase
+            .from("blog_contact_buttons")
+            .select("*")
+            .eq("blog_id", blog.id)
+            .order("sort_order", { ascending: true }),
+        ]);
 
-        if (blogError || !blogData) {
-          setError(t('blog.notFound'));
-          setLoading(false);
-          return;
+        if (!categoriesResult.error && categoriesResult.data) {
+          setCategories(categoriesResult.data);
+        } else if (categoriesResult.error) {
+          console.warn("[PublicBlog] Unable to fetch categories:", categoriesResult.error.message);
         }
 
-        setBlog(blogData as unknown as Blog);
-
-        // Fetch categories
-        const { data: categoriesData } = await supabase
-          .from("blog_categories")
-          .select("id, name, slug")
-          .eq("blog_id", blogData.id)
-          .order("sort_order", { ascending: true });
-
-        if (categoriesData) {
-          setCategories(categoriesData);
-        }
-
-        // Fetch contact buttons
-        const { data: contactButtonsData } = await supabase
-          .from("blog_contact_buttons")
-          .select("*")
-          .eq("blog_id", blogData.id)
-          .order("sort_order", { ascending: true });
-
-        if (contactButtonsData) {
-          setContactButtons(contactButtonsData);
-        }
-
-        // Fetch published articles
-        const { data: articlesData, error: articlesError } = await supabase
-          .from("articles")
-          .select("id, title, excerpt, slug, category, tags, published_at, featured_image_url")
-          .eq("blog_id", blogData.id)
-          .eq("status", "published")
-          .order("published_at", { ascending: false });
-
-        if (articlesError) {
-          console.error("Error fetching articles:", articlesError);
-        } else {
-          setArticles(articlesData || []);
+        if (!contactButtonsResult.error && contactButtonsResult.data) {
+          setContactButtons(contactButtonsResult.data);
+        } else if (contactButtonsResult.error) {
+          console.warn("[PublicBlog] Unable to fetch contact buttons:", contactButtonsResult.error.message);
         }
       } catch (err) {
-        console.error("Error:", err);
-        setError(t('common.error'));
-      } finally {
-        setLoading(false);
+        console.error("[PublicBlog] Error fetching auxiliary data:", err);
       }
     };
 
-    fetchBlogAndArticles();
-  }, [blogSlug, t]);
+    fetchAuxiliaryData();
+  }, [blog?.id]);
 
   const handleCtaClick = (url?: string | null, type?: string | null) => {
     if (!url) return;
@@ -169,7 +184,9 @@ const PublicBlog = () => {
       const whatsappUrl = buildWhatsAppLink({
         phone: url,
         companyName: blog?.name || undefined,
-        service: businessProfile?.services || businessProfile?.niche || undefined,
+          service: typeof businessProfile?.services === 'string'
+            ? businessProfile.services
+            : businessProfile?.niche || undefined,
         city: blog?.city || businessProfile?.city || undefined,
       });
       window.open(whatsappUrl, "_blank");
@@ -204,7 +221,7 @@ const PublicBlog = () => {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
           <h1 className="font-heading text-4xl font-bold text-gray-900 mb-4">
-            {t('blog.notFound')}
+            {error || t('blog.notFound')}
           </h1>
           <p className="text-gray-600">
             {t('blog.notFoundDescription')}
@@ -234,7 +251,7 @@ const PublicBlog = () => {
         description={blog.description || `Leia os artigos do blog ${blog.name}`}
         ogImage={blog.logo_url || undefined}
         canonicalUrl={canonicalUrl}
-        favicon={(blog as any).favicon_url || undefined}
+        favicon={blog.favicon_url || undefined}
       />
 
       <BlogHeader

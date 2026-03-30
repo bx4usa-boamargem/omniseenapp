@@ -253,12 +253,13 @@ interface UseBlogHomeResult {
 
 interface UseBlogHomeOptions {
   blogId?: string;   // If provided, bypasses hostname resolution
+  blogSlug?: string; // If provided, resolves by blog slug
   limit?: number;    // Default: 12
   offset?: number;   // Default: 0
 }
 
 export function useBlogHome(options: UseBlogHomeOptions = {}): UseBlogHomeResult {
-  const { blogId, limit = 12, offset = 0 } = options;
+  const { blogId, blogSlug, limit = 12, offset = 0 } = options;
   const [blog, setBlog] = useState<BlogMeta | null>(null);
   const [articles, setArticles] = useState<ArticleSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -269,11 +270,13 @@ export function useBlogHome(options: UseBlogHomeOptions = {}): UseBlogHomeResult
     setLoading(true);
     setError(null);
 
-    // Priority: blogId > hostname
+    // Priority: blogId > blogSlug > hostname
     let result: ContentApiResponse<BlogHomeData> | null = null;
     
     if (blogId) {
       result = await fetchContentApiByBlogId<BlogHomeData>("blog.home", blogId, { limit, offset });
+    } else if (blogSlug) {
+      result = await fetchContentApiByBlogSlug<BlogHomeData>("blog.home", blogSlug, { limit, offset });
     } else {
       result = await fetchContentApi<BlogHomeData>("blog.home", { limit, offset });
     }
@@ -288,7 +291,7 @@ export function useBlogHome(options: UseBlogHomeOptions = {}): UseBlogHomeResult
     setArticles(result.data.articles || []);
     setTotal(result.data.total || 0);
     setLoading(false);
-  }, [blogId, limit, offset]);
+  }, [blogId, blogSlug, limit, offset]);
 
   useEffect(() => {
     fetch();
