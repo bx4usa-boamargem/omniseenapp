@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Globe, ExternalLink, Copy, Check, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getCanonicalBlogUrl } from '@/utils/blogUrl';
+import { getCanonicalBlogUrl, getBlogUrl } from '@/utils/blogUrl';
 import { MiniSiteEditor } from '@/components/client/minisite/MiniSiteEditor';
 import { MiniSitePreview } from '@/components/client/minisite/MiniSitePreview';
 import { ContactButton } from '@/components/client/minisite/sections/ContactButtonsSection';
@@ -182,10 +182,12 @@ export default function ClientSite() {
   // Mark as changed
   const markChanged = useCallback(() => setHasChanges(true), []);
 
-  // URL helpers
+  // URL helpers - canonical for display/copy, navigable for opening
   const getBlogUrlSafe = () => blog ? getCanonicalBlogUrl(blog) : '';
   const openSite = () => {
-    const url = getBlogUrlSafe();
+    if (!blog) return;
+    // Use getBlogUrl which returns environment-aware URL (preview uses /blog/slug)
+    const url = getBlogUrl(blog);
     if (url) window.open(url, '_blank');
   };
   const copyBlogUrl = () => {
