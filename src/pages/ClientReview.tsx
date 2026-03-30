@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { sanitizeHTML } from "@/lib/sanitize";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
