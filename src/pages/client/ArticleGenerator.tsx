@@ -53,18 +53,7 @@ const STATES = [
   'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
 ];
 
-// V5.0: Progress mapping from generation_stage to percentage (for display only)
-const STAGE_PROGRESS_MAP: Record<string, number> = {
-  validating: 5,
-  classifying: 10,
-  researching: 35,
-  writing: 60,
-  seo: 75,
-  qa: 80,
-  images: 88,
-  finalizing: 95,
-  completed: 100,
-};
+// Stage progress map removed — now handled by useJobPolling
 
 interface GeneratorFormData {
   keyword: string;
