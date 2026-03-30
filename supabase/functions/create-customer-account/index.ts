@@ -333,10 +333,7 @@ serve(async (req) => {
         tenantId,
         blogId,
         isExistingUser,
-        credentials: isExistingUser ? null : {
-          email,
-          password: finalPassword,
-        },
+        credentialsSentViaEmail: !isExistingUser,
         message: isExistingUser 
           ? `Usuário existente "${fullName}" atualizado com sucesso`
           : `Conta criada com sucesso para ${fullName}`,

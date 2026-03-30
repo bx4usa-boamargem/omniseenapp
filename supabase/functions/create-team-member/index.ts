@@ -272,10 +272,7 @@ serve(async (req) => {
         success: true,
         userId,
         isExistingUser: false,
-        credentials: {
-          email,
-          password,
-        },
+        credentialsSentViaEmail: true,
         message: `Conta criada para ${fullName}. Envie as credenciais para acesso.`,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
