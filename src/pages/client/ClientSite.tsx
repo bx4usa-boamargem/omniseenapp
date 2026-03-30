@@ -182,10 +182,12 @@ export default function ClientSite() {
   // Mark as changed
   const markChanged = useCallback(() => setHasChanges(true), []);
 
-  // URL helpers
+  // URL helpers - canonical for display/copy, navigable for opening
   const getBlogUrlSafe = () => blog ? getCanonicalBlogUrl(blog) : '';
   const openSite = () => {
-    const url = getBlogUrlSafe();
+    if (!blog) return;
+    // Use getBlogUrl which returns environment-aware URL (preview uses /blog/slug)
+    const url = getBlogUrl(blog);
     if (url) window.open(url, '_blank');
   };
   const copyBlogUrl = () => {
