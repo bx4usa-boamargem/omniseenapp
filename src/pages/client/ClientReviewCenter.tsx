@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { sanitizeHTML } from "@/lib/sanitize";
 import { useParams, useNavigate } from 'react-router-dom';
 import { smartNavigate, getClientArticleEditPath } from '@/utils/platformUrls';
 import { useBlog } from '@/hooks/useBlog';
