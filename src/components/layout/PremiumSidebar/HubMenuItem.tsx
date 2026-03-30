@@ -174,36 +174,27 @@ export function HubMenuItem({
 
       {/* Menu Flutuante - Position Fixed */}
       {isOpen && (
-        <>
-          {/* Overlay invisível para detectar click fora */}
-          <div 
-            className="fixed inset-0 z-[100]" 
-            onClick={handleCloseMenu}
-            aria-hidden="true"
-          />
-          
-          {/* Card flutuante com position fixed */}
-          <div 
-            className={cn(
-              'fixed z-[110]',
-              'w-80 bg-white dark:bg-gray-900 rounded-xl',
-              'shadow-[0_10px_40px_rgba(0,0,0,0.15)]',
-              'border border-[#E5E7EB] dark:border-gray-700',
-              'animate-in slide-in-from-left-2 duration-200',
-              'max-h-[80vh] overflow-y-auto'
-            )}
-            style={{
-              top: panelPosition.top,
-              left: panelPosition.left,
-            }}
-            role="menu"
-            aria-label={`Menu ${label}`}
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-          >
-            {children}
-          </div>
-        </>
+        <div 
+          className={cn(
+            'fixed z-[110]',
+            'w-80 bg-white dark:bg-gray-900 rounded-xl',
+            'shadow-[0_10px_40px_rgba(0,0,0,0.15)]',
+            'border border-[#E5E7EB] dark:border-gray-700',
+            'animate-in slide-in-from-left-2 duration-200',
+            'max-h-[80vh] overflow-y-auto'
+          )}
+          style={{
+            top: panelPosition.top,
+            left: panelPosition.left,
+          }}
+          role="menu"
+          aria-label={`Menu ${label}`}
+          data-hub-panel={id}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
+          {children}
+        </div>
       )}
     </div>
   );
