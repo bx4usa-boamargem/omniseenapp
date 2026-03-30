@@ -17,6 +17,7 @@ export function AutoProvisionTenant() {
   const { user, signOut } = useAuth();
   const { refetch } = useTenantContext();
   const navigate = useNavigate();
+  type ProvisionTenantResponse = { status?: string };
   
   const [statusMessage, setStatusMessage] = useState('Configurando sua conta...');
   const [error, setError] = useState<string | null>(null);
@@ -48,8 +49,15 @@ export function AutoProvisionTenant() {
     setError(null);
 
     try {
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('PROVISION_TIMEOUT')), 15000);
+      });
+
       // Single call to backend function (uses service_role, bypasses RLS)
-      const { data, error: fnError } = await supabase.functions.invoke('provision-tenant');
+      const { data, error: fnError } = await Promise.race([
+        supabase.functions.invoke<ProvisionTenantResponse>('provision-tenant'),
+        timeoutPromise,
+      ]) as { data: ProvisionTenantResponse | null; error: Error | null };
 
       if (fnError) {
         console.error('[AutoProvision] Function error:', fnError);
@@ -84,6 +92,12 @@ export function AutoProvisionTenant() {
       setError('Resposta inesperada do servidor. Tente novamente.');
 
     } catch (err) {
+      if (err instanceof Error && err.message === 'PROVISION_TIMEOUT') {
+        console.error('[AutoProvision] Provision timeout');
+        setError('A configuração da conta demorou demais porque o backend não respondeu a tempo.');
+        return;
+      }
+
       console.error('[AutoProvision] Unexpected error:', err);
       setError('Erro inesperado. Por favor, tente novamente.');
     }

@@ -10,8 +10,9 @@ import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenantContext } from '@/contexts/TenantContext';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { AutoProvisionTenant } from './AutoProvisionTenant';
+import { Button } from '@/components/ui/button';
 
 interface SubAccountGuardProps {
   children: ReactNode;
@@ -19,7 +20,7 @@ interface SubAccountGuardProps {
 
 export function SubAccountGuard({ children }: SubAccountGuardProps) {
   const { user, loading: authLoading } = useAuth();
-  const { currentTenant, loading: tenantLoading, hasTenant } = useTenantContext();
+  const { currentTenant, loading: tenantLoading, hasTenant, error, refetch } = useTenantContext();
 
   const isLoading = authLoading || tenantLoading;
 
@@ -28,6 +29,24 @@ export function SubAccountGuard({ children }: SubAccountGuardProps) {
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-2">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Carregando...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4 p-4">
+        <div className="bg-card border rounded-2xl p-8 max-w-md w-full text-center space-y-4">
+          <div className="mx-auto w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center">
+            <AlertTriangle className="h-8 w-8 text-destructive" />
+          </div>
+          <h2 className="text-xl font-bold">Erro ao carregar</h2>
+          <p className="text-muted-foreground">{error}</p>
+          <Button onClick={() => refetch()} className="w-full gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Tentar novamente
+          </Button>
+        </div>
       </div>
     );
   }
