@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { type ArticleData, type GenerationStage } from '@/types/article';
+import { checkContentQuality } from '@/utils/contentQualityChecker';
 import { SimpleArticleForm, type SimpleFormData } from '@/components/client/SimpleArticleForm';
 import { ArticlePreview } from '@/components/ArticlePreview';
 import { RichTextEditor } from '@/components/editor/RichTextEditor';
@@ -845,6 +846,20 @@ export default function ClientArticleEditor() {
     if (!blog?.id || !title.trim() || !content.trim()) {
       toast.error('Preencha o título e conteúdo');
       return;
+    }
+
+    // Content quality check before publishing
+    if (publish) {
+      const quality = checkContentQuality(content, title);
+      if (!quality.canPublish) {
+        const errorMsg = quality.issues.filter(i => i.type === 'error').map(i => i.message).join('; ');
+        toast.error(`Não é possível publicar: ${errorMsg}`);
+        return;
+      }
+      if (quality.issues.length > 0) {
+        const warnings = quality.issues.map(i => `• ${i.message}`).join('\n');
+        toast.warning(`Qualidade do conteúdo (${quality.score}/100):\n${warnings}`, { duration: 8000 });
+      }
     }
 
     setIsSaving(true);
