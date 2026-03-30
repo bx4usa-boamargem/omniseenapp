@@ -212,8 +212,7 @@ export default function ClientOnboarding() {
         const competitorRows = data.competitors.map(c => ({
           blog_id: blog.id,
           name: c.name,
-          website_url: c.url,
-          notes: c.description,
+          url: c.url || 'https://',
         }));
 
         await supabase
