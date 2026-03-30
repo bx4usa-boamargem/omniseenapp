@@ -66,8 +66,21 @@ serve(async (req) => {
     if (action === "migrate") {
       console.log("Starting retroactive cost migration...");
 
-      // Fetch articles in paginated batches to avoid statement timeout
-      const PAGE_SIZE = 500;
+      // Fetch blog->user mapping first (small table)
+      const { data: blogs, error: blogsError } = await supabase
+        .from("blogs")
+        .select("id, user_id");
+      
+      if (blogsError) {
+        console.error("Error fetching blogs:", blogsError);
+        throw blogsError;
+      }
+
+      const blogUserMap = new Map<string, string>();
+      (blogs || []).forEach((b: any) => blogUserMap.set(b.id, b.user_id));
+
+      // Fetch articles in small batches to avoid statement timeout
+      const PAGE_SIZE = 100;
       let allArticles: any[] = [];
       let page = 0;
       let hasMore = true;
@@ -75,17 +88,7 @@ serve(async (req) => {
       while (hasMore) {
         const { data: batch, error: batchError } = await supabase
           .from("articles")
-          .select(`
-            id,
-            blog_id,
-            title,
-            created_at,
-            featured_image_url,
-            content_images,
-            blogs!inner (
-              user_id
-            )
-          `)
+          .select("id, blog_id, title, created_at, featured_image_url, content_images")
           .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
           .order("created_at", { ascending: true });
 
@@ -131,7 +134,7 @@ serve(async (req) => {
       const imageLogsToInsert: any[] = [];
 
       for (const article of allArticles) {
-        const userId = (article.blogs as any)?.user_id;
+        const userId = blogUserMap.get(article.blog_id);
         if (!userId) continue;
 
         const dateKey = article.created_at?.split("T")[0];
