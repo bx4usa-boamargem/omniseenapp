@@ -102,6 +102,7 @@ import ArticleAdvancedPreview from "./pages/client/ArticleAdvancedPreview";
 import GenerationDashboard from "./pages/client/GenerationDashboard";
 import GenerationNew from "./pages/client/GenerationNew";
 import GenerationDetail from "./pages/client/GenerationDetail";
+import ClientOnboarding from "./pages/client/ClientOnboarding";
 import WordPressCallback from "./pages/cms/WordPressCallback";
 
 const queryClient = new QueryClient();
@@ -199,6 +200,7 @@ const ClientRoutes = () => (
         }}
       >
         <Routes>
+          <Route path="onboarding" element={<ClientOnboarding />} />
           <Route path="dashboard" element={<ClientDashboard />} />
           
           {/* Resultados & ROI */}

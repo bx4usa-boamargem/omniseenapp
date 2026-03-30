@@ -74,8 +74,8 @@ export function AutoProvisionTenant() {
         
         toast.success('Conta configurada com sucesso!');
         
-        // Navigate to dashboard
-        safeRedirect('/client/dashboard');
+        // Navigate to onboarding wizard for new accounts
+        safeRedirect('/client/onboarding');
         return;
       }
 
