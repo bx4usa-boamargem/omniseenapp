@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { sanitizeHTML } from "@/lib/sanitize";
 import { useTranslation } from "react-i18next";
 import { getBlogPath } from "@/utils/blogUrl";
 import { Button } from "@/components/ui/button";
