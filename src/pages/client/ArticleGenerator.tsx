@@ -173,16 +173,8 @@ export default function ArticleGenerator() {
   };
   
   const handleCancel = async () => {
-    // V5.0: Mark placeholder as draft/failed on cancel
-    if (placeholderArticleId) {
-      await supabase
-        .from('articles')
-        .update({ status: 'draft', generation_stage: 'failed' })
-        .eq('id', placeholderArticleId);
-    }
-    
     setIsGenerating(false);
-    setPlaceholderArticleId(null);
+    setCurrentJobId(null);
     setShowTimeoutWarning(false);
     if (timeoutWarningRef.current) clearTimeout(timeoutWarningRef.current);
     toast.info('Geração cancelada');
@@ -195,60 +187,7 @@ export default function ArticleGenerator() {
     setShowTimeoutWarning(false);
     
     try {
-      // V5.0 Step 1: Create placeholder in DB
-      console.log('[V5.0] Creating placeholder...');
-      const { data: placeholder, error: placeholderError } = await supabase
-        .from('articles')
-        .insert({
-          blog_id: blog.id,
-          title: `Gerando: ${formData.keyword.trim()}`,
-          status: 'generating',
-          generation_stage: 'validating',
-          generation_progress: 5,
-          slug: `generating-${Date.now()}`,
-        })
-        .select('id')
-        .single();
-
-      if (placeholderError || !placeholder?.id) {
-        console.error('[V5.0] Placeholder creation failed:', placeholderError);
-        toast.error('Erro ao iniciar geração. Tente novamente.');
-        setIsGenerating(false);
-        return;
-      }
-
-      const articleId = placeholder.id;
-      console.log('[V5.0] Placeholder created:', articleId);
-      setPlaceholderArticleId(articleId);
-
-      // V5.0 Step 2: Polling starts automatically via useGenerationPolling hook
-      // (enabled becomes true when placeholderArticleId is set)
-
-      // V5.0 Step 3: Call edge function with article_id (non-blocking for UI)
-      const payload = {
-        article_id: articleId,
-        theme: formData.keyword.trim(),
-        keywords: [formData.keyword.trim()],
-        city: formData.city.trim(),
-        state: formData.state,
-        niche: formData.niche,
-        mode: formData.mode,
-        webResearch: formData.webResearch,
-        templateOverride: formData.template !== 'auto' ? formData.template : undefined,
-        blogId: blog.id,
-        blog_id: blog.id,
-        businessName: businessProfile?.company_name || blog.name,
-        businessWhatsapp: businessProfile?.whatsapp,
-        useEat: formData.eatInjection,
-        contextualAlt: formData.imageAlt,
-        image_count: formData.mode === 'authority' ? 8 : 3,
-        word_count: formData.mode === 'authority' ? 2400 : 1000,
-        generation_mode: formData.mode === 'authority' ? 'deep' : 'fast',
-      };
-      
-      console.log('[V5.0] Invoking Engine v1 via create-generation-job...');
-      
-      // ENGINE V1: All generation goes through create-generation-job → orchestrate-generation
+      // V6.0: Call create-generation-job directly — no placeholder article
       const enginePayload = {
         keyword: formData.keyword.trim(),
         blog_id: blog.id,
@@ -263,68 +202,55 @@ export default function ArticleGenerator() {
         image_count: formData.mode === 'authority' ? 8 : 4,
       };
 
-      // V5.0: Fire-and-forget — polling handles completion/failure
-      supabase.functions.invoke('create-generation-job', {
+      console.log('[V6.0] Invoking create-generation-job...');
+      
+      const { data, error } = await supabase.functions.invoke('create-generation-job', {
         body: enginePayload
-      }).then(({ data, error }) => {
-        if (error) {
-          const errorMsg = error.message || '';
-          // V5.0: Timeout errors are OK — polling will detect completion
-          const isTimeout = 
-            errorMsg.includes('Failed to fetch') ||
-            errorMsg.includes('FunctionsFetchError') ||
-            errorMsg.includes('Failed to send') ||
-            errorMsg.includes('timed out');
-          
-          if (isTimeout) {
-            console.log('[V5.0] Invoke timeout — continuing polling...');
-            return; // Polling will handle it
-          }
+      });
 
-          // Real errors (not timeout)
+      if (error) {
+        const errorMsg = error.message || '';
+        const isTimeout = 
+          errorMsg.includes('Failed to fetch') ||
+          errorMsg.includes('FunctionsFetchError') ||
+          errorMsg.includes('Failed to send') ||
+          errorMsg.includes('timed out');
+        
+        if (!isTimeout) {
           if (errorMsg.includes('429')) {
             toast.error('Limite de requisições excedido. Aguarde alguns minutos.');
           } else if (errorMsg.includes('402')) {
             toast.error('Créditos insuficientes.');
           } else {
-            console.error('[V5.0] Edge function error:', error);
-            // Don't stop — let polling decide (backend may have already started)
+            console.error('[V6.0] Edge function error:', error);
+            toast.error('Erro ao iniciar geração. Tente novamente.');
           }
-        }
-
-        // Handle QUALITY_GATE_FAILED from response data
-        if (data?.error === 'QUALITY_GATE_FAILED') {
-          const errorCode = data?.code || '';
-          const errorMap: Record<string, string> = {
-            'missing_city': 'Cidade é obrigatória para gerar o artigo',
-            'missing_niche': 'Nicho é obrigatório para gerar o artigo',
-            'invalid_json': 'Erro ao processar resposta da IA. Tente novamente.',
-            'missing_title': 'Artigo gerado sem título. Tente novamente.',
-            'insufficient_sections': data?.details || 'Artigo com estrutura incompleta',
-            'invalid_sections': data?.details || 'Artigo contém seções vazias',
-            'insufficient_faq': data?.details || 'FAQ insuficiente no artigo',
-            'insufficient_images': data?.details || 'Imagens insuficientes no artigo',
-            'missing_hero_image': 'Hero image obrigatória não foi gerada',
-            'insufficient_word_count': data?.details || 'Artigo muito curto',
-            'missing_introduction': 'Artigo sem introdução adequada',
-            'missing_conclusion': 'Artigo sem conclusão'
-          };
-          
-          const errorMessage = errorMap[errorCode] || data?.message || 'Erro na geração';
           setIsGenerating(false);
-          setPlaceholderArticleId(null);
-          toast.error(errorMessage);
+          return;
         }
-      }).catch((err) => {
-        // Network-level errors (timeout) — polling continues
-        console.log('[V5.0] Invoke catch (likely timeout):', err?.message);
-        // Don't stop generation — polling handles recovery
-      });
+      }
+
+      if (data?.error) {
+        toast.error(data.message || data.error);
+        setIsGenerating(false);
+        return;
+      }
+
+      const jobId = data?.job_id;
+      if (!jobId) {
+        toast.error('Erro ao criar job de geração.');
+        setIsGenerating(false);
+        return;
+      }
+
+      console.log('[V6.0] Job created:', jobId);
+      setCurrentJobId(jobId);
+      // Polling starts automatically via useJobPolling hook
       
     } catch (err: any) {
-      console.error('[V5.0] Generation setup error:', err);
+      console.error('[V6.0] Generation setup error:', err);
       setIsGenerating(false);
-      setPlaceholderArticleId(null);
+      setCurrentJobId(null);
       toast.error(err.message || 'Erro ao iniciar geração');
     }
   };
