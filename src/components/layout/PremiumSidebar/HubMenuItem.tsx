@@ -57,6 +57,22 @@ export function HubMenuItem({
     }
   }, [isOpen]);
 
+  // Fecha ao clicar fora (sem overlay bloqueante)
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        // Also check if click is inside the fixed panel
+        const panel = document.querySelector(`[data-hub-panel="${id}"]`);
+        if (panel && panel.contains(e.target as Node)) return;
+        setIsOpen(false);
+        onClose?.();
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen, id, onClose]);
+
   const handleMouseEnter = () => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
