@@ -17,6 +17,7 @@ export function AutoProvisionTenant() {
   const { user, signOut } = useAuth();
   const { refetch } = useTenantContext();
   const navigate = useNavigate();
+  type ProvisionTenantResponse = { status?: string };
   
   const [statusMessage, setStatusMessage] = useState('Configurando sua conta...');
   const [error, setError] = useState<string | null>(null);
@@ -54,9 +55,9 @@ export function AutoProvisionTenant() {
 
       // Single call to backend function (uses service_role, bypasses RLS)
       const { data, error: fnError } = await Promise.race([
-        supabase.functions.invoke('provision-tenant'),
+        supabase.functions.invoke<ProvisionTenantResponse>('provision-tenant'),
         timeoutPromise,
-      ]) as Awaited<ReturnType<typeof supabase.functions.invoke>>;
+      ]) as { data: ProvisionTenantResponse | null; error: Error | null };
 
       if (fnError) {
         console.error('[AutoProvision] Function error:', fnError);

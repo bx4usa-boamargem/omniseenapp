@@ -8,11 +8,11 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
-const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, timeoutCode: string): Promise<T> => {
+const withTimeout = <T,>(promise: PromiseLike<T>, timeoutMs: number, timeoutCode: string): Promise<T> => {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error(timeoutCode)), timeoutMs);
 
-    promise
+    Promise.resolve(promise)
       .then((value) => {
         clearTimeout(timer);
         resolve(value);
@@ -92,29 +92,33 @@ export function TenantProvider({ children }: TenantProviderProps) {
       console.log('[TenantContext] Fetching memberships for user:', user.id);
 
       // Buscar todas as memberships do usuário com dados do tenant
-      const { data: memberships, error: membershipsError } = await withTimeout(
-        supabase
-          .from('tenant_members')
-          .select(`
-            id,
-            tenant_id,
-            user_id,
-            role,
-            joined_at,
-            tenant:tenants (
+      const membershipsResult = await withTimeout(
+        Promise.resolve(
+          supabase
+            .from('tenant_members')
+            .select(`
               id,
-              name,
-              slug,
-              owner_user_id,
-              plan,
-              status,
-              created_at
-            )
-          `)
-          .eq('user_id', user.id),
+              tenant_id,
+              user_id,
+              role,
+              joined_at,
+              tenant:tenants (
+                id,
+                name,
+                slug,
+                owner_user_id,
+                plan,
+                status,
+                created_at
+              )
+            `)
+            .eq('user_id', user.id)
+        ),
         15000,
         'MEMBERSHIPS_TIMEOUT'
       );
+
+      const { data: memberships, error: membershipsError } = membershipsResult;
 
       if (membershipsError) {
         console.error('[TenantContext] Error fetching memberships:', membershipsError);
