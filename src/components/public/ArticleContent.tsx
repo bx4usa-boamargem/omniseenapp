@@ -106,6 +106,45 @@ const splitLongHtmlParagraphs = (html: string): string => {
   });
 };
 
+const splitLongTextParagraphs = (text: string): string[] => {
+  const plainText = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+  if (plainText.length < 700) {
+    return [text];
+  }
+
+  const sentences = text
+    .match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g)
+    ?.map((sentence) => sentence.trim())
+    .filter(Boolean);
+
+  if (!sentences || sentences.length < 2) {
+    return [text];
+  }
+
+  const chunks: string[] = [];
+  let currentChunk = '';
+  const maxChunkLength = 420;
+
+  for (const sentence of sentences) {
+    const candidate = currentChunk ? `${currentChunk} ${sentence}` : sentence;
+    const candidateLength = candidate.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().length;
+
+    if (currentChunk && candidateLength > maxChunkLength) {
+      chunks.push(currentChunk.trim());
+      currentChunk = sentence;
+    } else {
+      currentChunk = candidate;
+    }
+  }
+
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
+
+  return chunks.length > 0 ? chunks : [text];
+};
+
 const promoteLooseHeadings = (html: string): string => {
   return html.replace(/<\/p>\s*([A-ZÀ-ÿ][^<]{20,140})\s*(?=<p\b|<figure\b|<ul\b|<ol\b)/g, (match, rawHeading) => {
     const heading = rawHeading.replace(/\s+/g, ' ').trim();
@@ -120,8 +159,9 @@ const promoteLooseHeadings = (html: string): string => {
 };
 
 export const ArticleContent = ({ content, contentImages = [] }: ArticleContentProps) => {
-  // Detect if content is HTML (from SEO optimization) vs Markdown
-  const isHtmlContent = /<(h[1-6]|p|div|figure|ul|ol|table|section)\b/i.test(content);
+  const hasStructuredHtml = /<(h[1-6]|p|div|figure|ul|ol|table|section)\b/i.test(content);
+  const hasMarkdownHeadings = /(^|\n)\s*#{1,3}\s+.+/m.test(content);
+  const isHtmlContent = hasStructuredHtml && !hasMarkdownHeadings;
 
   if (isHtmlContent) {
     // HTML content: process WhatsApp CTAs and render directly
@@ -186,13 +226,19 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
 
     const flushParagraph = () => {
       if (pendingParagraph.length > 0) {
-        const processedLine = pendingParagraph.join(' ')
-          .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-          .replace(/\*(.+?)\*/g, "<em>$1</em>")
-          .replace(/_(.+?)_/g, "<em>$1</em>");
-        elements.push(
-          <p key={`p-${elements.length}`} dangerouslySetInnerHTML={{ __html: sanitizeHTML(processLinks(processedLine)) }} />
-        );
+        const paragraphChunks = splitLongTextParagraphs(pendingParagraph.join(' '));
+
+        paragraphChunks.forEach((chunk) => {
+          const processedLine = chunk
+            .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+            .replace(/\*(.+?)\*/g, "<em>$1</em>")
+            .replace(/_(.+?)_/g, "<em>$1</em>");
+
+          elements.push(
+            <p key={`p-${elements.length}`} dangerouslySetInnerHTML={{ __html: sanitizeHTML(processLinks(processedLine)) }} />
+          );
+        });
+
         pendingParagraph = [];
       }
     };
@@ -355,6 +401,22 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
       }
 
       // Headers with ID for TOC linking
+      if (trimmedLine.startsWith("# ")) {
+        flushList();
+        const headingText = trimmedLine.replace("# ", "");
+        const headingId = slugify(headingText);
+        elements.push(
+          <h1
+            key={index}
+            id={headingId}
+            className="font-heading text-3xl md:text-4xl font-black text-foreground mt-10 mb-6 leading-tight scroll-mt-24"
+          >
+            {headingText}
+          </h1>
+        );
+        return;
+      }
+
       if (trimmedLine.startsWith("## ")) {
         flushList();
         h2Count++;
