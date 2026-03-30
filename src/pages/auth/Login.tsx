@@ -62,6 +62,7 @@ function LoginContent() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, signIn, signInWithGoogle, loading: authLoading } = useAuth();
+  const postLoginPath = '/client/dashboard';
 
   // Guard contra múltiplos redirects - previne race conditions
   const hasRedirectedRef = useRef(false);
@@ -80,6 +81,7 @@ function LoginContent() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAwaitingSession, setIsAwaitingSession] = useState(false);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
 
   // Schema de validação
@@ -109,20 +111,37 @@ function LoginContent() {
       timer = setTimeout(() => {
         console.warn('[Login] Loading timeout exceeded');
         setLoadingTimeout(true);
-      }, 10000);
+      }, 15000);
     } else {
       setLoadingTimeout(false);
     }
     return () => clearTimeout(timer);
   }, [authLoading]);
 
+  useEffect(() => {
+    if (!isAwaitingSession || user) return;
+
+    const timer = setTimeout(() => {
+      console.warn('[Login] Session confirmation timeout exceeded');
+      setIsAwaitingSession(false);
+      toast({
+        title: 'Sessão não confirmada',
+        description: 'O backend demorou para confirmar seu acesso. Tente novamente em instantes.',
+        variant: 'destructive',
+      });
+    }, 15000);
+
+    return () => clearTimeout(timer);
+  }, [isAwaitingSession, user]);
+
   // Auto-redirect se já está autenticado
   useEffect(() => {
     if (!authLoading && user) {
-      console.log('[Login] User already authenticated, redirecting to /app');
-      safeRedirect('/app');
+      console.log('[Login] User authenticated, redirecting to client dashboard');
+      setIsAwaitingSession(false);
+      safeRedirect(postLoginPath);
     }
-  }, [authLoading, user]);
+  }, [authLoading, user, postLoginPath]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -165,9 +184,18 @@ function LoginContent() {
       const { error } = result;
 
       if (error) {
+        const message = error.message?.toLowerCase() || '';
+        const isTimeoutOrNetworkError =
+          message.includes('timeout') ||
+          message.includes('network') ||
+          message.includes('fetch') ||
+          message.includes('failed to fetch');
+
         toast({
-          title: 'Erro no login',
-          description: 'Email ou senha incorretos. Use "Esqueceu a senha?" para recuperar.',
+          title: isTimeoutOrNetworkError ? 'Backend indisponível' : 'Erro no login',
+          description: isTimeoutOrNetworkError
+            ? 'O servidor está demorando para responder. Tente novamente em alguns instantes.'
+            : 'Email ou senha incorretos. Use "Esqueceu a senha?" para recuperar.',
           variant: 'destructive',
         });
         setIsLoading(false);
@@ -175,23 +203,10 @@ function LoginContent() {
       }
 
       toast({
-        title: 'Bem-vindo de volta!',
-        description: 'Login realizado com sucesso',
+        title: 'Credenciais confirmadas',
+        description: 'Validando sua sessão e carregando sua conta...',
       });
-      
-      // Aguarda uma única verificação de sessão antes de navegar
-      // O TenantGuard e AutoProvisionTenant cuidam do resto
-      console.log('[Login] Login successful, checking session...');
-      const { data: sessionData } = await supabase.auth.getSession();
-      
-      if (sessionData?.session) {
-        console.log('[Login] Session confirmed, navigating to /app');
-      } else {
-        console.log('[Login] Session pending, TenantGuard will handle');
-      }
-      
-      // Navigate - TenantGuard + AutoProvisionTenant handle the rest
-      safeRedirect('/app');
+      setIsAwaitingSession(true);
 
     } catch (err) {
       console.error('[Login] Unexpected error:', err);
@@ -383,7 +398,7 @@ function LoginContent() {
                 </div>
 
                 <Button type="submit" className="w-full gap-2" disabled={isLoading}>
-                  {isLoading ? (
+                  {isLoading || isAwaitingSession ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <>

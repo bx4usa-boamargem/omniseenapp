@@ -8,6 +8,22 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
+const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, timeoutCode: string): Promise<T> => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(timeoutCode)), timeoutMs);
+
+    promise
+      .then((value) => {
+        clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+  });
+};
+
 export interface Tenant {
   id: string;
   name: string;
@@ -76,25 +92,29 @@ export function TenantProvider({ children }: TenantProviderProps) {
       console.log('[TenantContext] Fetching memberships for user:', user.id);
 
       // Buscar todas as memberships do usuário com dados do tenant
-      const { data: memberships, error: membershipsError } = await supabase
-        .from('tenant_members')
-        .select(`
-          id,
-          tenant_id,
-          user_id,
-          role,
-          joined_at,
-          tenant:tenants (
+      const { data: memberships, error: membershipsError } = await withTimeout(
+        supabase
+          .from('tenant_members')
+          .select(`
             id,
-            name,
-            slug,
-            owner_user_id,
-            plan,
-            status,
-            created_at
-          )
-        `)
-        .eq('user_id', user.id);
+            tenant_id,
+            user_id,
+            role,
+            joined_at,
+            tenant:tenants (
+              id,
+              name,
+              slug,
+              owner_user_id,
+              plan,
+              status,
+              created_at
+            )
+          `)
+          .eq('user_id', user.id),
+        15000,
+        'MEMBERSHIPS_TIMEOUT'
+      );
 
       if (membershipsError) {
         console.error('[TenantContext] Error fetching memberships:', membershipsError);
@@ -137,6 +157,12 @@ export function TenantProvider({ children }: TenantProviderProps) {
       }
 
     } catch (err) {
+      if (err instanceof Error && err.message === 'MEMBERSHIPS_TIMEOUT') {
+        console.error('[TenantContext] Timeout fetching memberships');
+        setError('O backend está demorando para carregar sua conta. Tente novamente em instantes.');
+        return;
+      }
+
       console.error('[TenantContext] Unexpected error:', err);
       setError('Erro inesperado ao carregar tenant');
     } finally {
