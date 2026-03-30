@@ -291,7 +291,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         const quoteContent = trimmedLine.replace(/^[❝❞]\s?/, '');
         elements.push(
           <blockquote key={index} className="bg-gradient-to-r from-primary/10 to-transparent border-l-4 border-primary p-6 my-8 rounded-r-lg">
-            <p className="text-xl italic font-serif text-foreground leading-relaxed" dangerouslySetInnerHTML={{ __html: processLinks(quoteContent) }} />
+            <p className="text-xl italic font-serif text-foreground leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitizeHTML(processLinks(quoteContent)) }} />
           </blockquote>
         );
         return;
