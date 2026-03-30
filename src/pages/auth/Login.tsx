@@ -83,6 +83,7 @@ function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isAwaitingSession, setIsAwaitingSession] = useState(false);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  const [skipAuthLoading, setSkipAuthLoading] = useState(false);
 
   // Schema de validação
   const loginSchema = z.object({
