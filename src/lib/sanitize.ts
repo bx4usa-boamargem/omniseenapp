@@ -3,7 +3,7 @@ import DOMPurify from 'dompurify';
 /**
  * Extract the body content from a full HTML document.
  * If the content has <!DOCTYPE> or <html>/<body> wrappers, strips them
- * and preserves any <style> blocks found in <head> or <body>.
+ * Strips inline <style> blocks (they conflict with Tailwind prose/dark mode).
  */
 const extractBodyContent = (html: string): string => {
   // If it's a full HTML document, extract body + styles
@@ -33,7 +33,6 @@ export const sanitizeHTML = (html: string): string => {
       'ul', 'ol', 'li', 'blockquote', 'div', 'span', 'figure', 'figcaption',
       'img', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'section',
       'article', 'header', 'footer', 'nav', 'aside', 'main', 'mark', 'sub', 'sup',
-      'style',
     ],
     ALLOWED_ATTR: [
       'href', 'target', 'rel', 'class', 'src', 'alt', 'style', 'loading',
