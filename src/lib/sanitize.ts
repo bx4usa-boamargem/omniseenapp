@@ -35,7 +35,7 @@ export const sanitizeHTML = (html: string): string => {
       'article', 'header', 'footer', 'nav', 'aside', 'main', 'mark', 'sub', 'sup',
     ],
     ALLOWED_ATTR: [
-      'href', 'target', 'rel', 'class', 'src', 'alt', 'style', 'loading',
+      'href', 'target', 'rel', 'class', 'src', 'alt', 'loading',
       'id', 'title', 'width', 'height', 'colspan', 'rowspan',
     ],
     ALLOW_DATA_ATTR: false,

@@ -65,13 +65,67 @@ const extractWhatsAppCTA = (line: string): { text: string; url: string } | null 
   return null;
 };
 
+const splitLongHtmlParagraphs = (html: string): string => {
+  return html.replace(/<p([^>]*)>([\s\S]*?)<\/p>/gi, (_, attrs = '', inner = '') => {
+    const plainText = inner.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+    if (plainText.length < 900) {
+      return `<p${attrs}>${inner}</p>`;
+    }
+
+    const sentences = inner
+      .match(/[^.!?]+[.!?]+(?:\s+|$)|[^.!?]+$/g)
+      ?.map((sentence) => sentence.trim())
+      .filter(Boolean);
+
+    if (!sentences || sentences.length < 2) {
+      return `<p${attrs}>${inner}</p>`;
+    }
+
+    const chunks: string[] = [];
+    let currentChunk = '';
+    const maxChunkLength = 520;
+
+    for (const sentence of sentences) {
+      const candidate = currentChunk ? `${currentChunk} ${sentence}` : sentence;
+      const candidateTextLength = candidate.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().length;
+
+      if (currentChunk && candidateTextLength > maxChunkLength) {
+        chunks.push(currentChunk.trim());
+        currentChunk = sentence;
+      } else {
+        currentChunk = candidate;
+      }
+    }
+
+    if (currentChunk.trim()) {
+      chunks.push(currentChunk.trim());
+    }
+
+    return chunks.map((chunk) => `<p${attrs}>${chunk}</p>`).join('');
+  });
+};
+
+const promoteLooseHeadings = (html: string): string => {
+  return html.replace(/<\/p>\s*([A-ZÀ-ÿ][^<]{20,140})\s*(?=<p\b|<figure\b|<ul\b|<ol\b)/g, (match, rawHeading) => {
+    const heading = rawHeading.replace(/\s+/g, ' ').trim();
+    const wordCount = heading.split(/\s+/).length;
+
+    if (/[.!?:;]$/.test(heading) || wordCount < 4 || wordCount > 16) {
+      return match;
+    }
+
+    return `</p><h2>${heading}</h2>`;
+  });
+};
+
 export const ArticleContent = ({ content, contentImages = [] }: ArticleContentProps) => {
   // Detect if content is HTML (from SEO optimization) vs Markdown
   const isHtmlContent = /<(h[1-6]|p|div|figure|ul|ol|table|section)\b/i.test(content);
 
   if (isHtmlContent) {
     // HTML content: process WhatsApp CTAs and render directly
-    let processedHtml = content;
+    let processedHtml = promoteLooseHeadings(splitLongHtmlParagraphs(content));
     
     // Convert WhatsApp links to styled buttons
     processedHtml = processedHtml.replace(
@@ -87,14 +141,14 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         const image = contentImages.find(img => img.after_section === h2Count);
         if (image) {
           const label = contextLabels[image.context] || 'Ilustração';
-          return `${match}<figure class="my-10"><div class="rounded-xl overflow-hidden shadow-xl"><img src="${image.url}" alt="${label}" class="w-full aspect-video object-cover object-center" style="max-height:400px" loading="lazy" /></div><figcaption class="text-center text-sm text-muted-foreground mt-3 italic">${label}</figcaption></figure>`;
+          return `${match}<figure class="my-10 article-inline-figure"><div class="rounded-xl overflow-hidden shadow-xl"><img src="${image.url}" alt="${label}" class="w-full aspect-video object-cover object-center article-inline-image" loading="lazy" /></div><figcaption class="text-center text-sm text-muted-foreground mt-3 italic">${label}</figcaption></figure>`;
         }
         return match;
       });
     }
 
     return (
-      <article className="prose prose-lg max-w-none prose-headings:font-heading prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground prose-h2:text-2xl prose-h2:mt-8 prose-h2:mb-4 prose-h3:text-xl prose-h3:mt-6 prose-h3:mb-3 prose-p:leading-relaxed prose-ul:my-4 prose-ol:my-4 prose-li:my-1 prose-blockquote:not-italic">
+      <article className="prose prose-lg max-w-none prose-headings:font-heading prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground prose-h1:text-4xl prose-h1:font-black prose-h1:leading-tight prose-h1:mb-8 md:prose-h1:text-5xl prose-h2:text-3xl prose-h2:font-bold prose-h2:tracking-tight prose-h2:mt-12 prose-h2:mb-6 prose-h2:border-b prose-h2:border-border prose-h2:pb-3 md:prose-h2:text-4xl prose-h3:text-2xl prose-h3:font-semibold prose-h3:mt-8 prose-h3:mb-4 prose-p:my-5 prose-p:leading-8 prose-ul:my-5 prose-ol:my-5 prose-li:my-1 prose-blockquote:not-italic">
         <style>{`
           .whatsapp-cta-inline {
             display: inline-flex;
@@ -111,6 +165,9 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
           .whatsapp-cta-inline:hover {
             background-color: #1da851;
             transform: scale(1.02);
+          }
+          .article-inline-image {
+            max-height: 400px;
           }
         `}</style>
         <div dangerouslySetInnerHTML={{ __html: sanitizeHTML(processedHtml) }} />
