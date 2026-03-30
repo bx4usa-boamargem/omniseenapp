@@ -15,7 +15,7 @@ interface CustomDomainBlogProps {
 
 export default function CustomDomainBlog({ blogId, blogSlug }: CustomDomainBlogProps) {
   const { blog, articles, loading, error } = useBlogHome({ blogId: blogId || undefined, limit: 50 });
-  const { agentConfig, businessProfile } = useAgentConfig();
+  const { agentConfig, businessProfile } = useAgentConfig({ blogId: blogId || undefined });
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   const primaryColor = useMemo(() => blog?.primary_color || "#6366f1", [blog?.primary_color]);
