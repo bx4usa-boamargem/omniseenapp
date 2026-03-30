@@ -134,7 +134,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
           .replace(/\*(.+?)\*/g, "<em>$1</em>")
           .replace(/_(.+?)_/g, "<em>$1</em>");
         elements.push(
-          <p key={`p-${elements.length}`} dangerouslySetInnerHTML={{ __html: processLinks(processedLine) }} />
+          <p key={`p-${elements.length}`} dangerouslySetInnerHTML={{ __html: sanitizeHTML(processLinks(processedLine)) }} />
         );
         pendingParagraph = [];
       }
