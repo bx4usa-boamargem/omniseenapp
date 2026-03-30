@@ -86,14 +86,14 @@ serve(async (req) => {
     // Decrypt tokens
     const { data: decAccessToken } = await supabase.rpc('decrypt_gsc_token', { ciphertext: connection.access_token_encrypted, p_blog_id: blogId });
     const { data: decRefreshToken } = await supabase.rpc('decrypt_gsc_token', { ciphertext: connection.refresh_token_encrypted, p_blog_id: blogId });
-    let accessToken = decAccessToken || connection.access_token;
+    let accessToken = decAccessToken;
 
     // Check if token needs refresh
     if (connection.token_expires_at) {
       const expiresAt = new Date(connection.token_expires_at);
       const now = new Date();
       if (expiresAt <= now) {
-        const refreshToken = decRefreshToken || connection.refresh_token;
+        const refreshToken = decRefreshToken;
         const refreshResult = await refreshAccessToken(refreshToken);
         if (!refreshResult) {
           return new Response(
