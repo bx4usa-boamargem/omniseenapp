@@ -29,12 +29,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
-    });
+    // THEN check for existing session with 10s timeout
+    const sessionTimeout = new Promise<{ data: { session: null } }>(resolve =>
+      setTimeout(() => resolve({ data: { session: null } }), 10000)
+    );
+    Promise.race([supabase.auth.getSession(), sessionTimeout])
+      .then(({ data: { session } }) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
 
     return () => subscription.unsubscribe();
   }, []);
