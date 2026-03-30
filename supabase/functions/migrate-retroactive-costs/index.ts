@@ -134,7 +134,7 @@ serve(async (req) => {
       const imageLogsToInsert: any[] = [];
 
       for (const article of allArticles) {
-        const userId = (article.blogs as any)?.user_id;
+        const userId = blogUserMap.get(article.blog_id);
         if (!userId) continue;
 
         const dateKey = article.created_at?.split("T")[0];
