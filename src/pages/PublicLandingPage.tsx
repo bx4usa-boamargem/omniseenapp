@@ -58,7 +58,7 @@ export default function PublicLandingPage() {
     ? directResult
     : hookResult;
 
-  const { agentConfig, businessProfile } = useAgentConfig();
+  const { agentConfig, businessProfile } = useAgentConfig({ blogId: blog?.id, blogSlug });
 
   const primaryColor = useMemo(() => blog?.primary_color || "#6366f1", [blog?.primary_color]);
 
