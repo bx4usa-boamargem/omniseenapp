@@ -140,7 +140,29 @@ function LoginContent() {
         return;
       }
 
-      const { error } = await signIn(email, password);
+      // Login with 15s timeout
+      const loginPromise = signIn(email, password);
+      const timeoutPromise = new Promise<{ error: Error }>((_, reject) => 
+        setTimeout(() => reject(new Error('TIMEOUT')), 15000)
+      );
+
+      let result: { error: Error | null };
+      try {
+        result = await Promise.race([loginPromise, timeoutPromise]) as { error: Error | null };
+      } catch (timeoutErr: any) {
+        if (timeoutErr?.message === 'TIMEOUT') {
+          toast({
+            title: 'Servidor demorou para responder',
+            description: 'O login está demorando mais do que o esperado. Verifique sua conexão e tente novamente.',
+            variant: 'destructive',
+          });
+          setIsLoading(false);
+          return;
+        }
+        throw timeoutErr;
+      }
+
+      const { error } = result;
 
       if (error) {
         toast({
