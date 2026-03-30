@@ -7087,8 +7087,16 @@ export type Database = {
         Args: { ciphertext: string; key_id: string }
         Returns: string
       }
+      decrypt_gsc_token: {
+        Args: { ciphertext: string; p_blog_id: string }
+        Returns: string
+      }
       encrypt_credential: {
         Args: { key_id: string; plaintext: string }
+        Returns: string
+      }
+      encrypt_gsc_token: {
+        Args: { p_blog_id: string; plaintext: string }
         Returns: string
       }
       generate_referral_code: { Args: never; Returns: string }
