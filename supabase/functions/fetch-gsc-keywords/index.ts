@@ -66,7 +66,7 @@ serve(async (req) => {
     // Check if token is expired
     if (new Date(connection.token_expires_at) <= new Date()) {
       console.log('Token expired, refreshing...');
-      const refreshToken = decRefreshToken || connection.refresh_token;
+      const refreshToken = decRefreshToken;
       const newTokens = await refreshAccessToken(refreshToken);
       
       if (!newTokens) {

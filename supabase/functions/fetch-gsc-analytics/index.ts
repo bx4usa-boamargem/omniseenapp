@@ -93,7 +93,7 @@ serve(async (req) => {
       const expiresAt = new Date(connection.token_expires_at);
       const now = new Date();
       if (expiresAt <= now) {
-        const refreshToken = decRefreshToken || connection.refresh_token;
+        const refreshToken = decRefreshToken;
         const refreshResult = await refreshAccessToken(refreshToken);
         if (!refreshResult) {
           return new Response(
