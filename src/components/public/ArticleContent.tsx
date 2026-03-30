@@ -146,7 +146,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         elements.push(
           <ListTag key={elements.length} className={listType === "ul" ? "list-disc" : "list-decimal"}>
             {listItems.map((item, i) => (
-              <li key={i} dangerouslySetInnerHTML={{ __html: processLinks(item) }} />
+              <li key={i} dangerouslySetInnerHTML={{ __html: sanitizeHTML(processLinks(item)) }} />
             ))}
           </ListTag>
         );
