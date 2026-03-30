@@ -113,7 +113,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
             transform: scale(1.02);
           }
         `}</style>
-        <div dangerouslySetInnerHTML={{ __html: processedHtml }} />
+        <div dangerouslySetInnerHTML={{ __html: sanitizeHTML(processedHtml) }} />
       </article>
     );
   }
