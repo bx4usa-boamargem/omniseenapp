@@ -83,6 +83,7 @@ function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isAwaitingSession, setIsAwaitingSession] = useState(false);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
+  const [skipAuthLoading, setSkipAuthLoading] = useState(false);
 
   // Schema de validação
   const loginSchema = z.object({
@@ -250,7 +251,7 @@ function LoginContent() {
         <p className="text-muted-foreground">O carregamento está demorando mais que o esperado.</p>
         <div className="flex gap-2">
           <Button onClick={() => window.location.reload()}>Tentar novamente</Button>
-          <Button variant="outline" onClick={() => setLoadingTimeout(false)}>
+          <Button variant="outline" onClick={() => { setLoadingTimeout(false); setSkipAuthLoading(true); }}>
             Voltar ao login
           </Button>
         </div>
@@ -259,7 +260,7 @@ function LoginContent() {
   }
 
   // Auth loading
-  if (authLoading) {
+  if (authLoading && !skipAuthLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
