@@ -251,7 +251,7 @@ function LoginContent() {
         <p className="text-muted-foreground">O carregamento está demorando mais que o esperado.</p>
         <div className="flex gap-2">
           <Button onClick={() => window.location.reload()}>Tentar novamente</Button>
-          <Button variant="outline" onClick={() => setLoadingTimeout(false)}>
+          <Button variant="outline" onClick={() => { setLoadingTimeout(false); setSkipAuthLoading(true); }}>
             Voltar ao login
           </Button>
         </div>
