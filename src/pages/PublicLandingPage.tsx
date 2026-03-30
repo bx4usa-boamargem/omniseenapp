@@ -12,7 +12,10 @@ import { SpecialistAuthorityLayout } from "@/components/client/landingpage/layou
 import { inferVisibilityFromPageData } from "@/components/client/landingpage/utils/pageDataNormalizer";
 
 export default function PublicLandingPage() {
-  const { blogSlug, pageSlug } = useParams<{ blogSlug?: string; pageSlug: string }>();
+  const { blogSlug: rawBlogSlug, pageSlug } = useParams<{ blogSlug?: string; pageSlug: string }>();
+
+  // Guard: ignore literal route param tokens like ":blogSlug"
+  const blogSlug = rawBlogSlug && !rawBlogSlug.startsWith(':') ? rawBlogSlug : undefined;
 
   // Determine if we need direct fetch (no blogSlug means /p/:pageSlug route)
   const useDirectFetch = !blogSlug;
