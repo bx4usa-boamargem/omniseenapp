@@ -8,26 +8,17 @@ import DOMPurify from 'dompurify';
 const extractBodyContent = (html: string): string => {
   // If it's a full HTML document, extract body + styles
   if (/<!DOCTYPE|<html[\s>]/i.test(html)) {
-    const styles: string[] = [];
-    // Collect all <style> blocks
-    html.replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, (_, css) => {
-      styles.push(css);
-      return '';
-    });
-
     // Extract body content
     const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
     const bodyContent = bodyMatch ? bodyMatch[1] : html;
 
-    // Strip remaining wrapper tags
+    // Strip wrapper tags and inline <style> blocks (they conflict with Tailwind prose/dark mode)
     const cleaned = bodyContent
       .replace(/<\/?(html|head|body|meta|link|!DOCTYPE)[^>]*>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
       .replace(/<div class="container">/gi, '<div>')
       .trim();
 
-    if (styles.length > 0) {
-      return `<style>${styles.join('\n')}</style>${cleaned}`;
-    }
     return cleaned;
   }
   return html;
