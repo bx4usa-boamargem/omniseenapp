@@ -58,12 +58,16 @@ serve(async (req) => {
       throw new Error('No active GSC connection found');
     }
 
-    let accessToken = connection.access_token;
+    // Decrypt tokens
+    const { data: decAccessToken } = await supabase.rpc('decrypt_gsc_token', { ciphertext: connection.access_token_encrypted, p_blog_id: blogId });
+    const { data: decRefreshToken } = await supabase.rpc('decrypt_gsc_token', { ciphertext: connection.refresh_token_encrypted, p_blog_id: blogId });
+    let accessToken = decAccessToken || connection.access_token;
 
     // Check if token is expired
     if (new Date(connection.token_expires_at) <= new Date()) {
       console.log('Token expired, refreshing...');
-      const newTokens = await refreshAccessToken(connection.refresh_token);
+      const refreshToken = decRefreshToken || connection.refresh_token;
+      const newTokens = await refreshAccessToken(refreshToken);
       
       if (!newTokens) {
         throw new Error('Failed to refresh access token');
@@ -71,11 +75,12 @@ serve(async (req) => {
 
       accessToken = newTokens.access_token;
       const expiresAt = new Date(Date.now() + (newTokens.expires_in * 1000)).toISOString();
+      const { data: encNewToken } = await supabase.rpc('encrypt_gsc_token', { plaintext: accessToken, p_blog_id: blogId });
 
       await supabase
         .from('gsc_connections')
         .update({
-          access_token: accessToken,
+          access_token_encrypted: encNewToken,
           token_expires_at: expiresAt,
         })
         .eq('id', connection.id);

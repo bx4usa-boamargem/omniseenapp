@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { sanitizeHTML } from "@/lib/sanitize";
 import { useParams, useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -57,7 +58,7 @@ function formatContent(content: string): JSX.Element[] {
               <span
                 className="text-muted-foreground"
                 dangerouslySetInnerHTML={{
-                  __html: item.replace(/\*\*(.*?)\*\*/g, "<strong class='text-foreground'>$1</strong>"),
+                  __html: sanitizeHTML(item.replace(/\*\*(.*?)\*\*/g, "<strong class='text-foreground'>$1</strong>")),
                 }}
               />
             </li>

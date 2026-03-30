@@ -3980,6 +3980,7 @@ export type Database = {
       gsc_connections: {
         Row: {
           access_token: string | null
+          access_token_encrypted: string | null
           blog_id: string
           connected_at: string | null
           created_at: string
@@ -3988,12 +3989,14 @@ export type Database = {
           is_active: boolean | null
           last_sync_at: string | null
           refresh_token: string | null
+          refresh_token_encrypted: string | null
           site_url: string
           token_expires_at: string | null
           updated_at: string
         }
         Insert: {
           access_token?: string | null
+          access_token_encrypted?: string | null
           blog_id: string
           connected_at?: string | null
           created_at?: string
@@ -4002,12 +4005,14 @@ export type Database = {
           is_active?: boolean | null
           last_sync_at?: string | null
           refresh_token?: string | null
+          refresh_token_encrypted?: string | null
           site_url: string
           token_expires_at?: string | null
           updated_at?: string
         }
         Update: {
           access_token?: string | null
+          access_token_encrypted?: string | null
           blog_id?: string
           connected_at?: string | null
           created_at?: string
@@ -4016,6 +4021,7 @@ export type Database = {
           is_active?: boolean | null
           last_sync_at?: string | null
           refresh_token?: string | null
+          refresh_token_encrypted?: string | null
           site_url?: string
           token_expires_at?: string | null
           updated_at?: string
@@ -7081,8 +7087,16 @@ export type Database = {
         Args: { ciphertext: string; key_id: string }
         Returns: string
       }
+      decrypt_gsc_token: {
+        Args: { ciphertext: string; p_blog_id: string }
+        Returns: string
+      }
       encrypt_credential: {
         Args: { key_id: string; plaintext: string }
+        Returns: string
+      }
+      encrypt_gsc_token: {
+        Args: { p_blog_id: string; plaintext: string }
         Returns: string
       }
       generate_referral_code: { Args: never; Returns: string }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { sanitizeHTML } from "@/lib/sanitize";
 import { useParams, useNavigate } from 'react-router-dom';
 import { smartNavigate, getClientArticleEditPath } from '@/utils/platformUrls';
 import { useBlog } from '@/hooks/useBlog';
@@ -526,7 +527,7 @@ export default function ClientReviewCenter() {
               {article.content ? (
                 <div 
                   className="prose prose-lg max-w-none dark:prose-invert"
-                  dangerouslySetInnerHTML={{ __html: article.content }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHTML(article.content || "") }}
                 />
               ) : (
                 <div className="text-muted-foreground italic">
