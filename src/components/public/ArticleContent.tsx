@@ -335,7 +335,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
         flushList();
         elements.push(
           <blockquote key={index} className="border-l-4 border-primary pl-4 py-2 my-4 bg-primary/5 rounded-r-lg italic text-muted-foreground">
-            <span dangerouslySetInnerHTML={{ __html: processLinks(trimmedLine.replace("> ", "")) }} />
+            <span dangerouslySetInnerHTML={{ __html: sanitizeHTML(processLinks(trimmedLine.replace("> ", ""))) }} />
           </blockquote>
         );
         return;

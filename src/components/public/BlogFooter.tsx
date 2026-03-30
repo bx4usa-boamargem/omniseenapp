@@ -228,7 +228,7 @@ export function BlogFooter({
           {footerText && (
             <div 
               className="text-white/60 text-sm text-center mb-4"
-              dangerouslySetInnerHTML={{ __html: footerText }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHTML(footerText) }}
             />
           )}
 
