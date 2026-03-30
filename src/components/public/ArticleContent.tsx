@@ -1,4 +1,5 @@
 import { MessageCircle } from 'lucide-react';
+import { sanitizeHTML } from '@/lib/sanitize';
 
 interface ContentImage {
   context: string;
