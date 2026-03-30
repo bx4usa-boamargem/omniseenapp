@@ -83,14 +83,18 @@ serve(async (req) => {
       );
     }
 
-    let accessToken = connection.access_token;
+    // Decrypt tokens
+    const { data: decAccessToken } = await supabase.rpc('decrypt_gsc_token', { ciphertext: connection.access_token_encrypted, p_blog_id: blogId });
+    const { data: decRefreshToken } = await supabase.rpc('decrypt_gsc_token', { ciphertext: connection.refresh_token_encrypted, p_blog_id: blogId });
+    let accessToken = decAccessToken || connection.access_token;
 
     // Check if token needs refresh
     if (connection.token_expires_at) {
       const expiresAt = new Date(connection.token_expires_at);
       const now = new Date();
       if (expiresAt <= now) {
-        const refreshResult = await refreshAccessToken(connection.refresh_token);
+        const refreshToken = decRefreshToken || connection.refresh_token;
+        const refreshResult = await refreshAccessToken(refreshToken);
         if (!refreshResult) {
           return new Response(
             JSON.stringify({ error: "Failed to refresh access token", connected: false }),
@@ -100,11 +104,12 @@ serve(async (req) => {
 
         accessToken = refreshResult.access_token;
         const newExpiresAt = new Date(Date.now() + refreshResult.expires_in * 1000);
+        const { data: encNewToken } = await supabase.rpc('encrypt_gsc_token', { plaintext: accessToken, p_blog_id: blogId });
 
         await supabase
           .from("gsc_connections")
           .update({
-            access_token: accessToken,
+            access_token_encrypted: encNewToken,
             token_expires_at: newExpiresAt.toISOString(),
           })
           .eq("id", connection.id);

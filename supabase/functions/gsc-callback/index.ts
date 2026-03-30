@@ -150,13 +150,17 @@ serve(async (req) => {
 
     // Multiple sites - return list for user selection
     // Store tokens temporarily
+    // Encrypt tokens before storing
+    const { data: encAccessToken2 } = await supabase.rpc('encrypt_gsc_token', { plaintext: tokens.access_token, p_blog_id: blogId });
+    const { data: encRefreshToken2 } = await supabase.rpc('encrypt_gsc_token', { plaintext: tokens.refresh_token, p_blog_id: blogId });
+
     const { error: upsertError } = await supabase
       .from('gsc_connections')
       .upsert({
         blog_id: blogId,
         site_url: 'pending_selection',
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
+        access_token_encrypted: encAccessToken2,
+        refresh_token_encrypted: encRefreshToken2,
         token_expires_at: expiresAt,
         is_active: false,
         google_email: googleEmail,
