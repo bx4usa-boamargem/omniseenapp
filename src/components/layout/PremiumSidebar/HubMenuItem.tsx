@@ -39,13 +39,20 @@ export function HubMenuItem({
   const timeoutRef = useRef<NodeJS.Timeout>();
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Fecha o menu quando o sidebar colapsa
+  useEffect(() => {
+    if (!isExpanded) {
+      setIsOpen(false);
+    }
+  }, [isExpanded]);
+
   // Calcula posição do painel quando abre
   useEffect(() => {
     if (isOpen && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       setPanelPosition({
         top: rect.top,
-        left: rect.right + 12, // 12px de margem (ml-3)
+        left: rect.right + 12,
       });
     }
   }, [isOpen]);
