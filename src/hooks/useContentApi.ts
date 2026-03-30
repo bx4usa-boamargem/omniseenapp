@@ -305,14 +305,24 @@ export function useBlogHome(options: UseBlogHomeOptions = {}): UseBlogHomeResult
     setError(null);
 
     // Priority: blogId > blogSlug > hostname
+    // Use withRetry to handle transient WORKER_LIMIT errors
     let result: ContentApiResponse<BlogHomeData> | null = null;
     
-    if (blogId) {
-      result = await fetchContentApiByBlogId<BlogHomeData>("blog.home", blogId, { limit, offset });
-    } else if (blogSlug) {
-      result = await fetchContentApiByBlogSlug<BlogHomeData>("blog.home", blogSlug, { limit, offset });
-    } else {
-      result = await fetchContentApi<BlogHomeData>("blog.home", { limit, offset });
+    try {
+      result = await withRetry(async () => {
+        let r: ContentApiResponse<BlogHomeData> | null = null;
+        if (blogId) {
+          r = await fetchContentApiByBlogId<BlogHomeData>("blog.home", blogId, { limit, offset });
+        } else if (blogSlug) {
+          r = await fetchContentApiByBlogSlug<BlogHomeData>("blog.home", blogSlug, { limit, offset });
+        } else {
+          r = await fetchContentApi<BlogHomeData>("blog.home", { limit, offset });
+        }
+        if (!r) throw new Error("WORKER_LIMIT"); // trigger retry
+        return r;
+      });
+    } catch {
+      result = null;
     }
 
     if (!result) {
