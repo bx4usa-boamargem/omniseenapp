@@ -631,7 +631,7 @@ OUTPUT FORMAT (STRICT JSON only):
 }`;
 
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'article_gen_from_outline', [
-    { role: 'system', content: `You are a premium SEO writer for ${niche} in ${language}. Return ONLY valid JSON. No markdown, no code blocks.` },
+    { role: 'system', content: `You are a premium SEO writer for ${niche} in ${language}. You MUST return valid JSON with html_article containing proper HTML tags: <h1> for the title, <h2> for sections, <h3> for subsections, <p> for paragraphs. NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks.` },
     { role: 'user', content: prompt },
   ]);
 
@@ -639,6 +639,10 @@ OUTPUT FORMAT (STRICT JSON only):
   const parsed = parseAIJson(aiResult.content, 'CONTENT_GEN');
   if (!parsed.title) throw new Error('CONTENT_GEN: missing title');
   if (!parsed.html_article) throw new Error('CONTENT_GEN: missing html_article');
+
+  // Post-process: enforce heading structure if AI returned plain text headings
+  parsed.html_article = enforceHeadingStructure(parsed.html_article as string, outline);
+
   return { output: parsed, aiResult };
 }
 
