@@ -100,6 +100,18 @@ export function ContentScorePanel({
     }
   });
 
+  // V3.3: Auto-trigger SERP analysis on mount when keyword is available
+  const serpAutoTriggered = useRef(false);
+  useEffect(() => {
+    if (!serpAutoTriggered.current && keyword && blogId && content.length > 200 && !serpMatrix && !analyzing) {
+      serpAutoTriggered.current = true;
+      const timer = setTimeout(() => {
+        analyzeSERP(false);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [keyword, blogId, content, serpMatrix, analyzing, analyzeSERP]);
+
   // Auto-calculate score when content changes significantly
   // BUT skip if the change came from an intentional optimization
   useEffect(() => {
