@@ -112,8 +112,9 @@ export default function ArticleGenerator() {
   const [formData, setFormData] = useState<GeneratorFormData>({
     keyword: '',
     city: businessProfile?.city || '',
+    country: 'BR',
     state: 'SP',
-    niche: (businessProfile?.niche as NicheType) || 'pest_control',
+    niche: (businessProfile?.niche as string) || 'pest_control',
     mode: 'authority',
     template: 'auto',
     webResearch: true,
