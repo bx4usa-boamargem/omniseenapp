@@ -25,12 +25,15 @@ export default function GenerationNew() {
   const { blog } = useBlog();
   const [loading, setLoading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [customNiche, setCustomNiche] = useState(false);
+  const availableNiches = listNiches();
 
   const [form, setForm] = useState({
     keyword: '', city: '', state: '', niche: '',
     intent: 'auto', target_words: '2500',
     tone: 'profissional', person: 'nós',
     business_name: '', phone: '', whatsapp: '', website: '', avoid: '',
+    country: 'BR', customNicheText: '',
   });
 
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
