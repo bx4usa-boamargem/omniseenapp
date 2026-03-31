@@ -26,11 +26,13 @@ import {
   Shield,
   CheckCircle,
   XCircle,
-  Loader2
+  Loader2,
+  FlaskConical
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ArticleMetadataCard } from '@/components/client/ArticleMetadataCard';
+import { ABTestDialog } from '@/components/articles/ABTestDialog';
 import ReactMarkdown from 'react-markdown';
 
 const TEMPLATE_NAMES: Record<string, string> = {
