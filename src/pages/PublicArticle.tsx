@@ -21,7 +21,6 @@ import { useLocaleFormat } from "@/hooks/useLocaleFormat";
 import { usePublicArticleTranslation } from "@/hooks/useArticleTranslations";
 import { getCanonicalArticleUrl, getBlogPath } from "@/utils/blogUrl";
 import { Calendar, Clock, ChevronDown, ChevronUp, Eye, Share2, ArrowLeft } from "lucide-react";
-import { ArticlePdfDownload } from "@/components/articles/ArticlePdfDownload";
 import { ArticleCTARenderer } from "@/components/client/ArticleCTARenderer";
 
 interface ContentImage {

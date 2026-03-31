@@ -162,7 +162,7 @@ export default function CustomDomainArticle({ blogId, blogSlug: propBlogSlug }: 
               {article.published_at && (
                 <span className="flex items-center gap-1 text-sm text-muted-foreground">
                   <Calendar className="h-4 w-4" />
-                  {new Date(article.published_at).toLocaleDateString("pt-BR", {
+                  {new Date(article.published_at).toLocaleDateString(undefined, {
                     day: "numeric",
                     month: "long",
                     year: "numeric"
@@ -171,7 +171,7 @@ export default function CustomDomainArticle({ blogId, blogSlug: propBlogSlug }: 
               )}
               <span className="flex items-center gap-1 text-sm text-muted-foreground">
                 <Clock className="h-4 w-4" />
-                {readingTime} min de leitura
+                {readingTime} min
               </span>
             </div>
 

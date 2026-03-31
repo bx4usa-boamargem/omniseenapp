@@ -344,12 +344,11 @@ export default function ArticleGenerator() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="country">País</Label>
+                <Label htmlFor="country">País / Mercado</Label>
                 <Select
                   value={formData.country}
                   onValueChange={(value) => {
                     handleInputChange('country', value);
-                    // Reset state when country changes
                     const firstState = STATES_BY_COUNTRY[value]?.[0] || '';
                     handleInputChange('state', firstState);
                   }}
@@ -386,6 +385,30 @@ export default function ArticleGenerator() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* Language (independent from country) */}
+            <div className="space-y-2">
+              <Label htmlFor="language">Idioma do Artigo</Label>
+              <Select
+                value={formData.language}
+                onValueChange={(value) => handleInputChange('language', value)}
+                disabled={isGenerating}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LANGUAGES.map((l) => (
+                    <SelectItem key={l.code} value={l.code}>
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                O idioma controla o conteúdo gerado, datas e metadados. O país controla o contexto geográfico.
+              </p>
             </div>
             
             {/* Niche */}
