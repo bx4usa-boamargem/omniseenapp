@@ -113,6 +113,21 @@ const PublicArticle = () => {
     return parsedFaq;
   }, [hasTranslation, translation?.faq, parsedFaq]);
 
+  const glossaryTerms = useMemo(() => {
+    if (!blog?.glossary_terms || !Array.isArray(blog.glossary_terms)) return [];
+    return blog.glossary_terms;
+  }, [blog?.glossary_terms]);
+
+  const relevantGlossaryTerms = useMemo(() => {
+    if (!glossaryTerms.length || !displayedContent) return [];
+    return glossaryTerms.filter(({ term }: { term: string }) => displayedContent.toLowerCase().includes(term.toLowerCase()));
+  }, [glossaryTerms, displayedContent]);
+
+  const processedContent = useMemo(() => {
+    if (!displayedContent || !relevantGlossaryTerms.length) return displayedContent;
+    return injectGlossaryLinks(displayedContent, relevantGlossaryTerms, blog?.primary_color);
+  }, [displayedContent, relevantGlossaryTerms, blog?.primary_color]);
+
   // Map BlogMeta to legacy Blog interface for components
   const mappedBlog = useMemo(() => {
     if (!blog) return null;
