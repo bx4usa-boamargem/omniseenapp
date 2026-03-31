@@ -218,7 +218,7 @@ export const ArticleContent = ({ content, contentImages = [], hideFirstH1 = fals
     }
 
     return (
-      <article className="prose prose-lg max-w-none prose-headings:font-heading prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground prose-h1:text-4xl prose-h1:font-black prose-h1:leading-tight prose-h1:mb-8 md:prose-h1:text-5xl prose-h2:text-3xl prose-h2:font-bold prose-h2:tracking-tight prose-h2:mt-12 prose-h2:mb-6 prose-h2:border-b prose-h2:border-border prose-h2:pb-3 md:prose-h2:text-4xl prose-h3:text-2xl prose-h3:font-semibold prose-h3:mt-8 prose-h3:mb-4 prose-p:my-5 prose-p:leading-8 prose-ul:my-5 prose-ol:my-5 prose-li:my-1 prose-blockquote:not-italic">
+      <article className="prose prose-lg max-w-none text-foreground prose-headings:font-heading prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground prose-h1:text-4xl prose-h1:font-black prose-h1:leading-tight prose-h1:mb-8 md:prose-h1:text-5xl prose-h2:text-3xl prose-h2:font-bold prose-h2:tracking-tight prose-h2:mt-12 prose-h2:mb-6 prose-h2:border-b prose-h2:border-border prose-h2:pb-3 md:prose-h2:text-4xl prose-h3:text-2xl prose-h3:font-semibold prose-h3:mt-8 prose-h3:mb-4 prose-p:my-5 prose-p:leading-8 prose-ul:my-5 prose-ol:my-5 prose-li:my-1 prose-blockquote:not-italic">
         <style>{`
           article.prose h2 {
             font-size: 1.75rem !important;
