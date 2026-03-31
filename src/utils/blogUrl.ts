@@ -259,5 +259,10 @@ export function isCustomDomainAccess(): boolean {
  */
 export function getCurrentHostname(): string {
   if (typeof window === 'undefined') return '';
-  return window.location.hostname;
+  const host = window.location.hostname;
+  // Lovable preview/project hostnames never resolve to a tenant — skip them
+  if (host.endsWith('.lovableproject.com') || host.endsWith('.lovable.app')) {
+    return '';
+  }
+  return host;
 }
