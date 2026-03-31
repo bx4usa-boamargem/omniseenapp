@@ -234,9 +234,8 @@ export function MediaSlotControl({
 
               {showColorOption && (
                 <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    setTimeout(() => setShowColorPicker(true), 100);
+                  onSelect={() => {
+                    setTimeout(() => setShowColorPicker(true), 150);
                   }}
                 >
                   <Palette className="h-4 w-4 mr-2" />
