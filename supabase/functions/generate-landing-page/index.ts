@@ -8,6 +8,49 @@ const corsHeaders = {
 
 type LandingPageTemplate = 'service_authority_v1' | 'service_authority_pro_v1' | 'institutional_v1' | 'specialist_authority_v1';
 
+// Robust JSON parser that handles malformed AI responses
+function robustJsonParse(raw: string): any {
+  // Attempt 1: direct parse
+  try { return JSON.parse(raw); } catch (_e) { /* continue */ }
+
+  // Attempt 2: strip markdown fences, fix common issues
+  let cleaned = raw
+    .replace(/```json\n?/gi, '')
+    .replace(/```\n?/g, '')
+    .replace(/[\x00-\x1F\x7F]/g, ' ') // remove control chars
+    .trim();
+
+  // Fix trailing commas
+  cleaned = cleaned.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
+
+  // Extract first JSON object
+  const match = cleaned.match(/\{[\s\S]*\}/);
+  if (match) {
+    let candidate = match[0];
+
+    // Balance braces/brackets
+    let braces = 0, brackets = 0;
+    for (const ch of candidate) {
+      if (ch === '{') braces++;
+      if (ch === '}') braces--;
+      if (ch === '[') brackets++;
+      if (ch === ']') brackets--;
+    }
+    while (braces > 0) { candidate += '}'; braces--; }
+    while (brackets > 0) { candidate += ']'; brackets--; }
+
+    try { return JSON.parse(candidate); } catch (_e) { /* continue */ }
+
+    // Attempt 3: truncate at last valid closing brace
+    const lastBrace = candidate.lastIndexOf('}');
+    if (lastBrace > 0) {
+      try { return JSON.parse(candidate.substring(0, lastBrace + 1)); } catch (_e) { /* give up */ }
+    }
+  }
+
+  throw new Error('Failed to parse AI JSON response after repair attempts');
+}
+
 // Helper functions for SEO field generation
 function buildSeoTitle(pageData: any, companyName: string, niche: string, city: string): string {
   const heroHeadline = pageData.hero?.headline || pageData.hero?.title || '';
