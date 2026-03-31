@@ -1,10 +1,14 @@
 import { useTranslation } from 'react-i18next';
 import { format, formatDistance, formatRelative, Locale } from 'date-fns';
-import { ptBR, enUS } from 'date-fns/locale';
+import { ptBR, enUS, es } from 'date-fns/locale';
 
 const locales: Record<string, Locale> = {
   'pt-BR': ptBR,
-  'en': enUS
+  'pt': ptBR,
+  'en': enUS,
+  'en-US': enUS,
+  'es': es,
+  'es-AR': es,
 };
 
 export const useLocaleFormat = () => {
