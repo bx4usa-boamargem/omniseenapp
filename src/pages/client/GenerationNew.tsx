@@ -13,9 +13,15 @@ import { ArrowLeft, Loader2, ChevronDown, ChevronUp, Plus } from "lucide-react";
 import { listNiches } from "@/lib/article-engine/niches";
 
 const COUNTRIES = [
-  { value: 'BR', label: '🇧🇷 Brasil', lang: 'pt-BR' },
-  { value: 'US', label: '🇺🇸 Estados Unidos', lang: 'en-US' },
-  { value: 'AR', label: '🇦🇷 Argentina', lang: 'es-AR' },
+  { value: 'BR', label: '🇧🇷 Brasil' },
+  { value: 'US', label: '🇺🇸 Estados Unidos' },
+  { value: 'AR', label: '🇦🇷 Argentina' },
+];
+
+const LANGUAGES = [
+  { value: 'pt-BR', label: 'Português (Brasil)' },
+  { value: 'en-US', label: 'English (US)' },
+  { value: 'es-AR', label: 'Español' },
 ];
 
 export default function GenerationNew() {
