@@ -107,8 +107,10 @@ serve(async (req) => {
       .split(/\s+/)
       .filter(Boolean).length;
 
+    // Hero counts as 1 image; section images fill the rest
     const maxTotalImages = articleWordCount >= 2200 ? 4 : 3;
-    const limitedPrompts = image_prompts.slice(0, maxTotalImages);
+    const maxSectionImages = Math.max(0, maxTotalImages - 1); // Reserve 1 slot for hero
+    const limitedPrompts = image_prompts.slice(0, maxSectionImages);
 
     console.log(`[${request_id}][ImageJob] Starting background generation for ${limitedPrompts.length} images`);
     console.log(`[${request_id}][ImageJob] Article: ${article_id}, Niche: ${niche}, City: ${city}`);
