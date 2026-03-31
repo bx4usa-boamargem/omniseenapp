@@ -745,7 +745,7 @@ OUTPUT FORMAT (STRICT JSON only):
 }`;
 
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'article_gen_from_outline', [
-    { role: 'system', content: `You are a premium SEO writer for ${niche} in ${language}. You MUST return valid JSON with html_article containing proper HTML tags: <h1> for the title, <h2> for sections, <h3> for subsections, <p> for paragraphs. NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks.` },
+    { role: 'system', content: `You are an elite premium SEO content writer for ${niche} in ${language}. You produce long-form, in-depth articles with minimum 3600 words. You MUST return valid JSON with html_article containing proper semantic HTML: <h1> for title, <h2> for sections, <h3> for subsections, <p> for paragraphs, <ul>/<ol> for lists. Every paragraph must be short (2-5 lines). NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks.` },
     { role: 'user', content: prompt },
   ]);
 
