@@ -43,23 +43,46 @@ import { NicheSelectorDropdown } from '@/components/client/NicheSelectorDropdown
 import { TemplateSelectorRadio } from '@/components/client/TemplateSelectorRadio';
 import { ArticleGenerationProgress } from '@/components/client/ArticleGenerationProgress';
 import { useJobPolling } from '@/hooks/useJobPolling';
-import type { TemplateType, ArticleMode, NicheType } from '@/lib/article-engine/types';
+import type { TemplateType, ArticleMode } from '@/lib/article-engine/types';
 import { useQuery } from '@tanstack/react-query';
 
-// Brazilian states
-const STATES = [
-  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
-  'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
-  'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
-];
+// Countries and their states/regions
+const COUNTRIES = [
+  { code: 'BR', name: '🇧🇷 Brasil', language: 'pt-BR' },
+  { code: 'US', name: '🇺🇸 Estados Unidos', language: 'en-US' },
+  { code: 'AR', name: '🇦🇷 Argentina', language: 'es-AR' },
+] as const;
+
+const STATES_BY_COUNTRY: Record<string, string[]> = {
+  BR: [
+    'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
+    'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
+    'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+  ],
+  US: [
+    'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+    'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+    'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+    'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+    'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
+  ],
+  AR: [
+    'CABA', 'Buenos Aires', 'Catamarca', 'Chaco', 'Chubut', 'Córdoba',
+    'Corrientes', 'Entre Ríos', 'Formosa', 'Jujuy', 'La Pampa', 'La Rioja',
+    'Mendoza', 'Misiones', 'Neuquén', 'Río Negro', 'Salta', 'San Juan',
+    'San Luis', 'Santa Cruz', 'Santa Fe', 'Santiago del Estero',
+    'Tierra del Fuego', 'Tucumán'
+  ],
+};
 
 // Stage progress map removed — now handled by useJobPolling
 
 interface GeneratorFormData {
   keyword: string;
   city: string;
+  country: string;
   state: string;
-  niche: NicheType;
+  niche: string;
   mode: ArticleMode;
   template: TemplateType | 'auto';
   webResearch: boolean;
@@ -89,8 +112,9 @@ export default function ArticleGenerator() {
   const [formData, setFormData] = useState<GeneratorFormData>({
     keyword: '',
     city: businessProfile?.city || '',
+    country: 'BR',
     state: 'SP',
-    niche: (businessProfile?.niche as NicheType) || 'pest_control',
+    niche: (businessProfile?.niche as string) || 'pest_control',
     mode: 'authority',
     template: 'auto',
     webResearch: true,
@@ -177,18 +201,19 @@ export default function ArticleGenerator() {
     
     try {
       // V6.0: Call create-generation-job directly — no placeholder article
+      const selectedCountry = COUNTRIES.find(c => c.code === formData.country);
       const enginePayload = {
         keyword: formData.keyword.trim(),
         blog_id: blog.id,
         city: formData.city.trim(),
         state: formData.state || undefined,
-        country: 'BR',
-        language: 'pt-BR',
+        country: formData.country || 'BR',
+        language: selectedCountry?.language || 'pt-BR',
         niche: formData.niche || 'default',
         job_type: 'article' as const,
         intent: 'informational' as const,
         target_words: formData.mode === 'authority' ? 2500 : 1200,
-        image_count: formData.mode === 'authority' ? 8 : 4,
+        image_count: formData.mode === 'authority' ? 4 : 3,
       };
 
       console.log('[V6.0] Invoking create-generation-job...');
@@ -296,8 +321,8 @@ export default function ArticleGenerator() {
               )}
             </div>
             
-            {/* City & State */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* City & Country & State */}
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="city">
                   Cidade <span className="text-destructive">*</span>
@@ -311,6 +336,30 @@ export default function ArticleGenerator() {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="country">País</Label>
+                <Select
+                  value={formData.country}
+                  onValueChange={(value) => {
+                    handleInputChange('country', value);
+                    // Reset state when country changes
+                    const firstState = STATES_BY_COUNTRY[value]?.[0] || '';
+                    handleInputChange('state', firstState);
+                  }}
+                  disabled={isGenerating}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTRIES.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="state">Estado</Label>
                 <Select
                   value={formData.state}
@@ -321,7 +370,7 @@ export default function ArticleGenerator() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {STATES.map((state) => (
+                    {(STATES_BY_COUNTRY[formData.country] || []).map((state) => (
                       <SelectItem key={state} value={state}>
                         {state}
                       </SelectItem>
