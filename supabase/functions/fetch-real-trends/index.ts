@@ -10,9 +10,10 @@ interface TrendRequest {
   blogId: string;
   niche?: string;
   country?: string;
-  territory?: string; // Legacy: OmniCore territory format "City, State, Country"
-  territoryId?: string; // NEW: Direct territory ID for validated territories
-  saveSignals?: boolean; // Save to omnicore_signals table
+  language?: string; // Independent language setting (e.g. 'pt-BR', 'en-US', 'es-AR')
+  territory?: string;
+  territoryId?: string;
+  saveSignals?: boolean;
 }
 
 interface TerritoryData {

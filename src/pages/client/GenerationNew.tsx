@@ -167,16 +167,29 @@ export default function GenerationNew() {
           <Input placeholder="ex: como prevenir baratas em apartamento" value={form.keyword} onChange={e => set('keyword', e.target.value)} />
         </div>
 
-        <div className="space-y-2">
-          <Label>País *</Label>
-          <Select value={form.country} onValueChange={v => set('country', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {COUNTRIES.map(c => (
-                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>País (mercado) *</Label>
+            <Select value={form.country} onValueChange={v => set('country', v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {COUNTRIES.map(c => (
+                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Idioma do artigo *</Label>
+            <Select value={form.language} onValueChange={v => set('language', v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {LANGUAGES.map(l => (
+                  <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
