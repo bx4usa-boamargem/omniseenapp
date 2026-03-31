@@ -9,7 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Loader2, ChevronDown, ChevronUp, Plus } from "lucide-react";
+import { listNiches } from "@/lib/article-engine/niches";
+
+const COUNTRIES = [
+  { value: 'BR', label: '🇧🇷 Brasil', lang: 'pt-BR' },
+  { value: 'US', label: '🇺🇸 Estados Unidos', lang: 'en-US' },
+  { value: 'AR', label: '🇦🇷 Argentina', lang: 'es-AR' },
+];
 
 export default function GenerationNew() {
   const navigate = useNavigate();
@@ -18,12 +25,15 @@ export default function GenerationNew() {
   const { blog } = useBlog();
   const [loading, setLoading] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [customNiche, setCustomNiche] = useState(false);
+  const availableNiches = listNiches();
 
   const [form, setForm] = useState({
     keyword: '', city: '', state: '', niche: '',
     intent: 'auto', target_words: '2500',
     tone: 'profissional', person: 'nós',
     business_name: '', phone: '', whatsapp: '', website: '', avoid: '',
+    country: 'BR', customNicheText: '',
   });
 
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
@@ -32,12 +42,12 @@ export default function GenerationNew() {
   const getValidationErrors = (): string[] => {
     const errors: string[] = [];
     const trimmedKeyword = form.keyword?.trim() || '';
-    const trimmedNiche = form.niche?.trim() || '';
+    const resolvedNiche = customNiche ? (form.customNicheText?.trim() || '') : (form.niche?.trim() || '');
     const trimmedCity = form.city?.trim() || '';
     const tw = parseInt(form.target_words);
 
     if (trimmedKeyword.length < 2) errors.push('Keyword deve ter pelo menos 2 caracteres');
-    if (trimmedNiche.length < 2) errors.push('Nicho é obrigatório');
+    if (resolvedNiche.length < 2) errors.push('Nicho é obrigatório');
     if (trimmedCity && trimmedCity.length < 2) errors.push('Cidade inválida');
     if (tw && (tw < 1500 || tw > 4000)) errors.push('Palavras alvo: entre 1500 e 4000');
 
@@ -84,14 +94,17 @@ export default function GenerationNew() {
 
     setLoading(true);
     try {
-      const payload: Record<string, unknown> = {
-        keyword: trimmedKeyword,
-        blog_id: blogId,
-        city: form.city.trim(),
-        state: form.state.trim() || undefined,
-        country: 'BR',
-        language: 'pt-BR',
-        niche: form.niche.trim(),
+        const selectedCountry = COUNTRIES.find(c => c.value === form.country) || COUNTRIES[0];
+        const resolvedNiche = customNiche ? form.customNicheText.trim() : form.niche.trim();
+
+        const payload: Record<string, unknown> = {
+          keyword: trimmedKeyword,
+          blog_id: blogId,
+          city: form.city.trim(),
+          state: form.state.trim() || undefined,
+          country: selectedCountry.value,
+          language: selectedCountry.lang,
+          niche: resolvedNiche,
         job_type: 'article',
         intent: form.intent === 'auto' ? 'informational' : form.intent,
         target_words: parseInt(form.target_words),
@@ -149,6 +162,18 @@ export default function GenerationNew() {
           <Input placeholder="ex: como prevenir baratas em apartamento" value={form.keyword} onChange={e => set('keyword', e.target.value)} />
         </div>
 
+        <div className="space-y-2">
+          <Label>País *</Label>
+          <Select value={form.country} onValueChange={v => set('country', v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {COUNTRIES.map(c => (
+                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Cidade</Label>
@@ -161,8 +186,32 @@ export default function GenerationNew() {
         </div>
 
         <div className="space-y-2">
-          <Label>Nicho *</Label>
-          <Input placeholder="ex: controle de pragas, encanamento, advocacia" value={form.niche} onChange={e => set('niche', e.target.value)} />
+          <div className="flex items-center justify-between">
+            <Label>Nicho *</Label>
+            <button
+              type="button"
+              onClick={() => setCustomNiche(!customNiche)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {customNiche ? 'Selecionar da lista' : <><Plus className="w-3 h-3" /> Digitar nicho</>}
+            </button>
+          </div>
+          {customNiche ? (
+            <Input
+              placeholder="ex: pet shop, energia solar, nutrição"
+              value={form.customNicheText}
+              onChange={e => set('customNicheText', e.target.value)}
+            />
+          ) : (
+            <Select value={form.niche} onValueChange={v => set('niche', v)}>
+              <SelectTrigger><SelectValue placeholder="Selecione o nicho" /></SelectTrigger>
+              <SelectContent>
+                {availableNiches.map(n => (
+                  <SelectItem key={n.id} value={n.id}>{n.displayName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-4">
