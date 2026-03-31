@@ -1035,7 +1035,7 @@ async function executeImageGenGeminiNanoBanana(
     const maxSectionImages = Math.min(sectionCount, Math.max(0, maxTotalImages - 1));
     for (let i = 0; i < maxSectionImages; i++) {
       const sectionTitle = outline.h2[i]?.title || `Section ${i + 1}`;
-      const prompt = `Article theme: ${keyword}. Section focus: ${sectionTitle}. Create a realistic editorial scene connected to this section, prioritizing authentic environments, objects and narrative context. Never include embedded text.`;
+      const prompt = `Article theme: ${keyword}. Section focus: ${sectionTitle}. Create a realistic editorial photograph connected to this section topic, showing authentic environments, objects and narrative context. CRITICAL: absolutely ZERO text, ZERO letters, ZERO words, ZERO numbers, ZERO labels, ZERO banners, ZERO overlays in the image. Pure visual photography only.`;
       const img = await generateOneImage(prompt, apiKey);
       let url: string;
       if (img?.url && img.url.startsWith("data:")) {
