@@ -614,6 +614,13 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
           </CardContent>
         </Card>
       )}
+      <ArticleSizeModal
+        open={sizeModalOpen}
+        onOpenChange={setSizeModalOpen}
+        title={selectedOpportunity?.suggested_title || ''}
+        onConfirm={handleCreateArticle}
+        loading={!!creatingId}
+      />
     </div>
   );
 }

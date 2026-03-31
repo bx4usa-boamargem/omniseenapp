@@ -860,7 +860,7 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
                           </Button>
                           <Button
                             size="sm"
-                            onClick={() => handleCreateArticle(opportunity)}
+                            onClick={() => openSizeModal(opportunity)}
                           >
                             <FileEdit className="h-4 w-4 mr-1" />
                             Criar Artigo
