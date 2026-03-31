@@ -39,7 +39,7 @@ export default function GenerationNew() {
     intent: 'auto', target_words: '2500',
     tone: 'profissional', person: 'nós',
     business_name: '', phone: '', whatsapp: '', website: '', avoid: '',
-    country: 'BR', customNicheText: '',
+    country: 'BR', language: 'pt-BR', customNicheText: '',
   });
 
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
