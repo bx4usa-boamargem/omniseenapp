@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { QUALITY_GATE, getMinWordCount } from "../_shared/superPageEngine.ts";
+import { QUALITY_GATE, getMinWordCount, computeWordRange, computeOutlineSize } from "../_shared/superPageEngine.ts";
 
 /**
  * orchestrate-generation — OmniSeen TRUE SUPER PAGE ENGINE
