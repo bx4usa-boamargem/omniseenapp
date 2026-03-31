@@ -33,11 +33,11 @@ export async function generateImageWithGemini(
   try {
     // Construir prompt otimizado para Gemini Image
     const enhancedPrompt = `Professional business photography: ${prompt}. 
-Context: ${context} service in ${city}, Brazil. 
+Context: ${context} service in ${city}. 
 Industry: ${niche}.
 Style: High-quality, photorealistic, modern, professional lighting. 
 16:9 aspect ratio for web.
-No text, no watermarks, no logos.`;
+CRITICAL RULE: The image must contain ZERO text of any kind — no words, no letters, no numbers, no titles, no captions, no labels, no banners, no overlays, no watermarks, no logos, no signage, no typography whatsoever. Pure visual photography only.`;
 
     const response = await fetch(LOVABLE_AI_GATEWAY, {
       method: 'POST',
