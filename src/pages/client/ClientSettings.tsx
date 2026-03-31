@@ -77,6 +77,18 @@ export default function ClientSettings() {
         <TabsContent value="notifications" className="mt-6">
           <NotificationsTab />
         </TabsContent>
+
+        <TabsContent value="api-keys" className="mt-6">
+          <ApiKeysTab />
+        </TabsContent>
+
+        <TabsContent value="webhooks" className="mt-6">
+          <WebhooksTab />
+        </TabsContent>
+
+        <TabsContent value="white-label" className="mt-6">
+          <WhiteLabelTab />
+        </TabsContent>
       </Tabs>
     </div>
   );
