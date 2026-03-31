@@ -494,7 +494,7 @@ serve(async (req) => {
       throw new Error('No content in AI response');
     }
 
-    const pageData = JSON.parse(content);
+    const pageData = robustJsonParse(content);
     
     // Ensure template field is set correctly
     pageData.template = selectedTemplate;
