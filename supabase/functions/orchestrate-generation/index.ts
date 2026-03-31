@@ -1245,9 +1245,19 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     // ============================================================
     // STEP: ENTITY_COVERAGE (distribute entities, score)
     // ============================================================
+    console.log(`[V2] Step: ENTITY_COVERAGE`);
+    await updatePublicStatus(supabase, jobId, 'ENTITY_COVERAGE', false, lockId);
+    await supabase.from('generation_jobs').update({ current_step: 'ENTITY_COVERAGE' }).eq('id', jobId);
+
+    const covStepId = await createStepOrFail(supabase, jobId, 'ENTITY_COVERAGE', { entity_count: (entities.topics?.length || 0) + (entities.terms?.length || 0) });
+    const covStart = Date.now();
     const entityCoverage = executeEntityCoverage(outline, entities);
-    console.log(`[V2] Step: ENTITY_COVERAGE | score=${entityCoverage.coverageScore}`);
+    await supabase.from('generation_steps').update({
+      status: 'completed', output: { coverageScore: entityCoverage.coverageScore, assignedSections: entityCoverage.assignment.length },
+      latency_ms: Date.now() - covStart, completed_at: new Date().toISOString(), model_used: 'programmatic', provider: 'programmatic',
+    }).eq('id', covStepId);
     await updatePublicStatus(supabase, jobId, 'ENTITY_COVERAGE', true, lockId);
+    console.log(`[V2] ✅ ENTITY_COVERAGE score=${entityCoverage.coverageScore}`);
 
     // ============================================================
     // STEP: CONTENT_GEN (outline-driven + entity coverage)
