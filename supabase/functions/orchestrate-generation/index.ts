@@ -991,8 +991,8 @@ async function executeImageGenGeminiNanoBanana(
     const html = (articleData.html_article as string) || "";
     const sectionCount = (html.match(/<h2[^>]*>/gi) || []).length;
     const jobType = ((jobInput.job_type as string) || 'article') as 'article' | 'super_page';
-    // Limit: article = 2 section images (+ 1 hero = 3 total), super_page = 3 section images (+ 1 hero = 4 total)
-    const maxSectionImages = Math.min(sectionCount, jobType === 'super_page' ? 3 : 2);
+    // Limit: article = max 3 section images (+ 1 hero = 4 total max), super_page = 3 section images (+ 1 hero = 4 total)
+    const maxSectionImages = Math.min(sectionCount, 3);
     for (let i = 0; i < maxSectionImages; i++) {
       const sectionTitle = outline.h2[i]?.title || `Section ${i + 1}`;
       const prompt = `${keyword}, ${sectionTitle}. Editorial, realistic.`;
