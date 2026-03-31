@@ -718,7 +718,7 @@ SEO ON-PAGE:
 - Estrutura de leitura para featured snippets quando aplicavel
 
 REQUIREMENTS:
-1) Word count: ${wordRange} words. THIS IS MANDATORY. Count carefully.
+1) Word count: ${wordRange} words (target: ${targetWords}). THIS IS MANDATORY. Do NOT exceed ${wordRangeObj.max} words. Count carefully.
 2) Use the exact H1 and H2/H3 from the outline. Do not skip or merge sections.
 3) Answer-first introduction. Real-world examples for the city.
 4) ${ctaInfo}
