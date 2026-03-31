@@ -449,6 +449,7 @@ const PublicArticle = () => {
               bio={mappedBlog.author_bio}
               photoUrl={mappedBlog.author_photo_url}
               linkedinUrl={mappedBlog.author_linkedin}
+              hideAuthor={blog?.hide_author}
             />
           </div>
         </section>
