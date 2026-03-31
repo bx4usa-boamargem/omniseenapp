@@ -2609,6 +2609,13 @@ export type Database = {
             referencedRelation: "cms_integrations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "cms_credential_access_log_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "cms_integrations_decrypted"
+            referencedColumns: ["id"]
+          },
         ]
       }
       cms_integrations: {
@@ -2742,6 +2749,13 @@ export type Database = {
             columns: ["integration_id"]
             isOneToOne: false
             referencedRelation: "cms_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cms_publish_logs_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "cms_integrations_decrypted"
             referencedColumns: ["id"]
           },
         ]
@@ -6876,6 +6890,77 @@ export type Database = {
       }
     }
     Views: {
+      cms_integrations_decrypted: {
+        Row: {
+          access_token: string | null
+          api_key: string | null
+          api_secret: string | null
+          auth_type: string | null
+          auto_publish: boolean | null
+          blog_id: string | null
+          created_at: string | null
+          id: string | null
+          is_active: boolean | null
+          last_sync_at: string | null
+          last_sync_status: string | null
+          platform: string | null
+          refresh_token: string | null
+          site_url: string | null
+          token_expires_at: string | null
+          updated_at: string | null
+          username: string | null
+          wordpress_site_id: string | null
+        }
+        Insert: {
+          access_token?: never
+          api_key?: never
+          api_secret?: never
+          auth_type?: string | null
+          auto_publish?: boolean | null
+          blog_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          last_sync_status?: string | null
+          platform?: string | null
+          refresh_token?: never
+          site_url?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          username?: string | null
+          wordpress_site_id?: string | null
+        }
+        Update: {
+          access_token?: never
+          api_key?: never
+          api_secret?: never
+          auth_type?: string | null
+          auto_publish?: boolean | null
+          blog_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          last_sync_at?: string | null
+          last_sync_status?: string | null
+          platform?: string | null
+          refresh_token?: never
+          site_url?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          username?: string | null
+          wordpress_site_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cms_integrations_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       elite_engine_analytics: {
         Row: {
           angle: string | null
