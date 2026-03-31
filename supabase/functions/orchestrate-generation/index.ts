@@ -598,8 +598,26 @@ REQUIREMENTS:
 3) Answer-first introduction. Real-world examples for the city.
 4) ${ctaInfo}
 5) FAQ section with 3–5 questions at the end.
-6) Clean HTML with <style> and inline CSS. First content element must be <h1>.
-7) Tone: authoritative, practical. No keyword stuffing.
+6) Tone: authoritative, practical. No keyword stuffing.
+
+CRITICAL HTML STRUCTURE RULES (MANDATORY — DO NOT IGNORE):
+- The html_article MUST use proper semantic HTML heading tags: <h1>, <h2>, <h3>
+- The FIRST element in html_article MUST be an <h1> tag with the main title
+- Every section from the outline MUST start with an <h2> tag
+- Every subsection MUST use an <h3> tag
+- NEVER write headings as plain text, bold text, or <p> tags
+- Paragraphs MUST use <p> tags
+- Lists MUST use <ul>/<ol> and <li> tags
+- Include a <style> tag at the beginning with basic typography styles
+- Example correct structure:
+  <style>h1{font-size:2em;margin-bottom:0.5em}h2{font-size:1.5em;margin-top:1.5em}h3{font-size:1.2em;margin-top:1em}p{line-height:1.8;margin-bottom:1em}</style>
+  <h1>Main Title Here</h1>
+  <p>Introduction paragraph...</p>
+  <h2>Section Title</h2>
+  <p>Section content...</p>
+  <h3>Subsection Title</h3>
+  <p>Subsection content...</p>
+- WRONG (DO NOT DO THIS): Writing "Section Title" as plain text or <p><strong>Section Title</strong></p>
 
 IMAGE: Return one image description for the hero (realistic, specific to keyword and city).
 
@@ -607,7 +625,7 @@ OUTPUT FORMAT (STRICT JSON only):
 {
   "title": "...",
   "meta_description": "... max 155 chars ...",
-  "html_article": "<!DOCTYPE html><html>...",
+  "html_article": "<style>...</style><h1>Title</h1><p>...</p><h2>Section</h2><p>...</p>",
   "faq": [{"question": "...", "answer": "..."}],
   "image_prompt": "... detailed hero image description ..."
 }`;
