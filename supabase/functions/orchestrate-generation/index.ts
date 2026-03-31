@@ -545,6 +545,79 @@ function executeEntityCoverage(outline: OutlineData, entities: EntityData): Enti
 }
 
 // ============================================================
+// ENFORCE HEADING STRUCTURE (post-processing safety net)
+// ============================================================
+
+function enforceHeadingStructure(html: string, outline: OutlineData): string {
+  // Check if HTML already has proper headings
+  const hasH1 = /<h1[\s>]/i.test(html);
+  const hasH2 = /<h2[\s>]/i.test(html);
+
+  if (hasH1 && hasH2) {
+    // Already structured, just ensure <style> exists
+    if (!html.includes('<style>')) {
+      html = '<style>h1{font-size:2em;margin-bottom:0.5em;font-weight:700}h2{font-size:1.5em;margin-top:1.5em;margin-bottom:0.5em;font-weight:600}h3{font-size:1.2em;margin-top:1em;margin-bottom:0.4em;font-weight:600}p{line-height:1.8;margin-bottom:1em}</style>' + html;
+    }
+    return html;
+  }
+
+  console.warn('[enforceHeadingStructure] HTML missing proper headings, attempting fix...');
+
+  let fixed = html;
+
+  // Convert <p><strong>Title Text</strong></p> patterns to headings
+  // Match outline H2 titles in bold paragraphs
+  for (const section of outline.h2) {
+    const escapedTitle = section.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Match bold-only paragraphs that contain the section title
+    const boldPattern = new RegExp(
+      `<p[^>]*>\\s*<(?:strong|b)>\\s*${escapedTitle}\\s*</(?:strong|b)>\\s*</p>`,
+      'gi'
+    );
+    fixed = fixed.replace(boldPattern, `<h2>${section.title}</h2>`);
+
+    // Also try without <p> wrapping
+    const loosePattern = new RegExp(
+      `<(?:strong|b)>\\s*${escapedTitle}\\s*</(?:strong|b)>`,
+      'gi'
+    );
+    // Only replace if not already inside an h2/h3
+    fixed = fixed.replace(loosePattern, (match) => {
+      // Check if already inside a heading
+      const idx = fixed.indexOf(match);
+      const before = fixed.substring(Math.max(0, idx - 10), idx);
+      if (/<h[1-6][^>]*>$/i.test(before)) return match;
+      return `<h2>${section.title}</h2>`;
+    });
+
+    // Convert H3s
+    for (const h3Title of section.h3) {
+      const escapedH3 = h3Title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const h3Pattern = new RegExp(
+        `<p[^>]*>\\s*<(?:strong|b)>\\s*${escapedH3}\\s*</(?:strong|b)>\\s*</p>`,
+        'gi'
+      );
+      fixed = fixed.replace(h3Pattern, `<h3>${h3Title}</h3>`);
+    }
+  }
+
+  // If still no H1, inject one from the outline
+  if (!/<h1[\s>]/i.test(fixed)) {
+    fixed = `<h1>${outline.h1}</h1>\n` + fixed;
+  }
+
+  // Ensure <style> tag
+  if (!fixed.includes('<style>')) {
+    fixed = '<style>h1{font-size:2em;margin-bottom:0.5em;font-weight:700}h2{font-size:1.5em;margin-top:1.5em;margin-bottom:0.5em;font-weight:600}h3{font-size:1.2em;margin-top:1em;margin-bottom:0.4em;font-weight:600}p{line-height:1.8;margin-bottom:1em}</style>' + fixed;
+  }
+
+  const newH2Count = (fixed.match(/<h2[\s>]/gi) || []).length;
+  console.log(`[enforceHeadingStructure] Fixed: hasH1=${/<h1[\s>]/i.test(fixed)}, h2Count=${newH2Count}`);
+
+  return fixed;
+}
+
+// ============================================================
 // STEP: CONTENT_GEN (outline-driven, multi-section)
 // ============================================================
 
@@ -598,8 +671,26 @@ REQUIREMENTS:
 3) Answer-first introduction. Real-world examples for the city.
 4) ${ctaInfo}
 5) FAQ section with 3–5 questions at the end.
-6) Clean HTML with <style> and inline CSS. First content element must be <h1>.
-7) Tone: authoritative, practical. No keyword stuffing.
+6) Tone: authoritative, practical. No keyword stuffing.
+
+CRITICAL HTML STRUCTURE RULES (MANDATORY — DO NOT IGNORE):
+- The html_article MUST use proper semantic HTML heading tags: <h1>, <h2>, <h3>
+- The FIRST element in html_article MUST be an <h1> tag with the main title
+- Every section from the outline MUST start with an <h2> tag
+- Every subsection MUST use an <h3> tag
+- NEVER write headings as plain text, bold text, or <p> tags
+- Paragraphs MUST use <p> tags
+- Lists MUST use <ul>/<ol> and <li> tags
+- Include a <style> tag at the beginning with basic typography styles
+- Example correct structure:
+  <style>h1{font-size:2em;margin-bottom:0.5em}h2{font-size:1.5em;margin-top:1.5em}h3{font-size:1.2em;margin-top:1em}p{line-height:1.8;margin-bottom:1em}</style>
+  <h1>Main Title Here</h1>
+  <p>Introduction paragraph...</p>
+  <h2>Section Title</h2>
+  <p>Section content...</p>
+  <h3>Subsection Title</h3>
+  <p>Subsection content...</p>
+- WRONG (DO NOT DO THIS): Writing "Section Title" as plain text or <p><strong>Section Title</strong></p>
 
 IMAGE: Return one image description for the hero (realistic, specific to keyword and city).
 
@@ -607,13 +698,13 @@ OUTPUT FORMAT (STRICT JSON only):
 {
   "title": "...",
   "meta_description": "... max 155 chars ...",
-  "html_article": "<!DOCTYPE html><html>...",
+  "html_article": "<style>...</style><h1>Title</h1><p>...</p><h2>Section</h2><p>...</p>",
   "faq": [{"question": "...", "answer": "..."}],
   "image_prompt": "... detailed hero image description ..."
 }`;
 
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'article_gen_from_outline', [
-    { role: 'system', content: `You are a premium SEO writer for ${niche} in ${language}. Return ONLY valid JSON. No markdown, no code blocks.` },
+    { role: 'system', content: `You are a premium SEO writer for ${niche} in ${language}. You MUST return valid JSON with html_article containing proper HTML tags: <h1> for the title, <h2> for sections, <h3> for subsections, <p> for paragraphs. NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks.` },
     { role: 'user', content: prompt },
   ]);
 
@@ -621,6 +712,10 @@ OUTPUT FORMAT (STRICT JSON only):
   const parsed = parseAIJson(aiResult.content, 'CONTENT_GEN');
   if (!parsed.title) throw new Error('CONTENT_GEN: missing title');
   if (!parsed.html_article) throw new Error('CONTENT_GEN: missing html_article');
+
+  // Post-process: enforce heading structure if AI returned plain text headings
+  parsed.html_article = enforceHeadingStructure(parsed.html_article as string, outline);
+
   return { output: parsed, aiResult };
 }
 
