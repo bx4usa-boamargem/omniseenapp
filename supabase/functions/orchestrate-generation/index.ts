@@ -1135,7 +1135,8 @@ async function executeQualityGate(
   entityCoverageScore: number,
   seoScoreResult: Record<string, unknown>,
   jobType: "article" | "super_page",
-  supabase: any
+  supabase: any,
+  targetWords?: number
 ): Promise<Record<string, unknown>> {
   if (!articleId) return { passed: false, reason: "no_article_id" };
   const html = (articleData.html_article as string) || "";
@@ -1144,11 +1145,13 @@ async function executeQualityGate(
   const faqCount = Array.isArray(faq) ? faq.length : 0;
   const contentScore = Number(seoScoreResult?.score ?? seoScoreResult?.totalScore ?? 0);
 
-  const minWords = getMinWordCount(jobType);
+  const minWords = getMinWordCount(jobType, targetWords);
   const entityOk = entityCoverageScore >= QUALITY_GATE.ENTITY_COVERAGE_MIN;
   const wordOk = wordCount >= minWords;
   const faqOk = faqCount >= QUALITY_GATE.FAQ_MIN_ITEMS;
   const scoreOk = contentScore >= QUALITY_GATE.SEMANTIC_SCORE_MIN;
+
+  console.log(`[QUALITY_GATE] wordCount=${wordCount} minWords=${minWords} target_words=${targetWords} entityScore=${entityCoverageScore} seoScore=${contentScore} faqCount=${faqCount}`);
 
   const passed = entityOk && wordOk && faqOk && scoreOk;
   const reasons: string[] = [];
