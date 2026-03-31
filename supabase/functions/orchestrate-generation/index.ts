@@ -645,12 +645,17 @@ async function executeContentGenFromOutline(
     ? `Include a WhatsApp CTA: ${whatsapp}${businessName ? ` (${businessName})` : ''}`
     : businessName ? `Include a CTA for ${businessName}` : 'Include a strong contact CTA';
 
-  const wordRange = jobType === 'super_page' ? '3000-6000' : '1500-3000';
+  const targetWords = Number(jobInput.target_words) || (jobType === 'super_page' ? 3000 : 2000);
+  const wordRangeObj = computeWordRange(targetWords);
+  const wordRange = `${wordRangeObj.min}-${wordRangeObj.max}`;
+
+  console.log(`[CONTENT_GEN] wordRange=${wordRange} target_words=${targetWords} job_type=${jobType} h2_count=${outline.h2.length}`);
+
   const outlineJson = JSON.stringify(outline, null, 0);
   const entitiesJson = JSON.stringify(entities, null, 0);
   const perSectionEntities = entityCoverage.assignment.map((a) => `Section "${a.sectionTitle}": cover these terms naturally: ${a.terms.slice(0, 8).join(', ')}`).join('\n');
 
-  const prompt = `You are an elite SEO content strategist producing premium-quality articles. Write a FULL, in-depth article following this EXACT outline. Content type: ${jobType}.
+  const prompt = `You are an elite SEO content strategist. Write a FULL article following the EXACT outline below. Content type: ${jobType}.
 
 INPUT:
 - keyword: ${keyword}
@@ -659,22 +664,24 @@ INPUT:
 - language: ${language}
 - serp_summary: ${serpSummary || 'No competitive data'}
 
-MANDATORY OUTLINE (follow this structure exactly; write each H2 and H3 section with depth):
+MANDATORY OUTLINE (follow this structure exactly):
 ${outlineJson}
 
-ENTITY COVERAGE - distribute and cover these per section (improves semantic score):
+ENTITY COVERAGE - distribute and cover these per section:
 ${perSectionEntities}
 
-SEMANTIC ENTITIES (full list to weave in naturally):
+SEMANTIC ENTITIES:
 ${entitiesJson}
 
-=== PADRAO EDITORIAL OBRIGATORIO ===
+=== EDITORIAL RULES ===
 
-REGRA DE TAMANHO:
-- O artigo DEVE ter entre ${wordRange} palavras dependendo da complexidade do assunto.
-- Nunca entregue artigo raso ou incompleto.
-- E PROIBIDO encher texto com redundancia, enrolacao ou frases vazias.
-- Cada secao deve ter profundidade real com explicacoes, exemplos e aplicacoes.
+CRITICAL WORD COUNT RULE:
+- The article MUST be between ${wordRange} words. Target: ${targetWords} words.
+- Do NOT exceed ${wordRangeObj.max} words under any circumstances.
+- Do NOT pad content with filler, redundancy, or empty phrases to increase length.
+- Match depth to the requested ${targetWords} words — shorter articles must have fewer details per section.
+- Shorter requested articles must have tighter, more concise explanations.
+- Do not inflate content just to sound comprehensive.
 
 ESTRUTURA OBRIGATORIA:
 1. 1 H1 unico (primeiro elemento)
