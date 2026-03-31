@@ -707,8 +707,8 @@ PADRAO DE QUALIDADE:
 - Entregar contexto, explicacao, aplicacao e exemplos REAIS
 - Evitar repeticao de ideias entre secoes
 - Evitar frases genericas e afirmacoes vazias
-- Cada H2 deve ter pelo menos 3-4 paragrafos substantivos
-- Cada H3 deve ter pelo menos 2 paragrafos substantivos
+- Cada H2 deve ter paragrafos substantivos proporcionais ao target de ${targetWords} palavras
+- Cada H3 deve ter pelo menos 1-2 paragrafos substantivos
 - Incluir dados, estatisticas ou referencias quando possivel
 - Linguagem natural e humana, NUNCA robotica
 
