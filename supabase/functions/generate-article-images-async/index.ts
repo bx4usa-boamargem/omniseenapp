@@ -62,7 +62,7 @@ serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
-    const { article_id, keyword, outline_h2, job_id, step_id } = await req.json();
+    const { article_id, keyword, outline_h2, job_id, step_id, job_type } = await req.json();
 
     if (!article_id || !apiKey) {
       return new Response(JSON.stringify({ error: "Missing article_id or LOVABLE_API_KEY" }), {
@@ -84,7 +84,9 @@ serve(async (req) => {
     const html = article?.content || "";
     const sectionCount = (html.match(/<h2[^>]*>/gi) || []).length;
     const sections: string[] = Array.isArray(outline_h2) ? outline_h2.map((s: any) => s.title || s) : [];
-    const maxImages = Math.min(sectionCount, 8);
+    // Limit: article = 2 section images (+ 1 hero = 3 total), super_page = 3 section images (+ 1 hero = 4 total)
+    const contentType = job_type || 'article';
+    const maxImages = Math.min(sectionCount, contentType === 'super_page' ? 3 : 2);
     const totalImages = 1 + maxImages;
 
     // Mark pending
