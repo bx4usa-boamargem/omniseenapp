@@ -545,6 +545,79 @@ function executeEntityCoverage(outline: OutlineData, entities: EntityData): Enti
 }
 
 // ============================================================
+// ENFORCE HEADING STRUCTURE (post-processing safety net)
+// ============================================================
+
+function enforceHeadingStructure(html: string, outline: OutlineData): string {
+  // Check if HTML already has proper headings
+  const hasH1 = /<h1[\s>]/i.test(html);
+  const hasH2 = /<h2[\s>]/i.test(html);
+
+  if (hasH1 && hasH2) {
+    // Already structured, just ensure <style> exists
+    if (!html.includes('<style>')) {
+      html = '<style>h1{font-size:2em;margin-bottom:0.5em;font-weight:700}h2{font-size:1.5em;margin-top:1.5em;margin-bottom:0.5em;font-weight:600}h3{font-size:1.2em;margin-top:1em;margin-bottom:0.4em;font-weight:600}p{line-height:1.8;margin-bottom:1em}</style>' + html;
+    }
+    return html;
+  }
+
+  console.warn('[enforceHeadingStructure] HTML missing proper headings, attempting fix...');
+
+  let fixed = html;
+
+  // Convert <p><strong>Title Text</strong></p> patterns to headings
+  // Match outline H2 titles in bold paragraphs
+  for (const section of outline.h2) {
+    const escapedTitle = section.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Match bold-only paragraphs that contain the section title
+    const boldPattern = new RegExp(
+      `<p[^>]*>\\s*<(?:strong|b)>\\s*${escapedTitle}\\s*</(?:strong|b)>\\s*</p>`,
+      'gi'
+    );
+    fixed = fixed.replace(boldPattern, `<h2>${section.title}</h2>`);
+
+    // Also try without <p> wrapping
+    const loosePattern = new RegExp(
+      `<(?:strong|b)>\\s*${escapedTitle}\\s*</(?:strong|b)>`,
+      'gi'
+    );
+    // Only replace if not already inside an h2/h3
+    fixed = fixed.replace(loosePattern, (match) => {
+      // Check if already inside a heading
+      const idx = fixed.indexOf(match);
+      const before = fixed.substring(Math.max(0, idx - 10), idx);
+      if (/<h[1-6][^>]*>$/i.test(before)) return match;
+      return `<h2>${section.title}</h2>`;
+    });
+
+    // Convert H3s
+    for (const h3Title of section.h3) {
+      const escapedH3 = h3Title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const h3Pattern = new RegExp(
+        `<p[^>]*>\\s*<(?:strong|b)>\\s*${escapedH3}\\s*</(?:strong|b)>\\s*</p>`,
+        'gi'
+      );
+      fixed = fixed.replace(h3Pattern, `<h3>${h3Title}</h3>`);
+    }
+  }
+
+  // If still no H1, inject one from the outline
+  if (!/<h1[\s>]/i.test(fixed)) {
+    fixed = `<h1>${outline.h1}</h1>\n` + fixed;
+  }
+
+  // Ensure <style> tag
+  if (!fixed.includes('<style>')) {
+    fixed = '<style>h1{font-size:2em;margin-bottom:0.5em;font-weight:700}h2{font-size:1.5em;margin-top:1.5em;margin-bottom:0.5em;font-weight:600}h3{font-size:1.2em;margin-top:1em;margin-bottom:0.4em;font-weight:600}p{line-height:1.8;margin-bottom:1em}</style>' + fixed;
+  }
+
+  const newH2Count = (fixed.match(/<h2[\s>]/gi) || []).length;
+  console.log(`[enforceHeadingStructure] Fixed: hasH1=${/<h1[\s>]/i.test(fixed)}, h2Count=${newH2Count}`);
+
+  return fixed;
+}
+
+// ============================================================
 // STEP: CONTENT_GEN (outline-driven, multi-section)
 // ============================================================
 
