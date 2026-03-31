@@ -91,7 +91,7 @@ export function ContentCalendar({ blogId }: ContentCalendarProps) {
   const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
   return (
-    <Card>
+    <Card className="border-border/40 bg-card/50 backdrop-blur-sm">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">

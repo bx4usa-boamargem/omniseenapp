@@ -46,7 +46,7 @@ export default function ClientSettings() {
 
       {/* Tabs */}
       <Tabs value={currentTab} onValueChange={handleTabChange} className="space-y-6">
-        <TabsList className="w-full justify-start h-auto p-1 bg-muted/50 rounded-xl flex-wrap">
+        <TabsList className="w-full justify-start h-auto p-1.5 bg-muted/30 backdrop-blur-sm rounded-xl flex-wrap border border-border/30">
           {TABS.map((tab) => (
             <TabsTrigger 
               key={tab.id} 
