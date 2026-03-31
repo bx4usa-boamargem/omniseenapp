@@ -173,8 +173,8 @@ serve(async (req) => {
           .update({
             content_images: contentImagesForDb, // V4.7: Coluna correta (NOT image_prompts)
             images_completed: completedImages,
-            // Update featured image if this is the first image
-            ...(i === 0 && imgPrompt.url ? { featured_image_url: imgPrompt.url } : {}),
+            // Do NOT overwrite featured_image_url — hero is managed by orchestrator
+
             updated_at: new Date().toISOString()
           })
           .eq('id', article_id);
