@@ -138,32 +138,52 @@ async function callAIRouter(
   serviceKey: string,
   task: string,
   messages: Array<{ role: string; content: string }>,
-  options?: { temperature?: number; maxTokens?: number }
+  options?: { temperature?: number; maxTokens?: number; retries?: number }
 ): Promise<AIRouterResult> {
   const url = `${supabaseUrl}/functions/v1/ai-router`;
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${serviceKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      task,
-      messages,
-      temperature: options?.temperature,
-      maxTokens: options?.maxTokens,
-    }),
-  });
+  const maxRetries = options?.retries ?? 2;
 
-  const data = await resp.json();
-  if (!resp.ok) {
-    return {
-      success: false, content: '', model: '', provider: 'lovable-gateway',
-      tokensIn: 0, tokensOut: 0, costUsd: 0, latencyMs: 0,
-      error: data.error || `HTTP_${resp.status}`,
-    };
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        task,
+        messages,
+        temperature: options?.temperature,
+        maxTokens: options?.maxTokens,
+      }),
+    });
+
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      const errMsg = data.error || `HTTP_${resp.status}`;
+      // Retry on 429 rate limit with exponential backoff
+      if (resp.status === 429 && attempt < maxRetries) {
+        const delay = Math.min(3000 * Math.pow(2, attempt), 15000);
+        console.log(`[callAIRouter] Rate limited (429) on ${task}, retry ${attempt + 1}/${maxRetries} after ${delay}ms`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      return {
+        success: false, content: '', model: '', provider: 'lovable-gateway',
+        tokensIn: 0, tokensOut: 0, costUsd: 0, latencyMs: 0,
+        error: errMsg,
+      };
+    }
+    return data as AIRouterResult;
   }
-  return data as AIRouterResult;
+
+  // Should not reach here, but safety fallback
+  return {
+    success: false, content: '', model: '', provider: 'lovable-gateway',
+    tokensIn: 0, tokensOut: 0, costUsd: 0, latencyMs: 0,
+    error: 'MAX_RETRIES_EXHAUSTED',
+  };
 }
 
 // ============================================================
