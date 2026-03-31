@@ -622,6 +622,11 @@ export default function ClientStrategy() {
         <TabsContent value="opportunities">
           {blog?.id && <ClientOpportunitiesTab blogId={blog.id} />}
         </TabsContent>
+
+        {/* Calendar Tab */}
+        <TabsContent value="calendar">
+          {blog?.id && <ContentCalendar blogId={blog.id} />}
+        </TabsContent>
       </Tabs>
     </div>
   );
