@@ -62,63 +62,7 @@ export interface ImageResult {
   error?: string;
 }
 
-export type TaskType =
-  // Geração de conteúdo (Gemini principal)
-  | 'outline_gen'
-  | 'content_gen'
-  | 'article_gen_single_pass'
-  | 'article_gen_from_outline'
-  | 'section_expansion'
-  | 'title_gen'
-  | 'meta_gen'
-  | 'landing_page_gen'
-  | 'ebook_gen'
-  | 'funnel_gen'
-  | 'concept_gen'
-  | 'persona_gen'
-  | 'translate'
-  // SEO & análise (Gemini principal)
-  | 'serp_analysis'
-  | 'serp_summary'
-  | 'serp_gap_analysis'
-  | 'nlp_keywords'
-  | 'entity_extraction'
-  | 'entity_coverage_assign'
-  | 'context_summary'
-  | 'seo_score'
-  | 'seo_fix'
-  | 'seo_suggestions'
-  | 'keyword_analysis'
-  | 'keyword_suggest'
-  | 'theme_suggest'
-  | 'cluster_gen'
-  | 'opportunity_gen'
-  | 'internal_links'
-  | 'broken_link_fix'
-  | 'trend_analysis'
-  | 'market_intel'
-  // Otimização/melhoria (Gemini principal)
-  | 'boost_score'
-  | 'auto_fix'
-  | 'polish_final'
-  | 'optimize_performance'
-  | 'improve_complete'
-  // QA & revisão (OpenAI principal)
-  | 'content_critic'
-  | 'review_article'
-  | 'quality_gate'
-  // Chat & conversação (Gemini principal)
-  | 'chat'
-  | 'support_chat'
-  | 'sales_agent'
-  | 'article_chat'
-  // Imagem (Gemini Image)
-  | 'image_gen'
-  // Utilitários (Gemini principal)
-  | 'summarize'
-  | 'instagram_import'
-  // Fallback genérico
-  | 'general';
+export type TaskType = string;
 
 // ============================================================================
 // ROUTING TABLE
@@ -144,7 +88,7 @@ const DEFAULT_ROUTE: RouteConfig = {
   maxTokens: 8000,
 };
 
-const ROUTES: Partial<Record<TaskType, Partial<RouteConfig>>> = {
+const ROUTES: Record<string, Partial<RouteConfig>> = {
   // Content generation — Gemini (fast + cheap), OpenAI fallback
   outline_gen:              { temperature: 0.4, maxTokens: 8000 },
   content_gen:              { temperature: 0.5, maxTokens: 8000 },

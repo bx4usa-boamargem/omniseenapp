@@ -12,6 +12,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { calculateContentScore, extractArticleMetrics } from "../_shared/contentScoring.ts";
+import { generateText } from '../_shared/omniseen-ai.ts';
 import { SERPMatrix } from "../_shared/serpTypes.ts";
 import { 
   isVersionedContentEnabled, 
@@ -345,72 +346,22 @@ ${filteredMissingTerms.slice(0, 5).join(', ')}
 Retorne APENAS o artigo com as mínimas alterações em HTML/Markdown.
 Se a mudança necessária for muito grande, retorne o artigo ORIGINAL sem alterações.`;
 
-    // Call AI for optimization with retry logic
+    // Call AI for optimization via omniseen-ai.ts
     console.log(`[BOOST-SCORE] Calling AI for optimization...`);
-    
-    const MAX_RETRIES = 3;
-    const RETRY_DELAYS = [2000, 5000, 10000];
-    let aiResponse: Response | null = null;
-    let lastError: string = '';
 
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        aiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
-          method: "POST",
-          headers: {
-            // Authorization handled by omniseen-ai.ts internally,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: 'gemini-2.5-flash',
-            messages: [
-              {
-                role: "system",
-                content: "Você é um editor SEO especialista. Retorne APENAS o conteúdo otimizado em formato HTML/Markdown, sem explicações ou comentários. REGRA CRÍTICA: Mantenha TODA a estrutura HTML (<h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>). NÃO converta HTML para Markdown ou texto plano. Mantenha todos os marcadores <!--IMG_PLACEHOLDER_N--> nas suas posições."
-              },
-              { role: "user", content: optimizePrompt }
-            ],
-            max_tokens: 8000,
-            temperature: 0.3
-          }),
-        });
+    const aiResult = await generateText('boost_score', [
+      {
+        role: 'system',
+        content: 'Você é um editor SEO especialista. Retorne APENAS o conteúdo otimizado em formato HTML/Markdown, sem explicações ou comentários. Mantenha TODA a estrutura HTML. NÃO converta HTML para Markdown ou texto plano. Mantenha todos os marcadores <!--IMG_PLACEHOLDER_N--> nas suas posições.'
+      },
+      { role: 'user', content: optimizePrompt }
+    ], { maxTokens: 8000, temperature: 0.3 });
 
-        if (aiResponse.ok) {
-          console.log(`[BOOST-SCORE] AI call successful on attempt ${attempt + 1}`);
-          break;
-        }
-
-        // Log error details
-        const errorBody = await aiResponse.text();
-        lastError = `Status ${aiResponse.status}: ${errorBody}`;
-        console.error(`[BOOST-SCORE] AI attempt ${attempt + 1} failed: ${lastError}`);
-
-        // Don't retry for client errors (4xx except 429)
-        if (aiResponse.status >= 400 && aiResponse.status < 500 && aiResponse.status !== 429) {
-          throw new Error(`AI optimization failed: ${lastError}`);
-        }
-
-        // Retry for 5xx or 429
-        if (attempt < MAX_RETRIES) {
-          console.log(`[BOOST-SCORE] Retrying in ${RETRY_DELAYS[attempt]}ms...`);
-          await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
-        }
-      } catch (fetchError) {
-        lastError = fetchError instanceof Error ? fetchError.message : 'Unknown fetch error';
-        console.error(`[BOOST-SCORE] Fetch error on attempt ${attempt + 1}: ${lastError}`);
-        
-        if (attempt < MAX_RETRIES) {
-          await new Promise(resolve => setTimeout(resolve, RETRY_DELAYS[attempt]));
-        }
-      }
+    if (!aiResult.success) {
+      throw new Error(`AI optimization failed: ${aiResult.error}`);
     }
 
-    if (!aiResponse || !aiResponse.ok) {
-      throw new Error(`AI optimization failed after ${MAX_RETRIES + 1} attempts: ${lastError}`);
-    }
-
-    const aiData = await aiResponse.json();
-    let optimizedContent = aiData.choices?.[0]?.message?.content || content;
+    let optimizedContent = aiResult.content || content;
 
     // =========================================================================
     // IMAGE RE-INJECTION: Restaurar imagens após IA
@@ -565,7 +516,7 @@ Se a mudança necessária for muito grande, retorne o artigo ORIGINAL sem altera
     const durationMs = Date.now() - startTime;
     await supabase.from("ai_usage_logs").insert({
       blog_id: blogId,
-      provider: "lovable",
+      provider: "gemini",
       endpoint: "boost-content-score",
       cost_usd: 0.03,
       tokens_used: 8000,
