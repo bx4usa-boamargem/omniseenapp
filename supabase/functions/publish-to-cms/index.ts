@@ -672,14 +672,13 @@ Deno.serve(async (req) => {
 
     console.log(`CMS action: ${action}, integration: ${integrationId}`);
 
-    // Fetch integration details from decrypted view
+    // Fetch integration details using SECURITY DEFINER function
     // CRITICAL: Only fetch ACTIVE integrations - prevents ghost state publishing
-    const { data: integration, error: integrationError } = await supabaseClient
-      .from("cms_integrations_decrypted")
-      .select("*")
-      .eq("id", integrationId)
-      .eq("is_active", true)  // SECURITY: Reject inactive integrations at backend level
-      .single();
+    const { data: integrations, error: integrationError } = await supabaseClient
+      .rpc("get_cms_integrations_decrypted", { p_blog_id: undefined as any })
+
+    // Filter by integrationId and is_active manually since the RPC returns all for the blog
+    const integration = integrations?.find((i: any) => i.id === integrationId && i.is_active);
 
     if (integrationError || !integration) {
       console.error("Integration not found or inactive:", integrationError);

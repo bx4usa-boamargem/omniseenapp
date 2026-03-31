@@ -329,8 +329,9 @@ Deno.serve(async (req) => {
         );
       }
 
+      // Query cms_integrations directly with service_role (bypasses RLS)
       const { data: integration, error: integrationError } = await supabase
-        .from("cms_integrations_decrypted")
+        .from("cms_integrations")
         .select("api_key")
         .eq("id", integrationId)
         .single();
