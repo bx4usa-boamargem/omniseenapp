@@ -1772,9 +1772,11 @@ export type Database = {
           domain_verified: boolean | null
           favicon_url: string | null
           footer_text: string | null
+          glossary_terms: Json
           header_cta_text: string | null
           header_cta_url: string | null
           hero_background_color: string | null
+          hide_author: boolean
           id: string
           integration_type: string | null
           is_active: boolean | null
@@ -1799,6 +1801,13 @@ export type Database = {
           show_powered_by: boolean | null
           show_search: boolean | null
           slug: string
+          social_facebook: string | null
+          social_instagram: string | null
+          social_linkedin: string | null
+          social_tiktok: string | null
+          social_twitter: string | null
+          social_whatsapp: string | null
+          social_youtube: string | null
           tenant_id: string | null
           theme_mode: string | null
           tracking_config: Json | null
@@ -1833,9 +1842,11 @@ export type Database = {
           domain_verified?: boolean | null
           favicon_url?: string | null
           footer_text?: string | null
+          glossary_terms?: Json
           header_cta_text?: string | null
           header_cta_url?: string | null
           hero_background_color?: string | null
+          hide_author?: boolean
           id?: string
           integration_type?: string | null
           is_active?: boolean | null
@@ -1860,6 +1871,13 @@ export type Database = {
           show_powered_by?: boolean | null
           show_search?: boolean | null
           slug: string
+          social_facebook?: string | null
+          social_instagram?: string | null
+          social_linkedin?: string | null
+          social_tiktok?: string | null
+          social_twitter?: string | null
+          social_whatsapp?: string | null
+          social_youtube?: string | null
           tenant_id?: string | null
           theme_mode?: string | null
           tracking_config?: Json | null
@@ -1894,9 +1912,11 @@ export type Database = {
           domain_verified?: boolean | null
           favicon_url?: string | null
           footer_text?: string | null
+          glossary_terms?: Json
           header_cta_text?: string | null
           header_cta_url?: string | null
           hero_background_color?: string | null
+          hide_author?: boolean
           id?: string
           integration_type?: string | null
           is_active?: boolean | null
@@ -1921,6 +1941,13 @@ export type Database = {
           show_powered_by?: boolean | null
           show_search?: boolean | null
           slug?: string
+          social_facebook?: string | null
+          social_instagram?: string | null
+          social_linkedin?: string | null
+          social_tiktok?: string | null
+          social_twitter?: string | null
+          social_whatsapp?: string | null
+          social_youtube?: string | null
           tenant_id?: string | null
           theme_mode?: string | null
           tracking_config?: Json | null

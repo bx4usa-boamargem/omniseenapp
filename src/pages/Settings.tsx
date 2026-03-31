@@ -4,10 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUserRole } from "@/hooks/useCurrentUserRole";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Zap, CreditCard, Bot, ChevronRight, Globe, Loader2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Zap, CreditCard, Bot, ChevronRight, Globe, Loader2, AlertTriangle, FileText } from "lucide-react";
 import { SectionHelper } from "@/components/blog-editor/SectionHelper";
 import { CustomDomainSettings } from "@/components/settings/CustomDomainSettings";
 import { DeleteBlogDialog } from "@/components/dashboard/DeleteBlogDialog";
+import { BlogContentSettings } from "@/components/settings/BlogContentSettings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Settings() {
@@ -97,6 +98,10 @@ export default function Settings() {
         <Tabs defaultValue="general" className="space-y-6">
           <TabsList>
             <TabsTrigger value="general">Geral</TabsTrigger>
+            <TabsTrigger value="content" className="gap-2">
+              <FileText className="h-4 w-4" />
+              Conteúdo
+            </TabsTrigger>
             <TabsTrigger value="domain" className="gap-2">
               <Globe className="h-4 w-4" />
               Domínio
@@ -136,6 +141,24 @@ export default function Settings() {
                 </Card>
               ))}
             </div>
+          </TabsContent>
+
+          <TabsContent value="content">
+            <div className="mb-6">
+              <SectionHelper
+                title="Configurações de Conteúdo"
+                description="Autor, redes sociais e glossário dos artigos."
+              />
+            </div>
+            {blogId ? (
+              <BlogContentSettings blogId={blogId} />
+            ) : (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  <p>Crie um blog primeiro.</p>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="domain">

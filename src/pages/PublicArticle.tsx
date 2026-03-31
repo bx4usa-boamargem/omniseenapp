@@ -10,6 +10,7 @@ import { CTABanner } from "@/components/public/CTABanner";
 import { RelatedArticles } from "@/components/public/RelatedArticles";
 import { ReadingTracker } from "@/components/public/ReadingTracker";
 import { FloatingShareBar } from "@/components/public/FloatingShareBar";
+import { ArticleGlossary, injectGlossaryLinks } from "@/components/public/ArticleGlossary";
 import { TableOfContents } from "@/components/public/TableOfContents";
 import { FocusedReadingMode } from "@/components/public/FocusedReadingMode";
 import { ArticleLanguageSelector } from "@/components/public/ArticleLanguageSelector";
@@ -111,6 +112,21 @@ const PublicArticle = () => {
     }
     return parsedFaq;
   }, [hasTranslation, translation?.faq, parsedFaq]);
+
+  const glossaryTerms = useMemo(() => {
+    if (!blog?.glossary_terms || !Array.isArray(blog.glossary_terms)) return [];
+    return blog.glossary_terms;
+  }, [blog?.glossary_terms]);
+
+  const relevantGlossaryTerms = useMemo(() => {
+    if (!glossaryTerms.length || !displayedContent) return [];
+    return glossaryTerms.filter(({ term }: { term: string }) => displayedContent.toLowerCase().includes(term.toLowerCase()));
+  }, [glossaryTerms, displayedContent]);
+
+  const processedContent = useMemo(() => {
+    if (!displayedContent || !relevantGlossaryTerms.length) return displayedContent;
+    return injectGlossaryLinks(displayedContent, relevantGlossaryTerms, blog?.primary_color);
+  }, [displayedContent, relevantGlossaryTerms, blog?.primary_color]);
 
   // Map BlogMeta to legacy Blog interface for components
   const mappedBlog = useMemo(() => {
@@ -363,7 +379,7 @@ const PublicArticle = () => {
                 </div>
               ) : (
                 <ArticleContent 
-                  content={displayedContent} 
+                  content={processedContent || displayedContent} 
                   contentImages={contentImages}
                   hideFirstH1
                 />
@@ -381,7 +397,15 @@ const PublicArticle = () => {
           </section>
         )}
 
-        {/* FAQ Section */}
+        {/* Glossary Section */}
+        {relevantGlossaryTerms.length > 0 && (
+          <section className="px-4 pb-6">
+            <div className="max-w-3xl mx-auto lg:mr-80 lg:ml-auto">
+              <ArticleGlossary terms={relevantGlossaryTerms} primaryColor={mappedBlog.primary_color || undefined} />
+            </div>
+          </section>
+        )}
+
         {displayedFaq && displayedFaq.length > 0 && (
           <section className="px-4 py-12 bg-muted/30">
             <div className="max-w-3xl mx-auto lg:mr-80 lg:ml-auto">
@@ -425,6 +449,7 @@ const PublicArticle = () => {
               bio={mappedBlog.author_bio}
               photoUrl={mappedBlog.author_photo_url}
               linkedinUrl={mappedBlog.author_linkedin}
+              hideAuthor={blog?.hide_author}
             />
           </div>
         </section>
