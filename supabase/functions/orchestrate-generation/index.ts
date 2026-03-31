@@ -27,6 +27,37 @@ const MAX_API_CALLS = 10;
 const LOCK_TTL_MS = 120_000;
 
 // ============================================================
+// WORD RANGE RESOLVER — uses target_words from job input
+// ============================================================
+
+/**
+ * Resolves the word range for content generation.
+ * Priority: job input target_words > job_type default.
+ * For article: default 1500-2500. For super_page: default 3000-6000.
+ */
+function resolveWordRange(jobInput: Record<string, unknown>, jobType: 'article' | 'super_page'): string {
+  const targetWords = jobInput.target_words ? Number(jobInput.target_words) : null;
+
+  if (jobType === 'super_page') {
+    if (targetWords && targetWords >= 2000) {
+      const upper = Math.round(targetWords * 1.2);
+      return `${targetWords}-${upper}`;
+    }
+    return '3000-6000';
+  }
+
+  // article
+  if (targetWords && targetWords >= 500 && targetWords <= 5000) {
+    // Allow ±20% tolerance so model has room, but stays close to target
+    const lower = Math.max(500, Math.round(targetWords * 0.85));
+    const upper = Math.round(targetWords * 1.15);
+    return `${lower}-${upper}`;
+  }
+
+  return '1500-2500';
+}
+
+// ============================================================
 // PUBLIC STAGE MAPPING (client-facing progress)
 // ============================================================
 const PUBLIC_STAGE_MAP: Record<string, { stage: string; progress: number; message: string }> = {
@@ -347,9 +378,20 @@ async function executeOutlineGen(
   const language = (jobInput.language as string) || 'pt-BR';
   const jobType = ((jobInput.job_type as string) || 'article') as 'article' | 'super_page';
 
-  const wordHint = jobType === 'super_page'
-    ? 'Support 3000-6000 words: 6-10 H2 sections, 2-4 H3 per H2.'
-    : 'Support 1500-3000 words: 4-6 H2 sections, 2-3 H3 per H2.';
+  // Use target_words to calibrate outline size
+  const wordRange = resolveWordRange(jobInput, jobType);
+  const targetWords = jobInput.target_words ? Number(jobInput.target_words) : null;
+
+  let wordHint: string;
+  if (jobType === 'super_page') {
+    wordHint = 'Support 3000-6000 words: 6-10 H2 sections, 2-4 H3 per H2.';
+  } else if (targetWords && targetWords <= 1600) {
+    wordHint = `Support ~${targetWords} words: 3-4 H2 sections, 1-2 H3 per H2. Keep sections focused and concise.`;
+  } else if (targetWords && targetWords <= 2200) {
+    wordHint = `Support ~${targetWords} words: 4-5 H2 sections, 2 H3 per H2.`;
+  } else {
+    wordHint = `Support ~${targetWords || 2500} words: 5-6 H2 sections, 2-3 H3 per H2.`;
+  }
 
   const prompt = `You are an SEO content architect. Create a strict outline for a blog article.
 
@@ -358,6 +400,7 @@ City/region: ${city || 'Brazil'}
 Niche: ${niche}
 Language: ${language}
 Content type: ${jobType}
+Target word count: ${wordRange} words
 
 SERP context (use to inform structure and gaps):
 ${serpSummary || 'No SERP data.'}
@@ -641,7 +684,12 @@ async function executeContentGenFromOutline(
     ? `Include a WhatsApp CTA: ${whatsapp}${businessName ? ` (${businessName})` : ''}`
     : businessName ? `Include a CTA for ${businessName}` : 'Include a strong contact CTA';
 
-  const wordRange = jobType === 'super_page' ? '3000-6000' : '1500-3000';
+  // *** FIX: use target_words from job input, not hardcoded range ***
+  const wordRange = resolveWordRange(jobInput, jobType);
+  const targetWords = jobInput.target_words ? Number(jobInput.target_words) : null;
+
+  console.log(`[CONTENT_GEN] wordRange=${wordRange} target_words=${targetWords} job_type=${jobType}`);
+
   const outlineJson = JSON.stringify(outline, null, 0);
   const entitiesJson = JSON.stringify(entities, null, 0);
   const perSectionEntities = entityCoverage.assignment.map((a) => `Section "${a.sectionTitle}": cover these terms naturally: ${a.terms.slice(0, 8).join(', ')}`).join('\n');
@@ -666,11 +714,12 @@ ${entitiesJson}
 
 === PADRAO EDITORIAL OBRIGATORIO ===
 
-REGRA DE TAMANHO:
-- O artigo DEVE ter entre ${wordRange} palavras dependendo da complexidade do assunto.
-- Nunca entregue artigo raso ou incompleto.
-- E PROIBIDO encher texto com redundancia, enrolacao ou frases vazias.
-- Cada secao deve ter profundidade real com explicacoes, exemplos e aplicacoes.
+REGRA DE TAMANHO — CRITICA E INEGOCIAVEL:
+- O artigo DEVE ter EXATAMENTE entre ${wordRange} palavras. NAO MAIS QUE ISSO.
+- Alvo central: ${targetWords || wordRange.split('-')[0]} palavras.
+- E ESTRITAMENTE PROIBIDO ultrapassar o limite superior de palavras.
+- Nao expanda secoes desnecessariamente. Seja preciso e objetivo.
+- Se atingiu o limite, pare de escrever e entregue o artigo.
 
 ESTRUTURA OBRIGATORIA:
 1. 1 H1 unico (primeiro elemento)
@@ -696,9 +745,6 @@ PADRAO DE QUALIDADE:
 - Entregar contexto, explicacao, aplicacao e exemplos REAIS
 - Evitar repeticao de ideias entre secoes
 - Evitar frases genericas e afirmacoes vazias
-- Cada H2 deve ter pelo menos 3-4 paragrafos substantivos
-- Cada H3 deve ter pelo menos 2 paragrafos substantivos
-- Incluir dados, estatisticas ou referencias quando possivel
 - Linguagem natural e humana, NUNCA robotica
 
 SEO ON-PAGE:
@@ -707,7 +753,7 @@ SEO ON-PAGE:
 - Estrutura de leitura para featured snippets quando aplicavel
 
 REQUIREMENTS:
-1) Word count: ${wordRange} words. THIS IS MANDATORY. Count carefully.
+1) Word count: EXACTLY ${wordRange} words. THIS IS MANDATORY. Do NOT exceed the upper limit.
 2) Use the exact H1 and H2/H3 from the outline. Do not skip or merge sections.
 3) Answer-first introduction. Real-world examples for the city.
 4) ${ctaInfo}
@@ -745,7 +791,7 @@ OUTPUT FORMAT (STRICT JSON only):
 }`;
 
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'article_gen_from_outline', [
-    { role: 'system', content: `You are an elite premium SEO content writer for ${niche} in ${language}. You produce in-depth articles between 1500-3000 words depending on topic complexity. You MUST return valid JSON with html_article containing proper semantic HTML: <h1> for title, <h2> for sections, <h3> for subsections, <p> for paragraphs, <ul>/<ol> for lists. Every paragraph must be short (2-5 lines). NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks.` },
+    { role: 'system', content: `You are an elite premium SEO content writer for ${niche} in ${language}. You produce articles with EXACTLY ${wordRange} words. CRITICAL: Do NOT exceed the upper word limit. You MUST return valid JSON with html_article containing proper semantic HTML: <h1> for title, <h2> for sections, <h3> for subsections, <p> for paragraphs, <ul>/<ol> for lists. Every paragraph must be short (2-5 lines). NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks.` },
     { role: 'user', content: prompt },
   ]);
 
@@ -829,7 +875,7 @@ async function executeSaveArticle(
   const textContent = htmlArticle.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   const wordCount = textContent.split(/\s+/).filter(Boolean).length;
   const readingTime = Math.ceil(wordCount / 200);
-  const wordCountTarget = contentType === 'super_page' ? 4500 : 2250;
+  const wordCountTarget = jobInput.target_words ? Number(jobInput.target_words) : (contentType === 'super_page' ? 4500 : 2250);
 
   // Fetch CTA config from blog
   const { data: blogData } = await supabase
@@ -1189,7 +1235,7 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
   console.log('[ORCHESTRATOR_BOOT:V2]', jobId, 'job_type=', jobType);
 
   const jobInput = { ...(job.input as Record<string, unknown> || {}), job_type: jobType };
-  console.log(`[ORCHESTRATOR:V2] job_id=${jobId} input=${JSON.stringify({ keyword: jobInput.keyword, city: jobInput.city, niche: jobInput.niche, job_type: jobType })}`);
+  console.log(`[ORCHESTRATOR:V2] job_id=${jobId} input=${JSON.stringify({ keyword: jobInput.keyword, city: jobInput.city, niche: jobInput.niche, job_type: jobType, target_words: jobInput.target_words })}`);
 
   // Lock
   if (job.locked_at) {
@@ -1411,7 +1457,7 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     await updatePublicStatus(supabase, jobId, 'CONTENT_GEN', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'CONTENT_GEN' }).eq('id', jobId);
 
-    const genStepId = await createStepOrFail(supabase, jobId, 'CONTENT_GEN', { keyword: jobInput.keyword, job_type: jobType });
+    const genStepId = await createStepOrFail(supabase, jobId, 'CONTENT_GEN', { keyword: jobInput.keyword, job_type: jobType, target_words: jobInput.target_words });
     const genStart = Date.now();
     let articleData: Record<string, unknown>;
     try {
