@@ -542,6 +542,12 @@ ${allowTechElements ? '' : 'NÃO inclua: hologramas, interfaces futuristas, elem
           console.error(`Image generation error (attempt ${attempt}):`, response.status, errorText);
           
           if (response.status === 429) {
+            if (attempt < maxRetries) {
+              const backoffMs = attempt * 3000; // 3s, 6s
+              console.log(`[${requestId}] Rate limited, waiting ${backoffMs}ms before retry ${attempt + 1}...`);
+              await new Promise(r => setTimeout(r, backoffMs));
+              continue;
+            }
             return new Response(
               JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
               { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
