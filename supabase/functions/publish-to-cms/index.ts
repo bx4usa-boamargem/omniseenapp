@@ -672,13 +672,13 @@ Deno.serve(async (req) => {
 
     console.log(`CMS action: ${action}, integration: ${integrationId}`);
 
-    // Fetch integration details from decrypted view
+    // Fetch integration details directly (service_role bypasses RLS)
     // CRITICAL: Only fetch ACTIVE integrations - prevents ghost state publishing
     const { data: integration, error: integrationError } = await supabaseClient
-      .from("cms_integrations_decrypted")
+      .from("cms_integrations")
       .select("*")
       .eq("id", integrationId)
-      .eq("is_active", true)  // SECURITY: Reject inactive integrations at backend level
+      .eq("is_active", true)
       .single();
 
     if (integrationError || !integration) {
