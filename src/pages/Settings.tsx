@@ -8,6 +8,7 @@ import { ArrowLeft, Zap, CreditCard, Bot, ChevronRight, Globe, Loader2, AlertTri
 import { SectionHelper } from "@/components/blog-editor/SectionHelper";
 import { CustomDomainSettings } from "@/components/settings/CustomDomainSettings";
 import { DeleteBlogDialog } from "@/components/dashboard/DeleteBlogDialog";
+import { BlogContentSettings } from "@/components/settings/BlogContentSettings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Settings() {
