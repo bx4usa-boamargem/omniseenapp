@@ -46,11 +46,18 @@ import { useJobPolling } from '@/hooks/useJobPolling';
 import type { TemplateType, ArticleMode } from '@/lib/article-engine/types';
 import { useQuery } from '@tanstack/react-query';
 
-// Countries and their states/regions
+// Countries (market/geo only — NOT tied to language)
 const COUNTRIES = [
-  { code: 'BR', name: '🇧🇷 Brasil', language: 'pt-BR' },
-  { code: 'US', name: '🇺🇸 Estados Unidos', language: 'en-US' },
-  { code: 'AR', name: '🇦🇷 Argentina', language: 'es-AR' },
+  { code: 'BR', name: '🇧🇷 Brasil' },
+  { code: 'US', name: '🇺🇸 Estados Unidos' },
+  { code: 'AR', name: '🇦🇷 Argentina' },
+] as const;
+
+// Independent language options
+const LANGUAGES = [
+  { code: 'pt-BR', name: '🇧🇷 Português' },
+  { code: 'en-US', name: '🇺🇸 English' },
+  { code: 'es-AR', name: '🇦🇷 Español' },
 ] as const;
 
 const STATES_BY_COUNTRY: Record<string, string[]> = {
