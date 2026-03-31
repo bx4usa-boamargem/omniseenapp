@@ -109,15 +109,16 @@ serve(async (req) => {
     }
 
     const currentDate = new Date();
-    const month = currentDate.toLocaleString("pt-BR", { month: "long" });
+    
+    // Use language from input (independent from country). Fallback to pt-BR.
+    const langCode = inputLanguage || 'pt-BR';
+    const isEnglish = langCode.startsWith('en');
+    const isSpanish = langCode.startsWith('es');
+    const monthLocale = isEnglish ? 'en-US' : isSpanish ? 'es-AR' : 'pt-BR';
+    const month = currentDate.toLocaleString(monthLocale, { month: "long" });
     const year = currentDate.getFullYear();
 
-    // Determine language based on country
-    const isEnglish = businessCountry.toLowerCase().includes("us") || 
-                      businessCountry.toLowerCase().includes("estados unidos") ||
-                      businessCountry.toLowerCase().includes("united states");
-    
-    const language = isEnglish ? "English" : "Portuguese (Brazilian)";
+    const language = isEnglish ? "English" : isSpanish ? "Spanish" : "Portuguese (Brazilian)";
 
     // Build territorial context for prompts
     const hasValidatedTerritory = neighborhoodTags.length > 0;
