@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { createArticleFromOpportunity } from '@/lib/createArticleFromOpportunity';
+import { ArticleSizeModal } from '@/components/opportunities/ArticleSizeModal';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
