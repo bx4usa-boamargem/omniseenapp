@@ -98,6 +98,10 @@ export default function Settings() {
         <Tabs defaultValue="general" className="space-y-6">
           <TabsList>
             <TabsTrigger value="general">Geral</TabsTrigger>
+            <TabsTrigger value="content" className="gap-2">
+              <FileText className="h-4 w-4" />
+              Conteúdo
+            </TabsTrigger>
             <TabsTrigger value="domain" className="gap-2">
               <Globe className="h-4 w-4" />
               Domínio
