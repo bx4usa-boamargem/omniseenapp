@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCurrentUserRole } from "@/hooks/useCurrentUserRole";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Zap, CreditCard, Bot, ChevronRight, Globe, Loader2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Zap, CreditCard, Bot, ChevronRight, Globe, Loader2, AlertTriangle, FileText } from "lucide-react";
 import { SectionHelper } from "@/components/blog-editor/SectionHelper";
 import { CustomDomainSettings } from "@/components/settings/CustomDomainSettings";
 import { DeleteBlogDialog } from "@/components/dashboard/DeleteBlogDialog";
