@@ -1596,6 +1596,7 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     await updatePublicStatus(supabase, jobId, 'QUALITY_GATE', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'QUALITY_GATE' }).eq('id', jobId);
     const qgStepId = await createStepOrFail(supabase, jobId, 'QUALITY_GATE', { article_id: saveOutput.article_id });
+    const targetWordsForGate = Number(jobInput.target_words) || (jobType === 'super_page' ? 3000 : 2000);
     const qgOutput = await executeQualityGate(
       saveOutput.article_id as string | null,
       (jobInput.blog_id as string) || '',
@@ -1603,7 +1604,8 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
       entityCoverage.coverageScore,
       seoScoreData,
       jobType,
-      supabase
+      supabase,
+      targetWordsForGate
     );
     await supabase.from('generation_steps').update({
       status: 'completed', output: qgOutput, completed_at: new Date().toISOString(), model_used: 'programmatic', provider: 'quality_gate',
