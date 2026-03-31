@@ -231,6 +231,11 @@ export default function ArticleAdvancedPreview() {
               Publicar
             </Button>
           )}
+          <ABTestDialog
+            articleId={article.id}
+            originalTitle={article.title}
+            originalMetaDescription={article.meta_description || ''}
+          />
         </div>
       </div>
       

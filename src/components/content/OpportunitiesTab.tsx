@@ -944,6 +944,13 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
           </Card>
         </Collapsible>
       )}
+      <ArticleSizeModal
+        open={sizeModalOpen}
+        onOpenChange={setSizeModalOpen}
+        title={selectedOpportunity?.suggested_title || ''}
+        onConfirm={handleCreateArticle}
+        loading={!!creatingId}
+      />
     </div>
   );
 }
