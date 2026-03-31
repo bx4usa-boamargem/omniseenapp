@@ -94,14 +94,17 @@ export default function GenerationNew() {
 
     setLoading(true);
     try {
-      const payload: Record<string, unknown> = {
-        keyword: trimmedKeyword,
-        blog_id: blogId,
-        city: form.city.trim(),
-        state: form.state.trim() || undefined,
-        country: 'BR',
-        language: 'pt-BR',
-        niche: form.niche.trim(),
+        const selectedCountry = COUNTRIES.find(c => c.value === form.country) || COUNTRIES[0];
+        const resolvedNiche = customNiche ? form.customNicheText.trim() : form.niche.trim();
+
+        const payload: Record<string, unknown> = {
+          keyword: trimmedKeyword,
+          blog_id: blogId,
+          city: form.city.trim(),
+          state: form.state.trim() || undefined,
+          country: selectedCountry.value,
+          language: selectedCountry.lang,
+          niche: resolvedNiche,
         job_type: 'article',
         intent: form.intent === 'auto' ? 'informational' : form.intent,
         target_words: parseInt(form.target_words),
