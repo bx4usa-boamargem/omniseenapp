@@ -33,7 +33,7 @@ serve(async (req) => {
     }
 
     // FIXED: Use the exact same redirectUri as get-gsc-config
-    const PUBLIC_APP_URL = Deno.env.get('PUBLIC_APP_URL') || 'https://omniseeblog.lovable.app';
+    const PUBLIC_APP_URL = Deno.env.get('PUBLIC_APP_URL') || 'https://omniseen.com';
     const redirectUri = `${PUBLIC_APP_URL}/oauth/google/callback`;
 
     const googleClientId = Deno.env.get('GOOGLE_CLIENT_ID');

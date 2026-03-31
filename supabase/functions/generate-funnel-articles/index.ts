@@ -1,6 +1,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateText, generateImage } from '../_shared/omniseen-ai.ts';
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -92,17 +94,12 @@ serve(async (req) => {
     const templateRules = template?.rules || '';
 
     // Generate themes using AI
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
-    }
-
-    const themes: { theme: string; stage: string }[] = [];
+const themes: { theme: string; stage: string }[] = [];
 
     // Generate TOP of funnel themes (problems)
     if (topOfFunnel > 0 && persona.problems && persona.problems.length > 0) {
       const topThemes = await generateThemes(
-        LOVABLE_API_KEY,
+        GOOGLE_AI_KEY,
         persona.name,
         persona.problems,
         'topo',
@@ -115,7 +112,7 @@ serve(async (req) => {
     // Generate MIDDLE of funnel themes (solutions)
     if (middleOfFunnel > 0 && persona.solutions && persona.solutions.length > 0) {
       const middleThemes = await generateThemes(
-        LOVABLE_API_KEY,
+        GOOGLE_AI_KEY,
         persona.name,
         persona.solutions,
         'meio',
@@ -128,7 +125,7 @@ serve(async (req) => {
     // Generate BOTTOM of funnel themes (objections)
     if (bottomOfFunnel > 0 && persona.objections && persona.objections.length > 0) {
       const bottomThemes = await generateThemes(
-        LOVABLE_API_KEY,
+        GOOGLE_AI_KEY,
         persona.name,
         persona.objections,
         'fundo',
@@ -209,14 +206,14 @@ ${items.slice(0, 10).map((item, i) => `${i + 1}. ${item}`).join('\n')}
 
 Retorne APENAS os títulos, um por linha, sem numeração ou explicações.`;
 
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
+      model: 'gemini-2.5-flash',
       messages: [
         { role: 'user', content: prompt }
       ],

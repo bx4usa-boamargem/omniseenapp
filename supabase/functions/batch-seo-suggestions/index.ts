@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { generateText, generateImage } from '../_shared/omniseen-ai.ts';
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -109,14 +111,14 @@ async function processArticleBatch(
 
   console.log(`[Batch] Processing ${articles.length} articles for ${type}`);
 
-  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+  const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'google/gemini-2.5-flash',
+      model: 'gemini-2.5-flash',
       messages: [
         { role: 'system', content: systemPrompt },
         { 
@@ -269,12 +271,7 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
-
-    const { type, articles, blog_id, user_id } = await req.json();
+const { type, articles, blog_id, user_id } = await req.json();
 
     if (!type || !articles || !Array.isArray(articles) || articles.length === 0) {
       return new Response(
@@ -303,7 +300,7 @@ serve(async (req) => {
       console.log(`[Main] Processing batch ${Math.floor(i/BATCH_SIZE) + 1}/${Math.ceil(articles.length/BATCH_SIZE)}`);
       
       try {
-        const batchSuggestions = await processArticleBatch(batch, type, systemPrompt, LOVABLE_API_KEY);
+        const batchSuggestions = await processArticleBatch(batch, type, systemPrompt, GOOGLE_AI_KEY);
         allSuggestions.push(...batchSuggestions);
         
         if (batchSuggestions.length === 0 && batch.length > 0) {

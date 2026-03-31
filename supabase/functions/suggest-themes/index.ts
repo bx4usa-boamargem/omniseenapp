@@ -21,12 +21,7 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
-    }
-
-    const { niche, keywords, existingTitles, count = 5, tone = 'professional', blog_id }: ThemeRequest = await req.json();
+const { niche, keywords, existingTitles, count = 5, tone = 'professional', blog_id }: ThemeRequest = await req.json();
 
     if (!niche) {
       return new Response(
@@ -36,7 +31,7 @@ serve(async (req) => {
     }
 
     // Fetch AI model preference from content_preferences
-    let textModel = 'google/gemini-2.5-flash';
+    let textModel = 'gemini-2.5-flash';
     if (blog_id) {
       try {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -99,10 +94,10 @@ Retorne APENAS o JSON, sem markdown ou explicações.
 
     console.log(`Suggesting ${count} themes for niche: ${niche}, model: ${textModel}`);
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        // Authorization handled by omniseen-ai.ts internally,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

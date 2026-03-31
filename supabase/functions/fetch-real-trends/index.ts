@@ -41,8 +41,7 @@ serve(async (req) => {
   }
 
   try {
-    const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    // Perplexity removida nesta fase — apenas Gemini + OpenAI via omniseen-ai.ts
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -168,122 +167,38 @@ Foque em:
 Retorne apenas o JSON, sem explicações.`;
 
     let trends = null;
-    let provider: "perplexity" | "lovable_ai" = "perplexity";
+    let provider: "gemini" | "openai" = "gemini";
     let citations: string[] = [];
 
-    // Try Perplexity first
-    if (PERPLEXITY_API_KEY) {
-      try {
-        console.log("Attempting Perplexity API call for trends...");
-        
-        const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${PERPLEXITY_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "sonar",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt }
-            ],
-            search_recency_filter: "week",
-            temperature: 0.3,
-          }),
-        });
+    // Use omniseen-ai.ts (Direct Gemini API) — sem Perplexity nesta fase
+    try {
+      const { generateText } = await import('../_shared/omniseen-ai.ts');
 
-        if (perplexityResponse.ok) {
-          const data = await perplexityResponse.json();
-          const content = data.choices?.[0]?.message?.content || "";
-          citations = data.citations || [];
+      console.log("Fetching trends via omniseen-ai.ts (Direct Gemini API)...");
 
-          try {
-            const cleanContent = content.replace(/```json\n?|\n?```/g, "").trim();
-            trends = JSON.parse(cleanContent);
-            
-            // Add citations to trends if available
-            if (citations.length > 0 && trends.trends) {
-              trends.trends = trends.trends.map((trend: any, index: number) => ({
-                ...trend,
-                sources: trend.sources || [citations[index % citations.length]]
-              }));
-            }
-            
-            console.log("Perplexity trends parsed successfully");
-          } catch (parseError) {
-            console.error("Failed to parse Perplexity response:", parseError);
-            throw new Error("Parse error - falling back");
-          }
-        } else {
-          const errorText = await perplexityResponse.text();
-          console.error("Perplexity API error:", perplexityResponse.status, errorText);
-          
-          if (perplexityResponse.status === 429) {
-            throw new Error("Rate limit - falling back");
-          }
-          throw new Error(`Perplexity API error: ${perplexityResponse.status}`);
-        }
-      } catch (perplexityError) {
-        console.log("Perplexity failed, falling back to Lovable AI:", perplexityError);
-        provider = "lovable_ai";
-      }
-    } else {
-      console.log("No Perplexity API key, using Lovable AI");
-      provider = "lovable_ai";
-    }
+      const result = await generateText('trend_analysis', [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ], { temperature: 0.7 });
 
-    // Fallback to Lovable AI
-    if (!trends && LOVABLE_API_KEY) {
-      console.log("Using Lovable AI fallback for trends...");
-      provider = "lovable_ai";
-
-      const lovableResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userPrompt }
-          ],
-          temperature: 0.7,
-        }),
-      });
-
-      if (!lovableResponse.ok) {
-        const errorText = await lovableResponse.text();
-        console.error("Lovable AI error:", lovableResponse.status, errorText);
-        
-        if (lovableResponse.status === 429) {
-          return new Response(
-            JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        if (lovableResponse.status === 402) {
-          return new Response(
-            JSON.stringify({ error: "Payment required. Please add credits to your workspace." }),
-            { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        throw new Error(`AI Gateway error: ${lovableResponse.status}`);
+      if (!result.success) {
+        throw new Error(`AI error: ${result.error}`);
       }
 
-      const lovableData = await lovableResponse.json();
-      const content = lovableData.choices?.[0]?.message?.content || "";
+      provider = result.provider as "gemini" | "openai";
+      const content = result.content || "";
 
       try {
         const cleanContent = content.replace(/```json\n?|\n?```/g, "").trim();
         trends = JSON.parse(cleanContent);
-        console.log("Lovable AI trends parsed successfully");
+        console.log("Trends parsed successfully via", provider);
       } catch (parseError) {
-        console.error("Failed to parse Lovable AI response:", content);
+        console.error("Failed to parse AI response:", content.substring(0, 200));
         trends = { trends: [] };
       }
+    } catch (aiError) {
+      console.error("AI trends fetch failed:", aiError);
+      trends = { trends: [] };
     }
 
     if (!trends) {
@@ -337,7 +252,7 @@ Retorne apenas o JSON, sem explicações.`;
       provider,
       endpoint: "fetch-real-trends",
       country: businessCountry,
-      cost_usd: provider === "perplexity" ? 0.0057 : 0,
+      cost_usd: 0,
       success: true,
       metadata: {
         trends_count: trends.trends?.length || 0,

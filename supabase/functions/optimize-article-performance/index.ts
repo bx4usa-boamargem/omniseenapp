@@ -43,12 +43,7 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
-
-    const request: OptimizeRequest = await req.json();
+const request: OptimizeRequest = await req.json();
     const { title, content, metaDescription, mode, companyName } = request;
 
     if (!title || !content) {
@@ -64,14 +59,14 @@ serve(async (req) => {
     // STEP 2: Run AI diagnosis
     const diagnosticPrompt = buildDiagnosticPrompt(title, content, metaDescription);
     
-    const diagnosisResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const diagnosisResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        // Authorization handled by omniseen-ai.ts internally,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gemini-2.5-flash',
         messages: [
           {
             role: 'system',
@@ -124,14 +119,14 @@ serve(async (req) => {
       // Generate suggestions
       const suggestionsPrompt = buildSuggestionsPrompt(title, content, diagnosis, companyName);
       
-      const suggestionsResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      const suggestionsResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          // Authorization handled by omniseen-ai.ts internally,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
+          model: 'gemini-2.5-flash',
           messages: [
             {
               role: 'system',
@@ -177,14 +172,14 @@ serve(async (req) => {
       // Autonomous rewrite
       const rewritePrompt = buildAutonomousRewritePrompt(title, content, diagnosis, companyName);
       
-      const rewriteResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      const rewriteResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          // Authorization handled by omniseen-ai.ts internally,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-pro',
+          model: 'gemini-2.5-flash',
           messages: [
             {
               role: 'system',

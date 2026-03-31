@@ -31,13 +31,7 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const lovableApiKey = Deno.env.get('LOVABLE_API_KEY');
-
-    if (!lovableApiKey) {
-      throw new Error('LOVABLE_API_KEY is not configured');
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Fetch the original article
     const { data: article, error: articleError } = await supabase
@@ -99,14 +93,14 @@ FAQ: ${JSON.stringify(article.faq || [])}
 Content (Markdown - keep this format):
 ${article.content || ''}`;
 
-        const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${lovableApiKey}`,
+            // Authorization handled by omniseen-ai.ts internally,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
+            model: 'gemini-2.5-flash',
             messages: [
               { role: 'system', content: 'You are OMNISEEN AI, the intelligent virtual assistant of OMNISEEN. You are a professional translator. Always respond with valid JSON only, no markdown formatting.' },
               { role: 'user', content: prompt }

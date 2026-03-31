@@ -19,13 +19,7 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
-    }
-
-    // Limit input to prevent token overflow (100k chars ~ 25k tokens)
+// Limit input to prevent token overflow (100k chars ~ 25k tokens)
     const MAX_INPUT_CHARS = 100000;
     const truncatedText = text.length > MAX_INPUT_CHARS 
       ? text.substring(0, MAX_INPUT_CHARS) + '\n\n[...documento truncado por exceder limite de caracteres...]'
@@ -59,14 +53,14 @@ FORMATO DE SAÍDA:
 DOCUMENTO:
 ${truncatedText}`;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        // Authorization handled by omniseen-ai.ts internally,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gemini-2.5-flash',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }

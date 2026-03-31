@@ -42,7 +42,6 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Fetch broken link details with article content
@@ -84,9 +83,7 @@ serve(async (req) => {
       console.log('[Fix Broken Link] Removed link, kept anchor text');
 
     } else if (fix_method === 'rewrite') {
-      if (!LOVABLE_API_KEY) {
-        return new Response(
-          JSON.stringify({ error: 'AI API key not configured for rewrite' }),
+),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -102,14 +99,14 @@ serve(async (req) => {
         const surroundingContext = article.content.substring(contextStart, contextEnd);
 
         // Ask AI to rewrite the section without the broken link
-        const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            // Authorization handled by omniseen-ai.ts internally,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
+            model: 'gemini-2.5-flash',
             messages: [
               {
                 role: 'system',

@@ -108,7 +108,7 @@ async function fetchWithTimeout(
 }
 
 // ============================================================================
-// WRITER: OpenAI GPT-4o (Primary) → Google Gemini (Fallback)
+// WRITER: OpenAI GPT-4.1 (Primary) → Google Gemini (Fallback)
 // ============================================================================
 
 async function callOpenAIWriter(request: WriterRequest): Promise<WriterResponse> {
@@ -118,12 +118,14 @@ async function callOpenAIWriter(request: WriterRequest): Promise<WriterResponse>
   if (!apiKey) {
     throw new Error('OPENAI_API_KEY not configured');
   }
+
+  const writerFallback = AI_CONFIG.writer.fallback;
   
   const body: Record<string, unknown> = {
-    model: config.model,
+    model: writerFallback.model,
     messages: request.messages,
-    temperature: request.temperature ?? config.temperature,
-    max_tokens: request.maxTokens ?? config.maxTokens,
+    temperature: request.temperature ?? writerFallback.temperature,
+    max_tokens: request.maxTokens ?? writerFallback.maxTokens,
   };
   
   // Add tool if provided - OpenAI requires 'description' field
@@ -138,7 +140,7 @@ async function callOpenAIWriter(request: WriterRequest): Promise<WriterResponse>
     }];
     body.tool_choice = { type: 'function', function: { name: request.tool.name } };
   } else {
-    body.response_format = config.responseFormat;
+    body.response_format = writerFallback.responseFormat;
   }
   
   const response = await fetchWithTimeout(
@@ -187,8 +189,8 @@ async function callOpenAIWriter(request: WriterRequest): Promise<WriterResponse>
 }
 
 async function callGoogleWriter(request: WriterRequest): Promise<WriterResponse> {
-  const config = AI_CONFIG.writer.fallback;
-  const apiKey = getProviderApiKey('google');
+  const config = AI_CONFIG.writer.primary;
+  const apiKey = getProviderApiKey('gemini');
   
   if (!apiKey) {
     throw new Error('GOOGLE_AI_KEY not configured');
@@ -289,55 +291,55 @@ async function callGoogleWriter(request: WriterRequest): Promise<WriterResponse>
 
 /**
  * WRITER ENTRY POINT
- * Primary: OpenAI GPT-4o
+ * Primary: OpenAI GPT-4.1
  * Fallback: Google Gemini 2.0 Flash
  */
 export async function callWriter(request: WriterRequest): Promise<AICallResult<WriterResponse>> {
   const start = Date.now();
   
-  // Try OpenAI first
+  // Try Gemini first (primary)
   try {
-    console.log('[AI_CONFIG] Writer: Calling OpenAI GPT-4o...');
-    const result = await callOpenAIWriter(request);
+    console.log('[AI_CONFIG] Writer: Calling Google Gemini...');
+    const result = await callGoogleWriter(request);
     const duration = Date.now() - start;
-    logAICall('writer', 'openai', true, duration);
+    logAICall('writer', 'gemini', true, duration);
     
     return {
       success: true,
       data: result,
-      provider: 'openai',
+      provider: 'gemini',
       usedFallback: false,
       durationMs: duration,
       usage: result.usage
     };
-  } catch (openaiError) {
-    const errorMsg = openaiError instanceof Error ? openaiError.message : 'Unknown error';
-    console.warn(`[AI_CONFIG] Writer: OpenAI failed - ${errorMsg}`);
-    console.log('[AI_CONFIG] Writer: Falling back to Google Gemini...');
+  } catch (geminiError) {
+    const errorMsg = geminiError instanceof Error ? geminiError.message : 'Unknown error';
+    console.warn(`[AI_CONFIG] Writer: Gemini failed - ${errorMsg}`);
+    console.log('[AI_CONFIG] Writer: Falling back to OpenAI...');
     
-    // Fallback to Google
+    // Fallback to OpenAI
     try {
-      const result = await callGoogleWriter(request);
+      const result = await callOpenAIWriter(request);
       const duration = Date.now() - start;
-      logAICall('writer', 'google', true, duration, true);
+      logAICall('writer', 'openai', true, duration, true);
       
       return {
         success: true,
         data: result,
-        provider: 'google',
+        provider: 'openai',
         usedFallback: true,
         fallbackReason: errorMsg,
         durationMs: duration,
         usage: result.usage
       };
-    } catch (googleError) {
+    } catch (openaiError) {
       const duration = Date.now() - start;
-      const fallbackError = googleError instanceof Error ? googleError.message : 'Unknown error';
-      logAICall('writer', 'google', false, duration, true, fallbackError);
+      const fallbackError = openaiError instanceof Error ? openaiError.message : 'Unknown error';
+      logAICall('writer', 'openai', false, duration, true, fallbackError);
       
       return {
         success: false,
-        provider: 'google',
+        provider: 'openai',
         usedFallback: true,
         fallbackReason: `Primary: ${errorMsg}, Fallback: ${fallbackError}`,
         durationMs: duration
@@ -414,7 +416,7 @@ async function callPerplexityResearch(request: ResearchRequest): Promise<Researc
 
 async function callGoogleResearch(request: ResearchRequest): Promise<ResearchResponse> {
   const config = AI_CONFIG.research.fallback;
-  const apiKey = getProviderApiKey('google');
+  const apiKey = getProviderApiKey('gemini');
   
   if (!apiKey) {
     throw new Error('GOOGLE_AI_KEY not configured');
@@ -525,12 +527,12 @@ export async function callResearch(request: ResearchRequest): Promise<AICallResu
 }
 
 // ============================================================================
-// QA: Google Gemini (Primary) → OpenAI GPT-4o (Fallback)
+// QA: Google Gemini (Primary) → OpenAI GPT-4.1 (Fallback)
 // ============================================================================
 
 async function callGoogleQA(request: QARequest): Promise<QAResponse> {
-  const config = AI_CONFIG.qa.primary;
-  const apiKey = getProviderApiKey('google');
+  const config = AI_CONFIG.qa.fallback;
+  const apiKey = getProviderApiKey('gemini');
   
   if (!apiKey) {
     throw new Error('GOOGLE_AI_KEY not configured');
@@ -616,52 +618,52 @@ async function callOpenAIQA(request: QARequest): Promise<QAResponse> {
 /**
  * QA ENTRY POINT
  * Primary: Google Gemini 2.0 Flash
- * Fallback: OpenAI GPT-4o
+ * Fallback: OpenAI GPT-4.1
  */
 export async function callQA(request: QARequest): Promise<AICallResult<QAResponse>> {
   const start = Date.now();
   
-  // Try Google first
+  // Try OpenAI first (primary for QA — higher quality judgment)
   try {
-    console.log('[AI_CONFIG] QA: Calling Google Gemini...');
-    const result = await callGoogleQA(request);
+    console.log('[AI_CONFIG] QA: Calling OpenAI GPT-4.1...');
+    const result = await callOpenAIQA(request);
     const duration = Date.now() - start;
-    logAICall('qa', 'google', true, duration);
+    logAICall('qa', 'openai', true, duration);
     
     return {
       success: true,
       data: result,
-      provider: 'google',
+      provider: 'openai',
       usedFallback: false,
       durationMs: duration
     };
-  } catch (googleError) {
-    const errorMsg = googleError instanceof Error ? googleError.message : 'Unknown error';
-    console.warn(`[AI_CONFIG] QA: Google failed - ${errorMsg}`);
-    console.log('[AI_CONFIG] QA: Falling back to OpenAI GPT-4o...');
+  } catch (openaiError) {
+    const errorMsg = openaiError instanceof Error ? openaiError.message : 'Unknown error';
+    console.warn(`[AI_CONFIG] QA: OpenAI failed - ${errorMsg}`);
+    console.log('[AI_CONFIG] QA: Falling back to Gemini...');
     
-    // Fallback to OpenAI
+    // Fallback to Gemini
     try {
-      const result = await callOpenAIQA(request);
+      const result = await callGoogleQA(request);
       const duration = Date.now() - start;
-      logAICall('qa', 'openai', true, duration, true);
+      logAICall('qa', 'gemini', true, duration, true);
       
       return {
         success: true,
         data: result,
-        provider: 'openai',
+        provider: 'gemini',
         usedFallback: true,
         fallbackReason: errorMsg,
         durationMs: duration
       };
-    } catch (openaiError) {
+    } catch (geminiError) {
       const duration = Date.now() - start;
-      const fallbackError = openaiError instanceof Error ? openaiError.message : 'Unknown error';
-      logAICall('qa', 'openai', false, duration, true, fallbackError);
+      const fallbackError = geminiError instanceof Error ? geminiError.message : 'Unknown error';
+      logAICall('qa', 'gemini', false, duration, true, fallbackError);
       
       return {
         success: false,
-        provider: 'openai',
+        provider: 'gemini',
         usedFallback: true,
         fallbackReason: `Primary: ${errorMsg}, Fallback: ${fallbackError}`,
         durationMs: duration
@@ -671,54 +673,28 @@ export async function callQA(request: QARequest): Promise<AICallResult<QARespons
 }
 
 // ============================================================================
-// IMAGES: Lovable Gateway (Primary) → Unsplash (Fallback)
+// IMAGES: Gemini Image Direct API (Primary) → Unsplash (Fallback)
 // ============================================================================
 
-async function callLovableGatewayImage(request: ImageRequest): Promise<ImageResponse> {
-  const config = AI_CONFIG.images.primary;
-  const apiKey = getProviderApiKey('lovable-gateway');
-  
-  if (!apiKey) {
-    throw new Error('LOVABLE_API_KEY not configured');
-  }
-  
+import { generateImage as omniseenGenerateImage } from './omniseen-ai.ts';
+
+async function callGeminiDirectImage(request: ImageRequest): Promise<ImageResponse> {
   const enhancedPrompt = `Professional business photography: ${request.prompt}. 
 Context: ${request.context} service in ${request.city}. 
 Industry: ${request.niche}.
 Style: High-quality, photorealistic, modern, professional lighting. 
-${config.aspectRatio} aspect ratio for web.
-CRITICAL RULE: The image must contain ZERO text of any kind — no words, no letters, no numbers, no titles, no captions, no labels, no banners, no overlays, no watermarks, no logos, no typography whatsoever. Pure visual photography only.`;
-  
-  const response = await fetchWithTimeout(
-    config.gateway,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [{ role: 'user', content: enhancedPrompt }],
-        modalities: config.modalities
-      })
-    },
-    30000
-  );
-  
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw new Error(`Lovable Gateway error ${response.status}: ${errorText.substring(0, 200)}`);
+16:9 aspect ratio for web.`;
+
+  const result = await omniseenGenerateImage(enhancedPrompt);
+
+  if (!result.success || !result.url) {
+    throw new Error(result.error || 'Gemini Image generation failed');
   }
-  
-  const data = await response.json();
-  const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-  
-  if (!imageUrl) {
-    throw new Error('No image URL in Lovable Gateway response');
-  }
-  
-  return { url: imageUrl, generatedBy: 'gemini_image' };
+
+  return {
+    url: result.url,
+    generatedBy: result.model === 'picsum-fallback' ? 'unsplash_fallback' : 'gemini_image',
+  };
 }
 
 // V4.1: Exported for use in main flow for image timeout fallback
@@ -752,23 +728,23 @@ export function generateUnsplashFallback(request: ImageRequest): ImageResponse {
 export async function callImageGeneration(request: ImageRequest): Promise<AICallResult<ImageResponse>> {
   const start = Date.now();
   
-  // Try Lovable Gateway first
+  // Try Gemini Direct API first
   try {
-    console.log('[AI_CONFIG] Images: Calling Lovable Gateway...');
-    const result = await callLovableGatewayImage(request);
+    console.log('[AI_CONFIG] Images: Calling Gemini Image API...');
+    const result = await callGeminiDirectImage(request);
     const duration = Date.now() - start;
-    logAICall('images', 'lovable-gateway', true, duration);
+    logAICall('images', 'gemini', true, duration);
     
     return {
       success: true,
       data: result,
-      provider: 'lovable-gateway',
+      provider: 'gemini',
       usedFallback: false,
       durationMs: duration
     };
-  } catch (gatewayError) {
-    const errorMsg = gatewayError instanceof Error ? gatewayError.message : 'Unknown error';
-    console.warn(`[AI_CONFIG] Images: Lovable Gateway failed - ${errorMsg}`);
+  } catch (geminiError) {
+    const errorMsg = geminiError instanceof Error ? geminiError.message : 'Unknown error';
+    console.warn(`[AI_CONFIG] Images: Gemini failed - ${errorMsg}`);
     console.log('[AI_CONFIG] Images: Falling back to Unsplash...');
     
     // Fallback to Unsplash (always succeeds)

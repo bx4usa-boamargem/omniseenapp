@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateText, generateImage } from '../_shared/omniseen-ai.ts';
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,13 +43,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-
-    if (!lovableApiKey) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const body: RequestBody = await req.json();
     const { blog_id, article_id, article_title, visitor_id, session_id, message, utm_source, utm_medium, utm_campaign } = body;
@@ -232,11 +228,11 @@ Lembre-se: você é um vendedor humano da ${companyName}, não um bot.`;
       { role: "user", content: message },
     ];
 
-    // 7. Call Lovable AI Gateway
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // 7. Call omniseen-ai (Direct API)
+    const aiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${lovableApiKey}`,
+        Authorization: `Bearer ${googleAiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({

@@ -251,12 +251,7 @@ serve(async (req) => {
   console.log(`[${requestId}] Starting image generation request`);
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -300,7 +295,7 @@ serve(async (req) => {
     }
 
     // Fetch AI model preference from content_preferences
-    let imageModel = 'google/gemini-2.5-flash-image-preview';
+    let imageModel = 'gemini-2.5-flash';
     if (blog_id) {
       const { data: prefs } = await supabase
         .from('content_preferences')
@@ -506,7 +501,7 @@ ${allowTechElements ? '' : 'NÃO inclua: hologramas, interfaces futuristas, elem
     }
 
     // Ensure we use the correct model with -preview suffix for image generation
-    const actualModel = 'google/gemini-2.5-flash-image-preview';
+    const actualModel = 'gemini-2.5-flash';
     console.log(`[${requestId}] Generating image for context: ${effectiveContext}, model: ${actualModel}`);
     console.log(`Enhanced prompt: ${enhancedPrompt.substring(0, 200)}...`);
 
@@ -517,10 +512,10 @@ ${allowTechElements ? '' : 'NÃO inclua: hologramas, interfaces futuristas, elem
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            // Authorization handled by omniseen-ai.ts internally,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({

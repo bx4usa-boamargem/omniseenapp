@@ -167,43 +167,26 @@ serve(async (req) => {
 
     console.log(`[POLISH] Pre-validation issues: ${preValidation.issues.join(', ')}`);
 
-    // Call Lovable AI Gateway for polishing
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY not configured");
-    }
+    // Call AI via omniseen-ai.ts (Direct API)
+    const { generateText } = await import('../_shared/omniseen-ai.ts');
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
+    const result = await generateText('polish_final', [
+      {
+        role: 'system',
+        content: POLISHING_PROMPT
       },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: POLISHING_PROMPT
-          },
-          {
-            role: "user",
-            content: `[COLE AQUI O ARTIGO GERADO PELA IA]\n\n${content}`
-          }
-        ],
-        temperature: 0.2, // Low temperature for precision
-        max_tokens: 16000
-      })
-    });
+      {
+        role: 'user',
+        content: `[COLE AQUI O ARTIGO GERADO PELA IA]\n\n${content}`
+      }
+    ], { temperature: 0.2, maxTokens: 16000 });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[POLISH] AI Gateway error: ${response.status} - ${errorText}`);
-      throw new Error(`AI Gateway error: ${response.status}`);
+    if (!result.success) {
+      console.error(`[POLISH] AI error: ${result.error}`);
+      throw new Error(`AI error: ${result.error}`);
     }
 
-    const aiResult = await response.json();
-    let polishedContent = aiResult.choices?.[0]?.message?.content || '';
+    let polishedContent = result.content || '';
 
     if (!polishedContent.trim()) {
       console.warn('[POLISH] AI returned empty content - using original');

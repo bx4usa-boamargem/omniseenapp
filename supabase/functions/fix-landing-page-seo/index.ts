@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { generateText, generateImage } from '../_shared/omniseen-ai.ts';
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -108,7 +110,6 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { landing_page_id, fix_types = ["title", "meta", "content", "keywords"] }: FixRequest = await req.json();
@@ -172,7 +173,7 @@ serve(async (req) => {
     let updatedPageData = JSON.parse(JSON.stringify(pageData)); // Deep clone
 
     // Use Lovable AI for comprehensive improvements
-    if (lovableApiKey) {
+    if (googleAiKey) {
       const needsContentExpansion = fix_types.includes("content") && currentWordCount < targetWordCount;
       const needsKeywordInjection = fix_types.includes("keywords");
       const needsStructure = fix_types.includes("structure");
@@ -227,14 +228,14 @@ ${fix_types.includes("structure") ? `5. FAQ: Adicione 3-5 perguntas frequentes r
       try {
         console.log(`[FIX-LP-SEO] Calling AI for optimization...`);
         
-        const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const aiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${lovableApiKey}`,
+            Authorization: `Bearer ${googleAiKey}`,
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+            model: 'gemini-2.5-flash',
             messages: [{ role: "user", content: aiPrompt }],
             response_format: { type: "json_object" },
           }),

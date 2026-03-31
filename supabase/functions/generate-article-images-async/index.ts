@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateText, generateImage } from '../_shared/omniseen-ai.ts';
+
 
 /**
  * Async image generation for articles.
@@ -12,12 +14,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const GEMINI_IMAGE_MODEL = "google/gemini-2.5-flash-image";
-const LOVABLE_IMAGE_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-
+const GEMINI_IMAGE_MODEL = 'gemini-2.5-flash';
 async function generateOneImage(prompt: string, apiKey: string): Promise<string | null> {
   try {
-    const res = await fetch(LOVABLE_IMAGE_GATEWAY, {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -58,14 +58,14 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const apiKey = Deno.env.get("LOVABLE_API_KEY");
+  const apiKey = Deno.env.get("GOOGLE_AI_KEY");
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   try {
     const { article_id, keyword, outline_h2, job_id, step_id, job_type } = await req.json();
 
     if (!article_id || !apiKey) {
-      return new Response(JSON.stringify({ error: "Missing article_id or LOVABLE_API_KEY" }), {
+      return new Response(JSON.stringify({ error: "Missing article_id or GOOGLE_AI_KEY" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

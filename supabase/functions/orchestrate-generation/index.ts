@@ -3,6 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { QUALITY_GATE, getMinWordCount } from "../_shared/superPageEngine.ts";
 import { corsHeadersForRequest } from "../_shared/httpCors.ts";
 import { validateGenerationJobInput } from "../_shared/pipelineInputValidation.ts";
+import { generateText, generateImage } from '../_shared/omniseen-ai.ts';
+
 
 /**
  * orchestrate-generation — OmniSeen TRUE SUPER PAGE ENGINE
@@ -1008,11 +1010,9 @@ async function executeSeoScoreStep(
 // STEP: IMAGE_GEN — Gemini Nano Banana (hero + section + contextual)
 // ============================================================
 
-const GEMINI_IMAGE_MODEL = "google/gemini-2.5-flash-image";
-const LOVABLE_IMAGE_GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-
+const GEMINI_IMAGE_MODEL = 'gemini-2.5-flash';
 async function generateOneImage(prompt: string, apiKey: string): Promise<{ url: string; base64?: string } | null> {
-  const res = await fetch(LOVABLE_IMAGE_GATEWAY, {
+  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -1036,8 +1036,8 @@ async function executeImageGenGeminiNanoBanana(
   supabase: any
 ): Promise<Record<string, unknown>> {
   if (!articleId) return { skipped: true, reason: "no_article_id" };
-  const apiKey = Deno.env.get("LOVABLE_API_KEY");
-  if (!apiKey) return { skipped: true, reason: "LOVABLE_API_KEY not set" };
+  const apiKey = Deno.env.get("GOOGLE_AI_KEY");
+  if (!apiKey) return { skipped: true, reason: "GOOGLE_AI_KEY not set" };
 
   const heroPrompt = (articleData.image_prompt as string) || (articleData.title as string) || (jobInput.keyword as string) || "professional blog";
   const keyword = (jobInput.keyword as string) || "article";

@@ -143,11 +143,7 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-
-    if (!LOVABLE_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
+),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -183,10 +179,10 @@ serve(async (req) => {
       ? `${systemPrompt}\n\nCONTEXTO ATUAL: ${contextHint}`
       : systemPrompt;
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        // Authorization handled by omniseen-ai.ts internally,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

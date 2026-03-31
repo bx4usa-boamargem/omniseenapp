@@ -107,12 +107,7 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
-
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -178,14 +173,14 @@ ${request.article_content}
 Gere um eBook completo seguindo a estrutura e regras definidas.`;
 
     console.log('Calling AI to generate expanded content...');
-    const contentResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const contentResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        // Authorization handled by omniseen-ai.ts internally,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gemini-2.5-flash',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -235,14 +230,14 @@ Focus on human element and business reality.
 Color accent: ${request.accent_color || '#6366f1'}.
 Professional but warm, relatable.`;
 
-        const chapterImageResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        const chapterImageResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            // Authorization handled by omniseen-ai.ts internally,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash-image-preview',
+            model: 'gemini-2.5-flash',
             messages: [{ role: 'user', content: chapterImagePrompt }],
             modalities: ['image', 'text'],
           }),
@@ -295,14 +290,14 @@ No text on the image, just visual design elements.
 16:9 aspect ratio, high quality.`;
 
     console.log('Generating cover image...');
-    const imageResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const imageResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        // Authorization handled by omniseen-ai.ts internally,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-image-preview',
+        model: 'gemini-2.5-flash',
         messages: [{ role: 'user', content: coverPrompt }],
         modalities: ['image', 'text'],
       }),
@@ -623,7 +618,7 @@ No text on the image, just visual design elements.
           blog_id: request.blog_id || null,
           action_type: "ebook_generation",
           action_description: `eBook: ${request.article_title.substring(0, 50)}`,
-          model_used: "google/gemini-2.5-flash",
+          model_used: 'gemini-2.5-flash',
           input_tokens: inputTokens,
           output_tokens: outputTokens,
           images_generated: totalImages,

@@ -426,14 +426,7 @@ serve(async (req) => {
       services = [],
       template_type = 'service_authority_v1'
     } = await req.json();
-    
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
-
-    // Validate template type
+// Validate template type
     const validTemplates: LandingPageTemplate[] = ['service_authority_v1', 'institutional_v1', 'specialist_authority_v1'];
     const selectedTemplate: LandingPageTemplate = validTemplates.includes(template_type) 
       ? template_type 
@@ -454,14 +447,14 @@ serve(async (req) => {
       servicesArray
     );
 
-    const aiRes = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const aiRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: 'POST',
       headers: { 
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`, 
+        // Authorization handled by omniseen-ai.ts internally, 
         'Content-Type': 'application/json' 
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gemini-2.5-flash',
         messages: [
           { role: 'system', content: systemPrompt }, 
           { role: 'user', content: `Gerar Super Página ${selectedTemplate} para ${companyName} em ${cityValue}. Serviços: ${servicesArray.join(', ')}` }

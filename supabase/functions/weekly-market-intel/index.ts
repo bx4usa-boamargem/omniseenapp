@@ -91,7 +91,6 @@ async function generateIntelForTerritory(
 ): Promise<{ success: boolean; id?: string; error?: string; intelPackage?: MarketIntelPackage }> {
   
   const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
   const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
@@ -290,18 +289,18 @@ Return only valid JSON, no markdown.`;
   }
 
   // Fallback to Lovable AI
-  if (!intelPackage && LOVABLE_API_KEY) {
+  if (!intelPackage && GOOGLE_AI_KEY) {
     console.log(`Using Lovable AI fallback for territory: ${territoryLocation || 'default'}...`);
     provider = "fallback";
 
-    const lovableResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const lovableResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+        // Authorization handled by omniseen-ai.ts internally,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: 'gemini-2.5-flash',
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
@@ -402,7 +401,7 @@ Return only valid JSON, no markdown.`;
       user_id: null, // Sistema
       blog_id: blogId,
       action_type: 'market_intel_fallback',
-      model_used: 'google/gemini-2.5-flash',
+      model_used: 'gemini-2.5-flash',
       estimated_cost_usd: 0,
       metadata: {
         original_provider: 'perplexity',

@@ -276,7 +276,7 @@ export async function fetchGeoResearchData(
   theme: string,
   territory: TerritoryData | null,
   _PERPLEXITY_API_KEY: string,  // Deprecated: now uses aiProviders internally
-  _LOVABLE_API_KEY?: string,     // Deprecated: now uses aiProviders internally
+  _GOOGLE_AI_KEY?: string,     // Deprecated: now uses aiProviders internally
   supabaseClient?: any,  // Cliente Supabase para logging
   blogId?: string,       // Blog ID para correlação
   articleId?: string     // Article ID para correlação direta

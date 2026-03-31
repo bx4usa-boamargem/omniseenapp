@@ -133,33 +133,18 @@ serve(async (req) => {
       .replace("{FIX_SUGGESTIONS}", fix_suggestions.map((s, i) => `${i + 1}. ${s}`).join("\n"))
       .replace("{CONTENT}", current_content);
 
-    // Call LLM via AI Gateway
-    const aiResponse = await fetch(`${SUPABASE_URL}/functions/v1/ai-gateway`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        temperature: 0.3,
-        max_tokens: 8000,
-      }),
-    });
+    // Call LLM via omniseen-ai.ts (Direct API)
+    const { generateText } = await import('../_shared/omniseen-ai.ts');
 
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      throw new Error(`AI Gateway error: ${errorText}`);
+    const aiResult = await generateText('auto_fix', [
+      { role: 'user', content: prompt }
+    ], { temperature: 0.3, maxTokens: 8000 });
+
+    if (!aiResult.success) {
+      throw new Error(`AI error: ${aiResult.error}`);
     }
 
-    const aiResult = await aiResponse.json();
-    let fixedContent = aiResult.choices?.[0]?.message?.content;
+    let fixedContent = aiResult.content;
 
     if (!fixedContent) {
       throw new Error("AI did not return fixed content");

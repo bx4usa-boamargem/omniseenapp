@@ -27,6 +27,8 @@ import { getNicheProfile, filterTermsByProfile, NicheProfile } from "../_shared/
 import { filterSerpTermsForNiche, logBlockedAttempt } from "../_shared/nicheGuard.ts";
 import { generateSerpHashAsync } from "../_shared/contentHashing.ts";
 import { 
+import { generateText, generateImage } from '../_shared/omniseen-ai.ts';
+
   filterRealCompetitors, 
   isBlockedCompetitor, 
   analyzeFilterResults,
@@ -683,9 +685,7 @@ serve(async (req) => {
     // Get API keys
     const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-
-    if (!PERPLEXITY_API_KEY && !LOVABLE_API_KEY) {
+    if (!PERPLEXITY_API_KEY && !GOOGLE_AI_KEY) {
       throw new Error("No AI API key configured");
     }
 
@@ -940,14 +940,14 @@ serve(async (req) => {
     const durationMs = Date.now() - startTime;
     await supabase.from("ai_usage_logs").insert({
       blog_id: blogId,
-      provider: PERPLEXITY_API_KEY ? "perplexity" : "lovable",
+      provider: PERPLEXITY_API_KEY ? "perplexity" : "gemini",
       endpoint: "analyze-serp",
       cost_usd: PERPLEXITY_API_KEY ? 0.015 : 0.002,
       tokens_used: 4000,
       success: true,
       metadata: {
         phase: "serp_analysis",
-        model: PERPLEXITY_API_KEY ? "perplexity/sonar-pro" : "google/gemini-2.5-flash",
+        model: PERPLEXITY_API_KEY ? "perplexity/sonar-pro" : 'gemini-2.5-flash',
         source: "PromptPy",
         keyword: effectiveKeyword,  // V3.2: Log effective keyword
         original_keyword: keyword,  // V3.2: Keep original for debugging

@@ -1,4 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { generateText, generateImage } from '../_shared/omniseen-ai.ts';
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,12 +54,7 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY not configured");
-    }
-
-    const body = await req.json();
+const body = await req.json();
     const { personaName, personaDescription, profession, niche, field, existing, generatePersonas, blogId, improvePersona, improvementType, personaData, improveItems, items } = body;
 
     // Improve existing persona
@@ -71,14 +68,14 @@ serve(async (req) => {
 
       const prompt = typePrompts[improvementType] || typePrompts.expand_description;
 
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          Authorization: `Bearer ${GOOGLE_AI_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: 'gemini-2.5-flash',
           messages: [
             { role: "system", content: `Você é a OMNISEEN AI, a assistente virtual inteligente da OMNISEEN, especialista em marketing. ${prompt}\n\nRetorne APENAS um JSON válido: {"name": "...", "age_range": "...", "profession": "...", "description": "..."}` },
             { role: "user", content: `Melhore esta persona do nicho "${niche}": ${JSON.stringify(personaData)}` },
@@ -104,14 +101,14 @@ serve(async (req) => {
         objections: "objeções",
       };
 
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          Authorization: `Bearer ${GOOGLE_AI_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: 'gemini-2.5-flash',
           messages: [
             { role: "system", content: `Você é a OMNISEEN AI, a assistente virtual inteligente da OMNISEEN, especialista em marketing. Melhore os ${fieldLabels[field] || field} tornando-os mais específicos, acionáveis e mensuráveis. Mantenha o mesmo número de itens.\n\nRetorne APENAS um JSON: {"improved": ["item melhorado 1", "item melhorado 2", ...]}` },
             { role: "user", content: `Nicho: ${niche}. Persona: ${personaName}. Itens atuais: ${JSON.stringify(items)}` },
@@ -153,14 +150,14 @@ Responda APENAS com um JSON válido no formato:
   ]
 }`;
 
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          Authorization: `Bearer ${GOOGLE_AI_KEY}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: 'gemini-2.5-flash',
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: `Gere 3 personas para o nicho: ${niche}` },
@@ -220,14 +217,14 @@ Responda APENAS com um JSON válido:
   "suggestions": ["sugestão 1", "sugestão 2", "sugestão 3", "sugestão 4", "sugestão 5"]
 }`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${GOOGLE_AI_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: 'gemini-2.5-flash',
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: `Gere sugestões de ${fieldLabels[field] || field}` },

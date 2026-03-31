@@ -92,7 +92,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY")!;
+    !;
 
     // Verificar feature flag
     const versionedContentEnabled = await isVersionedContentEnabled(supabase, blogId);
@@ -356,14 +356,14 @@ Se a mudança necessária for muito grande, retorne o artigo ORIGINAL sem altera
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       try {
-        aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        aiResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${LOVABLE_API_KEY}`,
+            // Authorization handled by omniseen-ai.ts internally,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
+            model: 'gemini-2.5-flash',
             messages: [
               {
                 role: "system",
@@ -573,7 +573,7 @@ Se a mudança necessária for muito grande, retorne o artigo ORIGINAL sem altera
       success: true,
       metadata: {
         phase: "optimization",
-        model: "google/gemini-2.5-flash",
+        model: 'gemini-2.5-flash',
         source: "PromptPy",
         optimization_type: optimizationType,
         score_before: currentScore.total,

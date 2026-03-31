@@ -13,18 +13,18 @@ interface ImportRequest {
 }
 
 // Extract text from image using Lovable AI Vision
-async function extractTextFromImage(imageBase64: string, lovableApiKey: string): Promise<string> {
+async function extractTextFromImage(imageBase64: string, googleAiKey: string): Promise<string> {
   try {
     console.log('Extracting text from image using Lovable AI Vision...');
     
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
+        // Authorization handled by omniseen-ai.ts internally,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gemini-2.5-flash',
         messages: [
           {
             role: 'user',
@@ -75,16 +75,16 @@ Responda APENAS com o texto extraído, sem comentários adicionais.`
 }
 
 // Generate suggested title from content
-async function generateSuggestedTitle(content: string, lovableApiKey: string): Promise<string> {
+async function generateSuggestedTitle(content: string, googleAiKey: string): Promise<string> {
   try {
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${lovableApiKey}`,
+        // Authorization handled by omniseen-ai.ts internally,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: 'gemini-2.5-flash',
         messages: [
           {
             role: 'user',
@@ -118,12 +118,7 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    
-    if (!LOVABLE_API_KEY) {
-      console.error('LOVABLE_API_KEY not configured');
-      return new Response(
-        JSON.stringify({ success: false, error: 'API key não configurada' }),
+),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -146,7 +141,7 @@ serve(async (req) => {
       for (let i = 0; i < Math.min(images.length, 10); i++) {
         try {
           console.log(`Processing image ${i + 1} of ${images.length}`);
-          const extractedText = await extractTextFromImage(images[i], LOVABLE_API_KEY);
+          const extractedText = await extractTextFromImage(images[i], GOOGLE_AI_KEY);
           if (extractedText) {
             textFromImages.push(extractedText);
           }
@@ -181,7 +176,7 @@ serve(async (req) => {
 
     // Generate suggested title
     const suggestedTitle = fullContent.trim() 
-      ? await generateSuggestedTitle(fullContent, LOVABLE_API_KEY)
+      ? await generateSuggestedTitle(fullContent, GOOGLE_AI_KEY)
       : 'Post do Instagram';
 
     console.log('Successfully processed Instagram content');

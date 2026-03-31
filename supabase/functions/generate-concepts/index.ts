@@ -1,4 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { generateText, generateImage } from '../_shared/omniseen-ai.ts';
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,13 +14,7 @@ serve(async (req) => {
 
   try {
     const { long_description, niche, target_audience, existing_items, type = "concepts" } = await req.json();
-
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
-
-    console.log("Generating items for:", { type, niche, target_audience });
+console.log("Generating items for:", { type, niche, target_audience });
 
     let systemPrompt = "";
     let userPrompt = "";
@@ -85,14 +81,14 @@ Retorne em formato JSON: { "items": ["Desejo1", "Desejo2", ...] }`;
       throw new Error("Invalid type. Must be 'concepts', 'pain_points', or 'desires'");
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${GOOGLE_AI_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
+        model: 'gemini-2.5-flash',
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },

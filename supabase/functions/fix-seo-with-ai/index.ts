@@ -8,6 +8,8 @@ import {
   type SEOResult 
 } from "../_shared/seoScoring.ts";
 import {
+import { generateText, generateImage } from '../_shared/omniseen-ai.ts';
+
   extractImageBlocks,
   reinjectImageBlocks,
   validateImagePreservation,
@@ -62,7 +64,7 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    const apiKey = Deno.env.get("GOOGLE_AI_KEY");
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -136,14 +138,14 @@ Responda APENAS com a meta description, sem aspas ou explicações.`;
 
     // Parallel AI calls for title and meta
     const [titleResponse, metaResponse] = await Promise.all([
-      fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: 'gemini-2.5-flash',
           messages: [
             { role: "system", content: "Você é um especialista em SEO. Responda de forma direta e precisa. REGRA CRÍTICA: Mantenha TODA a estrutura HTML. NÃO converta HTML para Markdown ou texto plano." },
             { role: "user", content: titlePrompt }
@@ -152,14 +154,14 @@ Responda APENAS com a meta description, sem aspas ou explicações.`;
           temperature: 0.7
         })
       }),
-      fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: 'gemini-2.5-flash',
           messages: [
             { role: "system", content: "Você é um especialista em SEO. Responda de forma direta e precisa. REGRA CRÍTICA: Mantenha TODA a estrutura HTML. NÃO converta HTML para Markdown ou texto plano." },
             { role: "user", content: metaPrompt }
@@ -209,14 +211,14 @@ REGRAS OBRIGATÓRIAS:
 
 Responda APENAS com o HTML expandido, sem explicações.`;
 
-      const contentResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const contentResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: 'gemini-2.5-flash',
           messages: [
             { role: "system", content: "Você é um redator SEO especialista. Expanda o conteúdo mantendo a qualidade e estrutura HTML. REGRA CRÍTICA: Mantenha TODA a estrutura HTML. NÃO converta HTML para Markdown ou texto plano. Mantenha todos os marcadores <!--IMG_PLACEHOLDER_N--> nas suas posições." },
             { role: "user", content: contentPrompt }
@@ -276,7 +278,7 @@ Responda APENAS com o HTML expandido, sem explicações.`;
         article_id,
         action: "fix_all",
         provider: "lovable",
-        model: "google/gemini-2.5-flash",
+        model: 'gemini-2.5-flash',
         before: {
           title: article.title,
           meta_description: article.meta_description,

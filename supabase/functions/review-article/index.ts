@@ -29,7 +29,7 @@ interface ReviewResult {
 
 // Minimum word count for OmniCore articles (HARD RULE)
 const MIN_WORD_COUNT = 1200;
-const QA_MODEL = 'google/gemini-2.5-flash';
+const QA_MODEL = 'gemini-2.5-flash';
 
 // Count words in content
 function countWords(content: string): number {
@@ -68,15 +68,9 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
-
-    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
     // Parse and validate request
     let requestData: ReviewRequest;
@@ -234,10 +228,10 @@ Check for:
 
     console.log(`[REVIEW] Calling AI Gateway for semantic analysis...`);
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        // Authorization handled by omniseen-ai.ts internally,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

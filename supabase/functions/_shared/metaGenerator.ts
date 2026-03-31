@@ -1,11 +1,14 @@
 /**
  * REGRA 3: META DESCRIPTION AUTOMÁTICA
- * 
+ *
  * Garante que nenhum artigo fique sem meta description válida (140-160 caracteres).
  * Se inválida, gera automaticamente com IA e persiste.
+ *
+ * Usa omniseen-ai.ts (API direta) — ZERO dependência do Lovable Gateway.
  */
 
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { generateText } from './omniseen-ai.ts';
 
 /**
  * Valida se a meta description está dentro do range ideal (140-160 caracteres)
@@ -19,13 +22,20 @@ export function isValidMetaDescription(meta: string | null | undefined): boolean
 /**
  * Gera uma meta description automaticamente com IA se a atual estiver inválida.
  * Persiste no artigo imediatamente.
- * 
+ *
+ * @param supabase - Supabase client
+ * @param _apiKey - Deprecated (key obtained internally by router)
+ * @param _model - Deprecated (model selected by router)
+ * @param articleId - Article ID
+ * @param articleTitle - Article title
+ * @param articleContent - Article HTML content
+ * @param currentMeta - Current meta description
  * @returns A meta description válida (gerada ou existente)
  */
 export async function ensureValidMeta(
   supabase: SupabaseClient,
-  apiKey: string,
-  model: string,
+  _apiKey: string,
+  _model: string,
   articleId: string | undefined,
   articleTitle: string,
   articleContent: string | null | undefined,
@@ -41,7 +51,7 @@ export async function ensureValidMeta(
 
   // Construir prompt para geração
   const contentPreview = (articleContent || '').substring(0, 1500);
-  
+
   const prompt = `Crie uma meta description profissional para SEO.
 
 Título: "${articleTitle}"
@@ -57,33 +67,20 @@ Requisitos OBRIGATÓRIOS:
 Responda APENAS com a meta description, sem explicações ou aspas.`;
 
   try {
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
+    const result = await generateText('meta_gen', [
+      {
+        role: 'system',
+        content: 'Você é um especialista em SEO. Responda apenas com a meta description solicitada, sem explicações adicionais.'
       },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { 
-            role: 'system', 
-            content: 'Você é um especialista em SEO. Responda apenas com a meta description solicitada, sem explicações adicionais.' 
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 200,
-      }),
-    });
+      { role: 'user', content: prompt }
+    ], { temperature: 0.7, maxTokens: 200 });
 
-    if (!response.ok) {
-      console.error('[AUTO-META] AI API error:', response.status);
+    if (!result.success) {
+      console.error('[AUTO-META] AI error:', result.error);
       return currentMeta || '';
     }
 
-    const data = await response.json();
-    let generatedMeta = data.choices?.[0]?.message?.content?.trim() || '';
+    let generatedMeta = result.content.trim();
 
     // Remover aspas se presentes
     generatedMeta = generatedMeta.replace(/^["']|["']$/g, '');
@@ -92,11 +89,9 @@ Responda APENAS com a meta description, sem explicações ou aspas.`;
     const genLen = generatedMeta.length;
     if (genLen < 140 || genLen > 160) {
       console.warn(`[AUTO-META] Generated meta has ${genLen} chars, adjusting...`);
-      // Ajustar se necessário
       if (genLen > 160) {
         generatedMeta = generatedMeta.substring(0, 157) + '...';
       } else if (genLen < 140 && genLen > 100) {
-        // Adicionar texto genérico no final
         generatedMeta += ' Saiba mais.';
       }
     }

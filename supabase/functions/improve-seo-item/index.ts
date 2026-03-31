@@ -75,12 +75,7 @@ serve(async (req) => {
   }
 
   try {
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY not configured');
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -95,7 +90,7 @@ serve(async (req) => {
     }
 
     // Fetch AI model preference from content_preferences
-    let textModel = 'google/gemini-2.5-flash';
+    let textModel = 'gemini-2.5-flash';
     if (blog_id) {
       const { data: prefs } = await supabase
         .from('content_preferences')
@@ -266,10 +261,10 @@ Responda APENAS com a nova meta description, sem aspas ou explicações.`;
     console.log(`Improving SEO item: ${type} with keywords: ${keywordList}, model: ${textModel}`);
     console.log(`Business context: ${businessContext.company_name} (${detectConclusionType(businessContext.niche)})`);
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+        // Authorization handled by omniseen-ai.ts internally,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

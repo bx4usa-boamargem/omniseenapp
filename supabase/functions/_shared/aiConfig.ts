@@ -1,72 +1,76 @@
 /**
- * Configuração de AIs - OmniSeen
- * Stack: OpenAI + Google + Perplexity + Unsplash
- * 100% Lovable-compatible
- * 
- * REGRA ABSOLUTA: Este é o arquivo de configuração oficial.
- * Todos os modelos, endpoints e chaves são definidos aqui.
+ * Configuração de AIs - OmniSeen v2
+ * Stack: Google Gemini (Direct) + OpenAI GPT-4.1 (Direct)
+ *
+ * REGRA: Nenhuma dependência do Lovable AI Gateway.
+ * REGRA: Sem Perplexity nesta fase.
+ * REGRA: Sem GPT-4o nesta fase.
+ * Todas as chamadas passam por omniseen-ai.ts.
  */
 
 export const AI_CONFIG = {
   writer: {
     primary: {
-      provider: 'openai' as const,
-      model: 'gpt-4o-2024-11-20',
-      endpoint: 'https://api.openai.com/v1/chat/completions',
-      temperature: 0.4,
-      maxTokens: 8000,
-      responseFormat: { type: 'json_object' }
-    },
-    fallback: {
-      provider: 'google' as const,
+      provider: 'gemini' as const,
       model: 'gemini-2.5-flash',
       endpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
       temperature: 0.4,
       maxOutputTokens: 8192
-    }
-  },
-  
-  research: {
-    primary: {
-      provider: 'perplexity' as const,
-      model: 'sonar-pro',
-      endpoint: 'https://api.perplexity.ai/chat/completions',
-      searchMode: 'web',
-      citations: true
     },
     fallback: {
-      provider: 'google' as const,
+      provider: 'openai' as const,
+      model: 'gpt-4.1',
+      endpoint: 'https://api.openai.com/v1/chat/completions',
+      temperature: 0.4,
+      maxTokens: 8000,
+      responseFormat: { type: 'json_object' }
+    }
+  },
+
+  // Research: Gemini com Grounding (Perplexity removido nesta fase)
+  research: {
+    primary: {
+      provider: 'gemini' as const,
       model: 'gemini-2.5-flash',
       endpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
       useGrounding: true,
       groundingSource: 'google_search'
-    }
-  },
-  
-  qa: {
-    primary: {
-      provider: 'google' as const,
-      model: 'gemini-2.5-flash',
-      endpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
-      temperature: 0.1,
-      responseFormat: 'json'
     },
     fallback: {
       provider: 'openai' as const,
-      model: 'gpt-4o-2024-11-20',
+      model: 'gpt-4.1',
       endpoint: 'https://api.openai.com/v1/chat/completions',
-      temperature: 0.1,
-      responseFormat: { type: 'json_object' }
+      temperature: 0.3,
+      maxTokens: 8000,
     }
   },
-  
+
+  qa: {
+    primary: {
+      provider: 'openai' as const,
+      model: 'gpt-4.1',
+      endpoint: 'https://api.openai.com/v1/chat/completions',
+      temperature: 0.1,
+      maxTokens: 4000,
+      responseFormat: { type: 'json_object' }
+    },
+    fallback: {
+      provider: 'gemini' as const,
+      model: 'gemini-2.5-flash',
+      endpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
+      temperature: 0.1,
+      maxOutputTokens: 4000,
+      responseFormat: 'json'
+    }
+  },
+
   images: {
     primary: {
-      provider: 'lovable-gateway' as const,
-      model: 'google/gemini-2.5-flash-image',
-      gateway: 'https://ai.gateway.lovable.dev/v1/chat/completions',
+      provider: 'gemini' as const,
+      model: 'gemini-2.5-flash',
+      endpoint: 'https://generativelanguage.googleapis.com/v1beta/models',
       aspectRatio: '16:9',
-      modalities: ['image', 'text'] as const
+      responseModalities: ['IMAGE', 'TEXT'] as const
     },
     fallback: {
       provider: 'unsplash' as const,
@@ -77,7 +81,8 @@ export const AI_CONFIG = {
   }
 };
 
-export const SUPPORTED_PROVIDERS = ['openai', 'google', 'perplexity', 'lovable-gateway', 'unsplash'] as const;
+// Apenas Gemini e OpenAI nesta fase (Perplexity removido)
+export const SUPPORTED_PROVIDERS = ['openai', 'gemini', 'unsplash'] as const;
 
 export type SupportedProvider = typeof SUPPORTED_PROVIDERS[number];
 
@@ -102,14 +107,10 @@ export function getProviderApiKey(provider: SupportedProvider): string | undefin
   switch (provider) {
     case 'openai':
       return Deno.env.get('OPENAI_API_KEY');
-    case 'google':
+    case 'gemini':
       return Deno.env.get('GOOGLE_AI_KEY');
-    case 'perplexity':
-      return Deno.env.get('PERPLEXITY_API_KEY');
-    case 'lovable-gateway':
-      return Deno.env.get('LOVABLE_API_KEY');
     case 'unsplash':
-      return 'none'; // Unsplash public API doesn't need key
+      return 'none'; // Picsum/Unsplash public API doesn't need key
     default:
       return undefined;
   }
@@ -117,16 +118,16 @@ export function getProviderApiKey(provider: SupportedProvider): string | undefin
 
 // Check if all required API keys are configured
 export function validateAPIKeys(): { valid: boolean; missing: string[] } {
-  const required: SupportedProvider[] = ['openai', 'google', 'perplexity', 'lovable-gateway'];
+  const required: SupportedProvider[] = ['openai', 'gemini'];
   const missing: string[] = [];
-  
+
   for (const provider of required) {
     const key = getProviderApiKey(provider);
     if (!key) {
       missing.push(provider);
     }
   }
-  
+
   return { valid: missing.length === 0, missing };
 }
 
