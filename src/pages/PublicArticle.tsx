@@ -61,9 +61,11 @@ const FAQItem = ({ question, answer, primaryColor }: { question: string; answer:
 };
 
 const calculateReadingTime = (content?: string | null): number => {
-  if (!content) return 3;
+  if (!content) return 1;
+  // Strip markdown/HTML tags for accurate word count
+  const cleanText = content.replace(/<[^>]*>/g, '').replace(/[#*_\[\](){}|`~>]/g, '');
   const wordsPerMinute = 200;
-  const words = content.split(/\s+/).length;
+  const words = cleanText.split(/\s+/).filter(Boolean).length;
   return Math.max(1, Math.ceil(words / wordsPerMinute));
 };
 
