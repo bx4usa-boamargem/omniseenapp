@@ -489,7 +489,16 @@ Topics: main themes. Terms: key phrases to include. Places: locations if relevan
     { role: 'user', content: prompt },
   ]);
 
-  if (!aiResult.success) throw new Error(`ENTITY_EXTRACTION_FAILED: ${aiResult.error}`);
+  if (!aiResult.success) {
+    // Non-fatal: use programmatic fallback entities from keyword/niche
+    console.warn(`[ENTITY_EXTRACTION] AI failed (${aiResult.error}), using programmatic fallback`);
+    const fallbackEntities: EntityData = {
+      topics: [keyword, niche].filter(Boolean),
+      terms: keyword.split(/\s+/).filter(w => w.length > 3),
+      places: undefined,
+    };
+    return { output: { entities: fallbackEntities }, aiResult };
+  }
   const parsed = parseAIJson(aiResult.content, 'ENTITY_EXTRACTION');
   const entities: EntityData = {
     topics: Array.isArray(parsed.topics) ? parsed.topics.map(String) : [],
