@@ -315,23 +315,33 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
   };
 
   const [creatingId, setCreatingId] = useState<string | null>(null);
+  const [sizeModalOpen, setSizeModalOpen] = useState(false);
+  const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
 
-  const handleCreateArticle = async (opportunity: Opportunity) => {
-    if (creatingId) return;
-    setCreatingId(opportunity.id);
+  const openSizeModal = (opportunity: Opportunity) => {
+    setSelectedOpportunity(opportunity);
+    setSizeModalOpen(true);
+  };
+
+  const handleCreateArticle = async (targetWords: number) => {
+    if (!selectedOpportunity || creatingId) return;
+    setCreatingId(selectedOpportunity.id);
+    setSizeModalOpen(false);
     
     try {
       await createArticleFromOpportunity(
         {
-          id: opportunity.id,
-          suggested_title: opportunity.suggested_title,
-          suggested_keywords: opportunity.suggested_keywords,
+          id: selectedOpportunity.id,
+          suggested_title: selectedOpportunity.suggested_title,
+          suggested_keywords: selectedOpportunity.suggested_keywords,
         },
         blogId,
-        navigate
+        navigate,
+        targetWords
       );
     } finally {
       setCreatingId(null);
+      setSelectedOpportunity(null);
     }
   };
 
