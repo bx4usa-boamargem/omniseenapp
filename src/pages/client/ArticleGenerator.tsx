@@ -46,12 +46,34 @@ import { useJobPolling } from '@/hooks/useJobPolling';
 import type { TemplateType, ArticleMode, NicheType } from '@/lib/article-engine/types';
 import { useQuery } from '@tanstack/react-query';
 
-// Brazilian states
-const STATES = [
-  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
-  'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
-  'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
-];
+// Countries and their states/regions
+const COUNTRIES = [
+  { code: 'BR', name: '🇧🇷 Brasil', language: 'pt-BR' },
+  { code: 'US', name: '🇺🇸 Estados Unidos', language: 'en-US' },
+  { code: 'AR', name: '🇦🇷 Argentina', language: 'es-AR' },
+] as const;
+
+const STATES_BY_COUNTRY: Record<string, string[]> = {
+  BR: [
+    'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA',
+    'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN',
+    'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+  ],
+  US: [
+    'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
+    'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+    'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
+    'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+    'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY'
+  ],
+  AR: [
+    'CABA', 'Buenos Aires', 'Catamarca', 'Chaco', 'Chubut', 'Córdoba',
+    'Corrientes', 'Entre Ríos', 'Formosa', 'Jujuy', 'La Pampa', 'La Rioja',
+    'Mendoza', 'Misiones', 'Neuquén', 'Río Negro', 'Salta', 'San Juan',
+    'San Luis', 'Santa Cruz', 'Santa Fe', 'Santiago del Estero',
+    'Tierra del Fuego', 'Tucumán'
+  ],
+};
 
 // Stage progress map removed — now handled by useJobPolling
 
