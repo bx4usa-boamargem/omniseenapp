@@ -732,7 +732,8 @@ CRITICAL HTML STRUCTURE RULES (MANDATORY - DO NOT IGNORE):
   <h3>Subsection</h3>
   <p>Detail...</p>
 
-HERO IMAGE: Return ONE detailed image description for the hero image. The image must be photorealistic, professional, specific to the keyword and context. IMPORTANT: NO TEXT OVERLAY, NO WORDS, NO TYPOGRAPHY on the image. Pure visual only. Maximum 1 image prompt.
+HERO IMAGE: Return ONE detailed image description for the hero image. The image must be photorealistic, professional, specific to the keyword and context. IMPORTANT: NO TEXT OVERLAY, NO WORDS, NO TYPOGRAPHY on the image. Pure visual only.
+Return exactly one image_prompt string for the hero image only.
 
 OUTPUT FORMAT (STRICT JSON only):
 {
@@ -978,7 +979,7 @@ async function generateOneImage(prompt: string, apiKey: string): Promise<{ url: 
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: GEMINI_IMAGE_MODEL,
-      messages: [{ role: "user", content: `Generate a premium editorial 16:9 photograph for a professional blog article. The image must look like a real photo captured in a real environment. CRITICAL RULE: The image must contain ZERO text of any kind — no words, no letters, no numbers, no titles, no captions, no labels, no banners, no overlays, no watermarks, no logos, no typography whatsoever. Only pure visual photography with clean composition and professional lighting. ${prompt}` }],
+      messages: [{ role: "user", content: `Generate a premium editorial 16:9 photograph for a professional blog article. The image must look like a real photo captured in a real environment. CRITICAL RULE: The image must contain ZERO text of any kind — no words, no letters, no numbers, no titles, no captions, no labels, no banners, no overlays, no watermarks, no logos, no typography whatsoever. NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY OVERLAID on the image. Pure photographic/artistic image only. Only pure visual photography with clean composition and professional lighting. ${prompt}` }],
       modalities: ["image", "text"],
     }),
   });
@@ -1004,8 +1005,9 @@ async function executeImageGenGeminiNanoBanana(
   const keyword = (jobInput.keyword as string) || "article";
   const slug = keyword.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
-  const contentImages: { context: string; url: string; alt?: string; after_section: number }[] = [];
-  const usedImageUrls = new Set<string>(); // Dedup: track all generated URLs
+    const contentImages: { context: string; url: string; alt?: string; after_section: number }[] = [];
+    const usedImageUrls = new Set<string>(); // Dedup: track all generated URLs
+    const usedSectionPrompts = new Set<string>();
   let heroUrl: string | null = null;
   let heroAlt: string | null = null;
 
@@ -1039,7 +1041,9 @@ async function executeImageGenGeminiNanoBanana(
     const maxSectionImages = Math.min(sectionCount, Math.max(0, maxTotalImages - 1));
     for (let i = 0; i < maxSectionImages; i++) {
       const sectionTitle = outline.h2[i]?.title || `Section ${i + 1}`;
-      const prompt = `Article theme: ${keyword}. Section focus: ${sectionTitle}. Create a realistic editorial photograph connected to this section topic, showing authentic environments, objects and narrative context. CRITICAL: absolutely ZERO text, ZERO letters, ZERO words, ZERO numbers, ZERO labels, ZERO banners, ZERO overlays in the image. Pure visual photography only.`;
+      const prompt = `Article theme: ${keyword}. Section focus: ${sectionTitle}. Unique editorial slot: section ${i + 1} of ${maxSectionImages}. Create a realistic editorial photograph connected to this section topic, showing authentic environments, objects and narrative context. NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY OVERLAID on the image. Pure photographic/artistic image only. CRITICAL: absolutely ZERO text, ZERO letters, ZERO words, ZERO numbers, ZERO labels, ZERO banners, ZERO overlays in the image. Do not repeat the hero scene or any previous section composition.`;
+      if (usedSectionPrompts.has(prompt)) continue;
+      usedSectionPrompts.add(prompt);
       const img = await generateOneImage(prompt, apiKey);
       let url: string;
       if (img?.url && img.url.startsWith("data:")) {
