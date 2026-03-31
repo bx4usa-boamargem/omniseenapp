@@ -1203,8 +1203,9 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
   console.log('[ORCHESTRATOR_BOOT:V2]', jobId, 'job_type=', jobType);
 
   const jobInput = { ...(job.input as Record<string, unknown> || {}), job_type: jobType };
-  console.log(`[ORCHESTRATOR:V2] job_id=${jobId} input=${JSON.stringify({ keyword: jobInput.keyword, city: jobInput.city, niche: jobInput.niche, job_type: jobType })}`);
-
+  const resolvedTargetWords = Number(jobInput.target_words) || (jobType === 'super_page' ? 3000 : 2000);
+  const resolvedRange = computeWordRange(resolvedTargetWords);
+  console.log(`[ORCHESTRATOR:V2] job_id=${jobId} target_words=${resolvedTargetWords} resolvedWordRange=${resolvedRange.min}-${resolvedRange.max} job_type=${jobType} keyword=${jobInput.keyword} city=${jobInput.city} niche=${jobInput.niche}`);
   // Lock
   if (job.locked_at) {
     const lockAge = Date.now() - new Date(job.locked_at).getTime();
