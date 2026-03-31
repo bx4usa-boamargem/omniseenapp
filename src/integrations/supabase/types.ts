@@ -7094,6 +7094,29 @@ export type Database = {
         Returns: string
       }
       generate_referral_code: { Args: never; Returns: string }
+      get_cms_integrations_decrypted: {
+        Args: { p_blog_id: string }
+        Returns: {
+          access_token: string
+          api_key: string
+          api_secret: string
+          auth_type: string
+          auto_publish: boolean
+          blog_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          last_sync_at: string
+          last_sync_status: string
+          platform: string
+          refresh_token: string
+          site_url: string
+          token_expires_at: string
+          updated_at: string
+          username: string
+          wordpress_site_id: string
+        }[]
+      }
       get_user_tenant_ids: { Args: never; Returns: string[] }
       has_role:
         | {
