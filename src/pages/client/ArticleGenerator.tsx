@@ -46,11 +46,18 @@ import { useJobPolling } from '@/hooks/useJobPolling';
 import type { TemplateType, ArticleMode } from '@/lib/article-engine/types';
 import { useQuery } from '@tanstack/react-query';
 
-// Countries and their states/regions
+// Countries (market/geo only — NOT tied to language)
 const COUNTRIES = [
-  { code: 'BR', name: '🇧🇷 Brasil', language: 'pt-BR' },
-  { code: 'US', name: '🇺🇸 Estados Unidos', language: 'en-US' },
-  { code: 'AR', name: '🇦🇷 Argentina', language: 'es-AR' },
+  { code: 'BR', name: '🇧🇷 Brasil' },
+  { code: 'US', name: '🇺🇸 Estados Unidos' },
+  { code: 'AR', name: '🇦🇷 Argentina' },
+] as const;
+
+// Independent language options
+const LANGUAGES = [
+  { code: 'pt-BR', name: '🇧🇷 Português' },
+  { code: 'en-US', name: '🇺🇸 English' },
+  { code: 'es-AR', name: '🇦🇷 Español' },
 ] as const;
 
 const STATES_BY_COUNTRY: Record<string, string[]> = {
@@ -82,6 +89,7 @@ interface GeneratorFormData {
   city: string;
   country: string;
   state: string;
+  language: string;
   niche: string;
   mode: ArticleMode;
   template: TemplateType | 'auto';
@@ -114,6 +122,7 @@ export default function ArticleGenerator() {
     city: businessProfile?.city || '',
     country: 'BR',
     state: 'SP',
+    language: 'pt-BR',
     niche: (businessProfile?.niche as string) || 'pest_control',
     mode: 'authority',
     template: 'auto',
@@ -201,14 +210,13 @@ export default function ArticleGenerator() {
     
     try {
       // V6.0: Call create-generation-job directly — no placeholder article
-      const selectedCountry = COUNTRIES.find(c => c.code === formData.country);
       const enginePayload = {
         keyword: formData.keyword.trim(),
         blog_id: blog.id,
         city: formData.city.trim(),
         state: formData.state || undefined,
         country: formData.country || 'BR',
-        language: selectedCountry?.language || 'pt-BR',
+        language: formData.language || 'pt-BR',
         niche: formData.niche || 'default',
         job_type: 'article' as const,
         intent: 'informational' as const,
@@ -336,12 +344,11 @@ export default function ArticleGenerator() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="country">País</Label>
+                <Label htmlFor="country">País / Mercado</Label>
                 <Select
                   value={formData.country}
                   onValueChange={(value) => {
                     handleInputChange('country', value);
-                    // Reset state when country changes
                     const firstState = STATES_BY_COUNTRY[value]?.[0] || '';
                     handleInputChange('state', firstState);
                   }}
@@ -378,6 +385,30 @@ export default function ArticleGenerator() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* Language (independent from country) */}
+            <div className="space-y-2">
+              <Label htmlFor="language">Idioma do Artigo</Label>
+              <Select
+                value={formData.language}
+                onValueChange={(value) => handleInputChange('language', value)}
+                disabled={isGenerating}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {LANGUAGES.map((l) => (
+                    <SelectItem key={l.code} value={l.code}>
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                O idioma controla o conteúdo gerado, datas e metadados. O país controla o contexto geográfico.
+              </p>
             </div>
             
             {/* Niche */}

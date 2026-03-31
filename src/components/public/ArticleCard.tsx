@@ -18,9 +18,10 @@ interface ArticleCardProps {
 }
 
 const calculateReadingTime = (content?: string | null): number => {
-  if (!content) return 3;
+  if (!content) return 1;
+  const cleanText = content.replace(/<[^>]*>/g, '').replace(/[#*_\[\](){}|`~>]/g, '');
   const wordsPerMinute = 200;
-  const words = content.split(/\s+/).length;
+  const words = cleanText.split(/\s+/).filter(Boolean).length;
   return Math.max(1, Math.ceil(words / wordsPerMinute));
 };
 
@@ -114,7 +115,7 @@ export const ArticleCard = ({
             {publishedAt && (
               <span className="flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
-                {new Date(publishedAt).toLocaleDateString("pt-BR", {
+                {new Date(publishedAt).toLocaleDateString(undefined, {
                   day: "numeric",
                   month: "short",
                   year: "numeric",
@@ -123,7 +124,7 @@ export const ArticleCard = ({
             )}
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" />
-              {readingTime} min de leitura
+              {readingTime} min
             </span>
           </div>
         </div>

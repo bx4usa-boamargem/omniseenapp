@@ -21,7 +21,6 @@ import { useLocaleFormat } from "@/hooks/useLocaleFormat";
 import { usePublicArticleTranslation } from "@/hooks/useArticleTranslations";
 import { getCanonicalArticleUrl, getBlogPath } from "@/utils/blogUrl";
 import { Calendar, Clock, ChevronDown, ChevronUp, Eye, Share2, ArrowLeft } from "lucide-react";
-import { ArticlePdfDownload } from "@/components/articles/ArticlePdfDownload";
 import { ArticleCTARenderer } from "@/components/client/ArticleCTARenderer";
 
 interface ContentImage {
@@ -61,9 +60,11 @@ const FAQItem = ({ question, answer, primaryColor }: { question: string; answer:
 };
 
 const calculateReadingTime = (content?: string | null): number => {
-  if (!content) return 3;
+  if (!content) return 1;
+  // Strip markdown/HTML tags for accurate word count
+  const cleanText = content.replace(/<[^>]*>/g, '').replace(/[#*_\[\](){}|`~>]/g, '');
   const wordsPerMinute = 200;
-  const words = content.split(/\s+/).length;
+  const words = cleanText.split(/\s+/).filter(Boolean).length;
   return Math.max(1, Math.ceil(words / wordsPerMinute));
 };
 
@@ -317,14 +318,6 @@ const PublicArticle = () => {
                   {formatNumber(article.view_count || 0)} {t('blog.views')}
                 </span>
               )}
-              
-              {/* PDF Download Button */}
-              <ArticlePdfDownload
-                articleId={article.id}
-                articleTitle={article.title}
-                variant="icon"
-                primaryColor={mappedBlog.primary_color || undefined}
-              />
             </div>
           </div>
         </section>
