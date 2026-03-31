@@ -43,7 +43,7 @@ import { NicheSelectorDropdown } from '@/components/client/NicheSelectorDropdown
 import { TemplateSelectorRadio } from '@/components/client/TemplateSelectorRadio';
 import { ArticleGenerationProgress } from '@/components/client/ArticleGenerationProgress';
 import { useJobPolling } from '@/hooks/useJobPolling';
-import type { TemplateType, ArticleMode, NicheType } from '@/lib/article-engine/types';
+import type { TemplateType, ArticleMode } from '@/lib/article-engine/types';
 import { useQuery } from '@tanstack/react-query';
 
 // Countries and their states/regions
