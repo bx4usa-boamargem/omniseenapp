@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { createArticleFromOpportunity } from '@/lib/createArticleFromOpportunity';
+import { ArticleSizeModal } from '@/components/opportunities/ArticleSizeModal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -164,24 +165,34 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
   };
 
   const [creatingId, setCreatingId] = useState<string | null>(null);
+  const [sizeModalOpen, setSizeModalOpen] = useState(false);
+  const [selectedOpportunity, setSelectedOpportunity] = useState<Opportunity | null>(null);
 
-  const handleCreateArticle = async (opportunity: Opportunity) => {
-    if (creatingId) return;
-    setCreatingId(opportunity.id);
+  const openSizeModal = (opportunity: Opportunity) => {
+    setSelectedOpportunity(opportunity);
+    setSizeModalOpen(true);
+  };
+
+  const handleCreateArticle = async (targetWords: number) => {
+    if (!selectedOpportunity || creatingId) return;
+    setCreatingId(selectedOpportunity.id);
+    setSizeModalOpen(false);
     
     try {
       await createArticleFromOpportunity(
         {
-          id: opportunity.id,
-          suggested_title: opportunity.suggested_title,
-          suggested_keywords: opportunity.suggested_keywords,
-          goal: opportunity.goal,
+          id: selectedOpportunity.id,
+          suggested_title: selectedOpportunity.suggested_title,
+          suggested_keywords: selectedOpportunity.suggested_keywords,
+          goal: selectedOpportunity.goal,
         },
         blogId,
-        navigate
+        navigate,
+        targetWords
       );
     } finally {
       setCreatingId(null);
+      setSelectedOpportunity(null);
     }
   };
 
@@ -509,7 +520,7 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
                       </Button>
                       <Button 
                         size="sm"
-                        onClick={() => handleCreateArticle(opportunity)}
+                        onClick={() => openSizeModal(opportunity)}
                         disabled={creatingId === opportunity.id}
                       >
                         {creatingId === opportunity.id ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
@@ -546,7 +557,7 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
                     </div>
                     <Button 
                       size="sm"
-                      onClick={() => handleCreateArticle(opportunity)}
+                      onClick={() => openSizeModal(opportunity)}
                       disabled={creatingId === opportunity.id}
                     >
                       {creatingId === opportunity.id ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
@@ -604,6 +615,13 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
           </CardContent>
         </Card>
       )}
+      <ArticleSizeModal
+        open={sizeModalOpen}
+        onOpenChange={setSizeModalOpen}
+        title={selectedOpportunity?.suggested_title || ''}
+        onConfirm={handleCreateArticle}
+        loading={!!creatingId}
+      />
     </div>
   );
 }

@@ -19,6 +19,7 @@ import { useNavigate } from 'react-router-dom';
 import { ClientCompetitorsTab } from '@/components/client/strategy/ClientCompetitorsTab';
 import { ClientOpportunitiesTab } from '@/components/client/strategy/ClientOpportunitiesTab';
 import { MarketRadarTab } from '@/components/client/strategy/MarketRadarTab';
+import { ContentCalendar } from '@/components/content/ContentCalendar';
 
 // Business type options
 const TIPO_NEGOCIO_OPTIONS = [
@@ -290,6 +291,10 @@ export default function ClientStrategy() {
           <TabsTrigger value="opportunities" className="gap-2">
             <Lightbulb className="h-4 w-4" />
             <span className="hidden sm:inline">Oportunidades</span>
+          </TabsTrigger>
+          <TabsTrigger value="calendar" className="gap-2">
+            <Lightbulb className="h-4 w-4" />
+            <span className="hidden sm:inline">Calendário</span>
           </TabsTrigger>
         </TabsList>
 
@@ -616,6 +621,11 @@ export default function ClientStrategy() {
         {/* Opportunities Tab */}
         <TabsContent value="opportunities">
           {blog?.id && <ClientOpportunitiesTab blogId={blog.id} />}
+        </TabsContent>
+
+        {/* Calendar Tab */}
+        <TabsContent value="calendar">
+          {blog?.id && <ContentCalendar blogId={blog.id} />}
         </TabsContent>
       </Tabs>
     </div>

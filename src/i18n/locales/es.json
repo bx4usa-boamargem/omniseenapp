@@ -775,5 +775,64 @@
       "and": "y",
       "privacyPolicy": "Política de Privacidad"
     }
+  },
+  "opportunities": {
+    "selectSize": "Selecciona el tamaño del artículo",
+    "title": "Título",
+    "quick": "Rápido",
+    "quickDesc": "400 a 1.000 palabras — ideal para ideas rápidas",
+    "deep": "Profundo",
+    "deepDesc": "1.500 a 3.000 palabras — SEO completo",
+    "recommended": "Recomendado",
+    "generateArticle": "Generar Artículo",
+    "cancel": "Cancelar"
+  },
+  "abTest": {
+    "title": "Test A/B",
+    "createVariant": "Crear variante A/B",
+    "variantA": "Variante A (Original)",
+    "variantB": "Variante B (Nueva)",
+    "alternativeTitle": "Título alternativo",
+    "alternativeMeta": "Meta description alternativa",
+    "create": "Crear Variante",
+    "success": "¡Variante A/B creada con éxito!",
+    "successDesc": "La prueba se activará cuando el artículo se publique."
+  },
+  "settings": {
+    "apiKeys": {
+      "title": "Claves de API",
+      "description": "Gestiona las claves de acceso a la API de Omniseen",
+      "newKey": "Nueva Clave",
+      "empty": "Ninguna clave creada",
+      "emptyDesc": "Crea una clave de API para integrar con sistemas externos.",
+      "lastUsed": "Último uso"
+    },
+    "webhooks": {
+      "title": "Webhooks",
+      "description": "Configura endpoints para recibir notificaciones de eventos",
+      "newWebhook": "Nuevo Webhook",
+      "empty": "Ningún webhook configurado",
+      "emptyDesc": "Agrega webhooks para recibir eventos en tiempo real.",
+      "availableEvents": "Eventos disponibles"
+    },
+    "whiteLabel": {
+      "title": "White Label",
+      "description": "Personaliza la plataforma con la identidad de tu marca",
+      "companyName": "Nombre de la empresa",
+      "customDomain": "Dominio personalizado",
+      "logoUrl": "URL del logo",
+      "primaryColor": "Color primario",
+      "accentColor": "Color de acento",
+      "hidePoweredBy": "Ocultar \"Powered by Omniseen\"",
+      "save": "Guardar Configuración"
+    }
+  },
+  "calendar": {
+    "title": "Calendario de Contenido",
+    "published": "Publicado",
+    "draft": "Borrador",
+    "scheduled": "Programado",
+    "generating": "Generando",
+    "rescheduled": "¡Artículo reprogramado!"
   }
 }

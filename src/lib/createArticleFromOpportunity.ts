@@ -17,7 +17,8 @@ export interface OpportunityInput {
 export async function createArticleFromOpportunity(
   opportunity: OpportunityInput,
   blogId: string,
-  navigate: NavigateFunction
+  navigate: NavigateFunction,
+  targetWords: number = 2500
 ): Promise<{ success: boolean; job_id?: string }> {
   const normalizedKeyword = opportunity.suggested_title?.trim().toLowerCase();
 
@@ -92,7 +93,7 @@ export async function createArticleFromOpportunity(
     language: 'pt-BR',
     job_type: 'article' as const,
     intent: (opportunity.goal as any) || 'informational',
-    target_words: 2500,
+    target_words: targetWords,
     image_count: 4,
     source: 'radar',
     opportunity_id: opportunity.id || null,

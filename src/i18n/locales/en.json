@@ -250,5 +250,64 @@
       "copyLink": "Or copy the link:",
       "linkCopied": "Link copied!"
     }
+  },
+  "opportunities": {
+    "selectSize": "Select article size",
+    "title": "Title",
+    "quick": "Quick",
+    "quickDesc": "400 to 1,000 words — ideal for quick ideas",
+    "deep": "Deep",
+    "deepDesc": "1,500 to 3,000 words — full SEO",
+    "recommended": "Recommended",
+    "generateArticle": "Generate Article",
+    "cancel": "Cancel"
+  },
+  "abTest": {
+    "title": "A/B Test",
+    "createVariant": "Create A/B variant",
+    "variantA": "Variant A (Original)",
+    "variantB": "Variant B (New)",
+    "alternativeTitle": "Alternative title",
+    "alternativeMeta": "Alternative meta description",
+    "create": "Create Variant",
+    "success": "A/B variant created successfully!",
+    "successDesc": "The test will activate when the article is published."
+  },
+  "settings": {
+    "apiKeys": {
+      "title": "API Keys",
+      "description": "Manage Omniseen API access keys",
+      "newKey": "New Key",
+      "empty": "No keys created",
+      "emptyDesc": "Create an API key to integrate with external systems.",
+      "lastUsed": "Last used"
+    },
+    "webhooks": {
+      "title": "Webhooks",
+      "description": "Configure endpoints to receive event notifications",
+      "newWebhook": "New Webhook",
+      "empty": "No webhooks configured",
+      "emptyDesc": "Add webhooks to receive events in real time.",
+      "availableEvents": "Available events"
+    },
+    "whiteLabel": {
+      "title": "White Label",
+      "description": "Customize the platform with your brand identity",
+      "companyName": "Company name",
+      "customDomain": "Custom domain",
+      "logoUrl": "Logo URL",
+      "primaryColor": "Primary color",
+      "accentColor": "Accent color",
+      "hidePoweredBy": "Hide \"Powered by Omniseen\"",
+      "save": "Save Settings"
+    }
+  },
+  "calendar": {
+    "title": "Content Calendar",
+    "published": "Published",
+    "draft": "Draft",
+    "scheduled": "Scheduled",
+    "generating": "Generating",
+    "rescheduled": "Article rescheduled!"
   }
 }
