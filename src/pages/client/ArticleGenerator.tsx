@@ -80,8 +80,9 @@ const STATES_BY_COUNTRY: Record<string, string[]> = {
 interface GeneratorFormData {
   keyword: string;
   city: string;
+  country: string;
   state: string;
-  niche: NicheType;
+  niche: string;
   mode: ArticleMode;
   template: TemplateType | 'auto';
   webResearch: boolean;
