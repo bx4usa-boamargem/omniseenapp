@@ -292,6 +292,10 @@ export default function ClientStrategy() {
             <Lightbulb className="h-4 w-4" />
             <span className="hidden sm:inline">Oportunidades</span>
           </TabsTrigger>
+          <TabsTrigger value="calendar" className="gap-2">
+            <Lightbulb className="h-4 w-4" />
+            <span className="hidden sm:inline">Calendário</span>
+          </TabsTrigger>
         </TabsList>
 
         {/* Strategy Tab */}
