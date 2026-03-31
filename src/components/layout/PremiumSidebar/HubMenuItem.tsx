@@ -38,6 +38,7 @@ export function HubMenuItem({
   const [panelPosition, setPanelPosition] = useState<PanelPosition>({ top: 0, left: 0 });
   const timeoutRef = useRef<NodeJS.Timeout>();
   const containerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   // Fecha o menu quando o sidebar colapsa
   useEffect(() => {
@@ -52,7 +53,7 @@ export function HubMenuItem({
       const rect = containerRef.current.getBoundingClientRect();
       setPanelPosition({
         top: rect.top,
-        left: rect.right + 12,
+        left: rect.right,
       });
     }
   }, [isOpen]);
@@ -61,31 +62,39 @@ export function HubMenuItem({
   useEffect(() => {
     if (!isOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        // Also check if click is inside the fixed panel
-        const panel = document.querySelector(`[data-hub-panel="${id}"]`);
-        if (panel && panel.contains(e.target as Node)) return;
-        setIsOpen(false);
-        onClose?.();
-      }
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setIsOpen(false);
+      onClose?.();
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, id, onClose]);
 
-  const handleMouseEnter = () => {
+  const cancelClose = () => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
+      timeoutRef.current = undefined;
     }
+  };
+
+  const scheduleClose = () => {
+    cancelClose();
+    timeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 300);
+  };
+
+  const handleMouseEnter = () => {
+    cancelClose();
     if (isExpanded) {
       setIsOpen(true);
     }
   };
 
   const handleMouseLeave = () => {
-    timeoutRef.current = setTimeout(() => {
-      setIsOpen(false);
-    }, 150);
+    scheduleClose();
   };
 
   const handleClick = () => {
