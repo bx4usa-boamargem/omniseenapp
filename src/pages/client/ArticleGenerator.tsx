@@ -122,6 +122,7 @@ export default function ArticleGenerator() {
     city: businessProfile?.city || '',
     country: 'BR',
     state: 'SP',
+    language: 'pt-BR',
     niche: (businessProfile?.niche as string) || 'pest_control',
     mode: 'authority',
     template: 'auto',
