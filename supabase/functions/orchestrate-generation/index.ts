@@ -1506,9 +1506,116 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     console.log(`[V2] ✅ CONTENT_GEN ${Date.now() - genStart}ms | title="${(articleData!.title as string || '').slice(0, 50)}"`);
 
     // ============================================================
+    // STEP: REWRITE_PREMIUM (only in premium mode — GPT-4.1)
+    // Runs BEFORE SAVE_ARTICLE so the final saved content is the
+    // humanised, quality-reviewed version.
+    // ============================================================
+    if (generationMode === 'premium') {
+      console.log(`[V2] Step: REWRITE_PREMIUM | mode=${generationMode} | model=${rewriteModel} | provider=openai`);
+      await updatePublicStatus(supabase, jobId, 'REWRITE_PREMIUM', false, lockId);
+      await supabase.from('generation_jobs').update({ current_step: 'REWRITE_PREMIUM' }).eq('id', jobId);
+
+      const rwStepId = await createStepOrFail(supabase, jobId, 'REWRITE_PREMIUM', {
+        keyword: jobInput.keyword, model: rewriteModel, provider: 'openai',
+      });
+      const rwStart = Date.now();
+
+      try {
+        const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+        if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not set');
+
+        const draftHtml = (articleData!.html_article as string) || (articleData!.content as string) || '';
+        const rewritePrompt = `You are an elite editorial writer and SEO expert. Your task is to humanise and elevate the following article draft. Rules:
+1. Preserve ALL factual information, structure, headings, and HTML tags.
+2. Make the prose natural, direct, and authoritative — NOT robotic or generic.
+3. Add answer-first structuring: the first paragraph after each H2 must state the answer clearly.
+4. Ensure named entities, local context, and brand references are used precisely.
+5. Do NOT truncate. Return the FULL revised HTML article.
+6. Return ONLY the revised HTML. No markdown, no code block.
+
+DRAFT ARTICLE:
+${draftHtml.slice(0, 30000)}`;
+
+        const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${OPENAI_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: rewriteModel,
+            messages: [
+              { role: 'system', content: 'You are an elite editorial writer specializing in SEO content that ranks and gets cited by AI systems.' },
+              { role: 'user', content: rewritePrompt },
+            ],
+            temperature: 0.3,
+            max_tokens: 8000,
+          }),
+        });
+
+        if (!openaiRes.ok) {
+          const errBody = await openaiRes.text();
+          throw new Error(`OpenAI API error ${openaiRes.status}: ${errBody.slice(0, 200)}`);
+        }
+
+        const openaiData = await openaiRes.json();
+        const revisedHtml = openaiData.choices?.[0]?.message?.content?.trim();
+        const tokensIn = openaiData.usage?.prompt_tokens || 0;
+        const tokensOut = openaiData.usage?.completion_tokens || 0;
+        const costUsd = (tokensIn * 0.000002) + (tokensOut * 0.000008); // GPT-4.1 pricing estimate
+
+        if (revisedHtml && revisedHtml.length > 500) {
+          // Patch articleData with the premium-rewritten HTML
+          articleData!.html_article = revisedHtml;
+          articleData!.rewrite_premium_applied = true;
+          articleData!.rewrite_model_used = rewriteModel;
+        }
+
+        totalApiCalls++;
+        totalCostUsd += costUsd;
+
+        await supabase.from('generation_steps').update({
+          status: 'completed',
+          output: {
+            model: rewriteModel, provider: 'openai',
+            tokens_in: tokensIn, tokens_out: tokensOut, cost_usd: costUsd,
+            rewrite_applied: true,
+          },
+          latency_ms: Date.now() - rwStart,
+          completed_at: new Date().toISOString(),
+          model_used: rewriteModel, provider: 'openai',
+          cost_usd: costUsd, tokens_in: tokensIn, tokens_out: tokensOut,
+        }).eq('id', rwStepId);
+
+        console.log(`[V2] ✅ REWRITE_PREMIUM ${Date.now() - rwStart}ms | model=${rewriteModel} | tokens_in=${tokensIn} tokens_out=${tokensOut} | cost=$${costUsd.toFixed(4)}`);
+
+      } catch (rwErr) {
+        // Fallback: keep original Gemini draft, log the error, continue
+        const errMsg = rwErr instanceof Error ? rwErr.message : 'REWRITE_PREMIUM failed';
+        console.warn(`[V2] ⚠️ REWRITE_PREMIUM failed (non-fatal, keeping Gemini draft): ${errMsg}`);
+        await supabase.from('generation_steps').update({
+          status: 'failed',
+          output: { error: errMsg, fallback: 'gemini_draft_kept', rewrite_applied: false },
+          latency_ms: Date.now() - rwStart,
+          completed_at: new Date().toISOString(),
+          model_used: rewriteModel, provider: 'openai',
+          error_message: errMsg,
+        }).eq('id', rwStepId);
+      }
+
+      await updatePublicStatus(supabase, jobId, 'REWRITE_PREMIUM', true, lockId);
+      await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
+
+    } else {
+      // Explicit skip log for economic mode — visible in Supabase logs
+      console.log(`[V2] ⏭️ REWRITE_PREMIUM skipped (mode=${generationMode}) — economic path uses Gemini draft directly`);
+    }
+
+    // ============================================================
     // STEP 6: SAVE_ARTICLE
     // ============================================================
     console.log(`[V2] Step 6/8: SAVE_ARTICLE`);
+
     await updatePublicStatus(supabase, jobId, 'SAVE_ARTICLE', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'SAVE_ARTICLE' }).eq('id', jobId);
 
