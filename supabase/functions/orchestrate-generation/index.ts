@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { injectImagesIntoContent, validateContentStructure } from "../_shared/imageInjector.ts";
 import { QUALITY_GATE, getMinWordCount } from "../_shared/superPageEngine.ts";
 
 /**
@@ -979,7 +978,7 @@ async function generateOneImage(prompt: string, apiKey: string): Promise<{ url: 
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: GEMINI_IMAGE_MODEL,
-      messages: [{ role: "user", content: `Generate a professional, realistic 16:9 image for a blog. ${prompt}. Style: editorial, high quality.` }],
+      messages: [{ role: "user", content: `Generate a premium editorial 16:9 photograph for a professional blog article. The image must look like a real photo captured in a real environment. Absolutely no text, no title overlays, no letters, no banners, no magazine cover composition, no logos, no watermarks, and no split-screen layouts. Use only visual storytelling with clean composition. ${prompt}` }],
       modalities: ["image", "text"],
     }),
   });
@@ -1031,12 +1030,12 @@ async function executeImageGenGeminiNanoBanana(
 
     const html = (articleData.html_article as string) || "";
     const sectionCount = (html.match(/<h2[^>]*>/gi) || []).length;
-    const jobType = ((jobInput.job_type as string) || 'article') as 'article' | 'super_page';
-    // Limit: article = max 3 section images (+ 1 hero = 4 total max), super_page = 3 section images (+ 1 hero = 4 total)
-    const maxSectionImages = Math.min(sectionCount, 3);
+    const articleWordCount = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+    const maxTotalImages = articleWordCount >= 2200 ? 4 : 3;
+    const maxSectionImages = Math.min(sectionCount, Math.max(0, maxTotalImages - 1));
     for (let i = 0; i < maxSectionImages; i++) {
       const sectionTitle = outline.h2[i]?.title || `Section ${i + 1}`;
-      const prompt = `${keyword}, ${sectionTitle}. Editorial, realistic.`;
+      const prompt = `Article theme: ${keyword}. Section focus: ${sectionTitle}. Create a realistic editorial scene connected to this section, prioritizing authentic environments, objects and narrative context. Never include embedded text.`;
       const img = await generateOneImage(prompt, apiKey);
       let url: string;
       if (img?.url && img.url.startsWith("data:")) {
@@ -1053,11 +1052,8 @@ async function executeImageGenGeminiNanoBanana(
       contentImages.push({ context: sectionTitle, url, alt: sectionTitle, after_section: i + 1 });
     }
 
-    if (contentImages.length > 0 && validateContentStructure(html)) {
-      const injected = injectImagesIntoContent(html, contentImages.map((c) => ({ ...c, alt: c.alt })));
-      if (injected.injected > 0) {
-        await supabase.from("articles").update({ content: injected.content, content_images: contentImages }).eq("id", articleId);
-      }
+    if (contentImages.length > 0) {
+      await supabase.from("articles").update({ content_images: contentImages }).eq("id", articleId);
     }
     return { success: true, heroUrl, sectionCount: contentImages.length };
   } catch (e) {

@@ -10,7 +10,30 @@ interface ContentImage {
 interface ArticleContentProps {
   content: string;
   contentImages?: ContentImage[];
+  hideFirstH1?: boolean;
 }
+
+const normalizeContentImages = (images: ContentImage[]): ContentImage[] => {
+  const seenUrls = new Set<string>();
+  const seenSections = new Set<number>();
+
+  return images
+    .filter((image) => image?.url && Number.isFinite(image?.after_section))
+    .sort((a, b) => a.after_section - b.after_section)
+    .filter((image) => {
+      if (seenUrls.has(image.url) || seenSections.has(image.after_section)) {
+        return false;
+      }
+
+      seenUrls.add(image.url);
+      seenSections.add(image.after_section);
+      return true;
+    });
+};
+
+const stripLeadingH1 = (html: string): string => {
+  return html.replace(/^((?:\s*<style[^>]*>[\s\S]*?<\/style>)?\s*)<h1[^>]*>[\s\S]*?<\/h1>\s*/i, '$1');
+};
 
 const contextLabels: Record<string, string> = {
   hero: 'Imagem de capa',
@@ -158,7 +181,8 @@ const promoteLooseHeadings = (html: string): string => {
   });
 };
 
-export const ArticleContent = ({ content, contentImages = [] }: ArticleContentProps) => {
+export const ArticleContent = ({ content, contentImages = [], hideFirstH1 = false }: ArticleContentProps) => {
+  const normalizedContentImages = normalizeContentImages(contentImages);
   const hasStructuredHtml = /<(h[1-6]|p|div|figure|ul|ol|table|section)\b/i.test(content);
   const hasMarkdownHeadings = /(^|\n)\s*#{1,3}\s+.+/m.test(content);
   const isHtmlContent = hasStructuredHtml && !hasMarkdownHeadings;
@@ -166,6 +190,12 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
   if (isHtmlContent) {
     // HTML content: process WhatsApp CTAs and render directly
     let processedHtml = promoteLooseHeadings(splitLongHtmlParagraphs(content));
+
+    if (hideFirstH1) {
+      processedHtml = stripLeadingH1(processedHtml);
+    }
+
+    const alreadyHasInlineImages = /<(figure|img)\b/i.test(processedHtml);
     
     // Convert WhatsApp links to styled buttons
     processedHtml = processedHtml.replace(
@@ -174,11 +204,11 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
     );
 
     // Inject content_images after corresponding h2 sections
-    if (contentImages && contentImages.length > 0) {
+    if (!alreadyHasInlineImages && normalizedContentImages.length > 0) {
       let h2Count = 0;
       processedHtml = processedHtml.replace(/(<\/h2>)/gi, (match) => {
         h2Count++;
-        const image = contentImages.find(img => img.after_section === h2Count);
+        const image = normalizedContentImages.find(img => img.after_section === h2Count);
         if (image) {
           const label = contextLabels[image.context] || 'Ilustração';
           return `${match}<figure class="my-10 article-inline-figure"><div class="rounded-xl overflow-hidden shadow-xl"><img src="${image.url}" alt="${label}" class="w-full aspect-video object-cover object-center article-inline-image" loading="lazy" /></div><figcaption class="text-center text-sm text-muted-foreground mt-3 italic">${label}</figcaption></figure>`;
@@ -222,6 +252,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
     let listItems: string[] = [];
     let listType: "ul" | "ol" | null = null;
     let h2Count = 0;
+    let h1Skipped = false;
     let pendingParagraph: string[] = [];
 
     const flushParagraph = () => {
@@ -259,7 +290,7 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
     };
 
     const insertImageIfNeeded = (afterSection: number) => {
-      const image = contentImages.find(img => img.after_section === afterSection);
+      const image = normalizedContentImages.find(img => img.after_section === afterSection);
       if (image) {
         elements.push(
           <figure key={`img-${elements.length}`} className="my-10">
@@ -403,6 +434,10 @@ export const ArticleContent = ({ content, contentImages = [] }: ArticleContentPr
       // Headers with ID for TOC linking
       if (trimmedLine.startsWith("# ")) {
         flushList();
+        if (hideFirstH1 && !h1Skipped) {
+          h1Skipped = true;
+          return;
+        }
         const headingText = trimmedLine.replace("# ", "");
         const headingId = slugify(headingText);
         elements.push(
