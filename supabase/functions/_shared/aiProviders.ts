@@ -683,11 +683,11 @@ async function callLovableGatewayImage(request: ImageRequest): Promise<ImageResp
   }
   
   const enhancedPrompt = `Professional business photography: ${request.prompt}. 
-Context: ${request.context} service in ${request.city}, Brazil. 
+Context: ${request.context} service in ${request.city}. 
 Industry: ${request.niche}.
 Style: High-quality, photorealistic, modern, professional lighting. 
 ${config.aspectRatio} aspect ratio for web.
-No text, no watermarks, no logos.`;
+CRITICAL RULE: The image must contain ZERO text of any kind — no words, no letters, no numbers, no titles, no captions, no labels, no banners, no overlays, no watermarks, no logos, no typography whatsoever. Pure visual photography only.`;
   
   const response = await fetchWithTimeout(
     config.gateway,

@@ -978,7 +978,7 @@ async function generateOneImage(prompt: string, apiKey: string): Promise<{ url: 
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: GEMINI_IMAGE_MODEL,
-      messages: [{ role: "user", content: `Generate a premium editorial 16:9 photograph for a professional blog article. The image must look like a real photo captured in a real environment. Absolutely no text, no title overlays, no letters, no banners, no magazine cover composition, no logos, no watermarks, and no split-screen layouts. Use only visual storytelling with clean composition. ${prompt}` }],
+      messages: [{ role: "user", content: `Generate a premium editorial 16:9 photograph for a professional blog article. The image must look like a real photo captured in a real environment. CRITICAL RULE: The image must contain ZERO text of any kind — no words, no letters, no numbers, no titles, no captions, no labels, no banners, no overlays, no watermarks, no logos, no typography whatsoever. Only pure visual photography with clean composition and professional lighting. ${prompt}` }],
       modalities: ["image", "text"],
     }),
   });
@@ -1035,7 +1035,7 @@ async function executeImageGenGeminiNanoBanana(
     const maxSectionImages = Math.min(sectionCount, Math.max(0, maxTotalImages - 1));
     for (let i = 0; i < maxSectionImages; i++) {
       const sectionTitle = outline.h2[i]?.title || `Section ${i + 1}`;
-      const prompt = `Article theme: ${keyword}. Section focus: ${sectionTitle}. Create a realistic editorial scene connected to this section, prioritizing authentic environments, objects and narrative context. Never include embedded text.`;
+      const prompt = `Article theme: ${keyword}. Section focus: ${sectionTitle}. Create a realistic editorial photograph connected to this section topic, showing authentic environments, objects and narrative context. CRITICAL: absolutely ZERO text, ZERO letters, ZERO words, ZERO numbers, ZERO labels, ZERO banners, ZERO overlays in the image. Pure visual photography only.`;
       const img = await generateOneImage(prompt, apiKey);
       let url: string;
       if (img?.url && img.url.startsWith("data:")) {
