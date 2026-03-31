@@ -732,7 +732,7 @@ CRITICAL HTML STRUCTURE RULES (MANDATORY - DO NOT IGNORE):
   <h3>Subsection</h3>
   <p>Detail...</p>
 
-IMAGE: Return ONE detailed image description for the hero image (realistic, specific to keyword and city). Maximum 1 image prompt.
+HERO IMAGE: Return ONE detailed image description for the hero image. The image must be photorealistic, professional, specific to the keyword and context. IMPORTANT: NO TEXT OVERLAY, NO WORDS, NO TYPOGRAPHY on the image. Pure visual only. Maximum 1 image prompt.
 
 OUTPUT FORMAT (STRICT JSON only):
 {
