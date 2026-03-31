@@ -6,6 +6,9 @@ import { IntegrationsTab } from '@/components/settings/IntegrationsTab';
 import { BillingTab } from '@/components/settings/BillingTab';
 import { UsageTab } from '@/components/settings/UsageTab';
 import { NotificationsTab } from '@/components/settings/NotificationsTab';
+import { ApiKeysTab } from '@/components/settings/ApiKeysTab';
+import { WebhooksTab } from '@/components/settings/WebhooksTab';
+import { WhiteLabelTab } from '@/components/settings/WhiteLabelTab';
 
 const TABS = [
   { id: 'profile', label: 'Perfil' },
@@ -13,6 +16,9 @@ const TABS = [
   { id: 'billing', label: 'Cobrança' },
   { id: 'usage', label: 'Uso' },
   { id: 'notifications', label: 'Notificações' },
+  { id: 'api-keys', label: 'Chaves de API' },
+  { id: 'webhooks', label: 'Webhooks' },
+  { id: 'white-label', label: 'White Label' },
 ];
 
 export default function ClientSettings() {
