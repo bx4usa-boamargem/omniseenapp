@@ -210,14 +210,13 @@ export default function ArticleGenerator() {
     
     try {
       // V6.0: Call create-generation-job directly — no placeholder article
-      const selectedCountry = COUNTRIES.find(c => c.code === formData.country);
       const enginePayload = {
         keyword: formData.keyword.trim(),
         blog_id: blog.id,
         city: formData.city.trim(),
         state: formData.state || undefined,
         country: formData.country || 'BR',
-        language: selectedCountry?.language || 'pt-BR',
+        language: formData.language || 'pt-BR',
         niche: formData.niche || 'default',
         job_type: 'article' as const,
         intent: 'informational' as const,
