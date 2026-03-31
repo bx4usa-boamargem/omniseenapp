@@ -162,6 +162,18 @@ export default function GenerationNew() {
           <Input placeholder="ex: como prevenir baratas em apartamento" value={form.keyword} onChange={e => set('keyword', e.target.value)} />
         </div>
 
+        <div className="space-y-2">
+          <Label>País *</Label>
+          <Select value={form.country} onValueChange={v => set('country', v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {COUNTRIES.map(c => (
+                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label>Cidade</Label>
@@ -174,8 +186,32 @@ export default function GenerationNew() {
         </div>
 
         <div className="space-y-2">
-          <Label>Nicho *</Label>
-          <Input placeholder="ex: controle de pragas, encanamento, advocacia" value={form.niche} onChange={e => set('niche', e.target.value)} />
+          <div className="flex items-center justify-between">
+            <Label>Nicho *</Label>
+            <button
+              type="button"
+              onClick={() => setCustomNiche(!customNiche)}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {customNiche ? 'Selecionar da lista' : <><Plus className="w-3 h-3" /> Digitar nicho</>}
+            </button>
+          </div>
+          {customNiche ? (
+            <Input
+              placeholder="ex: pet shop, energia solar, nutrição"
+              value={form.customNicheText}
+              onChange={e => set('customNicheText', e.target.value)}
+            />
+          ) : (
+            <Select value={form.niche} onValueChange={v => set('niche', v)}>
+              <SelectTrigger><SelectValue placeholder="Selecione o nicho" /></SelectTrigger>
+              <SelectContent>
+                {availableNiches.map(n => (
+                  <SelectItem key={n.id} value={n.id}>{n.displayName}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-4">
