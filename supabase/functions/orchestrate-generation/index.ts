@@ -840,7 +840,7 @@ async function executeSaveArticle(
   const textContent = htmlArticle.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   const wordCount = textContent.split(/\s+/).filter(Boolean).length;
   const readingTime = Math.ceil(wordCount / 200);
-  const wordCountTarget = contentType === 'super_page' ? 4500 : 2250;
+  const wordCountTarget = Number(jobInput.target_words) || (contentType === 'super_page' ? 3000 : 2000);
 
   // Fetch CTA config from blog
   const { data: blogData } = await supabase
