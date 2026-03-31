@@ -38,6 +38,7 @@ export function HubMenuItem({
   const [panelPosition, setPanelPosition] = useState<PanelPosition>({ top: 0, left: 0 });
   const timeoutRef = useRef<NodeJS.Timeout>();
   const containerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   // Fecha o menu quando o sidebar colapsa
   useEffect(() => {
@@ -52,7 +53,7 @@ export function HubMenuItem({
       const rect = containerRef.current.getBoundingClientRect();
       setPanelPosition({
         top: rect.top,
-        left: rect.right + 12,
+        left: rect.right,
       });
     }
   }, [isOpen]);
@@ -61,31 +62,39 @@ export function HubMenuItem({
   useEffect(() => {
     if (!isOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        // Also check if click is inside the fixed panel
-        const panel = document.querySelector(`[data-hub-panel="${id}"]`);
-        if (panel && panel.contains(e.target as Node)) return;
-        setIsOpen(false);
-        onClose?.();
-      }
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setIsOpen(false);
+      onClose?.();
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, id, onClose]);
 
-  const handleMouseEnter = () => {
+  const cancelClose = () => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
+      timeoutRef.current = undefined;
     }
+  };
+
+  const scheduleClose = () => {
+    cancelClose();
+    timeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 300);
+  };
+
+  const handleMouseEnter = () => {
+    cancelClose();
     if (isExpanded) {
       setIsOpen(true);
     }
   };
 
   const handleMouseLeave = () => {
-    timeoutRef.current = setTimeout(() => {
-      setIsOpen(false);
-    }, 150);
+    scheduleClose();
   };
 
   const handleClick = () => {
@@ -174,27 +183,42 @@ export function HubMenuItem({
 
       {/* Menu Flutuante - Position Fixed */}
       {isOpen && (
-        <div 
-          className={cn(
-            'fixed z-[110]',
-            'w-80 bg-white dark:bg-gray-900 rounded-xl',
-            'shadow-[0_10px_40px_rgba(0,0,0,0.15)]',
-            'border border-[#E5E7EB] dark:border-gray-700',
-            'animate-in slide-in-from-left-2 duration-200',
-            'max-h-[80vh] overflow-y-auto'
-          )}
-          style={{
-            top: panelPosition.top,
-            left: panelPosition.left,
-          }}
-          role="menu"
-          aria-label={`Menu ${label}`}
-          data-hub-panel={id}
-          onMouseEnter={handleMouseEnter}
-          onMouseLeave={handleMouseLeave}
-        >
-          {children}
-        </div>
+        <>
+          {/* Invisible bridge to prevent gap-closing */}
+          <div
+            className="fixed z-[109]"
+            style={{
+              top: panelPosition.top,
+              left: panelPosition.left,
+              width: 16,
+              height: 200,
+            }}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+          />
+          <div 
+            ref={panelRef}
+            className={cn(
+              'fixed z-[110]',
+              'w-80 bg-white dark:bg-gray-900 rounded-xl',
+              'shadow-[0_10px_40px_rgba(0,0,0,0.15)]',
+              'border border-[#E5E7EB] dark:border-gray-700',
+              'animate-in slide-in-from-left-2 duration-200',
+              'max-h-[80vh] overflow-y-auto'
+            )}
+            style={{
+              top: panelPosition.top,
+              left: panelPosition.left + 12,
+            }}
+            role="menu"
+            aria-label={`Menu ${label}`}
+            data-hub-panel={id}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+          >
+            {children}
+          </div>
+        </>
       )}
     </div>
   );
