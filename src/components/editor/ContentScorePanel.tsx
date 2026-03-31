@@ -58,6 +58,9 @@ export function ContentScorePanel({
   
   // Flag to skip auto-calculate after intentional optimization
   const skipNextAutoCalculate = useRef(false);
+  
+  // Flag to prevent multiple auto-analyze triggers
+  const hasAutoAnalyzedSerp = useRef(false);
 
   // Content score hook
   const {
@@ -115,6 +118,22 @@ export function ContentScorePanel({
       return () => clearTimeout(timer);
     }
   }, [content, keyword, blogId, calculateScore]);
+
+  // V3.3: Auto-analyze SERP if missing on load
+  useEffect(() => {
+    if (!loading && !analyzing && keyword && blogId && !serpMatrix && !hasAutoAnalyzedSerp.current && content) {
+      hasAutoAnalyzedSerp.current = true;
+      const timer = setTimeout(() => {
+        analyzeSERP(false);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, analyzing, keyword, blogId, serpMatrix, content, analyzeSERP]);
+
+  // Reset auto-analyze flag when keyword changes
+  useEffect(() => {
+    hasAutoAnalyzedSerp.current = false;
+  }, [keyword]);
 
   // Handle optimize actions - set flag to skip auto-calculate
   const handleOptimize = async () => {

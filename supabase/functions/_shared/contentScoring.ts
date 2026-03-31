@@ -402,19 +402,34 @@ export function calculateContentScore(
   // Generate recommendations
   const recommendations: string[] = [];
   
-  if (breakdown.wordProximity.status === 'below') {
-    const needed = marketAvg.avgWords - wordCount;
-    recommendations.push(`Adicione mais ${needed} palavras para atingir a média do mercado (${marketAvg.avgWords})`);
-  }
-  
-  if (breakdown.h2Coverage.status === 'below') {
-    const needed = marketAvg.avgH2 - h2Count;
-    recommendations.push(`Adicione ${needed} seções H2 para melhor estruturação`);
-  }
-  
-  if (breakdown.semanticCoverage.missing.length > 0) {
-    const topMissing = breakdown.semanticCoverage.missing.slice(0, 5);
-    recommendations.push(`Inclua os termos: ${topMissing.join(', ')}`);
+  // Only push SERP-specific recommendations if we actually have SERP data
+  if (serpMatrix !== null) {
+    if (breakdown.wordProximity.status === 'below') {
+      const needed = marketAvg.avgWords - wordCount;
+      if (needed > 0) {
+        recommendations.push(`Adicione mais ${needed} palavras para atingir a média do mercado (${marketAvg.avgWords})`);
+      }
+    }
+    
+    if (breakdown.h2Coverage.status === 'below') {
+      const needed = marketAvg.avgH2 - h2Count;
+      if (needed > 0) {
+        recommendations.push(`Adicione ${needed} seções H2 para melhor estruturação na SERP`);
+      }
+    }
+    
+    if (breakdown.semanticCoverage.missing.length > 0) {
+      const topMissing = breakdown.semanticCoverage.missing.slice(0, 5);
+      recommendations.push(`Inclua os termos: ${topMissing.join(', ')}`);
+    }
+  } else {
+    // Basic recommendations if no SERP matrix
+    if (wordCount < 1000) {
+      recommendations.push(`Artigo parece curto (${wordCount} palavras). Expanda os tópicos para maior profundidade.`);
+    }
+    if (h2Count < 5) {
+      recommendations.push(`Divida melhor o conteúdo usando mais seções H2.`);
+    }
   }
   
   if (!breakdown.introQuality.hasAnswerFirst) {
@@ -426,7 +441,7 @@ export function calculateContentScore(
   }
   
   if (breakdown.visualOrganization.images < 3) {
-    recommendations.push('Adicione mais imagens para quebrar o texto');
+    recommendations.push('Adicione mais imagens para quebrar textualmente o artigo');
   }
   
   // Determine if meets market standards (at least 80% of metrics)

@@ -1074,8 +1074,9 @@ async function executeImageGenGeminiNanoBanana(
     const html = (articleData.html_article as string) || "";
     const sectionCount = (html.match(/<h2[^>]*>/gi) || []).length;
     const articleWordCount = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().split(/\s+/).filter(Boolean).length;
-    // Total images = hero (1) + section images. Max 4 total for long, 3 for short.
-    const maxTotalImages = articleWordCount >= 2200 ? 4 : 3;
+    // Limit images based on word count. 
+    // Small articles (<1200) get max 3 images, larger articles get max 6 images.
+    const maxTotalImages = articleWordCount >= 1200 ? 6 : 3;
     const maxSectionImages = Math.min(sectionCount, Math.max(0, maxTotalImages - 1));
     for (let i = 0; i < maxSectionImages; i++) {
       const sectionTitle = outline.h2[i]?.title || `Section ${i + 1}`;
