@@ -14,7 +14,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { callImageGeneration } from '../_shared/aiProviders.ts';
-import { injectImagesIntoContent, validateContentStructure } from '../_shared/imageInjector.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -95,12 +94,27 @@ serve(async (req) => {
   try {
     const body: BackgroundImageRequest = await req.json();
     const { article_id, blog_id, request_id, image_prompts, niche, city } = body;
-    
-    console.log(`[${request_id}][ImageJob] Starting background generation for ${image_prompts.length} images`);
+    const { data: articleData } = await supabase
+      .from('articles')
+      .select('content')
+      .eq('id', article_id)
+      .maybeSingle();
+
+    const articleWordCount = (articleData?.content || '')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean).length;
+
+    const maxTotalImages = articleWordCount >= 2200 ? 4 : 3;
+    const limitedPrompts = image_prompts.slice(0, maxTotalImages);
+
+    console.log(`[${request_id}][ImageJob] Starting background generation for ${limitedPrompts.length} images`);
     console.log(`[${request_id}][ImageJob] Article: ${article_id}, Niche: ${niche}, City: ${city}`);
 
     const startTime = Date.now();
-    const totalImages = image_prompts.length;
+    const totalImages = limitedPrompts.length;
     let completedImages = 0;
 
     // V4.7: Initialize tracking columns - NUNCA alterar generation_stage
@@ -115,8 +129,8 @@ serve(async (req) => {
       .eq('id', article_id);
 
     // V4.7: Generate each image with resilient loop - NUNCA abortar
-    for (let i = 0; i < image_prompts.length; i++) {
-      const imgPrompt = image_prompts[i];
+    for (let i = 0; i < limitedPrompts.length; i++) {
+      const imgPrompt = limitedPrompts[i];
       const imageIndex = i + 1;
       
       console.log(`[${request_id}][IMAGES LOOP] index=${imageIndex}/${totalImages}`);
@@ -139,7 +153,7 @@ serve(async (req) => {
       }
       
       // V4.7: Convert to content_images format and update incrementally
-      const contentImagesForDb = image_prompts
+      const contentImagesForDb = limitedPrompts
         .filter((p: ImagePrompt) => p.url)
         .map((p: ImagePrompt, idx: number) => ({
           context: p.context,
@@ -173,13 +187,13 @@ serve(async (req) => {
       }
       
       // Small delay between requests to avoid rate limiting
-      if (i < image_prompts.length - 1) {
+      if (i < limitedPrompts.length - 1) {
         await new Promise(r => setTimeout(r, 500));
       }
     }
 
     // V4.7: Build final content_images array
-    const finalContentImages = image_prompts
+    const finalContentImages = limitedPrompts
       .filter((p: ImagePrompt) => p.url)
       .map((p: ImagePrompt, idx: number) => ({
         context: p.context,
@@ -188,41 +202,8 @@ serve(async (req) => {
         after_section: p.after_section || (idx + 1)
       }));
 
-    // V4.7: Inject images into content HTML (Structure Guard protected)
-    let contentUpdated = false;
-    if (finalContentImages.length > 0) {
-      const { data: articleData } = await supabase
-        .from('articles')
-        .select('content')
-        .eq('id', article_id)
-        .single();
-      
-      if (articleData?.content) {
-        console.log(`[${request_id}][IMAGES] Injecting images into content`);
-        const injectionResult = injectImagesIntoContent(articleData.content, finalContentImages);
-        
-        if (injectionResult.structureValid && injectionResult.injected > 0) {
-          console.log(`[${request_id}][IMAGES] Content updated successfully: ${injectionResult.injected} injected`);
-          
-          // Update content with injected images
-          const { error: contentError } = await supabase
-            .from('articles')
-            .update({ content: injectionResult.content })
-            .eq('id', article_id);
-          
-          if (contentError) {
-            console.error(`[${request_id}][IMAGES] Content update failed:`, contentError);
-          } else {
-            contentUpdated = true;
-          }
-        } else {
-          console.log(`[${request_id}][IMAGES] No structural overwrite allowed`);
-        }
-      }
-    }
-
     // Final update: Mark as complete
-    const featuredUrl = image_prompts[0]?.url || null;
+    const featuredUrl = limitedPrompts[0]?.url || null;
     const allCompleted = completedImages === totalImages;
 
     // V4.7: Final update - use content_images (NOT image_prompts)

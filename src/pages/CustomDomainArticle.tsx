@@ -204,10 +204,11 @@ export default function CustomDomainArticle({ blogId, blogSlug: propBlogSlug }: 
             )}
 
             {/* Article Content */}
-            <div className="prose prose-lg dark:prose-invert max-w-none">
+            <div className="max-w-none">
               <ArticleContent 
                 content={article.content || ""} 
                 contentImages={Array.isArray(article.content_images) ? (article.content_images as { context: string; url: string; after_section: number }[]) : undefined}
+                hideFirstH1
               />
             </div>
 

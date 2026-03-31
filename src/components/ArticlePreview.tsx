@@ -176,6 +176,7 @@ export function ArticlePreview({
         <ArticleContent 
           content={article.content} 
           contentImages={contentImages} 
+          hideFirstH1
         />
 
         {article.faq && article.faq.length > 0 && (

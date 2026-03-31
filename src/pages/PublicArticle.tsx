@@ -372,6 +372,7 @@ const PublicArticle = () => {
                 <ArticleContent 
                   content={displayedContent} 
                   contentImages={contentImages}
+                  hideFirstH1
                 />
               )}
             </div>
