@@ -8,8 +8,6 @@ import {
   type SEOResult 
 } from "../_shared/seoScoring.ts";
 import {
-import { generateText, generateImage } from '../_shared/omniseen-ai.ts';
-
   extractImageBlocks,
   reinjectImageBlocks,
   validateImagePreservation,

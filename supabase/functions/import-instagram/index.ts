@@ -118,10 +118,7 @@ serve(async (req) => {
   }
 
   try {
-),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const GOOGLE_AI_KEY = Deno.env.get("GOOGLE_AI_KEY") || '';
 
     const { type, images, caption, videoUrl }: ImportRequest = await req.json();
 

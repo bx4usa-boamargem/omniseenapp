@@ -143,10 +143,6 @@ serve(async (req) => {
   }
 
   try {
-),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     const { messages, currentPage }: SupportRequest = await req.json();
 

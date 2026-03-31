@@ -83,10 +83,6 @@ serve(async (req) => {
       console.log('[Fix Broken Link] Removed link, kept anchor text');
 
     } else if (fix_method === 'rewrite') {
-),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
 
       // Find surrounding context for the broken link
       const urlIndex = article.content.indexOf(brokenLink.url);

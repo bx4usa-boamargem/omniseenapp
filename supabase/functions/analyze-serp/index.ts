@@ -26,9 +26,8 @@ import {
 import { getNicheProfile, filterTermsByProfile, NicheProfile } from "../_shared/nicheProfile.ts";
 import { filterSerpTermsForNiche, logBlockedAttempt } from "../_shared/nicheGuard.ts";
 import { generateSerpHashAsync } from "../_shared/contentHashing.ts";
+import { generateText } from '../_shared/omniseen-ai.ts';
 import { 
-import { generateText, generateImage } from '../_shared/omniseen-ai.ts';
-
   filterRealCompetitors, 
   isBlockedCompetitor, 
   analyzeFilterResults,
@@ -685,6 +684,7 @@ serve(async (req) => {
     // Get API keys
     const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
+    const GOOGLE_AI_KEY = Deno.env.get("GOOGLE_AI_KEY");
     if (!PERPLEXITY_API_KEY && !GOOGLE_AI_KEY) {
       throw new Error("No AI API key configured");
     }
