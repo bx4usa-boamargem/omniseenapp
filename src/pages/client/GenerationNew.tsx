@@ -9,7 +9,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Loader2, ChevronDown, ChevronUp, Plus } from "lucide-react";
+import { listNiches } from "@/lib/article-engine/niches";
+
+const COUNTRIES = [
+  { value: 'BR', label: '🇧🇷 Brasil', lang: 'pt-BR' },
+  { value: 'US', label: '🇺🇸 Estados Unidos', lang: 'en-US' },
+  { value: 'AR', label: '🇦🇷 Argentina', lang: 'es-AR' },
+];
 
 export default function GenerationNew() {
   const navigate = useNavigate();
