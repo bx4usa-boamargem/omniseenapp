@@ -146,174 +146,176 @@ export function MediaSlotControl({
   const isEmpty = !hasImage && !hasColor;
 
   return (
-    <div className="space-y-3">
-      {label && (
-        <Label className="text-gray-700 flex items-center gap-2">
-          <ImageIcon className="h-4 w-4 text-gray-500" />
-          {label}
-        </Label>
-      )}
-
-      {/* Preview Area */}
-      <div
-        className={cn(
-          "relative w-full rounded-xl border border-gray-200 overflow-hidden",
-          aspectRatioClass,
-          isEmpty && backgroundClass
-        )}
-        style={hasColor ? { backgroundColor: backgroundColor! } : undefined}
-      >
-        {/* Image Preview */}
-        {hasImage && (
-          <img
-            src={imageUrl!}
-            alt={label}
-            className="w-full h-full object-cover"
-          />
+    <>
+      <div className="space-y-3">
+        {label && (
+          <Label className="text-gray-700 flex items-center gap-2">
+            <ImageIcon className="h-4 w-4 text-gray-500" />
+            {label}
+          </Label>
         )}
 
-        {/* Color Preview */}
-        {hasColor && (
-          <div className="w-full h-full flex items-center justify-center">
-            <div className="text-center">
-              <Palette className="h-8 w-8 mx-auto text-white/70 mb-2" />
-              <span className="text-white/90 text-sm font-medium px-3 py-1 bg-black/20 rounded-full">
-                {backgroundColor}
-              </span>
-            </div>
-          </div>
-        )}
+        {/* Preview Area */}
+        <div
+          className={cn(
+            "relative w-full rounded-xl border border-gray-200 overflow-hidden",
+            aspectRatioClass,
+            isEmpty && backgroundClass
+          )}
+          style={hasColor ? { backgroundColor: backgroundColor! } : undefined}
+        >
+          {/* Image Preview */}
+          {hasImage && (
+            <img
+              src={imageUrl!}
+              alt={label}
+              className="w-full h-full object-cover"
+            />
+          )}
 
-        {/* Empty Placeholder */}
-        {isEmpty && (
-          <div className="w-full h-full flex items-center justify-center">
-            {placeholder || (
-              <div className="text-center text-gray-400">
-                <ImageIcon className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Nenhuma imagem ou cor</p>
+          {/* Color Preview */}
+          {hasColor && (
+            <div className="w-full h-full flex items-center justify-center">
+              <div className="text-center">
+                <Palette className="h-8 w-8 mx-auto text-white/70 mb-2" />
+                <span className="text-white/90 text-sm font-medium px-3 py-1 bg-black/20 rounded-full">
+                  {backgroundColor}
+                </span>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
 
-        {/* Loading Overlay */}
-        {isUploading && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-white" />
-          </div>
-        )}
+          {/* Empty Placeholder */}
+          {isEmpty && (
+            <div className="w-full h-full flex items-center justify-center">
+              {placeholder || (
+                <div className="text-center text-gray-400">
+                  <ImageIcon className="h-10 w-10 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">Nenhuma imagem ou cor</p>
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* Hidden File Input */}
-        <input
-          ref={inputRef}
-          type="file"
-          accept={accept}
-          onChange={handleUpload}
-          className="hidden"
-          disabled={isUploading}
-        />
+          {/* Loading Overlay */}
+          {isUploading && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-white" />
+            </div>
+          )}
 
-        {/* Actions Dropdown */}
-        <div className="absolute top-2 right-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="secondary"
-                size="icon"
-                className="h-8 w-8 bg-white/90 hover:bg-white shadow-sm"
-                disabled={isUploading}
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuItem onClick={() => inputRef.current?.click()}>
-                <Upload className="h-4 w-4 mr-2" />
-                {hasImage ? "Trocar Imagem" : "Enviar Imagem"}
-              </DropdownMenuItem>
+          {/* Hidden File Input */}
+          <input
+            ref={inputRef}
+            type="file"
+            accept={accept}
+            onChange={handleUpload}
+            className="hidden"
+            disabled={isUploading}
+          />
 
-              {showColorOption && (
-                <DropdownMenuItem
-                  onSelect={() => {
-                    setTimeout(() => setShowColorPicker(true), 150);
-                  }}
+          {/* Actions Dropdown */}
+          <div className="absolute top-2 right-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  className="h-8 w-8 bg-white/90 hover:bg-white shadow-sm"
+                  disabled={isUploading}
                 >
-                  <Palette className="h-4 w-4 mr-2" />
-                  {colorPickerLabel}
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => inputRef.current?.click()}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  {hasImage ? "Trocar Imagem" : "Enviar Imagem"}
                 </DropdownMenuItem>
-              )}
 
-              {(hasImage || hasColor) && (
-                <>
-                  <DropdownMenuSeparator />
+                {showColorOption && (
                   <DropdownMenuItem
-                    onClick={handleRemove}
-                    className="text-red-600 focus:text-red-600"
+                    onSelect={() => {
+                      setTimeout(() => setShowColorPicker(true), 200);
+                    }}
                   >
-                    <X className="h-4 w-4 mr-2" />
-                    Remover Fundo
+                    <Palette className="h-4 w-4 mr-2" />
+                    {colorPickerLabel}
                   </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                )}
+
+                {(hasImage || hasColor) && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={handleRemove}
+                      className="text-red-600 focus:text-red-600"
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Remover Fundo
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
-        {/* Color Picker Popover - rendered outside dropdown to avoid closing conflict */}
-        {showColorOption && (
-          <Dialog open={showColorPicker} onOpenChange={setShowColorPicker}>
-            <DialogContent className="max-w-xs">
-              <DialogHeader>
-                <DialogTitle>Escolha uma cor</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-3">
-                {/* Preset Colors Grid */}
-                <div className="grid grid-cols-6 gap-2">
-                  {PRESET_COLORS.map((color) => (
-                    <button
-                      key={color}
-                      className={cn(
-                        "w-8 h-8 rounded-lg border-2 transition-transform hover:scale-110",
-                        customColor === color
-                          ? "border-gray-900 ring-2 ring-gray-900 ring-offset-1"
-                          : "border-transparent"
-                      )}
-                      style={{ backgroundColor: color }}
-                      onClick={() => setCustomColor(color)}
-                    />
-                  ))}
-                </div>
-
-                {/* Custom Color Input */}
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-10 h-10 rounded-lg border shrink-0"
-                    style={{ backgroundColor: customColor }}
-                  />
-                  <Input
-                    type="text"
-                    value={customColor}
-                    onChange={(e) => setCustomColor(e.target.value)}
-                    placeholder="#6366f1"
-                    className="font-mono text-sm"
-                  />
-                </div>
-
-                <Button
-                  className="w-full"
-                  onClick={() => handleApplyColor(customColor)}
-                >
-                  Aplicar Cor
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+        {hint && (
+          <p className="text-xs text-gray-500">{hint}</p>
         )}
       </div>
 
-      {hint && (
-        <p className="text-xs text-gray-500">{hint}</p>
+      {/* Color Picker Dialog - rendered at root level to avoid z-index/overflow issues */}
+      {showColorOption && (
+        <Dialog open={showColorPicker} onOpenChange={setShowColorPicker}>
+          <DialogContent className="max-w-xs z-[200]">
+            <DialogHeader>
+              <DialogTitle>Escolha uma cor</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              {/* Preset Colors Grid */}
+              <div className="grid grid-cols-6 gap-2">
+                {PRESET_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    className={cn(
+                      "w-8 h-8 rounded-lg border-2 transition-transform hover:scale-110",
+                      customColor === color
+                        ? "border-gray-900 ring-2 ring-gray-900 ring-offset-1"
+                        : "border-transparent"
+                    )}
+                    style={{ backgroundColor: color }}
+                    onClick={() => setCustomColor(color)}
+                  />
+                ))}
+              </div>
+
+              {/* Custom Color Input */}
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-10 h-10 rounded-lg border shrink-0"
+                  style={{ backgroundColor: customColor }}
+                />
+                <Input
+                  type="text"
+                  value={customColor}
+                  onChange={(e) => setCustomColor(e.target.value)}
+                  placeholder="#6366f1"
+                  className="font-mono text-sm"
+                />
+              </div>
+
+              <Button
+                className="w-full"
+                onClick={() => handleApplyColor(customColor)}
+              >
+                Aplicar Cor
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
-    </div>
+    </>
   );
 }
