@@ -112,7 +112,7 @@ export function NotificationBell() {
 
     // Subscribe to new opportunity notifications
     const opportunityChannel = supabase
-      .channel("opportunity_notifications")
+      .channel(`opportunity_notifications_${user.id}`)
       .on(
         "postgres_changes",
         {
