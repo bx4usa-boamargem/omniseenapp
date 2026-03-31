@@ -89,6 +89,7 @@ interface GeneratorFormData {
   city: string;
   country: string;
   state: string;
+  language: string;
   niche: string;
   mode: ArticleMode;
   template: TemplateType | 'auto';
