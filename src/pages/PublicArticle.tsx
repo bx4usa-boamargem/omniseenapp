@@ -10,6 +10,7 @@ import { CTABanner } from "@/components/public/CTABanner";
 import { RelatedArticles } from "@/components/public/RelatedArticles";
 import { ReadingTracker } from "@/components/public/ReadingTracker";
 import { FloatingShareBar } from "@/components/public/FloatingShareBar";
+import { ArticleGlossary, injectGlossaryLinks } from "@/components/public/ArticleGlossary";
 import { TableOfContents } from "@/components/public/TableOfContents";
 import { FocusedReadingMode } from "@/components/public/FocusedReadingMode";
 import { ArticleLanguageSelector } from "@/components/public/ArticleLanguageSelector";
