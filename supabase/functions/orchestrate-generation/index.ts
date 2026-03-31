@@ -1005,6 +1005,7 @@ async function executeImageGenGeminiNanoBanana(
   const slug = keyword.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
   const contentImages: { context: string; url: string; alt?: string; after_section: number }[] = [];
+  const usedImageUrls = new Set<string>(); // Dedup: track all generated URLs
   let heroUrl: string | null = null;
   let heroAlt: string | null = null;
 
@@ -1020,17 +1021,20 @@ async function executeImageGenGeminiNanoBanana(
         const { data: pub } = supabase.storage.from("article-images").getPublicUrl(fname);
         heroUrl = pub.publicUrl;
         heroAlt = (articleData.title as string) || keyword;
+        usedImageUrls.add(heroUrl); // Track hero URL to prevent reuse
       }
     }
     if (!heroUrl) {
       heroUrl = `https://picsum.photos/seed/${slug}-hero/1024/576`;
       heroAlt = `${keyword} — imagem ilustrativa`;
+      usedImageUrls.add(heroUrl);
     }
     await supabase.from("articles").update({ featured_image_url: heroUrl, featured_image_alt: heroAlt }).eq("id", articleId);
 
     const html = (articleData.html_article as string) || "";
     const sectionCount = (html.match(/<h2[^>]*>/gi) || []).length;
     const articleWordCount = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+    // Total images = hero (1) + section images. Max 4 total for long, 3 for short.
     const maxTotalImages = articleWordCount >= 2200 ? 4 : 3;
     const maxSectionImages = Math.min(sectionCount, Math.max(0, maxTotalImages - 1));
     for (let i = 0; i < maxSectionImages; i++) {
@@ -1049,6 +1053,9 @@ async function executeImageGenGeminiNanoBanana(
           url = pub.publicUrl;
         } else continue;
       } else url = `https://picsum.photos/seed/${slug}-sec-${i}/800/450`;
+      // Skip if this URL is already used (dedup)
+      if (usedImageUrls.has(url)) continue;
+      usedImageUrls.add(url);
       contentImages.push({ context: sectionTitle, url, alt: sectionTitle, after_section: i + 1 });
     }
 
