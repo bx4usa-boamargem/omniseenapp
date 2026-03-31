@@ -51,17 +51,19 @@ export function ABTestDialog({ articleId, originalTitle, originalMetaDescription
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg border-border/40 bg-card/95 backdrop-blur-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FlaskConical className="h-5 w-5 text-primary" />
+            <div className="p-1.5 rounded-lg bg-primary/10">
+              <FlaskConical className="h-4 w-4 text-primary" />
+            </div>
             Teste A/B
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <div className="p-3 rounded-lg bg-muted/50 space-y-1">
-            <p className="text-xs font-medium text-muted-foreground">Variante A (Original)</p>
+          <div className="p-4 rounded-xl bg-muted/20 border border-border/30 space-y-1.5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Variante A (Original)</p>
             <p className="text-sm font-medium">{originalTitle}</p>
             {originalMetaDescription && (
               <p className="text-xs text-muted-foreground line-clamp-2">{originalMetaDescription}</p>
@@ -69,13 +71,14 @@ export function ABTestDialog({ articleId, originalTitle, originalMetaDescription
           </div>
 
           <div className="space-y-3">
-            <p className="text-xs font-medium text-muted-foreground">Variante B (Nova)</p>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Variante B (Nova)</p>
             <div className="space-y-2">
               <Label>Título alternativo</Label>
               <Input
                 value={variantTitle}
                 onChange={e => setVariantTitle(e.target.value)}
                 placeholder="Digite o título alternativo..."
+                className="bg-background/60"
               />
             </div>
             <div className="space-y-2">
@@ -85,6 +88,7 @@ export function ABTestDialog({ articleId, originalTitle, originalMetaDescription
                 onChange={e => setVariantMeta(e.target.value)}
                 placeholder="Digite a meta description alternativa..."
                 rows={3}
+                className="bg-background/60"
               />
               <p className="text-xs text-muted-foreground">{variantMeta.length}/160 caracteres</p>
             </div>

@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Paintbrush, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -31,10 +32,12 @@ export function WhiteLabelTab() {
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className="border-border/40 bg-card/50 backdrop-blur-sm">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <Paintbrush className="h-5 w-5 text-primary" />
+            <div className="p-2 rounded-lg bg-primary/10">
+              <Paintbrush className="h-5 w-5 text-primary" />
+            </div>
             <div>
               <CardTitle>White Label</CardTitle>
               <CardDescription>
@@ -51,6 +54,7 @@ export function WhiteLabelTab() {
                 value={config.companyName}
                 onChange={e => setConfig(prev => ({ ...prev, companyName: e.target.value }))}
                 placeholder="Sua empresa"
+                className="bg-background/60"
               />
             </div>
             <div className="space-y-2">
@@ -59,6 +63,7 @@ export function WhiteLabelTab() {
                 value={config.customDomain}
                 onChange={e => setConfig(prev => ({ ...prev, customDomain: e.target.value }))}
                 placeholder="app.suaempresa.com"
+                className="bg-background/60"
               />
             </div>
           </div>
@@ -69,6 +74,7 @@ export function WhiteLabelTab() {
               value={config.customLogo}
               onChange={e => setConfig(prev => ({ ...prev, customLogo: e.target.value }))}
               placeholder="https://..."
+              className="bg-background/60"
             />
           </div>
 
@@ -80,12 +86,12 @@ export function WhiteLabelTab() {
                   type="color"
                   value={config.primaryColor}
                   onChange={e => setConfig(prev => ({ ...prev, primaryColor: e.target.value }))}
-                  className="h-10 w-10 rounded border cursor-pointer"
+                  className="h-10 w-10 rounded-lg border border-border/40 cursor-pointer bg-transparent"
                 />
                 <Input
                   value={config.primaryColor}
                   onChange={e => setConfig(prev => ({ ...prev, primaryColor: e.target.value }))}
-                  className="flex-1"
+                  className="flex-1 bg-background/60 font-mono text-sm"
                 />
               </div>
             </div>
@@ -96,26 +102,27 @@ export function WhiteLabelTab() {
                   type="color"
                   value={config.accentColor}
                   onChange={e => setConfig(prev => ({ ...prev, accentColor: e.target.value }))}
-                  className="h-10 w-10 rounded border cursor-pointer"
+                  className="h-10 w-10 rounded-lg border border-border/40 cursor-pointer bg-transparent"
                 />
                 <Input
                   value={config.accentColor}
                   onChange={e => setConfig(prev => ({ ...prev, accentColor: e.target.value }))}
-                  className="flex-1"
+                  className="flex-1 bg-background/60 font-mono text-sm"
                 />
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <input
-              type="checkbox"
-              checked={config.hidePoweredBy}
-              onChange={e => setConfig(prev => ({ ...prev, hidePoweredBy: e.target.checked }))}
-              className="rounded"
+          <div className="flex items-center justify-between p-4 rounded-xl border border-border/30 bg-muted/20">
+            <div>
+              <Label htmlFor="hide-powered" className="cursor-pointer">Ocultar "Powered by Omniseen"</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">Remove a marca Omniseen do rodapé do blog</p>
+            </div>
+            <Switch
               id="hide-powered"
+              checked={config.hidePoweredBy}
+              onCheckedChange={checked => setConfig(prev => ({ ...prev, hidePoweredBy: checked }))}
             />
-            <Label htmlFor="hide-powered">Ocultar "Powered by Omniseen"</Label>
           </div>
 
           <div className="flex justify-end">

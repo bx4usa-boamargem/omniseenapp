@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { Zap, Brain, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 
 interface ArticleSizeModalProps {
   open: boolean;
@@ -39,7 +39,7 @@ export function ArticleSizeModal({ open, onOpenChange, title, onConfirm, loading
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md border-border/40 bg-card/95 backdrop-blur-xl">
         <DialogHeader>
           <DialogTitle>Selecione o tamanho do artigo</DialogTitle>
         </DialogHeader>
@@ -53,10 +53,10 @@ export function ArticleSizeModal({ open, onOpenChange, title, onConfirm, loading
             {SIZES.map(size => (
               <div
                 key={size.id}
-                className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
                   selected === size.id
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border hover:border-muted-foreground/30'
+                    ? 'border-primary bg-primary/5 shadow-sm shadow-primary/10'
+                    : 'border-border/40 hover:border-muted-foreground/30 bg-muted/10'
                 }`}
                 onClick={() => setSelected(size.id)}
               >
@@ -65,12 +65,12 @@ export function ArticleSizeModal({ open, onOpenChange, title, onConfirm, loading
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{size.label}</span>
                     {size.recommended && (
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                      <span className="text-xs bg-primary/15 text-primary px-2 py-0.5 rounded-full font-medium">
                         Recomendado
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground mt-0.5">{size.description}</p>
+                  <p className="text-sm text-muted-foreground mt-1">{size.description}</p>
                 </Label>
               </div>
             ))}
