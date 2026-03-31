@@ -397,7 +397,15 @@ const PublicArticle = () => {
           </section>
         )}
 
-        {/* FAQ Section */}
+        {/* Glossary Section */}
+        {relevantGlossaryTerms.length > 0 && (
+          <section className="px-4 pb-6">
+            <div className="max-w-3xl mx-auto lg:mr-80 lg:ml-auto">
+              <ArticleGlossary terms={relevantGlossaryTerms} primaryColor={mappedBlog.primary_color || undefined} />
+            </div>
+          </section>
+        )}
+
         {displayedFaq && displayedFaq.length > 0 && (
           <section className="px-4 py-12 bg-muted/30">
             <div className="max-w-3xl mx-auto lg:mr-80 lg:ml-auto">
