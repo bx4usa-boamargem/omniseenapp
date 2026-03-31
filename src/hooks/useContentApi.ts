@@ -30,6 +30,15 @@ export interface BlogMeta {
   theme_mode: string | null;
   custom_domain: string | null;
   platform_subdomain: string | null;
+  hide_author: boolean | null;
+  social_facebook: string | null;
+  social_instagram: string | null;
+  social_linkedin: string | null;
+  social_twitter: string | null;
+  social_youtube: string | null;
+  social_tiktok: string | null;
+  social_whatsapp: string | null;
+  glossary_terms: { term: string; definition: string; url?: string }[] | null;
 }
 
 export interface ArticleSummary {
