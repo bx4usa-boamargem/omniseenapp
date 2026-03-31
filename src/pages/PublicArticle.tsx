@@ -9,8 +9,9 @@ import { AuthorBox } from "@/components/public/AuthorBox";
 import { CTABanner } from "@/components/public/CTABanner";
 import { RelatedArticles } from "@/components/public/RelatedArticles";
 import { ReadingTracker } from "@/components/public/ReadingTracker";
-import { FloatingShareBar } from "@/components/public/FloatingShareBar";
+import { FloatingShareBar, InlineShareSection } from "@/components/public/FloatingShareBar";
 import { TableOfContents } from "@/components/public/TableOfContents";
+import { ArticleGlossary, injectGlossaryLinks } from "@/components/public/ArticleGlossary";
 import { FocusedReadingMode } from "@/components/public/FocusedReadingMode";
 import { ArticleLanguageSelector } from "@/components/public/ArticleLanguageSelector";
 import { BrandSalesAgentWidget } from "@/components/public/BrandSalesAgentWidget";
@@ -110,8 +111,43 @@ const PublicArticle = () => {
     }
     return parsedFaq;
   }, [hasTranslation, translation?.faq, parsedFaq]);
+  // Parse glossary terms from blog settings
+  const glossaryTerms = useMemo(() => {
+    if (!blog?.glossary_terms || !Array.isArray(blog.glossary_terms)) return [];
+    return blog.glossary_terms;
+  }, [blog?.glossary_terms]);
 
-  // Map BlogMeta to legacy Blog interface for components
+  // Filter glossary terms that actually appear in the article content
+  const relevantGlossaryTerms = useMemo(() => {
+    if (!glossaryTerms.length || !displayedContent) return [];
+    return glossaryTerms.filter(({ term }) =>
+      displayedContent.toLowerCase().includes(term.toLowerCase())
+    );
+  }, [glossaryTerms, displayedContent]);
+
+  // Inject glossary links into article HTML content
+  const processedContent = useMemo(() => {
+    if (!displayedContent || !relevantGlossaryTerms.length) return displayedContent;
+    return injectGlossaryLinks(displayedContent, relevantGlossaryTerms, blog?.primary_color);
+  }, [displayedContent, relevantGlossaryTerms, blog?.primary_color]);
+
+  // Build social networks object from blog data (for conditional share buttons)
+  const socialNetworks = useMemo(() => {
+    if (!blog) return null;
+    const has = !!blog.social_facebook || !!blog.social_instagram || !!blog.social_linkedin ||
+                 !!blog.social_twitter || !!blog.social_youtube || !!blog.social_tiktok || !!blog.social_whatsapp;
+    if (!has) return null; // No networks configured → show all (backwards-compatible)
+    return {
+      facebook: blog.social_facebook,
+      instagram: blog.social_instagram,
+      linkedin: blog.social_linkedin,
+      twitter: blog.social_twitter,
+      youtube: blog.social_youtube,
+      tiktok: blog.social_tiktok,
+      whatsapp: blog.social_whatsapp,
+    };
+  }, [blog]);
+
   const mappedBlog = useMemo(() => {
     if (!blog) return null;
     return {
@@ -359,7 +395,7 @@ const PublicArticle = () => {
         )}
 
         {/* Article Content */}
-        {displayedContent && (
+        {processedContent && (
           <section className="px-4 pb-12">
             <div className="max-w-3xl mx-auto lg:mr-80 lg:ml-auto">
               {isLoadingTranslation && selectedLanguage !== 'pt-BR' ? (
@@ -370,11 +406,21 @@ const PublicArticle = () => {
                 </div>
               ) : (
                 <ArticleContent 
-                  content={displayedContent} 
+                  content={processedContent} 
                   contentImages={contentImages}
                   hideFirstH1
                 />
               )}
+
+              {/* Inline Share Section - shown after content */}
+              <InlineShareSection
+                url={canonicalUrl || (typeof window !== "undefined" ? window.location.href : "")}
+                title={displayedTitle || article.title}
+                articleId={article.id}
+                blogId={mappedBlog.id}
+                primaryColor={mappedBlog.primary_color || undefined}
+                socialNetworks={socialNetworks}
+              />
             </div>
           </section>
         )}
@@ -384,6 +430,18 @@ const PublicArticle = () => {
           <section className="px-4 pb-12">
             <div className="max-w-3xl mx-auto lg:mr-80 lg:ml-auto">
               <ArticleCTARenderer cta={article.cta as any} />
+            </div>
+          </section>
+        )}
+
+        {/* Glossary Section */}
+        {relevantGlossaryTerms.length > 0 && (
+          <section className="px-4 pb-6">
+            <div className="max-w-3xl mx-auto lg:mr-80 lg:ml-auto">
+              <ArticleGlossary
+                terms={relevantGlossaryTerms}
+                primaryColor={mappedBlog.primary_color || undefined}
+              />
             </div>
           </section>
         )}
@@ -432,6 +490,7 @@ const PublicArticle = () => {
               bio={mappedBlog.author_bio}
               photoUrl={mappedBlog.author_photo_url}
               linkedinUrl={mappedBlog.author_linkedin}
+              hideAuthor={blog?.hide_author}
             />
           </div>
         </section>
@@ -444,6 +503,7 @@ const PublicArticle = () => {
           articleId={article.id}
           blogId={mappedBlog.id}
           primaryColor={mappedBlog.primary_color || undefined}
+          socialNetworks={socialNetworks}
         />
 
         {/* Focused Reading Mode Button */}

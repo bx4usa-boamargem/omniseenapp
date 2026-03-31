@@ -86,7 +86,13 @@ const BLOG_PUBLIC_FIELDS = [
   "author_name", "author_bio", "author_photo_url", "author_linkedin",
   "banner_enabled", "banner_title", "banner_description", "banner_image_url",
   "header_cta_text", "header_cta_url", "footer_text", "show_powered_by",
-  "layout_template", "theme_mode", "custom_domain", "platform_subdomain"
+  "layout_template", "theme_mode", "custom_domain", "platform_subdomain",
+  // Author privacy & social sharing
+  "hide_author",
+  "social_facebook", "social_instagram", "social_linkedin",
+  "social_twitter", "social_youtube", "social_tiktok", "social_whatsapp",
+  // Inline glossary
+  "glossary_terms"
 ] as const;
 
 const ARTICLE_PUBLIC_FIELDS = [

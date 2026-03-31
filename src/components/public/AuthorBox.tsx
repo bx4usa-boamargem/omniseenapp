@@ -6,9 +6,14 @@ interface AuthorBoxProps {
   bio?: string | null;
   photoUrl?: string | null;
   linkedinUrl?: string | null;
+  /** When true, the author box is completely hidden (privacy opt-out) */
+  hideAuthor?: boolean | null;
 }
 
-export const AuthorBox = ({ name, bio, photoUrl, linkedinUrl }: AuthorBoxProps) => {
+export const AuthorBox = ({ name, bio, photoUrl, linkedinUrl, hideAuthor }: AuthorBoxProps) => {
+  // Privacy opt-out: respect the author's choice
+  if (hideAuthor) return null;
+  // Also hide if no author name set
   if (!name) return null;
 
   return (
@@ -27,14 +32,14 @@ export const AuthorBox = ({ name, bio, photoUrl, linkedinUrl }: AuthorBoxProps) 
         )}
         
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1 font-medium">
             Escrito por
           </p>
-          <h3 className="font-heading font-semibold text-foreground text-lg">
+          <h3 className="font-heading font-semibold text-foreground text-lg leading-tight">
             {name}
           </h3>
           {bio && (
-            <p className="text-muted-foreground text-sm mt-2 line-clamp-3">
+            <p className="text-muted-foreground text-sm mt-2 leading-relaxed">
               {bio}
             </p>
           )}
