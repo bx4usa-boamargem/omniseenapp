@@ -24,7 +24,7 @@ const corsHeaders = {
 // ============================================================
 
 const MAX_JOB_TIME_MS = 120_000;
-const MAX_API_CALLS = 5;
+const MAX_API_CALLS = 10;
 const LOCK_TTL_MS = 120_000;
 
 // ============================================================
@@ -138,32 +138,52 @@ async function callAIRouter(
   serviceKey: string,
   task: string,
   messages: Array<{ role: string; content: string }>,
-  options?: { temperature?: number; maxTokens?: number }
+  options?: { temperature?: number; maxTokens?: number; retries?: number }
 ): Promise<AIRouterResult> {
   const url = `${supabaseUrl}/functions/v1/ai-router`;
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${serviceKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      task,
-      messages,
-      temperature: options?.temperature,
-      maxTokens: options?.maxTokens,
-    }),
-  });
+  const maxRetries = options?.retries ?? 2;
 
-  const data = await resp.json();
-  if (!resp.ok) {
-    return {
-      success: false, content: '', model: '', provider: 'lovable-gateway',
-      tokensIn: 0, tokensOut: 0, costUsd: 0, latencyMs: 0,
-      error: data.error || `HTTP_${resp.status}`,
-    };
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        task,
+        messages,
+        temperature: options?.temperature,
+        maxTokens: options?.maxTokens,
+      }),
+    });
+
+    const data = await resp.json();
+
+    if (!resp.ok) {
+      const errMsg = data.error || `HTTP_${resp.status}`;
+      // Retry on 429 rate limit with exponential backoff
+      if (resp.status === 429 && attempt < maxRetries) {
+        const delay = Math.min(3000 * Math.pow(2, attempt), 15000);
+        console.log(`[callAIRouter] Rate limited (429) on ${task}, retry ${attempt + 1}/${maxRetries} after ${delay}ms`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      return {
+        success: false, content: '', model: '', provider: 'lovable-gateway',
+        tokensIn: 0, tokensOut: 0, costUsd: 0, latencyMs: 0,
+        error: errMsg,
+      };
+    }
+    return data as AIRouterResult;
   }
-  return data as AIRouterResult;
+
+  // Should not reach here, but safety fallback
+  return {
+    success: false, content: '', model: '', provider: 'lovable-gateway',
+    tokensIn: 0, tokensOut: 0, costUsd: 0, latencyMs: 0,
+    error: 'MAX_RETRIES_EXHAUSTED',
+  };
 }
 
 // ============================================================
@@ -469,7 +489,16 @@ Topics: main themes. Terms: key phrases to include. Places: locations if relevan
     { role: 'user', content: prompt },
   ]);
 
-  if (!aiResult.success) throw new Error(`ENTITY_EXTRACTION_FAILED: ${aiResult.error}`);
+  if (!aiResult.success) {
+    // Non-fatal: use programmatic fallback entities from keyword/niche
+    console.warn(`[ENTITY_EXTRACTION] AI failed (${aiResult.error}), using programmatic fallback`);
+    const fallbackEntities: EntityData = {
+      topics: [keyword, niche].filter(Boolean),
+      terms: keyword.split(/\s+/).filter(w => w.length > 3),
+      places: undefined,
+    };
+    return { output: { entities: fallbackEntities }, aiResult };
+  }
   const parsed = parseAIJson(aiResult.content, 'ENTITY_EXTRACTION');
   const entities: EntityData = {
     topics: Array.isArray(parsed.topics) ? parsed.topics.map(String) : [],
