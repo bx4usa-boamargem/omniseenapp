@@ -642,10 +642,107 @@ async function executeContentGenFromOutline(
     ? `Include a WhatsApp CTA: ${whatsapp}${businessName ? ` (${businessName})` : ''}`
     : businessName ? `Include a CTA for ${businessName}` : 'Include a strong contact CTA';
 
-  const wordRange = jobType === 'super_page' ? '3000–6000' : '1500–3000';
+  const wordRange = jobType === 'super_page' ? '4500-7000' : '3600-5000';
   const outlineJson = JSON.stringify(outline, null, 0);
   const entitiesJson = JSON.stringify(entities, null, 0);
   const perSectionEntities = entityCoverage.assignment.map((a) => `Section "${a.sectionTitle}": cover these terms naturally: ${a.terms.slice(0, 8).join(', ')}`).join('\n');
+
+  const prompt = `You are an elite SEO content strategist producing premium-quality articles. Write a FULL, in-depth article following this EXACT outline. Content type: ${jobType}.
+
+INPUT:
+- keyword: ${keyword}
+- city: ${city || 'Brazil'}
+- niche: ${niche}
+- language: ${language}
+- serp_summary: ${serpSummary || 'No competitive data'}
+
+MANDATORY OUTLINE (follow this structure exactly; write each H2 and H3 section with depth):
+${outlineJson}
+
+ENTITY COVERAGE - distribute and cover these per section (improves semantic score):
+${perSectionEntities}
+
+SEMANTIC ENTITIES (full list to weave in naturally):
+${entitiesJson}
+
+=== PADRAO EDITORIAL OBRIGATORIO ===
+
+REGRA ABSOLUTA DE TAMANHO:
+- O artigo DEVE ter no minimo ${wordRange} palavras REAIS de conteudo.
+- Nunca entregue artigo curto, raso ou incompleto.
+- E PROIBIDO encher texto com redundancia, enrolacao ou frases vazias.
+- Cada secao deve ter profundidade real com explicacoes, exemplos e aplicacoes.
+
+ESTRUTURA OBRIGATORIA:
+1. 1 H1 unico (primeiro elemento)
+2. Introducao forte, clara e envolvente com paragrafos curtos (2-5 linhas cada)
+3. Multiplos H2 bem distribuidos ao longo do texto
+4. H3 subordinados aos H2 quando necessario
+5. Paragrafos curtos e legiveis (maximo 5 linhas cada)
+6. Listas com <ul>/<ol> e <li> quando fizer sentido
+7. Conclusao estrategica
+8. FAQ ao final com 3-5 perguntas
+
+REGRAS DE FORMATACAO INEGOCIAVEIS:
+- E OBRIGATORIO usar <h1>, <h2> e <h3> corretamente como tags HTML
+- E PROIBIDO entregar texto em bloco unico
+- E PROIBIDO usar <p><strong>Titulo</strong></p> como heading
+- Todo texto deve ter separacao clara entre secoes
+- Frases devem ser objetivas, fluidas e profissionais
+- A leitura precisa ser escaneavel em desktop e mobile
+- O artigo deve parecer publicacao premium, NAO rascunho bruto
+
+PADRAO DE QUALIDADE:
+- Responder claramente a intencao de busca
+- Entregar contexto, explicacao, aplicacao e exemplos REAIS
+- Evitar repeticao de ideias entre secoes
+- Evitar frases genericas e afirmacoes vazias
+- Cada H2 deve ter pelo menos 3-4 paragrafos substantivos
+- Cada H3 deve ter pelo menos 2 paragrafos substantivos
+- Incluir dados, estatisticas ou referencias quando possivel
+- Linguagem natural e humana, NUNCA robotica
+
+SEO ON-PAGE:
+- Palavra-chave principal distribuida naturalmente (sem stuffing)
+- Variacoes semanticas ao longo do texto
+- Estrutura de leitura para featured snippets quando aplicavel
+
+REQUIREMENTS:
+1) Word count: ${wordRange} words. THIS IS MANDATORY. Count carefully.
+2) Use the exact H1 and H2/H3 from the outline. Do not skip or merge sections.
+3) Answer-first introduction. Real-world examples for the city.
+4) ${ctaInfo}
+5) FAQ section with 3-5 questions at the end.
+6) Tone: authoritative, practical, human. No keyword stuffing.
+
+CRITICAL HTML STRUCTURE RULES (MANDATORY - DO NOT IGNORE):
+- The html_article MUST use proper semantic HTML heading tags: <h1>, <h2>, <h3>
+- The FIRST element in html_article MUST be an <h1> tag with the main title
+- Every section from the outline MUST start with an <h2> tag
+- Every subsection MUST use an <h3> tag
+- NEVER write headings as plain text, bold text, or <p> tags
+- Paragraphs MUST use <p> tags
+- Lists MUST use <ul>/<ol> and <li> tags
+- Include a <style> tag at the beginning with premium typography styles
+- Example correct structure:
+  <style>h1{font-size:2em;margin-bottom:0.5em}h2{font-size:1.5em;margin-top:1.5em;margin-bottom:0.5em}h3{font-size:1.2em;margin-top:1em;margin-bottom:0.3em}p{line-height:1.8;margin-bottom:1em}ul,ol{margin:1em 0;padding-left:1.5em}li{margin-bottom:0.5em;line-height:1.6}</style>
+  <h1>Main Title</h1>
+  <p>Introduction...</p>
+  <h2>Section</h2>
+  <p>Content...</p>
+  <h3>Subsection</h3>
+  <p>Detail...</p>
+
+IMAGE: Return ONE detailed image description for the hero image (realistic, specific to keyword and city). Maximum 1 image prompt.
+
+OUTPUT FORMAT (STRICT JSON only):
+{
+  "title": "...",
+  "meta_description": "... max 155 chars ...",
+  "html_article": "<style>...</style><h1>Title</h1><p>...</p><h2>Section</h2><p>...</p>",
+  "faq": [{"question": "...", "answer": "..."}],
+  "image_prompt": "... detailed hero image description ..."
+}`;
 
   const prompt = `You are a senior SEO content strategist. Write a FULL article following this EXACT outline. Content type: ${jobType}.
 
