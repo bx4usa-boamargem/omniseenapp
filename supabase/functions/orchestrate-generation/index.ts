@@ -346,10 +346,13 @@ async function executeOutlineGen(
   const niche = (jobInput.niche as string) || '';
   const language = (jobInput.language as string) || 'pt-BR';
   const jobType = ((jobInput.job_type as string) || 'article') as 'article' | 'super_page';
+  const targetWords = Number(jobInput.target_words) || (jobType === 'super_page' ? 3000 : 2000);
+  const outlineSize = computeOutlineSize(targetWords);
+  const wordRange = computeWordRange(targetWords);
 
-  const wordHint = jobType === 'super_page'
-    ? 'Support 3000-6000 words: 6-10 H2 sections, 2-4 H3 per H2.'
-    : 'Support 1500-3000 words: 4-6 H2 sections, 2-3 H3 per H2.';
+  console.log(`[OUTLINE_GEN] target_words=${targetWords} job_type=${jobType} outlineSize=${JSON.stringify(outlineSize)} wordRange=${wordRange.min}-${wordRange.max}`);
+
+  const wordHint = `The article must be ${wordRange.min}-${wordRange.max} words. Structure: ${outlineSize.minH2}-${outlineSize.maxH2} H2 sections, max ${outlineSize.maxH3PerH2} H3 per H2. Do NOT create more sections than needed — match the outline size to the word count target of ${targetWords} words.`;
 
   const prompt = `You are an SEO content architect. Create a strict outline for a blog article.
 
@@ -358,6 +361,7 @@ City/region: ${city || 'Brazil'}
 Niche: ${niche}
 Language: ${language}
 Content type: ${jobType}
+Target word count: ${targetWords} words (this is the user's chosen size — respect it)
 
 SERP context (use to inform structure and gaps):
 ${serpSummary || 'No SERP data.'}
