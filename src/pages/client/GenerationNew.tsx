@@ -13,9 +13,15 @@ import { ArrowLeft, Loader2, ChevronDown, ChevronUp, Plus } from "lucide-react";
 import { listNiches } from "@/lib/article-engine/niches";
 
 const COUNTRIES = [
-  { value: 'BR', label: '🇧🇷 Brasil', lang: 'pt-BR' },
-  { value: 'US', label: '🇺🇸 Estados Unidos', lang: 'en-US' },
-  { value: 'AR', label: '🇦🇷 Argentina', lang: 'es-AR' },
+  { value: 'BR', label: '🇧🇷 Brasil' },
+  { value: 'US', label: '🇺🇸 Estados Unidos' },
+  { value: 'AR', label: '🇦🇷 Argentina' },
+];
+
+const LANGUAGES = [
+  { value: 'pt-BR', label: 'Português (Brasil)' },
+  { value: 'en-US', label: 'English (US)' },
+  { value: 'es-AR', label: 'Español' },
 ];
 
 export default function GenerationNew() {
@@ -33,7 +39,7 @@ export default function GenerationNew() {
     intent: 'auto', target_words: '2500',
     tone: 'profissional', person: 'nós',
     business_name: '', phone: '', whatsapp: '', website: '', avoid: '',
-    country: 'BR', customNicheText: '',
+    country: 'BR', language: 'pt-BR', customNicheText: '',
   });
 
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
@@ -94,7 +100,6 @@ export default function GenerationNew() {
 
     setLoading(true);
     try {
-        const selectedCountry = COUNTRIES.find(c => c.value === form.country) || COUNTRIES[0];
         const resolvedNiche = customNiche ? form.customNicheText.trim() : form.niche.trim();
 
         const payload: Record<string, unknown> = {
@@ -102,8 +107,8 @@ export default function GenerationNew() {
           blog_id: blogId,
           city: form.city.trim(),
           state: form.state.trim() || undefined,
-          country: selectedCountry.value,
-          language: selectedCountry.lang,
+          country: form.country,
+          language: form.language,
           niche: resolvedNiche,
         job_type: 'article',
         intent: form.intent === 'auto' ? 'informational' : form.intent,
@@ -162,16 +167,29 @@ export default function GenerationNew() {
           <Input placeholder="ex: como prevenir baratas em apartamento" value={form.keyword} onChange={e => set('keyword', e.target.value)} />
         </div>
 
-        <div className="space-y-2">
-          <Label>País *</Label>
-          <Select value={form.country} onValueChange={v => set('country', v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {COUNTRIES.map(c => (
-                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>País (mercado) *</Label>
+            <Select value={form.country} onValueChange={v => set('country', v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {COUNTRIES.map(c => (
+                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Idioma do artigo *</Label>
+            <Select value={form.language} onValueChange={v => set('language', v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {LANGUAGES.map(l => (
+                  <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">

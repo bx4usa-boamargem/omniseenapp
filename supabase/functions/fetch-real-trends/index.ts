@@ -10,9 +10,10 @@ interface TrendRequest {
   blogId: string;
   niche?: string;
   country?: string;
-  territory?: string; // Legacy: OmniCore territory format "City, State, Country"
-  territoryId?: string; // NEW: Direct territory ID for validated territories
-  saveSignals?: boolean; // Save to omnicore_signals table
+  language?: string; // Independent language setting (e.g. 'pt-BR', 'en-US', 'es-AR')
+  territory?: string;
+  territoryId?: string;
+  saveSignals?: boolean;
 }
 
 interface TerritoryData {
@@ -47,7 +48,7 @@ serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { blogId, niche, country, territory, territoryId, saveSignals = false }: TrendRequest = await req.json();
+    const { blogId, niche, country, language: inputLanguage, territory, territoryId, saveSignals = false }: TrendRequest = await req.json();
 
     // Parse territory if provided (format: "City, State, Country")
     let parsedTerritory = territory || '';
@@ -108,15 +109,16 @@ serve(async (req) => {
     }
 
     const currentDate = new Date();
-    const month = currentDate.toLocaleString("pt-BR", { month: "long" });
+    
+    // Use language from input (independent from country). Fallback to pt-BR.
+    const langCode = inputLanguage || 'pt-BR';
+    const isEnglish = langCode.startsWith('en');
+    const isSpanish = langCode.startsWith('es');
+    const monthLocale = isEnglish ? 'en-US' : isSpanish ? 'es-AR' : 'pt-BR';
+    const month = currentDate.toLocaleString(monthLocale, { month: "long" });
     const year = currentDate.getFullYear();
 
-    // Determine language based on country
-    const isEnglish = businessCountry.toLowerCase().includes("us") || 
-                      businessCountry.toLowerCase().includes("estados unidos") ||
-                      businessCountry.toLowerCase().includes("united states");
-    
-    const language = isEnglish ? "English" : "Portuguese (Brazilian)";
+    const language = isEnglish ? "English" : isSpanish ? "Spanish" : "Portuguese (Brazilian)";
 
     // Build territorial context for prompts
     const hasValidatedTerritory = neighborhoodTags.length > 0;
