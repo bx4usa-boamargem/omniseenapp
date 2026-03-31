@@ -244,5 +244,64 @@
       "copyLink": "Ou copie o link:",
       "linkCopied": "Link copiado!"
     }
+  },
+  "opportunities": {
+    "selectSize": "Selecione o tamanho do artigo",
+    "title": "Título",
+    "quick": "Rápido",
+    "quickDesc": "400 a 1.000 palavras — ideal para ideias rápidas",
+    "deep": "Profundo",
+    "deepDesc": "1.500 a 3.000 palavras — SEO completo",
+    "recommended": "Recomendado",
+    "generateArticle": "Gerar Artigo",
+    "cancel": "Cancelar"
+  },
+  "abTest": {
+    "title": "Teste A/B",
+    "createVariant": "Criar variante A/B",
+    "variantA": "Variante A (Original)",
+    "variantB": "Variante B (Nova)",
+    "alternativeTitle": "Título alternativo",
+    "alternativeMeta": "Meta description alternativa",
+    "create": "Criar Variante",
+    "success": "Variante A/B criada com sucesso!",
+    "successDesc": "O teste será ativado quando o artigo for publicado."
+  },
+  "settings": {
+    "apiKeys": {
+      "title": "Chaves de API",
+      "description": "Gerencie as chaves de acesso à API do Omniseen",
+      "newKey": "Nova Chave",
+      "empty": "Nenhuma chave criada",
+      "emptyDesc": "Crie uma chave de API para integrar com sistemas externos.",
+      "lastUsed": "Último uso"
+    },
+    "webhooks": {
+      "title": "Webhooks",
+      "description": "Configure endpoints para receber notificações de eventos",
+      "newWebhook": "Novo Webhook",
+      "empty": "Nenhum webhook configurado",
+      "emptyDesc": "Adicione webhooks para receber eventos em tempo real.",
+      "availableEvents": "Eventos disponíveis"
+    },
+    "whiteLabel": {
+      "title": "White Label",
+      "description": "Personalize a plataforma com a identidade da sua marca",
+      "companyName": "Nome da empresa",
+      "customDomain": "Domínio personalizado",
+      "logoUrl": "URL do logo",
+      "primaryColor": "Cor primária",
+      "accentColor": "Cor de destaque",
+      "hidePoweredBy": "Ocultar \"Powered by Omniseen\"",
+      "save": "Salvar Configurações"
+    }
+  },
+  "calendar": {
+    "title": "Calendário de Conteúdo",
+    "published": "Publicado",
+    "draft": "Rascunho",
+    "scheduled": "Agendado",
+    "generating": "Gerando",
+    "rescheduled": "Artigo reagendado!"
   }
 }
