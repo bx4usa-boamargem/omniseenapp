@@ -143,6 +143,24 @@ export default function Settings() {
             </div>
           </TabsContent>
 
+          <TabsContent value="content">
+            <div className="mb-6">
+              <SectionHelper
+                title="Configurações de Conteúdo"
+                description="Autor, redes sociais e glossário dos artigos."
+              />
+            </div>
+            {blogId ? (
+              <BlogContentSettings blogId={blogId} />
+            ) : (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  <p>Crie um blog primeiro.</p>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
           <TabsContent value="domain">
             <div className="max-w-2xl">
               <div className="mb-6">
