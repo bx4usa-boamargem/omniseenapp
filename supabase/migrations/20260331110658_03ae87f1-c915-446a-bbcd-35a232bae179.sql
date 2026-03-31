@@ -1,0 +1,1 @@
+DROP VIEW IF EXISTS public.cms_integrations_decrypted;
