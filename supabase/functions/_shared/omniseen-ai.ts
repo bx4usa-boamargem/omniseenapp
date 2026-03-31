@@ -29,6 +29,8 @@ export interface TextOptions {
   responseFormat?: 'json' | 'text';
   /** Force a specific provider instead of using the routing table */
   forceProvider?: 'gemini' | 'openai';
+  /** If true, enables Google Search Grounding (Gemini only) */
+  useGrounding?: boolean;
 }
 
 export interface ImageOptions {
@@ -251,7 +253,8 @@ async function callGemini(
   model: string,
   temperature: number,
   maxTokens: number,
-  responseFormat?: 'json' | 'text'
+  responseFormat?: 'json' | 'text',
+  useGrounding?: boolean
 ): Promise<AIResult> {
   const apiKey = Deno.env.get('GOOGLE_AI_KEY');
   if (!apiKey) {
@@ -281,6 +284,10 @@ async function callGemini(
   }
 
   const body: Record<string, unknown> = { contents, generationConfig };
+
+  if (useGrounding) {
+    body.tools = [{ googleSearch: {} }];
+  }
 
   if (systemMessage) {
     body.systemInstruction = { parts: [{ text: systemMessage.content }] };
@@ -564,12 +571,13 @@ export async function generateText(
 
   const primaryProvider = forcedProvider || route.primary;
   const primaryModel = route.model[primaryProvider];
+  const useGrounding = opts?.useGrounding;
 
-  console.log(`[OMNISEEN-AI] ${task}: → ${primaryProvider}/${primaryModel} (temp=${temperature})`);
+  console.log(`[OMNISEEN-AI] ${task}: → ${primaryProvider}/${primaryModel} (temp=${temperature}${useGrounding ? ', grounded' : ''})`);
 
   // Call primary provider
   const callProvider = primaryProvider === 'openai' ? callOpenAI : callGemini;
-  const primaryResult = await callProvider(messages, primaryModel, temperature, maxTokens, responseFormat);
+  const primaryResult = await callProvider(messages, primaryModel, temperature, maxTokens, responseFormat, useGrounding);
 
   if (primaryResult.success) return primaryResult;
 
@@ -584,7 +592,7 @@ export async function generateText(
   console.log(`[OMNISEEN-AI] ${task}: ⚠️ ${primaryProvider} failed (${primaryResult.error}), falling back to ${fallbackProvider}/${fallbackModel}`);
 
   const callFallback = fallbackProvider === 'openai' ? callOpenAI : callGemini;
-  const fallbackResult = await callFallback(messages, fallbackModel, temperature, maxTokens, responseFormat);
+  const fallbackResult = await callFallback(messages, fallbackModel, temperature, maxTokens, responseFormat, useGrounding);
 
   if (!fallbackResult.success) {
     console.error(`[OMNISEEN-AI] ${task}: ❌ BOTH providers failed. Primary: ${primaryResult.error}, Fallback: ${fallbackResult.error}`);

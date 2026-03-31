@@ -34,6 +34,7 @@ export default function GenerationNew() {
     tone: 'profissional', person: 'nós',
     business_name: '', phone: '', whatsapp: '', website: '', avoid: '',
     country: 'BR', customNicheText: '',
+    generation_mode: 'economic',
   });
 
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
@@ -110,6 +111,7 @@ export default function GenerationNew() {
         target_words: parseInt(form.target_words),
         image_count: 4,
         brand_voice: { tone: form.tone, person: form.person, avoid: form.avoid ? form.avoid.split(',').map(s => s.trim()) : [] },
+        generation_mode: form.generation_mode,
       };
       if (form.business_name) {
         payload.business = { name: form.business_name, phone: form.phone || undefined, whatsapp: form.whatsapp || undefined, website: form.website || undefined };
@@ -249,6 +251,34 @@ export default function GenerationNew() {
                 <SelectItem value="informal">Informal</SelectItem>
                 <SelectItem value="técnico">Técnico</SelectItem>
                 <SelectItem value="amigável">Amigável</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-4 bg-muted/30 p-4 rounded-md border border-border">
+          <div className="space-y-2">
+            <Label className="font-semibold text-primary flex items-center gap-2">
+              Modo de Geração
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Escolha entre o modo econômico (mais rápido, usa apenas Gemini) ou Premium (revisão editorial com OpenAI + Pesquisa profunda).
+            </p>
+            <Select value={form.generation_mode} onValueChange={v => set('generation_mode', v)}>
+              <SelectTrigger className="w-full bg-background"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="economic">
+                  <div className="flex flex-col">
+                    <span className="font-medium">Econômico</span>
+                    <span className="text-xs opacity-70">Rápido. Foco em custo-benefício.</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="premium">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-amber-500">Premium ✦</span>
+                    <span className="text-xs opacity-70">Alta conversão, rewrite OpenAI GPT-4.</span>
+                  </div>
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>

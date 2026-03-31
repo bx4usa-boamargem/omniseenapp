@@ -186,8 +186,9 @@ interface AnalyzeSERPRequest {
   blogId: string;
   forceRefresh?: boolean;
   articleId?: string;
-  useFirecrawl?: boolean;  // V2.0: Enable real scraping (default: true)
-  customCompetitorUrls?: string[];  // V3.0: User-provided competitor URLs
+  useFirecrawl?: boolean;
+  customCompetitorUrls?: string[];
+  researchMode?: string; // e.g. 'google_grounding' or 'perplexity'
 }
 
 interface ScrapedCompetitor {
@@ -361,6 +362,7 @@ async function discoverTopURLsWithPerplexity(
   territory: string | null,
   apiKey: string
 ): Promise<{ urls: string[]; competitors: SERPCompetitor[] }> {
+  /* ... preservado o código original acima, omitindo a reescrita desnecessária se não precisar mexer. */
   const searchQuery = territory ? `${keyword} ${territory}` : keyword;
   
   const serpPrompt = `Analise os 10 primeiros resultados orgânicos do Google para a busca: "${searchQuery}"
@@ -408,7 +410,7 @@ Retorne APENAS um JSON válido no formato:
   "topTitles": ["Título 1", "Título 2", ...]
 }`;
 
-  // Timeout de 30 segundos para descoberta de URLs
+  // Timeout de 30 segundos
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
@@ -451,7 +453,6 @@ Retorne APENAS um JSON válido no formato:
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content || "";
   
-  // Parse JSON from response
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     throw new Error("Failed to parse SERP analysis JSON from Perplexity");
@@ -468,6 +469,117 @@ Retorne APENAS um JSON válido no formato:
     urls: competitors.map((c: SERPCompetitor) => c.url),
     competitors
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// GEMINI URL DISCOVERY (GROUNDING)
+// ═══════════════════════════════════════════════════════════════════
+
+async function discoverTopURLsWithGemini(
+  keyword: string, 
+  territory: string | null
+): Promise<{ urls: string[]; competitors: SERPCompetitor[] }> {
+  const searchQuery = territory ? `${keyword} ${territory}` : keyword;
+  
+  const serpPrompt = `Você é um analista de SEO com acesso ao Google Search. Realize uma busca no Google por: "${searchQuery}"
+
+Seu objetivo é analisar os 10 primeiros resultados orgânicos (reais e atualizados). Cuidado para não inventar URLs! Traga URLs genuínas e ativas.
+
+Para CADA um dos 10 primeiros resultados extraia/estime as seguintes informações:
+1. URL real e título da página (OBRIGATÓRIO)
+2. Meta description ou pequeno sumário
+3. Contagem aproximada de palavras
+4. Quantidade estimada de seções H2 e H3
+5. Número de parágrafos
+6. Contagem de imagens
+7. Tem listas boolean (true/false)
+8. Tem schema (true/false)
+9. FAQ (true/false)
+10. Os 5 principais termos semânticos
+
+Também identifique com base na análise:
+- Os 20 termos mais frequentes entre todos os resultados
+- Gaps de conteúdo: tópicos que poucos cobrem mas são muito relevantes para a intenção de busca
+- Padrões de título dos Top 5
+
+Retorne APENAS um JSON válido (sem blocos markdown) no seguinte formato exato:
+{
+  "competitors": [
+    {
+      "url": "https://...",
+      "title": "...",
+      "metaDescription": "...",
+      "position": 1,
+      "metrics": {
+        "wordCount": 1800,
+        "h2Count": 12,
+        "h3Count": 6,
+        "paragraphCount": 45,
+        "imageCount": 8,
+        "listCount": 4,
+        "hasSchema": true,
+        "hasFAQ": true
+      },
+      "semanticTerms": ["termo1", "termo2"],
+      "titlePatterns": ["guia", "como"]
+    }
+  ],
+  "commonTerms": ["termo1", "termo2"],
+  "contentGaps": ["topico 1", "topico 2"],
+  "topTitles": ["Titulo 1"]
+}`;
+
+  const startMs = Date.now();
+  console.log(`[SERP-GEMINI] Solicitando busca via Grounding para: ${searchQuery}`);
+  
+  const result = await generateText(
+    'serp_analysis',
+    [
+      { role: 'system', content: 'You are an SEO analyst. Return ONLY valid JSON without any markdown formatting or code blocks. Always provide real HTTP URLs.' },
+      { role: 'user', content: serpPrompt }
+    ],
+    {
+      temperature: 0.1,
+      maxTokens: 4000,
+      responseFormat: 'json',
+      forceProvider: 'gemini',
+      useGrounding: true
+    }
+  );
+
+  if (!result.success) {
+    throw new Error(`Gemini Grounding error: ${result.error}`);
+  }
+
+  let content = result.content;
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (jsonMatch) content = jsonMatch[0];
+
+  try {
+    const serpData = JSON.parse(content);
+    if (!serpData.competitors || !Array.isArray(serpData.competitors)) {
+      throw new Error("Invalid output from Gemini: competitors array missing");
+    }
+    
+    // Filtro de segurança: às vezes o Gemini retorna URLs inválidas ou exemplos locais
+    const competitors = serpData.competitors
+      .filter((c: any) => c.url && c.url.startsWith('http'))
+      .map((c: any, i: number) => ({
+      ...c,
+      position: c.position || i + 1,
+      metaDescription: c.metaDescription || ''
+    }));
+    
+    console.log(`[SERP-GEMINI] Extraiu ${competitors.length} SERP results reais.`);
+    
+    return {
+      urls: competitors.map((c: SERPCompetitor) => c.url),
+      competitors
+    };
+  } catch (err: any) {
+    console.error(`[SERP-GEMINI] Failed to parse JSON: ${content.substring(0, 150)}...`, err);
+    throw new Error(`Failed to parse SERP JSON from Gemini: ${err.message}`);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -575,8 +687,9 @@ serve(async (req) => {
       blogId, 
       forceRefresh = false, 
       articleId,
-      useFirecrawl = true,  // V2.0: Default to using Firecrawl
-      customCompetitorUrls  // V3.0: User-provided competitor URLs
+      useFirecrawl = true,
+      customCompetitorUrls,
+      researchMode
     } = await req.json() as AnalyzeSERPRequest;
 
     if (!keyword || !blogId) {
@@ -761,12 +874,24 @@ serve(async (req) => {
       console.log(`[ANALYZE-SERP] Custom mode: scraped ${scrapedCompetitors.length} pages, ${commonTerms.length} terms`);
     }
     // ═══════════════════════════════════════════════════════════════════
-    // STANDARD MODE: Perplexity discovery + Firecrawl scraping
+    // STANDARD MODE: Gemini Grounding OR Perplexity fallback
     // ═══════════════════════════════════════════════════════════════════
-    else if (PERPLEXITY_API_KEY) {
-      console.log(`[ANALYZE-SERP] Step 1: Discovering URLs with Perplexity for: "${effectiveKeyword}"`);
-      const perplexityResult = await discoverTopURLsWithPerplexity(effectiveKeyword, territory || null, PERPLEXITY_API_KEY);
-      competitors = perplexityResult.competitors;
+    else {
+      // Prioritize Gemini with Google Grounding, fallback to Perplexity if requested explicitly and token exists
+      const usePerplexity = researchMode === 'perplexity' && !!PERPLEXITY_API_KEY;
+      
+      console.log(`[ANALYZE-SERP] Step 1: Discovering URLs with ${usePerplexity ? 'Perplexity' : 'Gemini Grounding'} for: "${effectiveKeyword}"`);
+      
+      let discoveryResult;
+      if (usePerplexity) {
+        discoveryResult = await discoverTopURLsWithPerplexity(effectiveKeyword, territory || null, PERPLEXITY_API_KEY!);
+        scrapeMethod = 'perplexity';
+      } else {
+        discoveryResult = await discoverTopURLsWithGemini(effectiveKeyword, territory || null);
+        scrapeMethod = 'gemini_grounding' as any;
+      }
+      
+      competitors = discoveryResult.competitors;
       
       // V3.0: Filter out directories and aggregators
       filterStats.originalCount = competitors.length;
@@ -778,7 +903,7 @@ serve(async (req) => {
       const analysisResult = analyzeFilterResults(filterStats.originalCount, filterStats.filteredCount);
       console.log(`[ANALYZE-SERP] Filter: ${analysisResult.message} (quality: ${analysisResult.quality})`);
       
-      // Extract from perplexity response
+      // Extract from response
       topTitles = competitors.slice(0, 5).map(c => c.title);
     }
 

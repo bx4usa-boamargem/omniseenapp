@@ -167,7 +167,7 @@ async function callAIRouter(
   serviceKey: string,
   task: string,
   messages: Array<{ role: string; content: string }>,
-  options?: { temperature?: number; maxTokens?: number; retries?: number }
+  options?: { temperature?: number; maxTokens?: number; retries?: number; useGrounding?: boolean }
 ): Promise<AIRouterResult> {
   const url = `${supabaseUrl}/functions/v1/ai-router`;
   const maxRetries = options?.retries ?? 2;
@@ -184,6 +184,7 @@ async function callAIRouter(
         messages,
         temperature: options?.temperature,
         maxTokens: options?.maxTokens,
+        useGrounding: options?.useGrounding,
       }),
     });
 
@@ -270,7 +271,8 @@ function executeInputValidation(jobInput: Record<string, unknown>): Record<strin
 async function executeSerpSummary(
   jobInput: Record<string, unknown>,
   supabaseUrl: string,
-  serviceKey: string
+  serviceKey: string,
+  useGrounding?: boolean
 ): Promise<{ output: Record<string, unknown>; aiResult: AIRouterResult }> {
   const keyword = (jobInput.keyword as string) || '';
   const city = (jobInput.city as string) || '';
@@ -290,7 +292,7 @@ Keep it under 300 words. This will be used as context for article generation.`;
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'serp_summary', [
     { role: 'system', content: 'You are an SEO analyst. Provide concise competitive analysis.' },
     { role: 'user', content: prompt },
-  ]);
+  ], { useGrounding });
 
   if (!aiResult.success) throw new Error(`SERP_SUMMARY_FAILED: ${aiResult.error}`);
   return { output: { serp_summary: aiResult.content }, aiResult };
@@ -310,7 +312,8 @@ async function executeSerpGapAnalysis(
   jobInput: Record<string, unknown>,
   serpSummary: string,
   supabaseUrl: string,
-  serviceKey: string
+  serviceKey: string,
+  useGrounding?: boolean
 ): Promise<{ output: SerpGapResult; aiResult: AIRouterResult }> {
   const keyword = (jobInput.keyword as string) || '';
   const niche = (jobInput.niche as string) || '';
@@ -334,7 +337,7 @@ Return ONLY valid JSON (no markdown):
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'serp_gap_analysis', [
     { role: 'system', content: 'You are an SEO analyst. Return ONLY valid JSON with semantic_gaps and competitor_topics arrays.' },
     { role: 'user', content: prompt },
-  ]);
+  ], { useGrounding });
 
   if (!aiResult.success) throw new Error(`SERP_GAP_ANALYSIS_FAILED: ${aiResult.error}`);
   const parsed = parseAIJson(aiResult.content, 'SERP_GAP_ANALYSIS');
@@ -364,7 +367,8 @@ async function executeOutlineGen(
   jobInput: Record<string, unknown>,
   serpSummary: string,
   supabaseUrl: string,
-  serviceKey: string
+  serviceKey: string,
+  useGrounding?: boolean
 ): Promise<{ output: { outline: OutlineData }; aiResult: AIRouterResult }> {
   const keyword = (jobInput.keyword as string) || '';
   const city = (jobInput.city as string) || '';
@@ -416,7 +420,7 @@ Return ONLY a valid JSON object in this exact format (no markdown, no code block
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'outline_gen', [
     { role: 'system', content: 'You are an SEO architect. Return ONLY valid JSON with an "outline" object. No other text.' },
     { role: 'user', content: prompt },
-  ]);
+  ], { useGrounding });
 
   if (!aiResult.success) throw new Error(`OUTLINE_GEN_FAILED: ${aiResult.error}`);
   const parsed = parseAIJson(aiResult.content, 'OUTLINE_GEN');
@@ -465,7 +469,7 @@ Rules: Add only new H2 sections that address gaps. Each new H2 must have 2-3 H3 
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'section_expansion', [
     { role: 'system', content: 'Return ONLY valid JSON with an "outline" object. No markdown.' },
     { role: 'user', content: prompt },
-  ]);
+  ], { useGrounding: false });
 
   if (!aiResult.success) return { output: { outline }, aiResult };
   const parsed = parseAIJson(aiResult.content, 'AUTO_SECTION_EXPANSION');
@@ -523,7 +527,7 @@ Topics: main themes. Terms: key phrases to include. Places: locations if relevan
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'entity_extraction', [
     { role: 'system', content: 'You are an SEO analyst. Return ONLY valid JSON with topics, terms, and optionally places.' },
     { role: 'user', content: prompt },
-  ]);
+  ], { useGrounding: false });
 
   if (!aiResult.success) {
     // Non-fatal: use programmatic fallback entities from keyword/niche
@@ -665,7 +669,8 @@ async function executeContentGenFromOutline(
   entityCoverage: EntityCoverageResult,
   jobType: 'article' | 'super_page',
   supabaseUrl: string,
-  serviceKey: string
+  serviceKey: string,
+  useGrounding?: boolean
 ): Promise<{ output: Record<string, unknown>; aiResult: AIRouterResult }> {
   const keyword = (jobInput.keyword as string) || '';
   const city = (jobInput.city as string) || '';
@@ -787,7 +792,7 @@ OUTPUT FORMAT (STRICT JSON only):
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'article_gen_from_outline', [
     { role: 'system', content: `You are an elite premium SEO content writer for ${niche} in ${language}. You produce articles with EXACTLY ${wordRange} words. CRITICAL: Do NOT exceed the upper word limit. You MUST return valid JSON with html_article containing proper semantic HTML: <h1> for title, <h2> for sections, <h3> for subsections, <p> for paragraphs, <ul>/<ol> for lists. Every paragraph must be short (2-5 lines). NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks.` },
     { role: 'user', content: prompt },
-  ]);
+  ], { useGrounding });
 
   if (!aiResult.success) throw new Error(`CONTENT_GEN_FAILED: ${aiResult.error}`);
   const parsed = parseAIJson(aiResult.content, 'CONTENT_GEN');
@@ -1010,22 +1015,25 @@ async function executeSeoScoreStep(
 // STEP: IMAGE_GEN — Gemini Nano Banana (hero + section + contextual)
 // ============================================================
 
-const GEMINI_IMAGE_MODEL = 'gemini-2.5-flash';
+const GEMINI_IMAGE_MODEL = 'imagen-3.0-generate-001';
 async function generateOneImage(prompt: string, apiKey: string): Promise<{ url: string; base64?: string } | null> {
-  const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_IMAGE_MODEL}:predict`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: GEMINI_IMAGE_MODEL,
-      messages: [{ role: "user", content: `Generate a premium editorial 16:9 photograph for a professional blog article. The image must look like a real photo captured in a real environment. CRITICAL RULE: The image must contain ZERO text of any kind — no words, no letters, no numbers, no titles, no captions, no labels, no banners, no overlays, no watermarks, no logos, no typography whatsoever. NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY OVERLAID on the image. Pure photographic/artistic image only. Only pure visual photography with clean composition and professional lighting. ${prompt}` }],
-      modalities: ["image", "text"],
+      instances: [{ prompt: prompt }],
+      parameters: { sampleCount: 1, aspectRatio: "16:9" }
     }),
   });
-  if (!res.ok) return null;
+  if (!res.ok) {
+    console.warn(`[IMAGE_GEN] API error: ${res.status} ${await res.text()}`);
+    return null;
+  }
   const data = await res.json();
-  const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-  if (!imageUrl?.startsWith("data:")) return null;
-  return { url: imageUrl, base64: imageUrl };
+  const base64Str = data.predictions?.[0]?.bytesBase64Encoded;
+  if (!base64Str) return null;
+  const mimeType = data.predictions?.[0]?.mimeType || 'image/jpeg';
+  return { url: `data:${mimeType};base64,${base64Str}`, base64: base64Str };
 }
 
 async function executeImageGenGeminiNanoBanana(
@@ -1039,13 +1047,19 @@ async function executeImageGenGeminiNanoBanana(
   const apiKey = Deno.env.get("GOOGLE_AI_KEY");
   if (!apiKey) return { skipped: true, reason: "GOOGLE_AI_KEY not set" };
 
-  const heroPrompt = (articleData.image_prompt as string) || (articleData.title as string) || (jobInput.keyword as string) || "professional blog";
+  const heroPromptRaw = (articleData.image_prompt as string) || (articleData.title as string) || (jobInput.keyword as string) || "professional blog";
   const keyword = (jobInput.keyword as string) || "article";
+  const niche = (jobInput.niche as string) || "";
+  const city = (jobInput.city as string) || "";
   const slug = keyword.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
-    const contentImages: { context: string; url: string; alt?: string; after_section: number }[] = [];
-    const usedImageUrls = new Set<string>(); // Dedup: track all generated URLs
-    const usedSectionPrompts = new Set<string>();
+  const visualContextBrief = `[Visual Context: Topic is "${keyword}" in "${city}", niche "${niche}". Aesthetic: Premium, photorealistic, cinematic. ZERO text/words/letters/typography in image.]`;
+
+  const heroPrompt = `${visualContextBrief} Hero scene: ${heroPromptRaw}`;
+
+  const contentImages: { context: string; url: string; alt?: string; after_section: number }[] = [];
+  const usedImageUrls = new Set<string>(); // Dedup: track all generated URLs
+  const usedSectionPrompts = new Set<string>();
   let heroUrl: string | null = null;
   let heroAlt: string | null = null;
 
@@ -1080,7 +1094,7 @@ async function executeImageGenGeminiNanoBanana(
     const maxSectionImages = Math.min(sectionCount, Math.max(0, maxTotalImages - 1));
     for (let i = 0; i < maxSectionImages; i++) {
       const sectionTitle = outline.h2[i]?.title || `Section ${i + 1}`;
-      const prompt = `Article theme: ${keyword}. Section focus: ${sectionTitle}. Unique editorial slot: section ${i + 1} of ${maxSectionImages}. Create a realistic editorial photograph connected to this section topic, showing authentic environments, objects and narrative context. NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY OVERLAID on the image. Pure photographic/artistic image only. CRITICAL: absolutely ZERO text, ZERO letters, ZERO words, ZERO numbers, ZERO labels, ZERO banners, ZERO overlays in the image. Do not repeat the hero scene or any previous section composition.`;
+      const prompt = `${visualContextBrief} Section context: ${sectionTitle}. Show an editorial photograph illustrating this specific concept without repeating the hero image. NO TEXT ALLOWED.`;
       if (usedSectionPrompts.has(prompt)) continue;
       usedSectionPrompts.add(prompt);
       const img = await generateOneImage(prompt, apiKey);
@@ -1227,8 +1241,14 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
   }).eq('id', jobId);
   console.log('[ORCHESTRATOR_BOOT:V2]', jobId, 'job_type=', jobType);
 
-  const jobInput = { ...(job.input as Record<string, unknown> || {}), job_type: jobType };
+  const jobInput = { ...(job.input as Record<string, unknown> || {}), job_type: jobType } as Record<string, unknown>;
+  const generationMode = job.generation_mode || 'economic';
+  const researchMode = job.research_mode || 'google_grounding';
+  const rewriteModel = job.rewrite_model || 'gpt-4.1';
+  const useGrounding = researchMode === 'google_grounding';
+
   console.log(`[ORCHESTRATOR:V2] job_id=${jobId} input=${JSON.stringify({ keyword: jobInput.keyword, city: jobInput.city, niche: jobInput.niche, job_type: jobType, target_words: jobInput.target_words })}`);
+  console.log(`[ORCHESTRATOR:V2] Modes: gen=${generationMode}, res=${researchMode}, rew=${rewriteModel}, grd=${useGrounding}`);
 
   // Lock
   if (job.locked_at) {
@@ -1308,7 +1328,7 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     try {
       serpStepId = await createStepOrFail(supabase, jobId, 'SERP_ANALYSIS', { keyword: jobInput.keyword, city: jobInput.city });
       const serpResult = await withTimeout(
-        executeSerpSummary(jobInput, supabaseUrl, serviceKey),
+        executeSerpSummary(jobInput, supabaseUrl, serviceKey, useGrounding),
         30_000, 'SERP_ANALYSIS'
       );
       serpSummaryText = (serpResult.output.serp_summary as string) || '';
@@ -1343,7 +1363,7 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     await supabase.from('generation_jobs').update({ current_step: 'SERP_GAP_ANALYSIS' }).eq('id', jobId);
     try {
       const gapStepId = await createStepOrFail(supabase, jobId, 'SERP_GAP_ANALYSIS', { keyword: jobInput.keyword });
-      const gapResult = await withTimeout(executeSerpGapAnalysis(jobInput, serpSummaryText, supabaseUrl, serviceKey), 25_000, 'SERP_GAP_ANALYSIS');
+      const gapResult = await withTimeout(executeSerpGapAnalysis(jobInput, serpSummaryText, supabaseUrl, serviceKey, useGrounding), 25_000, 'SERP_GAP_ANALYSIS');
       gapAnalysis = gapResult.output;
       totalApiCalls++;
       totalCostUsd += gapResult.aiResult.costUsd || 0;
@@ -1364,7 +1384,7 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     const outlineStepId = await createStepOrFail(supabase, jobId, 'OUTLINE_GEN', { keyword: jobInput.keyword });
     const outlineStart = Date.now();
     const outlineResult = await withTimeout(
-      executeOutlineGen(jobInput, serpSummaryText, supabaseUrl, serviceKey),
+      executeOutlineGen(jobInput, serpSummaryText, supabaseUrl, serviceKey, useGrounding),
       45_000, 'OUTLINE_GEN'
     );
     let outline = outlineResult.output.outline;
@@ -1455,7 +1475,7 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     let articleData: Record<string, unknown>;
     try {
       const genResult = await withTimeout(
-        executeContentGenFromOutline(jobInput, serpSummaryText, outline, entities, entityCoverage, jobType, supabaseUrl, serviceKey),
+        executeContentGenFromOutline(jobInput, serpSummaryText, outline, entities, entityCoverage, jobType, supabaseUrl, serviceKey, useGrounding),
         120_000, 'CONTENT_GEN'
       );
       articleData = genResult.output;
@@ -1470,7 +1490,7 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
       console.warn(`[V2] CONTENT_GEN first attempt failed: ${firstErr instanceof Error ? firstErr.message : 'unknown'}. Retrying...`);
       await new Promise(r => setTimeout(r, 2000));
       const retryResult = await withTimeout(
-        executeContentGenFromOutline(jobInput, serpSummaryText, outline, entities, entityCoverage, jobType, supabaseUrl, serviceKey),
+        executeContentGenFromOutline(jobInput, serpSummaryText, outline, entities, entityCoverage, jobType, supabaseUrl, serviceKey, useGrounding),
         120_000, 'CONTENT_GEN_RETRY'
       );
       articleData = retryResult.output;
@@ -1532,9 +1552,11 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
       // Mark images done
       await supabase.from('articles').update({ images_pending: false }).eq('id', saveOutput.article_id);
 
+      await supabase.from('articles').update({ images_pending: false }).eq('id', saveOutput.article_id);
+
       await supabase.from('generation_steps').update({
         status: 'completed', output: imgResult, completed_at: new Date().toISOString(),
-        model_used: 'gemini-nano-banana', provider: 'lovable-gateway',
+        model_used: GEMINI_IMAGE_MODEL, provider: 'gemini',
       }).eq('id', imgStepId);
 
       console.log(`[V2] ✅ IMAGE_GEN completed: hero=${imgResult.heroUrl ? 'yes' : 'no'}, sections=${imgResult.sectionCount || 0}`);

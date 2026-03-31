@@ -21,6 +21,7 @@ export interface AICallParams {
   temperature?: number;
   maxTokens?: number;
   responseFormat?: 'json' | 'text';
+  useGrounding?: boolean;
 }
 
 // Cost per 1M tokens (for logging/accounting only)
@@ -64,6 +65,7 @@ async function callAI(params: AICallParams): Promise<AIResult> {
     temperature: params.temperature,
     maxTokens: params.maxTokens,
     responseFormat: params.responseFormat,
+    useGrounding: params.useGrounding,
     maxRetries: 3,
   });
 
@@ -92,7 +94,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { task, messages, temperature, maxTokens } = body;
+    const { task, messages, temperature, maxTokens, useGrounding } = body;
 
     if (!task || !messages) {
       return new Response(
@@ -108,7 +110,7 @@ serve(async (req) => {
       );
     }
 
-    const result = await callAI({ task, messages, temperature, maxTokens });
+    const result = await callAI({ task, messages, temperature, maxTokens, useGrounding });
 
     const status = result.success ? 200 :
       (result.error?.includes('RATE_LIMITED') ? 429 :
