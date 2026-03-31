@@ -320,8 +320,8 @@ export default function ArticleGenerator() {
               )}
             </div>
             
-            {/* City & State */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* City & Country & State */}
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="city">
                   Cidade <span className="text-destructive">*</span>
@@ -335,6 +335,30 @@ export default function ArticleGenerator() {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="country">País</Label>
+                <Select
+                  value={formData.country}
+                  onValueChange={(value) => {
+                    handleInputChange('country', value);
+                    // Reset state when country changes
+                    const firstState = STATES_BY_COUNTRY[value]?.[0] || '';
+                    handleInputChange('state', firstState);
+                  }}
+                  disabled={isGenerating}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {COUNTRIES.map((c) => (
+                      <SelectItem key={c.code} value={c.code}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="state">Estado</Label>
                 <Select
                   value={formData.state}
@@ -345,7 +369,7 @@ export default function ArticleGenerator() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {STATES.map((state) => (
+                    {(STATES_BY_COUNTRY[formData.country] || []).map((state) => (
                       <SelectItem key={state} value={state}>
                         {state}
                       </SelectItem>
