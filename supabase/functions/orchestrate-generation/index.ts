@@ -642,7 +642,7 @@ async function executeContentGenFromOutline(
     ? `Include a WhatsApp CTA: ${whatsapp}${businessName ? ` (${businessName})` : ''}`
     : businessName ? `Include a CTA for ${businessName}` : 'Include a strong contact CTA';
 
-  const wordRange = jobType === 'super_page' ? '4500-7000' : '3600-5000';
+  const wordRange = jobType === 'super_page' ? '3000-6000' : '1500-3000';
   const outlineJson = JSON.stringify(outline, null, 0);
   const entitiesJson = JSON.stringify(entities, null, 0);
   const perSectionEntities = entityCoverage.assignment.map((a) => `Section "${a.sectionTitle}": cover these terms naturally: ${a.terms.slice(0, 8).join(', ')}`).join('\n');
@@ -667,9 +667,9 @@ ${entitiesJson}
 
 === PADRAO EDITORIAL OBRIGATORIO ===
 
-REGRA ABSOLUTA DE TAMANHO:
-- O artigo DEVE ter no minimo ${wordRange} palavras REAIS de conteudo.
-- Nunca entregue artigo curto, raso ou incompleto.
+REGRA DE TAMANHO:
+- O artigo DEVE ter entre ${wordRange} palavras dependendo da complexidade do assunto.
+- Nunca entregue artigo raso ou incompleto.
 - E PROIBIDO encher texto com redundancia, enrolacao ou frases vazias.
 - Cada secao deve ter profundidade real com explicacoes, exemplos e aplicacoes.
 
@@ -745,7 +745,7 @@ OUTPUT FORMAT (STRICT JSON only):
 }`;
 
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'article_gen_from_outline', [
-    { role: 'system', content: `You are an elite premium SEO content writer for ${niche} in ${language}. You produce long-form, in-depth articles with minimum 3600 words. You MUST return valid JSON with html_article containing proper semantic HTML: <h1> for title, <h2> for sections, <h3> for subsections, <p> for paragraphs, <ul>/<ol> for lists. Every paragraph must be short (2-5 lines). NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks.` },
+    { role: 'system', content: `You are an elite premium SEO content writer for ${niche} in ${language}. You produce in-depth articles between 1500-3000 words depending on topic complexity. You MUST return valid JSON with html_article containing proper semantic HTML: <h1> for title, <h2> for sections, <h3> for subsections, <p> for paragraphs, <ul>/<ol> for lists. Every paragraph must be short (2-5 lines). NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks.` },
     { role: 'user', content: prompt },
   ]);
 
