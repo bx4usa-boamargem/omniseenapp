@@ -317,14 +317,6 @@ const PublicArticle = () => {
                   {formatNumber(article.view_count || 0)} {t('blog.views')}
                 </span>
               )}
-              
-              {/* PDF Download Button */}
-              <ArticlePdfDownload
-                articleId={article.id}
-                articleTitle={article.title}
-                variant="icon"
-                primaryColor={mappedBlog.primary_color || undefined}
-              />
             </div>
           </div>
         </section>
