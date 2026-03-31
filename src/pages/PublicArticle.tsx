@@ -379,7 +379,7 @@ const PublicArticle = () => {
                 </div>
               ) : (
                 <ArticleContent 
-                  content={displayedContent} 
+                  content={processedContent || displayedContent} 
                   contentImages={contentImages}
                   hideFirstH1
                 />
