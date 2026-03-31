@@ -257,16 +257,12 @@ export function MediaSlotControl({
 
         {/* Color Picker Popover - rendered outside dropdown to avoid closing conflict */}
         {showColorOption && (
-          <Popover open={showColorPicker} onOpenChange={setShowColorPicker}>
-            <PopoverTrigger asChild>
-              <span className="hidden" />
-            </PopoverTrigger>
-            <PopoverContent className="w-64 p-3 z-50" align="end" side="bottom"
-              style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
-            >
+          <Dialog open={showColorPicker} onOpenChange={setShowColorPicker}>
+            <DialogContent className="max-w-xs">
+              <DialogHeader>
+                <DialogTitle>Escolha uma cor</DialogTitle>
+              </DialogHeader>
               <div className="space-y-3">
-                <Label className="text-sm">Escolha uma cor</Label>
-                
                 {/* Preset Colors Grid */}
                 <div className="grid grid-cols-6 gap-2">
                   {PRESET_COLORS.map((color) => (
@@ -306,8 +302,8 @@ export function MediaSlotControl({
                   Aplicar Cor
                 </Button>
               </div>
-            </PopoverContent>
-          </Popover>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
 
