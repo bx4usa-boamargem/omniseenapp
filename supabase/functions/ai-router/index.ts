@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { corsHeadersForRequest } from "../_shared/httpCors.ts";
 
 /**
  * AI Router — OmniSeen Article Engine v1
@@ -12,11 +13,6 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
  * CRITICAL: This is the ONLY file that calls the AI gateway.
  * All step functions call this router instead.
  */
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 // ============================================================
 // INTERFACES (prepared for multi-provider future)
@@ -299,8 +295,9 @@ async function callWithRetry(params: AICallParams, maxRetries = 3): Promise<AICa
 // ============================================================
 
 serve(async (req) => {
+  const cors = corsHeadersForRequest(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: cors });
   }
 
   try {
@@ -310,14 +307,14 @@ serve(async (req) => {
     if (!task || !messages) {
       return new Response(
         JSON.stringify({ error: "Missing required fields: task, messages" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...cors, "Content-Type": "application/json" } }
       );
     }
 
     if (!MODEL_ROUTING[task as TaskType]) {
       return new Response(
         JSON.stringify({ error: `Unknown task: ${task}. Valid: ${Object.keys(MODEL_ROUTING).join(', ')}` }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 400, headers: { ...cors, "Content-Type": "application/json" } }
       );
     }
 
@@ -334,13 +331,13 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify(result),
-      { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status, headers: { ...cors, "Content-Type": "application/json" } }
     );
   } catch (error) {
     console.error("[AI_ROUTER] Fatal:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: 500, headers: { ...cors, "Content-Type": "application/json" } }
     );
   }
 });

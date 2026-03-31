@@ -73,16 +73,9 @@ function SignupContent() {
     password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
   });
 
-  // Debug logs
-  useEffect(() => {
-    console.log('[Signup] Component mounted');
-    console.log('[Signup] authLoading:', authLoading, 'user:', user?.email);
-  }, [authLoading, user]);
-
   // Redirect se já logado
   useEffect(() => {
     if (user && !authLoading) {
-      console.log('[Signup] User already logged in, redirecting to /client/dashboard');
       navigate('/client/dashboard', { replace: true });
     }
   }, [user, authLoading, navigate]);
@@ -141,7 +134,6 @@ function SignupContent() {
       navigate('/client/dashboard', { replace: true });
 
     } catch (err) {
-      console.error('[Signup] Unexpected error:', err);
       toast({
         title: 'Erro',
         description: 'Ocorreu um erro inesperado',
@@ -164,7 +156,6 @@ function SignupContent() {
         });
       }
     } catch (err) {
-      console.error('[Signup] Google sign in error:', err);
       toast({
         title: 'Erro',
         description: 'Erro ao fazer login com Google',

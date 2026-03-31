@@ -250,5 +250,82 @@
       "copyLink": "Or copy the link:",
       "linkCopied": "Link copied!"
     }
+  },
+  "client": {
+    "dashboard": {
+      "title": "Dashboard",
+      "welcome": "Welcome back",
+      "overview": "Overview",
+      "recentArticles": "Recent Articles",
+      "quickActions": "Quick Actions",
+      "generateArticle": "Generate Article",
+      "viewPortal": "View Portal",
+      "seeResults": "See Results"
+    },
+    "articles": {
+      "title": "Articles",
+      "generate": "Generate Article",
+      "edit": "Edit",
+      "preview": "Preview",
+      "publish": "Publish",
+      "schedule": "Schedule",
+      "delete": "Delete",
+      "status": {
+        "draft": "Draft",
+        "published": "Published",
+        "scheduled": "Scheduled",
+        "generating": "Generating"
+      },
+      "filters": {
+        "all": "All",
+        "published": "Published",
+        "draft": "Drafts",
+        "scheduled": "Scheduled"
+      },
+      "empty": "No articles found",
+      "emptyDescription": "Start by generating your first AI-powered article."
+    },
+    "seo": {
+      "title": "SEO Analysis",
+      "score": "SEO Score",
+      "suggestions": "Suggestions",
+      "internalLinks": "Internal Links",
+      "trends": "Trends",
+      "keywords": "Keywords"
+    },
+    "automation": {
+      "title": "Automation",
+      "mode": {
+        "manual": "Manual",
+        "suggest": "Copilot",
+        "auto": "Autopilot"
+      },
+      "queue": "Publishing Queue",
+      "settings": "Settings"
+    },
+    "settings": {
+      "title": "Settings",
+      "profile": "Profile",
+      "integrations": "Integrations",
+      "billing": "Billing",
+      "usage": "Plan Usage",
+      "notifications": "Notifications",
+      "whiteLabel": "White-Label",
+      "webhooks": "Webhooks",
+      "social": "Social Media"
+    },
+    "leads": {
+      "title": "Leads",
+      "total": "Total Leads",
+      "thisMonth": "This Month",
+      "conversion": "Conversion Rate"
+    },
+    "domains": {
+      "title": "Domains",
+      "addDomain": "Add Domain",
+      "verify": "Verify",
+      "verified": "Verified",
+      "pending": "Pending"
+    }
   }
 }

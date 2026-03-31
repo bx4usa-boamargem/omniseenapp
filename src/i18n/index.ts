@@ -29,9 +29,7 @@ i18n
     debug: import.meta.env.DEV,
   });
 
-// Forçar pt-BR no primeiro carregamento se nenhum idioma estiver configurado
 if (!localStorage.getItem('i18nextLng')) {
-  console.log('[i18n] Nenhum idioma salvo - forçando pt-BR');
   i18n.changeLanguage('pt-BR');
 }
 

@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { useBlog } from '@/hooks/useBlog';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 export function ProfileTab() {
   const { user } = useAuth();
@@ -26,13 +27,35 @@ export function ProfileTab() {
 
   const handleSave = async () => {
     setIsLoading(true);
-    // TODO: Implement profile update
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    toast({
-      title: 'Perfil atualizado',
-      description: 'Suas alterações foram salvas com sucesso.',
-    });
-    setIsLoading(false);
+    try {
+      const nameInput = document.getElementById('name') as HTMLInputElement | null;
+      const newName = nameInput?.value || '';
+
+      if (user) {
+        const { error } = await supabase.auth.updateUser({
+          data: { full_name: newName },
+        });
+        if (error) throw error;
+
+        await supabase
+          .from('profiles')
+          .update({ full_name: newName })
+          .eq('user_id', user.id);
+      }
+
+      toast({
+        title: 'Perfil atualizado',
+        description: 'Suas alterações foram salvas com sucesso.',
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Erro ao salvar',
+        description: err.message || 'Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (

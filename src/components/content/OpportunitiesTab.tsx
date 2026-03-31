@@ -13,10 +13,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { 
-  Sparkles, Check, Archive, Loader2, Clock, CheckCircle, ArchiveIcon, 
+import {
+  Sparkles, Check, Archive, Loader2, Clock, CheckCircle, ArchiveIcon,
   Wand2, Search, ChevronDown, ChevronRight, Star, TrendingUp, Target,
-  FileEdit, Undo2, Bell, Settings2, BarChart3, Eye, Share2
+  FileEdit, Undo2, Bell, Settings2, BarChart3, Eye, Share2, Zap, Brain
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -71,16 +71,16 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [processing, setProcessing] = useState(false);
   const [generating, setGenerating] = useState(false);
-  
+
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
-  
+
   // Collapsible sections
   const [showApproved, setShowApproved] = useState(true);
   const [showArchived, setShowArchived] = useState(false);
-  
+
   // Notification settings
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({
     min_relevance_score: 80,
@@ -90,7 +90,7 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
-  
+
   // Conversion metrics
   const [metrics, setMetrics] = useState<ConversionMetrics>({
     total: 0,
@@ -316,22 +316,40 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
 
   const [creatingId, setCreatingId] = useState<string | null>(null);
 
-  const handleCreateArticle = async (opportunity: Opportunity) => {
-    if (creatingId) return;
-    setCreatingId(opportunity.id);
-    
+  // Article size modal state
+  const [sizeModalOpen, setSizeModalOpen] = useState(false);
+  const [pendingOpportunity, setPendingOpportunity] = useState<Opportunity | null>(null);
+  const [selectedSize, setSelectedSize] = useState<'fast' | 'deep'>('deep');
+
+  const handleCreateArticle = (opportunity: Opportunity) => {
+    // Open size selection modal instead of creating directly
+    setPendingOpportunity(opportunity);
+    setSelectedSize('deep');
+    setSizeModalOpen(true);
+  };
+
+  const handleConfirmCreate = async () => {
+    if (!pendingOpportunity || creatingId) return;
+    setSizeModalOpen(false);
+    setCreatingId(pendingOpportunity.id);
+
+    // Map size to target_words
+    const targetWords = selectedSize === 'fast' ? 700 : 2500;
+
     try {
       await createArticleFromOpportunity(
         {
-          id: opportunity.id,
-          suggested_title: opportunity.suggested_title,
-          suggested_keywords: opportunity.suggested_keywords,
+          id: pendingOpportunity.id,
+          suggested_title: pendingOpportunity.suggested_title,
+          suggested_keywords: pendingOpportunity.suggested_keywords,
+          target_words: targetWords,
         },
         blogId,
         navigate
       );
     } finally {
       setCreatingId(null);
+      setPendingOpportunity(null);
     }
   };
 
@@ -455,7 +473,7 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card 
+        <Card
           className={cn(
             "border-warning/30 bg-warning/5 cursor-pointer transition-all hover:border-warning/50",
             dateFilter === "all" && sourceFilter === "all" && !searchQuery && "ring-2 ring-warning/30"
@@ -475,7 +493,7 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
           </CardContent>
         </Card>
 
-        <Card 
+        <Card
           className={cn(
             "border-success/30 bg-success/5 cursor-pointer transition-all hover:border-success/50",
             showApproved && "ring-2 ring-success/30"
@@ -495,7 +513,7 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
           </CardContent>
         </Card>
 
-        <Card 
+        <Card
           className={cn(
             "border-muted bg-muted/5 cursor-pointer transition-all hover:border-muted-foreground/30",
             showArchived && "ring-2 ring-muted-foreground/30"
@@ -549,7 +567,7 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
             <SelectItem value="competitors">Concorrentes</SelectItem>
           </SelectContent>
         </Select>
-        
+
         {/* Notification Settings */}
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
           <DialogTrigger asChild>
@@ -585,7 +603,7 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
                   Você será notificado apenas para oportunidades com score igual ou acima deste valor.
                 </p>
               </div>
-              
+
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Notificações no app</Label>
@@ -599,7 +617,7 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
                   }))}
                 />
               </div>
-              
+
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
                   <Label>Notificações por email</Label>
@@ -613,7 +631,7 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
                   }))}
                 />
               </div>
-              
+
               {notificationSettings.notify_email && (
                 <div className="space-y-2">
                   <Label>Email para notificações</Label>
@@ -738,7 +756,7 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
               <Sparkles className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
               <h3 className="text-lg font-medium mb-2">Nenhuma oportunidade pendente</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                {searchQuery || dateFilter !== "all" || sourceFilter !== "all" 
+                {searchQuery || dateFilter !== "all" || sourceFilter !== "all"
                   ? "Nenhuma oportunidade corresponde aos filtros aplicados."
                   : "A IA analisará seu nicho e sugerirá novos temas."}
               </p>
@@ -933,6 +951,76 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
           </Card>
         </Collapsible>
       )}
+
+      {/* Article Size Selection Modal */}
+      <Dialog open={sizeModalOpen} onOpenChange={setSizeModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Tamanho do Artigo
+            </DialogTitle>
+            <DialogDescription>
+              Escolha o tipo de artigo antes de gerar.
+            </DialogDescription>
+          </DialogHeader>
+
+          {pendingOpportunity && (
+            <p className="text-sm text-muted-foreground border rounded-lg p-3 bg-muted/50 line-clamp-2">
+              📝 {pendingOpportunity.suggested_title}
+            </p>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setSelectedSize('fast')}
+              className={cn(
+                "flex flex-col items-start p-4 rounded-lg border transition-all text-left",
+                selectedSize === 'fast'
+                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                  : "border-border hover:border-primary/50 bg-background"
+              )}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className="h-4 w-4 text-amber-500" />
+                <span className="font-semibold text-sm">Rápido</span>
+              </div>
+              <p className="text-xs text-muted-foreground">400–1.000 palavras</p>
+              <p className="text-xs text-muted-foreground">Ideal para ideias rápidas</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedSize('deep')}
+              className={cn(
+                "flex flex-col items-start p-4 rounded-lg border transition-all text-left",
+                selectedSize === 'deep'
+                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                  : "border-border hover:border-primary/50 bg-background"
+              )}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Brain className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-sm">Profundo</span>
+                <Badge className="text-[10px] px-1 py-0 bg-primary text-primary-foreground">Rec.</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">1.500–3.000 palavras</p>
+              <p className="text-xs text-muted-foreground">SEO completo</p>
+            </button>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setSizeModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button className="flex-1 gradient-primary" onClick={handleConfirmCreate}>
+              <Sparkles className="h-4 w-4 mr-2" />
+              Gerar Artigo
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

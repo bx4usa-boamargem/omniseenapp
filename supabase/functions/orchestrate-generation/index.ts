@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { QUALITY_GATE, getMinWordCount } from "../_shared/superPageEngine.ts";
+import { corsHeadersForRequest } from "../_shared/httpCors.ts";
+import { validateGenerationJobInput } from "../_shared/pipelineInputValidation.ts";
 
 /**
  * orchestrate-generation — OmniSeen TRUE SUPER PAGE ENGINE
@@ -12,11 +14,6 @@ import { QUALITY_GATE, getMinWordCount } from "../_shared/superPageEngine.ts";
  *
  * Super pages: SERP gap analysis, entity coverage, auto section expansion, internal links, quality gate blocks publish.
  */
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
 
 // ============================================================
 // CONSTANTS
@@ -260,13 +257,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 // ============================================================
 
 function executeInputValidation(jobInput: Record<string, unknown>): Record<string, unknown> {
-  const errors: string[] = [];
-  if (!jobInput?.keyword || (jobInput.keyword as string).trim().length < 2) errors.push('keyword obrigatório (min 2 chars)');
-  if (!jobInput?.niche || (jobInput.niche as string).trim().length < 2) errors.push('niche obrigatório');
-  if (errors.length > 0) {
-    throw new Error(`Input validation failed: ${errors.join('; ')}`);
-  }
-  return { validated: true, keyword: jobInput.keyword, city: jobInput.city, niche: jobInput.niche };
+  const v = validateGenerationJobInput(jobInput);
+  return { validated: v.validated, keyword: v.keyword, city: v.city, niche: v.niche };
 }
 
 // ============================================================
@@ -1716,8 +1708,9 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
 // ============================================================
 
 serve(async (req) => {
+  const cors = corsHeadersForRequest(req);
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: cors });
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -1728,7 +1721,7 @@ serve(async (req) => {
     const { job_id } = await req.json();
     console.log('[ORCHESTRATOR_HANDLER_ENTRY:V2]', job_id);
     if (!job_id) {
-      return new Response(JSON.stringify({ error: "job_id is required" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "job_id is required" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
     }
 
     // Idempotency guard
@@ -1742,14 +1735,14 @@ serve(async (req) => {
       console.log(`[ORCHESTRATOR:V2:SKIP] job=${job_id} already ${existingJob.status}`);
       return new Response(
         JSON.stringify({ skipped: true, reason: `Job already ${existingJob.status}` }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { status: 200, headers: { ...cors, "Content-Type": "application/json" } }
       );
     }
 
     await orchestrate(job_id, supabase, supabaseUrl, serviceKey);
-    return new Response(JSON.stringify({ success: true, job_id }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ success: true, job_id }), { headers: { ...cors, "Content-Type": "application/json" } });
   } catch (error) {
     console.error("[ORCHESTRATOR:V2] Fatal:", error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
   }
 });

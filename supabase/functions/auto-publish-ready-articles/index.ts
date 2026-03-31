@@ -217,6 +217,28 @@ serve(async (req) => {
           console.warn(`[AUTO-PUBLISH] Failed to notify IndexNow for article ${article.id}:`, indexError);
         }
 
+        try {
+          await fetch(`${SUPABASE_URL}/functions/v1/dispatch-webhook`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              blog_id: article.blog_id,
+              event: "article.published",
+              data: {
+                article_id: article.id,
+                title: article.title,
+                slug: article.slug,
+                published_at: new Date().toISOString(),
+              },
+            }),
+          });
+        } catch (webhookError) {
+          console.warn(`[AUTO-PUBLISH] Failed to dispatch webhook for article ${article.id}:`, webhookError);
+        }
+
         publishedCount++;
         results.push({ article_id: article.id, success: true });
         console.log(`[AUTO-PUBLISH] ✅ Published article: ${article.title}`);

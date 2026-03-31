@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
@@ -10,6 +11,7 @@ import { RecentDocuments } from "@/components/dashboard/RecentDocuments";
 
 export default function ClientDashboardMvp() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { blog } = useBlog();
 
@@ -27,7 +29,7 @@ export default function ClientDashboardMvp() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">
-            Bem-vindo, {firstName}! 👋
+            {t('client.dashboard.welcome', 'Bem-vindo de volta')}, {firstName}!
           </h1>
           <p className="text-muted-foreground mt-1">{subdomain}.omniseen.com</p>
         </div>
@@ -36,7 +38,7 @@ export default function ClientDashboardMvp() {
           className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 shadow-lg shadow-primary/25"
         >
           <Sparkles className="h-4 w-4" />
-          Gerar Artigo
+          {t('client.dashboard.generateArticle', 'Gerar Artigo')}
         </Button>
       </div>
 

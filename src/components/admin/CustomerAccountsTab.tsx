@@ -92,28 +92,33 @@ export function CustomerAccountsTab() {
 
       if (error) throw error;
 
-      // Fetch profiles and blogs for each account
-      const accountsWithDetails = await Promise.all(
-        (subscriptions || []).map(async (sub) => {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name, phone")
-            .eq("user_id", sub.user_id)
-            .single();
+      const subs = subscriptions || [];
+      const userIds = subs.map((s) => s.user_id);
 
-          const { data: blogs } = await supabase
-            .from("blogs")
-            .select("id, name, slug")
-            .eq("user_id", sub.user_id);
+      const [profilesRes, blogsRes] = await Promise.all([
+        userIds.length > 0
+          ? supabase.from("profiles").select("user_id, full_name, phone").in("user_id", userIds)
+          : { data: [] },
+        userIds.length > 0
+          ? supabase.from("blogs").select("id, name, slug, user_id").in("user_id", userIds)
+          : { data: [] },
+      ]);
 
-          // Get email from auth (via edge function would be better, but for now use profile)
-          return {
-            ...sub,
-            profile: profile || undefined,
-            blogs: blogs || [],
-          };
-        })
+      const profilesByUser = new Map(
+        (profilesRes.data || []).map((p: any) => [p.user_id, p])
       );
+      const blogsByUser = new Map<string, any[]>();
+      for (const blog of blogsRes.data || []) {
+        const existing = blogsByUser.get(blog.user_id) || [];
+        existing.push(blog);
+        blogsByUser.set(blog.user_id, existing);
+      }
+
+      const accountsWithDetails = subs.map((sub) => ({
+        ...sub,
+        profile: profilesByUser.get(sub.user_id) || undefined,
+        blogs: blogsByUser.get(sub.user_id) || [],
+      }));
 
       setAccounts(accountsWithDetails);
     } catch (error) {

@@ -244,5 +244,82 @@
       "copyLink": "Ou copie o link:",
       "linkCopied": "Link copiado!"
     }
+  },
+  "client": {
+    "dashboard": {
+      "title": "Dashboard",
+      "welcome": "Bem-vindo de volta",
+      "overview": "Visão Geral",
+      "recentArticles": "Artigos Recentes",
+      "quickActions": "Ações Rápidas",
+      "generateArticle": "Gerar Artigo",
+      "viewPortal": "Ver Portal",
+      "seeResults": "Ver Resultados"
+    },
+    "articles": {
+      "title": "Artigos",
+      "generate": "Gerar Artigo",
+      "edit": "Editar",
+      "preview": "Pré-visualizar",
+      "publish": "Publicar",
+      "schedule": "Agendar",
+      "delete": "Excluir",
+      "status": {
+        "draft": "Rascunho",
+        "published": "Publicado",
+        "scheduled": "Agendado",
+        "generating": "Gerando"
+      },
+      "filters": {
+        "all": "Todos",
+        "published": "Publicados",
+        "draft": "Rascunhos",
+        "scheduled": "Agendados"
+      },
+      "empty": "Nenhum artigo encontrado",
+      "emptyDescription": "Comece gerando seu primeiro artigo com IA."
+    },
+    "seo": {
+      "title": "Análise SEO",
+      "score": "Score SEO",
+      "suggestions": "Sugestões",
+      "internalLinks": "Links Internos",
+      "trends": "Tendências",
+      "keywords": "Palavras-chave"
+    },
+    "automation": {
+      "title": "Automação",
+      "mode": {
+        "manual": "Manual",
+        "suggest": "Copiloto",
+        "auto": "Piloto Automático"
+      },
+      "queue": "Fila de Publicação",
+      "settings": "Configurações"
+    },
+    "settings": {
+      "title": "Configurações",
+      "profile": "Perfil",
+      "integrations": "Integrações",
+      "billing": "Faturamento",
+      "usage": "Uso do Plano",
+      "notifications": "Notificações",
+      "whiteLabel": "White-Label",
+      "webhooks": "Webhooks",
+      "social": "Redes Sociais"
+    },
+    "leads": {
+      "title": "Leads",
+      "total": "Total de Leads",
+      "thisMonth": "Este Mês",
+      "conversion": "Taxa de Conversão"
+    },
+    "domains": {
+      "title": "Domínios",
+      "addDomain": "Adicionar Domínio",
+      "verify": "Verificar",
+      "verified": "Verificado",
+      "pending": "Pendente"
+    }
   }
 }

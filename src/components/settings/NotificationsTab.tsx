@@ -1,7 +1,13 @@
-import { Bell, Mail, MessageSquare, Zap } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Bell, Mail, MessageSquare, Zap, Phone, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useBlog } from '@/hooks/useBlog';
 
 interface NotificationSetting {
   id: string;
@@ -95,27 +101,83 @@ export function NotificationsTab() {
         </CardContent>
       </Card>
 
-      {/* Push Notifications - Future */}
-      <Card className="opacity-60">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            Notificações Push
-            <span className="text-xs bg-muted px-2 py-0.5 rounded-full font-normal">
-              Em breve
-            </span>
-          </CardTitle>
-          <CardDescription>
-            Receba notificações em tempo real no navegador.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <Label className="text-sm">Ativar notificações push</Label>
-            <Switch disabled />
-          </div>
-        </CardContent>
-      </Card>
+      <WhatsAppReportCard />
     </div>
+  );
+}
+
+function WhatsAppReportCard() {
+  const { blog } = useBlog();
+  const [phone, setPhone] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!blog?.id) return;
+    supabase
+      .from('weekly_report_settings')
+      .select('whatsapp_number')
+      .eq('blog_id', blog.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.whatsapp_number) setPhone(data.whatsapp_number);
+        setLoaded(true);
+      });
+  }, [blog?.id]);
+
+  const handleSave = async () => {
+    if (!blog?.id) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('weekly_report_settings')
+        .upsert({
+          blog_id: blog.id,
+          whatsapp_number: phone || null,
+          is_enabled: true,
+        }, { onConflict: 'blog_id' });
+      if (error) throw error;
+      toast.success('Número WhatsApp salvo com sucesso');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao salvar');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Phone className="h-5 w-5" />
+          Relatório Semanal por WhatsApp
+        </CardTitle>
+        <CardDescription>
+          Receba um resumo semanal de performance do seu blog diretamente no WhatsApp.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="whatsapp-number">Número do WhatsApp (com DDD)</Label>
+          <div className="flex gap-2">
+            <Input
+              id="whatsapp-number"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="5511999999999"
+              className="max-w-xs"
+            />
+            <Button onClick={handleSave} disabled={saving} size="sm">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salvar'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Formato: código do país + DDD + número. Ex: 5511999999999
+          </p>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

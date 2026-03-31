@@ -125,42 +125,54 @@ export function DynamicTrackingScripts({
       `);
     }
 
-    // Custom head script
-    if (scriptHead) {
+    const ALLOWED_SCRIPT_DOMAINS = [
+      "googletagmanager.com",
+      "google-analytics.com",
+      "connect.facebook.net",
+      "facebook.com",
+      "snap.licdn.com",
+      "analytics.tiktok.com",
+      "cdn.jsdelivr.net",
+    ];
+
+    const isAllowedScriptSrc = (src: string): boolean => {
+      try {
+        const url = new URL(src);
+        return ALLOWED_SCRIPT_DOMAINS.some((d) => url.hostname.endsWith(d));
+      } catch {
+        return false;
+      }
+    };
+
+    const parseCustomScripts = (
+      raw: string,
+      location: "head" | "body"
+    ) => {
       const container = document.createElement("div");
-      container.innerHTML = scriptHead;
+      container.innerHTML = raw;
       Array.from(container.children).forEach((child) => {
         if (child instanceof HTMLScriptElement) {
+          if (child.src && !isAllowedScriptSrc(child.src)) {
+            console.warn("[DynamicTrackingScripts] Blocked script src:", child.src);
+            return;
+          }
           const script = document.createElement("script");
           script.innerHTML = child.innerHTML;
           if (child.src) script.src = child.src;
           if (child.async) script.async = true;
-          document.head.appendChild(script);
+          const target = location === "head" ? document.head : document.body;
+          target.appendChild(script);
           addedScripts.push(script);
-        } else {
-          document.head.appendChild(child.cloneNode(true) as HTMLElement);
-          addedElements.push(child as HTMLElement);
         }
       });
+    };
+
+    if (scriptHead) {
+      parseCustomScripts(scriptHead, "head");
     }
 
-    // Custom body script
     if (scriptBody) {
-      const container = document.createElement("div");
-      container.innerHTML = scriptBody;
-      Array.from(container.children).forEach((child) => {
-        if (child instanceof HTMLScriptElement) {
-          const script = document.createElement("script");
-          script.innerHTML = child.innerHTML;
-          if (child.src) script.src = child.src;
-          if (child.async) script.async = true;
-          document.body.appendChild(script);
-          addedScripts.push(script);
-        } else {
-          document.body.appendChild(child.cloneNode(true) as HTMLElement);
-          addedElements.push(child as HTMLElement);
-        }
-      });
+      parseCustomScripts(scriptBody, "body");
     }
 
     // Cleanup on unmount - defensive to prevent removeChild crashes

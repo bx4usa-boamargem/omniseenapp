@@ -1,4 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Settings } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProfileTab } from '@/components/settings/ProfileTab';
@@ -6,6 +7,9 @@ import { IntegrationsTab } from '@/components/settings/IntegrationsTab';
 import { BillingTab } from '@/components/settings/BillingTab';
 import { UsageTab } from '@/components/settings/UsageTab';
 import { NotificationsTab } from '@/components/settings/NotificationsTab';
+import { WhiteLabelTab } from '@/components/settings/WhiteLabelTab';
+import { WebhooksTab } from '@/components/settings/WebhooksTab';
+import { ApiKeysTab } from '@/components/settings/ApiKeysTab';
 
 const TABS = [
   { id: 'profile', label: 'Perfil' },
@@ -13,9 +17,13 @@ const TABS = [
   { id: 'billing', label: 'Cobrança' },
   { id: 'usage', label: 'Uso' },
   { id: 'notifications', label: 'Notificações' },
+  { id: 'webhooks', label: 'Webhooks' },
+  { id: 'api-keys', label: 'API' },
+  { id: 'white-label', label: 'White-Label' },
 ];
 
 export default function ClientSettings() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const currentTab = searchParams.get('tab') || 'profile';
 
@@ -31,9 +39,9 @@ export default function ClientSettings() {
           <Settings className="h-6 w-6 text-primary" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold">Configurações</h1>
+          <h1 className="text-2xl font-bold">{t('client.settings.title', 'Configurações')}</h1>
           <p className="text-muted-foreground">
-            Gerencie sua conta, integrações e preferências.
+            {t('common.loading', 'Gerencie sua conta, integrações e preferências.')}
           </p>
         </div>
       </div>
@@ -70,6 +78,18 @@ export default function ClientSettings() {
 
         <TabsContent value="notifications" className="mt-6">
           <NotificationsTab />
+        </TabsContent>
+
+        <TabsContent value="webhooks" className="mt-6">
+          <WebhooksTab />
+        </TabsContent>
+
+        <TabsContent value="api-keys" className="mt-6">
+          <ApiKeysTab />
+        </TabsContent>
+
+        <TabsContent value="white-label" className="mt-6">
+          <WhiteLabelTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -5,6 +5,7 @@
  * Rota: /client/articles/:id/preview
  */
 
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { checkContentQuality } from '@/utils/contentQualityChecker';
 import { useQuery } from '@tanstack/react-query';
@@ -26,11 +27,13 @@ import {
   Shield,
   CheckCircle,
   XCircle,
-  Loader2
+  Loader2,
+  FlaskConical
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ArticleMetadataCard } from '@/components/client/ArticleMetadataCard';
+import { ABTestDialog } from '@/components/client/articles/ABTestDialog';
 import ReactMarkdown from 'react-markdown';
 
 const TEMPLATE_NAMES: Record<string, string> = {
@@ -44,6 +47,7 @@ const TEMPLATE_NAMES: Record<string, string> = {
 export default function ArticleAdvancedPreview() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [showABTest, setShowABTest] = useState(false);
   
   // Fetch article
   const { data: article, isLoading, error, refetch } = useQuery({
@@ -140,10 +144,9 @@ export default function ArticleAdvancedPreview() {
     }
   };
   
-  // Handle regenerate
   const handleRegenerate = async () => {
-    toast.info('Regeneração em desenvolvimento');
-    // TODO: Implement regeneration
+    if (!article) return;
+    navigate(`/client/articles/engine/new?regenerate=${article.id}`);
   };
   
   if (isLoading) {
@@ -223,6 +226,10 @@ export default function ArticleAdvancedPreview() {
             <RefreshCw className="h-4 w-4" />
             Regenerar
           </Button>
+          <Button variant="outline" onClick={() => setShowABTest(true)} className="gap-2">
+            <FlaskConical className="h-4 w-4" />
+            Teste A/B
+          </Button>
           {article.status !== 'published' && (
             <Button onClick={handlePublish} className="gap-2">
               <Globe className="h-4 w-4" />
@@ -299,6 +306,17 @@ export default function ArticleAdvancedPreview() {
           </ScrollArea>
         </CardContent>
       </Card>
+
+      {article && (
+        <ABTestDialog
+          open={showABTest}
+          onOpenChange={setShowABTest}
+          articleId={article.id}
+          blogId={article.blog_id}
+          currentTitle={article.title}
+          currentMetaDescription={article.meta_description || ''}
+        />
+      )}
     </div>
   );
 }

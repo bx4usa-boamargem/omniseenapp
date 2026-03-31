@@ -1,54 +1,60 @@
-import { BarChart3, FileText, LayoutTemplate, Users, Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { BarChart3, FileText, LayoutTemplate, Users, Zap, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { usePlanLimits, ResourceType } from '@/hooks/usePlanLimits';
 
 interface UsageItem {
-  id: string;
+  id: ResourceType;
   label: string;
   icon: React.ElementType;
   used: number;
   limit: number;
   unit: string;
+  isUnlimited: boolean;
 }
 
-// TODO: Replace with real data from useSubscription/useBlog
-const USAGE_DATA: UsageItem[] = [
-  {
-    id: 'articles',
-    label: 'Artigos gerados',
-    icon: FileText,
-    used: 12,
-    limit: 50,
-    unit: 'artigos',
-  },
-  {
-    id: 'pages',
-    label: 'Super Páginas',
-    icon: LayoutTemplate,
-    used: 3,
-    limit: 10,
-    unit: 'páginas',
-  },
-  {
-    id: 'leads',
-    label: 'Leads capturados',
-    icon: Users,
-    used: 45,
-    limit: 500,
-    unit: 'leads',
-  },
-  {
-    id: 'ai-credits',
-    label: 'Créditos de IA',
-    icon: Zap,
-    used: 1500,
-    limit: 5000,
-    unit: 'tokens',
-  },
-];
-
 export function UsageTab() {
+  const { checkLimit } = usePlanLimits();
+  const [usageData, setUsageData] = useState<UsageItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchUsage = async () => {
+      setLoading(true);
+      try {
+        const resources: { id: ResourceType; label: string; icon: React.ElementType; unit: string }[] = [
+          { id: 'articles', label: 'Artigos gerados', icon: FileText, unit: 'artigos' },
+          { id: 'ebooks', label: 'E-books', icon: LayoutTemplate, unit: 'e-books' },
+          { id: 'team_members', label: 'Membros da equipe', icon: Users, unit: 'membros' },
+          { id: 'keywords', label: 'Palavras-chave', icon: Zap, unit: 'keywords' },
+        ];
+
+        const results = await Promise.all(
+          resources.map(async (r) => {
+            const result = await checkLimit(r.id);
+            return {
+              ...r,
+              used: result.used,
+              limit: result.limit,
+              isUnlimited: result.isUnlimited,
+            };
+          })
+        );
+
+        setUsageData(results);
+      } catch {
+        // Fallback silently
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsage();
+  }, [checkLimit]);
+
   const getPercentage = (used: number, limit: number) => {
+    if (limit === 0) return 0;
     return Math.min((used / limit) * 100, 100);
   };
 
@@ -57,6 +63,14 @@ export function UsageTab() {
     if (percentage >= 70) return 'bg-yellow-500';
     return 'bg-primary';
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -67,12 +81,10 @@ export function UsageTab() {
         </p>
       </div>
 
-      {/* Usage Cards */}
       <div className="grid gap-4 md:grid-cols-2">
-        {USAGE_DATA.map((item) => {
+        {usageData.map((item) => {
           const Icon = item.icon;
-          const percentage = getPercentage(item.used, item.limit);
-          const progressColor = getProgressColor(percentage);
+          const percentage = item.isUnlimited ? 0 : getPercentage(item.used, item.limit);
 
           return (
             <Card key={item.id}>
@@ -83,18 +95,20 @@ export function UsageTab() {
                     {item.label}
                   </div>
                   <span className="text-sm font-normal text-muted-foreground">
-                    {item.used} / {item.limit}
+                    {item.used} / {item.isUnlimited ? 'Ilimitado' : item.limit}
                   </span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <Progress 
-                    value={percentage} 
+                  <Progress
+                    value={item.isUnlimited ? 0 : percentage}
                     className="h-2"
                   />
                   <p className="text-xs text-muted-foreground">
-                    {item.limit - item.used} {item.unit} restantes
+                    {item.isUnlimited
+                      ? 'Sem limite neste plano'
+                      : `${item.limit - item.used} ${item.unit} restantes`}
                   </p>
                 </div>
               </CardContent>
@@ -103,7 +117,6 @@ export function UsageTab() {
         })}
       </div>
 
-      {/* Billing Cycle */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

@@ -8,6 +8,7 @@ export interface OpportunityInput {
   suggested_keywords?: string[] | null;
   territory?: { city?: string | null; state?: string | null } | null;
   goal?: string | null;
+  target_words?: number; // optional: 700 = fast, 2500 = deep (default)
 }
 
 /**
@@ -92,7 +93,7 @@ export async function createArticleFromOpportunity(
     language: 'pt-BR',
     job_type: 'article' as const,
     intent: (opportunity.goal as any) || 'informational',
-    target_words: 2500,
+    target_words: opportunity.target_words ?? 2500, // use caller-supplied value or default
     image_count: 4,
     source: 'radar',
     opportunity_id: opportunity.id || null,

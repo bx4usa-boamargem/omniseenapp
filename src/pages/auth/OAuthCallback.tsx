@@ -18,12 +18,8 @@ export default function OAuthCallback() {
   const hasStartedRef = useRef(false);
 
   const safeRedirect = (path: string, isExternal = false) => {
-    if (hasRedirectedRef.current) {
-      console.log('[OAuthCallback] Redirect already in progress, skipping');
-      return;
-    }
+    if (hasRedirectedRef.current) return;
     hasRedirectedRef.current = true;
-    console.log('[OAuthCallback] Safe redirect to:', path, isExternal ? '(external)' : '(internal)');
     
     if (isExternal) {
       window.location.href = path;
@@ -38,26 +34,17 @@ export default function OAuthCallback() {
     hasStartedRef.current = true;
     
     const handleCallback = async () => {
-      console.log('[OAuthCallback] Starting callback handler');
-      
       try {
-        // Aguardar a sessão ser estabelecida pelo Supabase
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
-          console.error('[OAuthCallback] Session error:', error);
           setStatus('Erro ao finalizar login');
           setTimeout(() => safeRedirect('/login'), 2000);
           return;
         }
 
-        console.log('[OAuthCallback] Session status:', session ? 'active' : 'none');
-
-        // Ler o return_to do query string
         const params = new URLSearchParams(window.location.search);
         const returnTo = params.get('return_to');
-
-        console.log('[OAuthCallback] return_to:', returnTo);
 
         if (returnTo && session) {
           try {
@@ -69,28 +56,21 @@ export default function OAuthCallback() {
               returnUrl.hostname.includes('lovable.app');
             
             if (isValidDomain) {
-              console.log('[OAuthCallback] Valid return_to domain, redirecting externally');
               setStatus('Redirecionando...');
               safeRedirect(returnTo, true);
               return;
-            } else {
-              console.warn('[OAuthCallback] Invalid return_to domain:', returnUrl.hostname);
             }
-          } catch (urlError) {
-            console.warn('[OAuthCallback] Invalid return_to URL:', returnTo, urlError);
+          } catch {
+            // Invalid URL, fall through to default redirect
           }
         }
         
-        // Fallback paths
         if (session) {
-          console.log('[OAuthCallback] Redirecting to dashboard (fallback)');
           safeRedirect('/client/dashboard');
         } else {
-          console.log('[OAuthCallback] No session, redirecting to login');
           safeRedirect('/login');
         }
-      } catch (err) {
-        console.error('[OAuthCallback] Unexpected error:', err);
+      } catch {
         safeRedirect('/login');
       }
     };

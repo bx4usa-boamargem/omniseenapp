@@ -70,21 +70,21 @@ export function InternalStaffTab() {
 
       if (error) throw error;
 
-      // Fetch profiles for each staff member
-      const staffWithProfiles = await Promise.all(
-        (userRoles || []).map(async (ur) => {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name, avatar_url")
-            .eq("user_id", ur.user_id)
-            .single();
+      const roles = userRoles || [];
+      const userIds = roles.map((r) => r.user_id);
 
-          return {
-            ...ur,
-            profile: profile || undefined,
-          };
-        })
+      const { data: profiles } = userIds.length > 0
+        ? await supabase.from("profiles").select("user_id, full_name, avatar_url").in("user_id", userIds)
+        : { data: [] };
+
+      const profilesByUser = new Map(
+        (profiles || []).map((p: any) => [p.user_id, p])
       );
+
+      const staffWithProfiles = roles.map((ur) => ({
+        ...ur,
+        profile: profilesByUser.get(ur.user_id) || undefined,
+      }));
 
       setStaff(staffWithProfiles);
     } catch (error) {

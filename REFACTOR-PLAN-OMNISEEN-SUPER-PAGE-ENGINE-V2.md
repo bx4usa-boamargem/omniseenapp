@@ -2,27 +2,35 @@
 
 **Objetivo:** Transformar o projeto omniseeblog (Lovable) em um motor dual (Super Pages + Articles) com pipeline unificado, SEO estruturado ao estilo SEOwriting.ai, e geração de imagens via Gemini Nano Banana.
 
-**Status:** Diagnóstico e roadmap — sem código ainda.
+**Status:** Pipeline V2 **implementado** em `orchestrate-generation`; este documento foi sincronizado com o código (2026-03). Roadmap abaixo cobre gaps restantes e hardening.
+
+**Documentação relacionada:** [docs/SERP-DATA-SOURCES.md](docs/SERP-DATA-SOURCES.md) (SERP LLM vs `analyze-serp`), [docs/CONTENT-API-SECURITY.md](docs/CONTENT-API-SECURITY.md), [docs/OBSERVABILITY-METRICS.md](docs/OBSERVABILITY-METRICS.md).
 
 ---
 
-## PARTE 1 — DIAGNÓSTICO DA ARQUITETURA ATUAL
+## PARTE 1 — ARQUITETURA ATUAL (ALINHADA AO CÓDIGO)
 
-### 1.1 Fluxo de geração de artigos (estado atual)
+### 1.1 Fluxo de geração (`orchestrate-generation` V2)
 
 | Etapa | Onde | O que faz |
 |-------|------|-----------|
-| **Entrada** | `create-generation-job` | Recebe keyword, blog_id, niche, city, etc.; insere em `generation_jobs`; invoca `orchestrate-generation` (fire-and-forget). |
-| **1. INPUT_VALIDATION** | `orchestrate-generation` | Valida keyword (min 2 chars), niche. Programático. |
-| **2. SERP_SUMMARY** | `orchestrate-generation` → `ai-router` (task `serp_summary`) | Resumo competitivo em texto (~300 palavras). Não usa SERP real (DataForSEO/SerpAPI); é simulado por LLM. |
-| **3. ARTICLE_GEN_SINGLE_PASS** | `orchestrate-generation` → `ai-router` (task `article_gen_single_pass`) | Uma única chamada LLM que devolve JSON: title, meta_description, html_article, faq, image_prompt. **Alvo atual: 900–1500 palavras.** |
-| **4. SAVE_ARTICLE** | `orchestrate-generation` | Slug, excerpt, CTA (blog/job), insert em `articles` (status draft), atualiza job com article_id. |
-| **5. IMAGE_GEN_ASYNC** | `orchestrate-generation` | Gera **só a capa** (hero). Lovable Gateway `google/gemini-2.5-flash-image` ou fallback picsum.photos; upload em bucket `article-images`. |
+| **Entrada** | `create-generation-job` | Cria `generation_jobs`, invoca `orchestrate-generation`. |
+| **INPUT_VALIDATION** | `orchestrate-generation` + [`_shared/pipelineInputValidation.ts`](supabase/functions/_shared/pipelineInputValidation.ts) | Keyword (≥2 chars), niche obrigatórios. Coberto por testes Vitest em `tests/`. |
+| **SERP_ANALYSIS** | `executeSerpSummary` → `ai-router` (`serp_summary`) | Resumo competitivo **por LLM** (~300 palavras); **não** é SERP API ao vivo. |
+| **SERP_GAP_ANALYSIS** | LLM sobre o resumo anterior | Gaps semânticos / tópicos concorrentes (derivados do texto, não de SERP real). |
+| **OUTLINE_GEN** | `ai-router` | Outline obrigatório antes do conteúdo. |
+| **AUTO_SECTION_EXPANSION** | Pipeline V2 | Expansão de seções conforme implementação atual. |
+| **ENTITY_EXTRACTION / ENTITY_COVERAGE** | Pipeline V2 | Entidades e cobertura para conteúdo e quality gate. |
+| **CONTENT_GEN** | `ai-router` (ex.: `article_gen_from_outline`) | Conteúdo orientado a outline; intervalo de palavras via `resolveWordRange` e `job_type` (`article` vs `super_page`). |
+| **SAVE_ARTICLE** | `orchestrate-generation` | Persistência em `articles` (incl. `content_type` quando aplicável — ver migração phase0). |
+| **IMAGE_GEN** | Pipeline V2 (ex.: Gemini / gateway) | Hero + seções no fluxo principal (não só regenerate posterior). |
+| **INTERNAL_LINK_ENGINE** | Pipeline V2 | Links internos no fluxo principal. |
+| **SEO_SCORE** | Integrado ao job | Score antes de concluir. |
+| **QUALITY_GATE** | [`_shared/superPageEngine.ts`](supabase/functions/_shared/superPageEngine.ts) | Limiares (palavras, FAQ, entidades, etc.); pode bloquear publish. |
 
-**Outros pontos de entrada para o mesmo motor:**  
-`process-queue` (filas `article_queue`), `convert-opportunity-to-article`, `article-chat` (quando `generateArticle: true`), UIs (ArticleGenerator, NewArticle, ClientArticleEditor, GenerationNew).
+**Outros pontos de entrada:** `process-queue`, `convert-opportunity-to-article`, `article-chat`, UIs de geração.
 
-**Conclusão:** Existe um único pipeline “article” (single-pass, 900–1500 palavras, 1 imagem hero). Não há distinção de tipo de conteúdo (article vs super page) no fluxo nem no schema de `articles`.
+**Conclusão:** O motor **não** é mais single-pass de 900–1500 palavras; é um pipeline multi-etapa com `super_page` vs `article`. O gap principal de produto continua sendo **SERP verificável no passo inicial** (ver doc SERP).
 
 ---
 
@@ -30,9 +38,9 @@
 
 | Tabela | Papel no motor |
 |--------|-----------------|
-| **articles** | Conteúdo final: title, slug, content (HTML), meta_description, faq (JSONB), featured_image_url, content_images (JSONB), keywords, status, reading_time, cta, generation_source, engine_version, source_payload, etc. **Sem coluna `content_type` (article vs super_page).** |
-| **generation_jobs** | Job type enum `article` \| `super_page`; status; current_step; input/output JSONB; article_id; cost/tokens. **Pipeline atual ignora `job_type` e trata tudo como article.** |
-| **generation_steps** | Log por passo (job_id, step_name, status, input, output, model_used, cost_usd, latency_ms). `step_name` foi migrado para TEXT (regex `^[A-Z0-9_]+$`); enum antigo não inclui os passos v2 (INPUT_VALIDATION, SERP_SUMMARY, ARTICLE_GEN_SINGLE_PASS, SAVE_ARTICLE, IMAGE_GEN_ASYNC). |
+| **articles** | Conteúdo final + **`content_type`** (`article` \| `super_page`), `schema_json` / alvos conforme migração phase0. |
+| **generation_jobs** | `job_type` **`article` \| `super_page`** — **lido no orquestrador** (`resolveWordRange`, CONTENT_GEN, etc.). |
+| **generation_steps** | Log por passo; nomes V2 incluem `SERP_ANALYSIS`, `OUTLINE_GEN`, `CONTENT_GEN`, `IMAGE_GEN`, `INTERNAL_LINK_ENGINE`, `SEO_SCORE`, `QUALITY_GATE`, etc. |
 | **generation_queue** | Fila alternativa (batch); não é a principal para o fluxo atual. |
 | **article_queue** | Fila de temas (suggested_theme, status); consumida por `process-queue` que chama `create-generation-job`. |
 | **article_opportunities** | Oportunidades do Radar; convertidas via `convert-opportunity-to-article`. |
@@ -41,12 +49,10 @@
 | **content_preferences** | Preferências e `ai_model_text`. |
 | **ai_content_cache** | Cache de conteúdo (article/image/seo) por hash. |
 | **article_content_scores** | Scores de conteúdo/SEO. |
-| **article_internal_links**, **cluster_articles** | Links internos e clusters (existentes; não integrados ao pipeline de geração atual). |
+| **article_internal_links**, **cluster_articles** | Alimentados pelo **INTERNAL_LINK_ENGINE** no pipeline V2 (validar dados reais por ambiente). |
 | **serp_analysis_cache** | Cache de análise SERP (usado por seo-enhancer-job / analyze-serp). |
 
-**Schema:**  
-- `articles`: não tem `content_type` nem `word_count_target`; tem `content_images` (JSONB) e `source_payload`.  
-- `generation_jobs`: tem `job_type` mas não é usado no orchestrate-generation.
+**Schema:** ver migração `20260223120000_phase0_content_type_and_schema.sql` e tipos gerados em `src/integrations/supabase/types.ts`.
 
 ---
 
@@ -55,14 +61,14 @@
 | Função | Propósito |
 |--------|-----------|
 | **create-generation-job** | Entrada do motor; cria job e invoca orchestrate-generation. |
-| **orchestrate-generation** | Pipeline em 5 passos (validação → SERP summary → artigo single-pass → save → imagem hero). |
+| **orchestrate-generation** | Pipeline V2 multi-etapa (ver §1.1). |
 | **process-queue** | Lê `article_queue`, chama create-generation-job. |
 | **convert-opportunity-to-article** | Cria placeholder em articles, chama create-generation-job. |
 | **ai-router** | Única camada de chamadas LLM (Lovable AI Gateway); tasks: serp_summary, article_gen_single_pass, title_gen, outline_gen, content_gen, etc. |
 | **generate-image** | Geração genérica de imagem (prompt, context hero/cover/problem/solution/result); perfis por nicho; cache; upload em article-images. |
 | **regenerate-article-images** | Regenera hero + N imagens de seção; usa `imageInjector` para injetar no HTML. |
 | **regenerate-single-image** | Regenera uma imagem (capa ou interna por índice). |
-| **build-article-outline** | Gera outline (h1, h2[], h3[]) por opportunityId/blogId; não usado no pipeline principal. |
+| **build-article-outline** | Outline por opportunity; o pipeline principal usa passo OUTLINE_GEN interno ao orquestrador. |
 | **analyze-serp** | Análise SERP (Firecrawl/LLM); usado por seo-enhancer-job. |
 | **seo-enhancer-job** | Pós-geração: SERP profundo, FAQs, content gaps; não bloqueia UI. |
 | **calculate-content-score** | Score de conteúdo. |
@@ -78,56 +84,34 @@
 
 ### 1.4 Lógica de criação de conteúdo (texto)
 
-- **Conteúdo principal:** Gerado em **uma única passada** em `orchestrate-generation` → `executeArticleGenSinglePass` → `ai-router` task `article_gen_single_pass`.  
-- **Prompt:** Fixo no código; inclui keyword, city, niche, language, serp_summary, CTA; pede 900–1500 palavras, H1/H2/H3, intro answer-first, FAQ 3–5, HTML com `<style>`, image_prompt.  
-- **Sem:** outline prévio obrigatório, entidades semânticas explícitas, clusters de topical authority, internal linking automático no pipeline, FAQ schema pronto (JSON-LD), alvo por tipo (super_page vs article).  
-- **Outlines:** `build-article-outline` existe mas é usado noutro fluxo (opportunityId/blogId); não está no pipeline create-generation-job → orchestrate-generation.  
-- **SERP:** Resumo por LLM (serp_summary); análise SERP “real” (Firecrawl) só no **seo-enhancer-job** em background, depois do artigo salvo.
+- **Conteúdo principal:** multi-etapa: outline → entidades → **CONTENT_GEN** (não depende de `article_gen_single_pass` como único caminho).  
+- **SERP:** passo **SERP_ANALYSIS** continua a ser **LLM-only**; dados Firecrawl/SerpAPI ficam em **`analyze-serp`** / jobs auxiliares — ver [docs/SERP-DATA-SOURCES.md](docs/SERP-DATA-SOURCES.md).  
+- **Task legada `article_gen_single_pass`:** pode existir no `ai-router` para outros fluxos; o orquestrador V2 prioriza geração a partir de outline.
 
 ---
 
 ### 1.5 Lógica de geração de imagens
 
-- **Hero (capa):** No pipeline principal, só no passo **IMAGE_GEN_ASYNC**: prompt via JSON do ARTICLE_GEN_SINGLE_PASS; Lovable Gateway `google/gemini-2.5-flash-image`; fallback picsum.photos; upload em `article-images`; atualiza `articles.featured_image_url` e `featured_image_alt`.  
-- **Imagens de seção:** Não são geradas no pipeline principal. São geradas **depois**, por **regenerate-article-images** (ou pela UI), que usa `generate-image` por contexto (problem/pain/solution/result) e **imageInjector** para injetar no HTML (exige mínimo 5 H2).  
-- **generate-image:** Perfis visuais por nicho (NICHE_VISUAL_PROFILES), cache em `ai_content_cache`, upload em `article-images`, opcionalmente atualiza `articles.featured_image_url` ou `content_images`.  
-- **Provedor atual:** Lovable AI Gateway (Gemini 2.5 Flash Image). **Não há integração com “Gemini Nano Banana”** (nome a confirmar; pode ser Imagen ou outro produto Google).
+- **Pipeline V2:** passo **IMAGE_GEN** cobre hero + seções no fluxo principal (detalhe de modelo: ver `_shared/geminiImageGenerator.ts` / gateway).  
+- **regenerate-article-images** permanece útil para **regeração manual** ou correções.
 
 ---
 
-## PARTE 2 — PARTES QUEBRADAS / INCONSISTÊNCIAS
+## PARTE 2 — GAPS E INCONSISTÊNCIAS (ATUALIZADO)
 
-1. **`job_type` ignorado**  
-   `generation_jobs.job_type` existe (`article` \| `super_page`) mas `orchestrate-generation` não bifurca por tipo: tudo é gerado como artigo curto (900–1500 palavras) e uma única imagem hero.
+1. **SERP verificável no início do pipeline** — Ainda em aberto: integrar `analyze-serp` ou API SERP **antes** de outline/conteúdo, ou alinhar copy do produto com “análise de mercado por IA”.  
+2. **Enums SQL legados** — Migrações antigas podem referir `generation_step_name` obsoleto; confirmar só TEXT + regex em ambientes novos.  
+3. **Hardening** — CORS: [`_shared/httpCors.ts`](supabase/functions/_shared/httpCors.ts) + `ALLOWED_CORS_ORIGINS`; Content API: rate limit + cache — [docs/CONTENT-API-SECURITY.md](docs/CONTENT-API-SECURITY.md).  
+4. **Testes** — Vitest em `tests/`; expandir para mais passos puros e contratos HTTP.  
+5. **Observabilidade** — Métricas sugeridas em [docs/OBSERVABILITY-METRICS.md](docs/OBSERVABILITY-METRICS.md).
 
-2. **Enum de passos desatualizado**  
-   O enum `generation_step_name` no SQL tinha passos do motor v1 (SERP_ANALYSIS, NLP_KEYWORDS, TITLE_GEN, OUTLINE_GEN, CONTENT_GEN, IMAGE_GEN, SEO_SCORE, META_GEN, OUTPUT). O código v2 usa strings (INPUT_VALIDATION, SERP_SUMMARY, ARTICLE_GEN_SINGLE_PASS, SAVE_ARTICLE, IMAGE_GEN_ASYNC). A migração que converteu `step_name` para TEXT com regex resolve o armazenamento, mas o enum em migrações antigas fica órfão.
-
-3. **Super Pages inexistentes**  
-   Não há fluxo nem schema para “Super Page” (3000–6000 palavras, clusters, entidades, internal linking, FAQ schema). O mesmo vale para diferenciação de “Article” (1500–3000 palavras, SEO local, NLP keywords).
-
-4. **Pipeline não segue o desenho desejado**  
-   O desenho alvo é:  
-   `keyword → serp analysis → outline → entities → content → images → seo score → publish`.  
-   O atual é:  
-   `keyword → serp summary (LLM) → article single pass (content + 1 image_prompt) → save → hero image`.  
-   Faltam: SERP real, outline obrigatório, etapa de entidades, geração de imagens de seção no pipeline principal, passo de SEO score antes de publish, e integração explícita de internal linking.
-
-5. **Imagens de seção fora do pipeline**  
-   Imagens de seção são opcionais e feitas depois (regenerate-article-images), com requisito de ≥5 H2. No V2 desejado, hero + section images + ilustrações contextuais devem fazer parte do fluxo principal.
-
-6. **SERP “real” só em background**  
-   `seo-enhancer-job` e `analyze-serp` fazem análise SERP mais profunda (Firecrawl) depois do artigo estar salvo. No V2, a análise SERP deve ser passo de entrada (keyword → serp analysis) para outline e conteúdo.
-
-7. **Sem distinção de conteúdo em `articles`**  
-   A tabela `articles` não tem `content_type` (article vs super_page). Listagens e regras de negócio não podem diferenciar.
-
-8. **Internal linking e clusters não integrados**  
-   `article_internal_links` e `cluster_articles` existem mas não são alimentados pelo pipeline de geração atual.
+**Resolvido no código (frente ao plano antigo):** uso de `job_type`, pipeline multi-etapa, `content_type` em `articles`, outline/entidades/links/score/quality gate no orquestrador, imagens no fluxo principal.
 
 ---
 
 ## PARTE 3 — MÓDULOS QUE FALTAM (PARA V2)
+
+> **Nota:** Vários itens abaixo já têm contraparte no `orchestrate-generation` V2 (outline, entidades, links, score, dual `job_type`). Use esta lista como **backlog de produto** (SERP real, schema JSON-LD completo, provider de imagem unificado, etc.), não como descrição do estado atual do código.
 
 1. **Tipagem de conteúdo (Super Page vs Article)**  
    - Schema: `content_type` em `articles` (e/ou uso consistente de `generation_jobs.job_type`).  
@@ -222,14 +206,14 @@
 
 ## RESUMO EXECUTIVO
 
-| Aspecto | Atual | Alvo V2 |
-|--------|--------|--------|
-| **Tipos de conteúdo** | Só artigo (900–1500 palavras) | Super Page (3000–6000) + Article (1500–3000) |
-| **SERP** | Resumo LLM; análise real só em background | Análise SERP como passo de entrada |
-| **Outline** | Não no pipeline principal | Passo obrigatório (outline-driven content) |
-| **Entidades / clusters** | Não integrados | Passo de entidades + internal linking |
-| **Imagens** | Hero no pipeline; seção só em “regenerate” | Hero + section + contextuais no pipeline (Gemini Nano Banana) |
-| **FAQ / schema** | FAQ no conteúdo; sem JSON-LD persistido | FAQ + schema JSON-LD em BD |
-| **Pipeline** | keyword → serp summary → single-pass → save → hero | keyword → serp → outline → entities → content → images → seo score → publish |
+| Aspecto | Código atual (V2) | Próximo alvo (produto) |
+|--------|-------------------|-------------------------|
+| **Tipos de conteúdo** | `job_type` + `articles.content_type`; intervalos por `resolveWordRange` | Refinar UX e relatórios por tipo |
+| **SERP** | LLM no passo `SERP_ANALYSIS`; Firecrawl em `analyze-serp` (fora do core) | **SERP verificável** alimentando outline (Fase 1.1) |
+| **Outline** | Passo `OUTLINE_GEN` no orquestrador | Melhorar com dados SERP reais |
+| **Entidades / links** | Passos `ENTITY_*`, `INTERNAL_LINK_ENGINE` | Validação em produção + clusters |
+| **Imagens** | Passo `IMAGE_GEN` no pipeline | Consolidar provider / custo (Fase 3) |
+| **FAQ / schema** | FAQ em `articles`; `schema_json` na migração phase0 | Garantir geração/publish JSON-LD em todos os fluxos |
+| **Pipeline** | Multi-etapa até `QUALITY_GATE` | SERP real + observabilidade (ver docs) |
 
-**Próximo passo recomendado:** Fase 0 (schema + contratos) e Fase 1.1–1.2 (SERP real + outline no pipeline), sem alterar ainda o tamanho do artigo nem introduzir Super Pages. Em seguida, Fase 3 (imagens) e 2 (Super Pages + entidades) em paralelo ou sequencial conforme prioridade de produto.
+**Próximo passo recomendado:** (1) Integrar dados SERP reais no início do orquestrador ou ajustar messaging do produto — [docs/SERP-DATA-SOURCES.md](docs/SERP-DATA-SOURCES.md). (2) Exportar métricas de `generation_steps` — [docs/OBSERVABILITY-METRICS.md](docs/OBSERVABILITY-METRICS.md). (3) Fase 0 já aplicada no schema: validar UIs e jobs antigos.

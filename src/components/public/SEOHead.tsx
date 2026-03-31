@@ -56,6 +56,31 @@ export const SEOHead = ({
     };
 
     updateMetaTag("description", description);
+    updateMetaTag("robots", "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1");
+
+    const addPreconnect = (href: string) => {
+      if (!document.querySelector(`link[rel="preconnect"][href="${href}"]`)) {
+        const link = document.createElement("link");
+        link.rel = "preconnect";
+        link.href = href;
+        link.crossOrigin = "anonymous";
+        document.head.appendChild(link);
+      }
+    };
+
+    addPreconnect("https://fonts.googleapis.com");
+    addPreconnect("https://fonts.gstatic.com");
+
+    if (ogImage) {
+      let preload = document.querySelector(`link[rel="preload"][href="${ogImage}"]`);
+      if (!preload) {
+        preload = document.createElement("link");
+        preload.setAttribute("rel", "preload");
+        preload.setAttribute("as", "image");
+        preload.setAttribute("href", ogImage);
+        document.head.appendChild(preload);
+      }
+    }
     if (keywords?.length) {
       updateMetaTag("keywords", keywords.join(", "));
     }

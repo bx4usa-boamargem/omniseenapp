@@ -5,9 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { Copy, Download, ExternalLink, Instagram, Linkedin, Share2 } from "lucide-react";
+import { Copy, Download, ExternalLink, Instagram, Linkedin, Share2, Loader2, Send } from "lucide-react";
 import { InstagramPreview } from "./InstagramPreview";
 import { LinkedInPreview } from "./LinkedInPreview";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SocialSharePanelProps {
   open: boolean;
@@ -17,6 +18,8 @@ interface SocialSharePanelProps {
   featuredImage: string | null;
   articleUrl?: string;
   keywords?: string[];
+  articleId?: string;
+  blogId?: string;
 }
 
 export function SocialSharePanel({
@@ -27,9 +30,12 @@ export function SocialSharePanel({
   featuredImage,
   articleUrl,
   keywords = [],
+  articleId,
+  blogId,
 }: SocialSharePanelProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("linkedin");
+  const [publishing, setPublishing] = useState<string | null>(null);
 
   const hashtags = keywords.slice(0, 5).map(k => `#${k.replace(/\s+/g, '')}`).join(' ');
 
@@ -67,6 +73,30 @@ export function SocialSharePanel({
   const openLinkedIn = () => {
     const url = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(articleUrl || '')}`;
     window.open(url, '_blank', 'width=600,height=600');
+  };
+
+  const publishDirect = async (platform: "linkedin" | "instagram") => {
+    if (!articleId || !blogId) {
+      toast({ title: "Artigo não disponível para publicação direta", variant: "destructive" });
+      return;
+    }
+    setPublishing(platform);
+    try {
+      const { data, error } = await supabase.functions.invoke("publish-to-social", {
+        body: { article_id: articleId, blog_id: blogId, platforms: [platform] },
+      });
+      if (error) throw error;
+      const result = data?.results?.[platform];
+      if (result?.success) {
+        toast({ title: `Publicado no ${platform === 'linkedin' ? 'LinkedIn' : 'Instagram'} com sucesso!` });
+      } else {
+        toast({ title: result?.error || "Conta não conectada. Configure em Configurações > Integrações.", variant: "destructive" });
+      }
+    } catch (err: any) {
+      toast({ title: err.message || "Erro ao publicar", variant: "destructive" });
+    } finally {
+      setPublishing(null);
+    }
   };
 
   return (
@@ -140,9 +170,16 @@ export function SocialSharePanel({
               </Button>
             </div>
 
-            <p className="text-xs text-muted-foreground text-center">
-              🚀 Publicação direta no Instagram em breve!
-            </p>
+            {articleId && blogId && featuredImage && (
+              <Button
+                className="w-full"
+                onClick={() => publishDirect("instagram")}
+                disabled={publishing === "instagram"}
+              >
+                {publishing === "instagram" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                Publicar Direto no Instagram
+              </Button>
+            )}
           </TabsContent>
 
           <TabsContent value="linkedin" className="space-y-4 mt-4">
@@ -182,6 +219,17 @@ export function SocialSharePanel({
                 Compartilhar no LinkedIn
               </Button>
             </div>
+
+            {articleId && blogId && (
+              <Button
+                className="w-full"
+                onClick={() => publishDirect("linkedin")}
+                disabled={publishing === "linkedin"}
+              >
+                {publishing === "linkedin" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                Publicar Direto no LinkedIn
+              </Button>
+            )}
           </TabsContent>
         </Tabs>
       </DialogContent>

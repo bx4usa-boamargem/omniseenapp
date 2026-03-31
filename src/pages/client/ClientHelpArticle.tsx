@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, ChevronLeft, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { sanitizeHTML } from '@/lib/sanitize';
 
 interface HelpArticle {
   id: string;
@@ -52,7 +53,7 @@ const formatContent = (content: string) => {
         )}>
           {listItems.map((item, i) => (
             <li key={i} className="text-muted-foreground" 
-                dangerouslySetInnerHTML={{ __html: item.replace(/\*\*(.*?)\*\*/g, '<strong class="text-foreground">$1</strong>') }} 
+                dangerouslySetInnerHTML={{ __html: sanitizeHTML(item.replace(/\*\*(.*?)\*\*/g, '<strong class="text-foreground">$1</strong>')) }} 
             />
           ))}
         </ListTag>
@@ -63,7 +64,8 @@ const formatContent = (content: string) => {
   };
 
   const parseBold = (text: string) => {
-    return text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-foreground font-semibold">$1</strong>');
+    const raw = text.replace(/\*\*(.*?)\*\*/g, '<strong class="text-foreground font-semibold">$1</strong>');
+    return sanitizeHTML(raw);
   };
 
   lines.forEach((line) => {

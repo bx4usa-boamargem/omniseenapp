@@ -1,12 +1,8 @@
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
+import { corsHeadersForRequest } from "../_shared/httpCors.ts";
 
 // Supported routes for the Content API
-type ContentRoute = 
+type ContentRoute =
   | "blog.home"
   | "blog.article"
   | "blog.category"
@@ -31,6 +27,56 @@ interface TenantResolution {
   domain: string;
   domain_type: "subdomain" | "custom";
   status: string;
+}
+
+function clientIp(req: Request): string {
+  return (
+    req.headers.get("cf-connecting-ip")?.trim() ||
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    "unknown"
+  );
+}
+
+function cacheHeadersForRoute(route: ContentRoute): Record<string, string> {
+  const maxAge = Number(Deno.env.get("CONTENT_API_CACHE_DEFAULT_MAX_AGE") ?? "120");
+  const swr = Number(Deno.env.get("CONTENT_API_CACHE_STALE_WHILE_REVALIDATE") ?? "300");
+  let age = maxAge;
+  if (route === "blog.search") age = Math.min(age, 60);
+  if (route === "sitemap.urls" || route === "agent.config") age = Math.max(age, 180);
+  return {
+    "Cache-Control": `public, max-age=${age}, s-maxage=${age}, stale-while-revalidate=${swr}`,
+  };
+}
+
+/** JSON response with dynamic CORS and optional edge cache hints (200 + route). */
+function jsonResponse(
+  req: Request,
+  status: number,
+  body: unknown,
+  cacheRoute?: ContentRoute,
+): Response {
+  const headers: Record<string, string> = {
+    ...corsHeadersForRequest(req),
+    "Content-Type": "application/json",
+  };
+  if (status === 200 && cacheRoute) {
+    Object.assign(headers, cacheHeadersForRoute(cacheRoute));
+  } else {
+    headers["Cache-Control"] = "no-store";
+  }
+  return new Response(JSON.stringify(body), { status, headers });
+}
+
+function tooManyRequests(req: Request): Response {
+  return new Response(JSON.stringify({ error: "Too many requests" }), {
+    status: 429,
+    headers: {
+      ...corsHeadersForRequest(req),
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+      "Retry-After": "60",
+    },
+  });
 }
 
 // Fields allowed to be returned (whitelist approach)
@@ -64,18 +110,28 @@ const LANDING_PAGE_PUBLIC_FIELDS = [
 type SupabaseClientAny = SupabaseClient<any, any, any>;
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeadersForRequest(req) });
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase: SupabaseClientAny = createClient(supabaseUrl, serviceRoleKey);
+
+  const maxPerMinute = Number(Deno.env.get("CONTENT_API_MAX_REQ_PER_MINUTE") ?? "180");
+  if (maxPerMinute > 0) {
+    const { data: hitCount, error: rlError } = await supabase.rpc("content_api_increment_rate", {
+      p_client_key: clientIp(req).slice(0, 200),
+    });
+    if (rlError) {
+      console.warn("[content-api] rate limit RPC failed (fail-open):", rlError.message);
+    } else if (typeof hitCount === "number" && hitCount > maxPerMinute) {
+      return tooManyRequests(req);
+    }
   }
 
   try {
     const { host, blog_id, blog_slug, route, params = {} } = await req.json() as ContentRequest;
-
-    // Create Supabase client with service role (bypasses RLS)
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase: SupabaseClientAny = createClient(supabaseUrl, serviceRoleKey);
 
     // ============================================================
     // SPECIAL ROUTE: page.landing.direct - bypasses tenant resolution entirely
@@ -85,10 +141,7 @@ Deno.serve(async (req) => {
       const slug = String(params.slug || "");
       
       if (!slug) {
-        return new Response(
-          JSON.stringify({ error: "Missing slug parameter" }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonResponse(req, 400, { error: "Missing slug parameter" });
       }
 
       console.log(`[content-api] page.landing.direct: slug=${slug}`);
@@ -106,17 +159,11 @@ Deno.serve(async (req) => {
 
       if (pageError) {
         console.error("[content-api] Error fetching landing page direct:", pageError);
-        return new Response(
-          JSON.stringify({ error: "Database error" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonResponse(req, 500, { error: "Database error" });
       }
 
       if (!pageData) {
-        return new Response(
-          JSON.stringify({ error: "Page not found", slug }),
-          { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonResponse(req, 404, { error: "Page not found", slug });
       }
 
       // Parse page_data if needed
@@ -134,27 +181,23 @@ Deno.serve(async (req) => {
       const blogData = page.blog;
       delete page.blog; // Remove from page object
 
-      return new Response(
-        JSON.stringify({
-          tenant: {
-            blog_id: blogData?.id || null,
-            tenant_id: null,
-            domain: "direct",
-            domain_type: "subdomain",
-          },
-          blog: blogData,
-          data: { page },
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse(req, 200, {
+        tenant: {
+          blog_id: blogData?.id || null,
+          tenant_id: null,
+          domain: "direct",
+          domain_type: "subdomain",
+        },
+        blog: blogData,
+        data: { page },
+      }, "page.landing.direct");
     }
 
     // Standard routes require host, blog_id, or blog_slug
     if (!route || (!host && !blog_id && !blog_slug)) {
-      return new Response(
-        JSON.stringify({ error: "Missing required fields: route and (host or blog_id or blog_slug)" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse(req, 400, {
+        error: "Missing required fields: route and (host or blog_id or blog_slug)",
+      });
     }
 
     console.log(`[content-api] Request: host=${host}, blog_id=${blog_id}, blog_slug=${blog_slug}, route=${route}, params=${JSON.stringify(params)}`);
@@ -196,10 +239,7 @@ Deno.serve(async (req) => {
     
     if (!tenant) {
       console.log(`[content-api] Tenant not found for host: ${host}, blog_id: ${blog_id}, blog_slug: ${blog_slug}`);
-      return new Response(
-        JSON.stringify({ error: "Tenant not found", host, blog_id, blog_slug }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse(req, 404, { error: "Tenant not found", host, blog_id, blog_slug });
     }
 
     console.log(`[content-api] Tenant resolved: blog_id=${tenant.blog_id}, tenant_id=${tenant.tenant_id}`);
@@ -236,35 +276,26 @@ Deno.serve(async (req) => {
         data = await handleAgentConfig(supabase, tenant.blog_id);
         break;
       default:
-        return new Response(
-          JSON.stringify({ error: "Unknown route", route }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonResponse(req, 400, { error: "Unknown route", route });
     }
     
     // Special case: page.landing.direct is handled before tenant resolution
     // But we should NEVER reach here for page.landing.direct - see special handling above
 
-    return new Response(
-      JSON.stringify({
-        tenant: {
-          blog_id: tenant.blog_id,
-          tenant_id: tenant.tenant_id,
-          domain: tenant.domain,
-          domain_type: tenant.domain_type,
-        },
-        blog: blogMeta,
-        data,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse(req, 200, {
+      tenant: {
+        blog_id: tenant.blog_id,
+        tenant_id: tenant.tenant_id,
+        domain: tenant.domain,
+        domain_type: tenant.domain_type,
+      },
+      blog: blogMeta,
+      data,
+    }, route);
 
   } catch (error) {
     console.error("[content-api] Error:", error);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse(req, 500, { error: "Internal server error" });
   }
 });
 

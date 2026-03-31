@@ -68,12 +68,8 @@ function LoginContent() {
   const hasRedirectedRef = useRef(false);
 
   const safeRedirect = (path: string) => {
-    if (hasRedirectedRef.current) {
-      console.log('[Login] Redirect already in progress, skipping');
-      return;
-    }
+    if (hasRedirectedRef.current) return;
     hasRedirectedRef.current = true;
-    console.log('[Login] Safe redirect to:', path);
     navigate(path, { replace: true });
   };
 
@@ -91,12 +87,6 @@ function LoginContent() {
     password: z.string().min(6, 'Senha deve ter pelo menos 6 caracteres'),
   });
 
-  // Debug logs
-  useEffect(() => {
-    console.log('[Login] Component mounted');
-    console.log('[Login] authLoading:', authLoading, 'user:', user?.email);
-  }, [authLoading, user]);
-
   // Pre-fill email from query string (when redirected from signup)
   useEffect(() => {
     const emailFromQuery = searchParams.get('email');
@@ -110,7 +100,6 @@ function LoginContent() {
     let timer: ReturnType<typeof setTimeout>;
     if (authLoading) {
       timer = setTimeout(() => {
-        console.warn('[Login] Loading timeout exceeded');
         setLoadingTimeout(true);
       }, 15000);
     } else {
@@ -123,7 +112,6 @@ function LoginContent() {
     if (!isAwaitingSession || user) return;
 
     const timer = setTimeout(() => {
-      console.warn('[Login] Session confirmation timeout exceeded');
       setIsAwaitingSession(false);
       toast({
         title: 'Sessão não confirmada',
@@ -138,7 +126,6 @@ function LoginContent() {
   // Auto-redirect se já está autenticado
   useEffect(() => {
     if (!authLoading && user) {
-      console.log('[Login] User authenticated, redirecting to client dashboard');
       setIsAwaitingSession(false);
       safeRedirect(postLoginPath);
     }
@@ -210,7 +197,6 @@ function LoginContent() {
       setIsAwaitingSession(true);
 
     } catch (err) {
-      console.error('[Login] Unexpected error:', err);
       toast({
         title: 'Erro',
         description: 'Ocorreu um erro inesperado',
@@ -233,7 +219,6 @@ function LoginContent() {
         });
       }
     } catch (err) {
-      console.error('[Login] Google sign in error:', err);
       toast({
         title: 'Erro',
         description: 'Erro ao fazer login com Google',

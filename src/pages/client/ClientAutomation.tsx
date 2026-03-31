@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useLocaleFormat } from '@/hooks/useLocaleFormat';
 import { QueueTab } from '@/components/client/automation/QueueTab';
+import { ContentCalendar } from '@/components/client/calendar/ContentCalendar';
 
 type AutomationMode = 'manual' | 'suggest' | 'auto';
 
@@ -453,7 +454,7 @@ export default function ClientAutomation() {
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="config" className="gap-2">
             <Settings2 className="h-4 w-4" />
             Configurações
@@ -466,6 +467,10 @@ export default function ClientAutomation() {
                 {queueStats.pending}
               </Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="calendar" className="gap-2">
+            <Calendar className="h-4 w-4" />
+            Calendário
           </TabsTrigger>
         </TabsList>
 
@@ -756,6 +761,11 @@ export default function ClientAutomation() {
         {/* Queue Tab */}
         <TabsContent value="queue" className="mt-6">
           {blog?.id && <QueueTab blogId={blog.id} />}
+        </TabsContent>
+
+        {/* Calendar Tab */}
+        <TabsContent value="calendar" className="mt-6">
+          <ContentCalendar />
         </TabsContent>
       </Tabs>
     </div>
