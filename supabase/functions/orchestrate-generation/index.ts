@@ -756,7 +756,7 @@ OUTPUT FORMAT (STRICT JSON only):
 }`;
 
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'article_gen_from_outline', [
-    { role: 'system', content: `You are an elite premium SEO content writer for ${niche} in ${language}. You produce in-depth articles between 1500-3000 words depending on topic complexity. You MUST return valid JSON with html_article containing proper semantic HTML: <h1> for title, <h2> for sections, <h3> for subsections, <p> for paragraphs, <ul>/<ol> for lists. Every paragraph must be short (2-5 lines). NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks.` },
+    { role: 'system', content: `You are an elite SEO content writer for ${niche} in ${language}. You produce articles with EXACTLY the word count requested — no more, no less. Target: ${targetWords} words (range: ${wordRange}). Do NOT exceed the upper limit. Shorter articles must be tighter and more concise. You MUST return valid JSON with html_article containing proper semantic HTML: <h1>, <h2>, <h3>, <p>, <ul>/<ol>. Every paragraph must be short (2-5 lines). NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks.` },
     { role: 'user', content: prompt },
   ]);
 
