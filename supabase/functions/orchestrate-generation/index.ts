@@ -24,7 +24,7 @@ const corsHeaders = {
 // ============================================================
 
 const MAX_JOB_TIME_MS = 120_000;
-const MAX_API_CALLS = 5;
+const MAX_API_CALLS = 10;
 const LOCK_TTL_MS = 120_000;
 
 // ============================================================
