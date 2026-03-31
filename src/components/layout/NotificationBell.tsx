@@ -135,7 +135,7 @@ export function NotificationBell() {
 
     // Subscribe to new automation notifications
     const automationChannel = supabase
-      .channel("automation_notifications")
+      .channel(`automation_notifications_${user.id}`)
       .on(
         "postgres_changes",
         {
