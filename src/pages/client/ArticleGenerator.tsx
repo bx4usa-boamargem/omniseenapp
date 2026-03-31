@@ -201,18 +201,19 @@ export default function ArticleGenerator() {
     
     try {
       // V6.0: Call create-generation-job directly — no placeholder article
+      const selectedCountry = COUNTRIES.find(c => c.code === formData.country);
       const enginePayload = {
         keyword: formData.keyword.trim(),
         blog_id: blog.id,
         city: formData.city.trim(),
         state: formData.state || undefined,
-        country: 'BR',
-        language: 'pt-BR',
+        country: formData.country || 'BR',
+        language: selectedCountry?.language || 'pt-BR',
         niche: formData.niche || 'default',
         job_type: 'article' as const,
         intent: 'informational' as const,
         target_words: formData.mode === 'authority' ? 2500 : 1200,
-        image_count: formData.mode === 'authority' ? 8 : 4,
+        image_count: formData.mode === 'authority' ? 4 : 3,
       };
 
       console.log('[V6.0] Invoking create-generation-job...');
