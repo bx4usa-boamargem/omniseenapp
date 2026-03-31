@@ -23,7 +23,7 @@ const corsHeaders = {
 // CONSTANTS
 // ============================================================
 
-const MAX_JOB_TIME_MS = 120_000;
+const MAX_JOB_TIME_MS = 240_000;
 const MAX_API_CALLS = 10;
 const LOCK_TTL_MS = 120_000;
 
@@ -1245,9 +1245,19 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     // ============================================================
     // STEP: ENTITY_COVERAGE (distribute entities, score)
     // ============================================================
+    console.log(`[V2] Step: ENTITY_COVERAGE`);
+    await updatePublicStatus(supabase, jobId, 'ENTITY_COVERAGE', false, lockId);
+    await supabase.from('generation_jobs').update({ current_step: 'ENTITY_COVERAGE' }).eq('id', jobId);
+
+    const covStepId = await createStepOrFail(supabase, jobId, 'ENTITY_COVERAGE', { entity_count: (entities.topics?.length || 0) + (entities.terms?.length || 0) });
+    const covStart = Date.now();
     const entityCoverage = executeEntityCoverage(outline, entities);
-    console.log(`[V2] Step: ENTITY_COVERAGE | score=${entityCoverage.coverageScore}`);
+    await supabase.from('generation_steps').update({
+      status: 'completed', output: { coverageScore: entityCoverage.coverageScore, assignedSections: entityCoverage.assignment.length },
+      latency_ms: Date.now() - covStart, completed_at: new Date().toISOString(), model_used: 'programmatic', provider: 'programmatic',
+    }).eq('id', covStepId);
     await updatePublicStatus(supabase, jobId, 'ENTITY_COVERAGE', true, lockId);
+    console.log(`[V2] ✅ ENTITY_COVERAGE score=${entityCoverage.coverageScore}`);
 
     // ============================================================
     // STEP: CONTENT_GEN (outline-driven + entity coverage)
@@ -1319,30 +1329,36 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
       const imgStepId = await createStepOrFail(supabase, jobId, 'IMAGE_GEN', { article_id: saveOutput.article_id });
 
       // Mark article as images_pending so the UI knows to poll
-      await supabase.from('articles').update({ images_pending: true }).eq('id', saveOutput.article_id);
+      await supabase.from('articles').update({ images_pending: true, images_total: 1 + (outline?.h2?.length || 0), images_completed: 0 }).eq('id', saveOutput.article_id);
 
-      // Fire-and-forget: invoke async image generation function
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      fetch(`${supabaseUrl}/functions/v1/generate-article-images-async`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${supabaseServiceKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          article_id: saveOutput.article_id,
-          keyword: jobInput.keyword || '',
-          outline_h2: outline?.h2 || [],
-          job_id: jobId,
-          step_id: imgStepId,
-        }),
-      }).catch(e => console.warn('[V2] IMAGE_GEN async invoke error (non-fatal):', e));
+      // Run image generation inline (wait for it) to ensure images are ready before completing
+      console.log(`[V2] IMAGE_GEN starting inline for article ${saveOutput.article_id}...`);
+      const imgResult = await withTimeout(
+        executeImageGenGeminiNanoBanana(
+          saveOutput.article_id as string,
+          articleData!,
+          outline,
+          jobInput,
+          supabase
+        ),
+        90_000,
+        'IMAGE_GEN'
+      );
 
-      console.log(`[V2] ✅ IMAGE_GEN dispatched async for article ${saveOutput.article_id}`);
+      // Mark images done
+      await supabase.from('articles').update({ images_pending: false }).eq('id', saveOutput.article_id);
+
+      await supabase.from('generation_steps').update({
+        status: 'completed', output: imgResult, completed_at: new Date().toISOString(),
+        model_used: 'gemini-nano-banana', provider: 'lovable-gateway',
+      }).eq('id', imgStepId);
+
+      console.log(`[V2] ✅ IMAGE_GEN completed: hero=${imgResult.heroUrl ? 'yes' : 'no'}, sections=${imgResult.sectionCount || 0}`);
     } catch (imgErr) {
-      const imgErrMsg = imgErr instanceof Error ? imgErr.message : 'Image gen dispatch failed';
+      const imgErrMsg = imgErr instanceof Error ? imgErr.message : 'Image gen failed';
       console.warn(`[V2] ⚠️ IMAGE_GEN failed (non-fatal): ${imgErrMsg}`);
+      // Ensure images_pending is cleared even on failure
+      await supabase.from('articles').update({ images_pending: false }).eq('id', saveOutput.article_id);
     }
     await updatePublicStatus(supabase, jobId, 'IMAGE_GEN', true, lockId);
 
