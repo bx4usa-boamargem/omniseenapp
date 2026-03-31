@@ -556,7 +556,7 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
                     </div>
                     <Button 
                       size="sm"
-                      onClick={() => handleCreateArticle(opportunity)}
+                      onClick={() => openSizeModal(opportunity)}
                       disabled={creatingId === opportunity.id}
                     >
                       {creatingId === opportunity.id ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
