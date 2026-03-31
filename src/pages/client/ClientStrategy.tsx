@@ -19,6 +19,7 @@ import { useNavigate } from 'react-router-dom';
 import { ClientCompetitorsTab } from '@/components/client/strategy/ClientCompetitorsTab';
 import { ClientOpportunitiesTab } from '@/components/client/strategy/ClientOpportunitiesTab';
 import { MarketRadarTab } from '@/components/client/strategy/MarketRadarTab';
+import { ContentCalendar } from '@/components/content/ContentCalendar';
 
 // Business type options
 const TIPO_NEGOCIO_OPTIONS = [
