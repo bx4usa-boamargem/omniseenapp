@@ -17,7 +17,8 @@ export interface OpportunityInput {
 export async function createArticleFromOpportunity(
   opportunity: OpportunityInput,
   blogId: string,
-  navigate: NavigateFunction
+  navigate: NavigateFunction,
+  targetWords: number = 2500
 ): Promise<{ success: boolean; job_id?: string }> {
   const normalizedKeyword = opportunity.suggested_title?.trim().toLowerCase();
 
