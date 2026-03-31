@@ -42,12 +42,12 @@ export default function GenerationNew() {
   const getValidationErrors = (): string[] => {
     const errors: string[] = [];
     const trimmedKeyword = form.keyword?.trim() || '';
-    const trimmedNiche = form.niche?.trim() || '';
+    const resolvedNiche = customNiche ? (form.customNicheText?.trim() || '') : (form.niche?.trim() || '');
     const trimmedCity = form.city?.trim() || '';
     const tw = parseInt(form.target_words);
 
     if (trimmedKeyword.length < 2) errors.push('Keyword deve ter pelo menos 2 caracteres');
-    if (trimmedNiche.length < 2) errors.push('Nicho é obrigatório');
+    if (resolvedNiche.length < 2) errors.push('Nicho é obrigatório');
     if (trimmedCity && trimmedCity.length < 2) errors.push('Cidade inválida');
     if (tw && (tw < 1500 || tw > 4000)) errors.push('Palavras alvo: entre 1500 e 4000');
 
