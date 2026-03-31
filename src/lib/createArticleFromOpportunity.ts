@@ -93,7 +93,7 @@ export async function createArticleFromOpportunity(
     language: 'pt-BR',
     job_type: 'article' as const,
     intent: (opportunity.goal as any) || 'informational',
-    target_words: 2500,
+    target_words: targetWords,
     image_count: 4,
     source: 'radar',
     opportunity_id: opportunity.id || null,
