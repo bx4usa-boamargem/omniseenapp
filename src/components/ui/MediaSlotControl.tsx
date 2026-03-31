@@ -9,10 +9,11 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
@@ -232,58 +233,10 @@ export function MediaSlotControl({
               </DropdownMenuItem>
 
               {showColorOption && (
-                <Popover open={showColorPicker} onOpenChange={setShowColorPicker}>
-                  <PopoverTrigger asChild>
-                    <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                      <Palette className="h-4 w-4 mr-2" />
-                      {colorPickerLabel}
-                    </DropdownMenuItem>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-64 p-3" align="end">
-                    <div className="space-y-3">
-                      <Label className="text-sm">Escolha uma cor</Label>
-                      
-                      {/* Preset Colors Grid */}
-                      <div className="grid grid-cols-6 gap-2">
-                        {PRESET_COLORS.map((color) => (
-                          <button
-                            key={color}
-                            className={cn(
-                              "w-8 h-8 rounded-lg border-2 transition-transform hover:scale-110",
-                              customColor === color
-                                ? "border-gray-900 ring-2 ring-gray-900 ring-offset-1"
-                                : "border-transparent"
-                            )}
-                            style={{ backgroundColor: color }}
-                            onClick={() => setCustomColor(color)}
-                          />
-                        ))}
-                      </div>
-
-                      {/* Custom Color Input */}
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-10 h-10 rounded-lg border shrink-0"
-                          style={{ backgroundColor: customColor }}
-                        />
-                        <Input
-                          type="text"
-                          value={customColor}
-                          onChange={(e) => setCustomColor(e.target.value)}
-                          placeholder="#6366f1"
-                          className="font-mono text-sm"
-                        />
-                      </div>
-
-                      <Button
-                        className="w-full"
-                        onClick={() => handleApplyColor(customColor)}
-                      >
-                        Aplicar Cor
-                      </Button>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                <DropdownMenuItem onSelect={() => setShowColorPicker(true)}>
+                  <Palette className="h-4 w-4 mr-2" />
+                  {colorPickerLabel}
+                </DropdownMenuItem>
               )}
 
               {(hasImage || hasColor) && (
@@ -301,6 +254,57 @@ export function MediaSlotControl({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+
+        {/* Color Picker Popover - rendered outside dropdown to avoid closing conflict */}
+        {showColorOption && (
+          <Dialog open={showColorPicker} onOpenChange={setShowColorPicker}>
+            <DialogContent className="max-w-xs">
+              <DialogHeader>
+                <DialogTitle>Escolha uma cor</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-3">
+                {/* Preset Colors Grid */}
+                <div className="grid grid-cols-6 gap-2">
+                  {PRESET_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      className={cn(
+                        "w-8 h-8 rounded-lg border-2 transition-transform hover:scale-110",
+                        customColor === color
+                          ? "border-gray-900 ring-2 ring-gray-900 ring-offset-1"
+                          : "border-transparent"
+                      )}
+                      style={{ backgroundColor: color }}
+                      onClick={() => setCustomColor(color)}
+                    />
+                  ))}
+                </div>
+
+                {/* Custom Color Input */}
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-10 h-10 rounded-lg border shrink-0"
+                    style={{ backgroundColor: customColor }}
+                  />
+                  <Input
+                    type="text"
+                    value={customColor}
+                    onChange={(e) => setCustomColor(e.target.value)}
+                    placeholder="#6366f1"
+                    className="font-mono text-sm"
+                  />
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={() => handleApplyColor(customColor)}
+                >
+                  Aplicar Cor
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {hint && (
