@@ -8,7 +8,7 @@
  * Se não tem tenant -> auto-provisiona (sem onboarding manual)
  * Se tem tenant -> renderiza children
  */
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenantContext } from '@/contexts/TenantContext';
@@ -34,21 +34,23 @@ export function TenantGuard({ children, requireAdmin = false }: TenantGuardProps
   } = useTenantContext();
 
   const [forceLoginRedirect, setForceLoginRedirect] = useState(false);
-  const loadingStartedAtRef = useRef<number | null>(null);
+  const loadingKey = 'tenant_guard_loading_started_at';
   const isLoading = authLoading || tenantLoading;
 
   useEffect(() => {
     if (!isLoading) {
-      loadingStartedAtRef.current = null;
+      sessionStorage.removeItem(loadingKey);
       setForceLoginRedirect(false);
       return;
     }
 
-    if (loadingStartedAtRef.current === null) {
-      loadingStartedAtRef.current = Date.now();
+    const currentValue = sessionStorage.getItem(loadingKey);
+    if (!currentValue) {
+      sessionStorage.setItem(loadingKey, String(Date.now()));
     }
 
-    const elapsed = Date.now() - loadingStartedAtRef.current;
+    const startedAt = Number(sessionStorage.getItem(loadingKey) ?? Date.now());
+    const elapsed = Date.now() - startedAt;
     const softDelay = Math.max(0, 3000 - elapsed);
     const hardDelay = Math.max(0, 5000 - elapsed);
 

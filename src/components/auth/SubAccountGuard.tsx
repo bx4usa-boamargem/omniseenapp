@@ -6,7 +6,7 @@
  * - Verifica se user tem tenant
  * - Se não tem tenant -> auto-provisiona
  */
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenantContext } from '@/contexts/TenantContext';
@@ -22,22 +22,24 @@ export function SubAccountGuard({ children }: SubAccountGuardProps) {
   const { user, loading: authLoading, signOut } = useAuth();
   const { currentTenant, loading: tenantLoading, hasTenant, error, refetch } = useTenantContext();
   const [forceLoginRedirect, setForceLoginRedirect] = useState(false);
-  const loadingStartedAtRef = useRef<number | null>(null);
+  const loadingKey = 'subaccount_guard_loading_started_at';
 
   const isLoading = authLoading || tenantLoading;
 
   useEffect(() => {
     if (!isLoading) {
-      loadingStartedAtRef.current = null;
+      sessionStorage.removeItem(loadingKey);
       setForceLoginRedirect(false);
       return;
     }
 
-    if (loadingStartedAtRef.current === null) {
-      loadingStartedAtRef.current = Date.now();
+    const currentValue = sessionStorage.getItem(loadingKey);
+    if (!currentValue) {
+      sessionStorage.setItem(loadingKey, String(Date.now()));
     }
 
-    const elapsed = Date.now() - loadingStartedAtRef.current;
+    const startedAt = Number(sessionStorage.getItem(loadingKey) ?? Date.now());
+    const elapsed = Date.now() - startedAt;
     const softDelay = Math.max(0, 3000 - elapsed);
     const hardDelay = Math.max(0, 5000 - elapsed);
 
