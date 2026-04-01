@@ -189,6 +189,8 @@ export default function EditArticle() {
   const [qualityGateAttempts, setQualityGateAttempts] = useState<number | null>(null);
   const [qualityGateResult, setQualityGateResult] = useState<any>(null);
 
+  // Dual Score state
+  const [seoScoreBreakdown, setSeoScoreBreakdown] = useState<any>(null);
 
   useEffect(() => {
     async function fetchArticle() {
