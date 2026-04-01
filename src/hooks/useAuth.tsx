@@ -29,9 +29,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // THEN check for existing session with 10s timeout
+    // THEN check for existing session with 3s timeout (was 10s - too slow for preview)
     const sessionTimeout = new Promise<{ data: { session: null } }>(resolve =>
-      setTimeout(() => resolve({ data: { session: null } }), 10000)
+      setTimeout(() => resolve({ data: { session: null } }), 3000)
     );
     Promise.race([supabase.auth.getSession(), sessionTimeout])
       .then(({ data: { session } }) => {
