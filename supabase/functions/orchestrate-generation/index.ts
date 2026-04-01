@@ -116,6 +116,7 @@ const PUBLIC_STAGE_MAP: Record<string, { stage: string; progress: number; messag
   'ENTITY_EXTRACTION':    { stage: 'WRITING_CONTENT',  progress: 32, message: 'Extraindo entidades...' },
   'ENTITY_COVERAGE':      { stage: 'WRITING_CONTENT',  progress: 38, message: 'Distribuindo entidades...' },
   'CONTENT_GEN':          { stage: 'WRITING_CONTENT',  progress: 55, message: 'Criando conteúdo...' },
+  'SCHEMA_GEN':           { stage: 'FINALIZING',      progress: 60, message: 'Gerando schema markup...' },
   'SAVE_ARTICLE':         { stage: 'FINALIZING',      progress: 72, message: 'Salvando artigo...' },
   'IMAGE_GEN':            { stage: 'FINALIZING',      progress: 82, message: 'Gerando imagens (hero + seções)...' },
   'INTERNAL_LINK_ENGINE': { stage: 'FINALIZING',      progress: 88, message: 'Gerando links internos...' },
@@ -132,6 +133,7 @@ const PIPELINE_STEPS = [
   'ENTITY_EXTRACTION',
   'ENTITY_COVERAGE',
   'CONTENT_GEN',
+  'SCHEMA_GEN',
   'SAVE_ARTICLE',
   'IMAGE_GEN',
   'INTERNAL_LINK_ENGINE',
@@ -710,6 +712,137 @@ function enforceHeadingStructure(html: string, outline: OutlineData): string {
 }
 
 // ============================================================
+// STEP: SCHEMA_GEN — FAQPage + Article + conditional JSON-LD
+// ============================================================
+
+/** Portuguese month names for Last-Updated timestamp */
+const PT_MONTHS = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+/**
+ * Formats a Date as "DD de MÊS de YYYY" in Portuguese.
+ */
+function formatPtDate(d: Date): string {
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const month = PT_MONTHS[d.getUTCMonth()];
+  const year = d.getUTCFullYear();
+  return `${day} de ${month} de ${year}`;
+}
+
+interface SchemaGenInput {
+  title: string;
+  meta_description: string;
+  html_article: string;
+  faq: Array<{ question: string; answer: string }>;
+  keyword: string;
+  city: string;
+  niche: string;
+  language: string;
+  content_type: string;
+  blog_name: string;
+  blog_url: string;
+  business_name: string;
+  slug: string;
+  iso_date: string;
+}
+
+/**
+ * Builds the full JSON-LD schema graph for an article.
+ * Non-fatal: returns null on any error.
+ */
+function executeSchemaGen(input: SchemaGenInput): string | null {
+  try {
+    const {
+      title, meta_description, faq, keyword, city, niche, language,
+      content_type, blog_name, blog_url, business_name, slug, iso_date,
+    } = input;
+
+    const authorName = business_name || 'Especialista OmniSeen';
+    const graph: unknown[] = [];
+
+    // ── Article schema ──────────────────────────────────────────
+    graph.push({
+      '@type': 'Article',
+      '@id': `${blog_url}/${slug}#article`,
+      headline: title.slice(0, 110),
+      description: meta_description.slice(0, 160),
+      datePublished: iso_date,
+      dateModified: iso_date,
+      author: {
+        '@type': 'Person',
+        name: authorName,
+        url: blog_url,
+      },
+      publisher: {
+        '@type': 'Organization',
+        name: blog_name || 'OmniSeen',
+        url: blog_url,
+      },
+      inLanguage: language || 'pt-BR',
+      keywords: [keyword, niche, city].filter(Boolean),
+    });
+
+    // ── FAQPage schema (min 1 item required by Google) ──────────
+    if (faq && faq.length > 0) {
+      graph.push({
+        '@type': 'FAQPage',
+        mainEntity: faq.map((item) => ({
+          '@type': 'Question',
+          name: item.question,
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: item.answer,
+          },
+        })),
+      });
+    }
+
+    // ── HowTo schema (content_type = como_fazer) ─────────────────
+    if (content_type === 'como_fazer') {
+      const stepMatches = [...input.html_article.matchAll(/<h3[^>]*>([^<]+)<\/h3>/gi)];
+      const steps = stepMatches.slice(0, 10).map((m, i) => ({
+        '@type': 'HowToStep',
+        position: i + 1,
+        name: m[1].trim(),
+      }));
+      if (steps.length > 0) {
+        graph.push({
+          '@type': 'HowTo',
+          name: title,
+          step: steps,
+        });
+      }
+    }
+
+    // ── LocalBusiness schema (if city present) ───────────────────
+    if (city) {
+      graph.push({
+        '@type': 'LocalBusiness',
+        name: authorName,
+        url: blog_url,
+        address: {
+          '@type': 'PostalAddress',
+          addressLocality: city,
+          addressCountry: 'BR',
+        },
+      });
+    }
+
+    const jsonLd = JSON.stringify({
+      '@context': 'https://schema.org',
+      '@graph': graph,
+    });
+
+    return `<script type="application/ld+json">${jsonLd}</script>`;
+  } catch (e) {
+    console.warn('[SCHEMA_GEN] Non-fatal error building schema:', e instanceof Error ? e.message : String(e));
+    return null;
+  }
+}
+
+// ============================================================
 // STEP: CONTENT_GEN (outline-driven, multi-section)
 // ============================================================
 
@@ -803,6 +936,13 @@ PADRAO DE QUALIDADE:
 - Evitar frases genericas e afirmacoes vazias
 - Linguagem natural e humana, NUNCA robotica
 
+[CITE-ANSWER-BLOCK] REGRA CRITICA DE CITABILIDADE POR IA (GEO/AEO):
+- Apos CADA H2, o PRIMEIRO paragrafo DEVE ser um bloco de resposta direta com EXATAMENTE 40-60 palavras que responde completamente a pergunta implicita do heading.
+- Este bloco e o que AI engines (Perplexity, ChatGPT, Google AI Overviews) extraem como citacao.
+- E PROIBIDO comecar uma secao H2 com contexto, historia ou introducao — SEMPRE comece com a resposta direta.
+- Cada secao deve ser autocontida: um leitor que ler apenas aquele H2 e seu primeiro paragrafo deve entender completamente o ponto central.
+- Secoes de 120-180 palavras recebem 70% mais citacoes de ChatGPT — respeite esse range por H2.
+
 SEO ON-PAGE:
 - Palavra-chave principal distribuida naturalmente (sem stuffing)
 - Variacoes semanticas ao longo do texto
@@ -847,7 +987,7 @@ OUTPUT FORMAT (STRICT JSON only):
 }`;
 
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'article_gen_from_outline', [
-    { role: 'system', content: `You are an elite premium SEO content writer for ${niche} in ${language}. You produce articles with EXACTLY ${wordRange} words. CRITICAL: Do NOT exceed the upper word limit. You MUST return valid JSON with html_article containing proper semantic HTML: <h1> for title, <h2> for sections, <h3> for subsections, <p> for paragraphs, <ul>/<ol> for lists. Every paragraph must be short (2-5 lines). NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks.` },
+    { role: 'system', content: `You are an elite premium SEO content writer for ${niche} in ${language}. You produce articles with EXACTLY ${wordRange} words. CRITICAL: Do NOT exceed the upper word limit. You MUST return valid JSON with html_article containing proper semantic HTML: <h1> for title, <h2> for sections, <h3> for subsections, <p> for paragraphs, <ul>/<ol> for lists. Every paragraph must be short (2-5 lines). NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks. MANDATORY GEO RULE: After EVERY H2 heading, write a 40-60 word direct answer block that completely answers the implicit question of that heading. This is the passage AI systems extract as a citation. Never start an H2 section with context or history — always start with the direct answer.` },
     { role: 'user', content: prompt },
   ], { useGrounding });
 
@@ -858,6 +998,22 @@ OUTPUT FORMAT (STRICT JSON only):
 
   // Post-process: enforce heading structure if AI returned plain text headings
   parsed.html_article = enforceHeadingStructure(parsed.html_article as string, outline);
+
+  // ── Melhoria 2: Inject "Last Updated" timestamp ─────────────────────────────
+  const now = new Date();
+  const isoNow = now.toISOString().split('T')[0]; // YYYY-MM-DD
+  const ptDate = formatPtDate(now);
+  const timestampBlock = `<div class="article-meta" style="font-size:0.85em;color:#666;margin-bottom:1.5em;padding:8px 0;border-bottom:1px solid #eee;"><time datetime="${isoNow}" itemprop="dateModified">Atualizado em ${ptDate}</time></div>`;
+
+  // Insert after </style> tag if present, otherwise prepend
+  const htmlStr = parsed.html_article as string;
+  if (htmlStr.includes('</style>')) {
+    parsed.html_article = htmlStr.replace('</style>', `</style>${timestampBlock}`);
+  } else {
+    parsed.html_article = timestampBlock + htmlStr;
+  }
+  // Store ISO date for SCHEMA_GEN
+  parsed._iso_date = isoNow;
 
   return { output: parsed, aiResult };
 }
@@ -1677,6 +1833,80 @@ ${draftHtml.slice(0, 30000)}`;
       // Explicit skip log for economic mode — visible in Supabase logs
       console.log(`[V2] ⏭️ REWRITE_PREMIUM skipped (mode=${generationMode}) — economic path uses Gemini draft directly`);
     }
+
+    // ============================================================
+    // STEP: SCHEMA_GEN (non-fatal — prepend JSON-LD to html_article)
+    // ============================================================
+    console.log(`[V2] Step: SCHEMA_GEN`);
+    await updatePublicStatus(supabase, jobId, 'SCHEMA_GEN', false, lockId);
+    await supabase.from('generation_jobs').update({ current_step: 'SCHEMA_GEN' }).eq('id', jobId);
+
+    const schemaStepId = await createStepOrFail(supabase, jobId, 'SCHEMA_GEN', {
+      content_type: jobInput.content_type,
+      has_faq: Array.isArray(articleData!.faq) && (articleData!.faq as unknown[]).length > 0,
+    });
+    const schemaStart = Date.now();
+    try {
+      // Fetch blog metadata for schema (name, url, business_name)
+      const { data: blogMeta } = await supabase
+        .from('blogs')
+        .select('name, url, city, business_name')
+        .eq('id', (jobInput.blog_id as string))
+        .maybeSingle();
+
+      const isoDate = (articleData!._iso_date as string) || new Date().toISOString().split('T')[0];
+      // Build a temporary slug preview (SAVE_ARTICLE will generate the real one)
+      const rawTitle = (articleData!.title as string) || (jobInput.keyword as string) || '';
+      const tempSlug = rawTitle.toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').substring(0, 70);
+
+      const schemaScriptTag = executeSchemaGen({
+        title: rawTitle,
+        meta_description: (articleData!.meta_description as string) || '',
+        html_article: (articleData!.html_article as string) || '',
+        faq: (articleData!.faq as Array<{ question: string; answer: string }>) || [],
+        keyword: (jobInput.keyword as string) || '',
+        city: (jobInput.city as string) || blogMeta?.city || '',
+        niche: (jobInput.niche as string) || '',
+        language: (jobInput.language as string) || 'pt-BR',
+        content_type: (jobInput.content_type as string) || '',
+        blog_name: blogMeta?.name || 'OmniSeen',
+        blog_url: blogMeta?.url || '',
+        business_name: (jobInput.business_name as string) || blogMeta?.business_name || '',
+        slug: tempSlug,
+        iso_date: isoDate,
+      });
+
+      if (schemaScriptTag) {
+        // Prepend JSON-LD to html_article
+        articleData!.html_article = schemaScriptTag + (articleData!.html_article as string);
+        articleData!.schema_json = schemaScriptTag;
+        console.log(`[V2] ✅ SCHEMA_GEN generated | city=${jobInput.city} | content_type=${jobInput.content_type}`);
+      } else {
+        console.warn('[V2] ⚠️ SCHEMA_GEN returned null (non-fatal)');
+      }
+
+      await supabase.from('generation_steps').update({
+        status: 'completed',
+        output: { schema_generated: !!schemaScriptTag, content_type: jobInput.content_type },
+        latency_ms: Date.now() - schemaStart,
+        completed_at: new Date().toISOString(),
+        model_used: 'programmatic', provider: 'programmatic',
+      }).eq('id', schemaStepId);
+    } catch (schemaErr) {
+      // SCHEMA_GEN is non-fatal — pipeline continues regardless
+      const errMsg = schemaErr instanceof Error ? schemaErr.message : 'SCHEMA_GEN failed';
+      console.warn(`[V2] ⚠️ SCHEMA_GEN failed (non-fatal): ${errMsg}`);
+      await supabase.from('generation_steps').update({
+        status: 'failed',
+        output: { error: errMsg, schema_generated: false },
+        latency_ms: Date.now() - schemaStart,
+        completed_at: new Date().toISOString(),
+        error_message: errMsg,
+      }).eq('id', schemaStepId);
+    }
+    await updatePublicStatus(supabase, jobId, 'SCHEMA_GEN', true, lockId);
 
     // ============================================================
     // STEP 6: SAVE_ARTICLE
