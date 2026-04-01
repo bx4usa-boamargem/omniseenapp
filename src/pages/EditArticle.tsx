@@ -1604,6 +1604,10 @@ export default function EditArticle() {
             onSchedule={() => setShowScheduleDialog(true)}
             onDelete={handleDelete}
             disabled={isRegenerating}
+            qualityGateStatus={qualityGateStatus}
+            qualityGateAttempts={qualityGateAttempts}
+            qualityGateResult={qualityGateResult}
+            onQualityGateRefresh={refreshQualityGate}
           />
         </div>
       </main>
