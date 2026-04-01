@@ -153,8 +153,9 @@ export const SEOHead = ({
     const existingHreflangs = document.querySelectorAll('link[hreflang]');
     existingHreflangs.forEach(el => el.remove());
 
-    const existingSchema = document.querySelector('script[type="application/ld+json"]');
-    if (existingSchema) existingSchema.remove();
+    // Remove ALL existing JSON-LD schemas before re-emitting
+    const existingSchemas = document.querySelectorAll('script[type="application/ld+json"]');
+    existingSchemas.forEach(el => el.remove());
 
     const schemas: object[] = [];
 
@@ -167,7 +168,20 @@ export const SEOHead = ({
         image: ogImage,
         datePublished: articlePublishedTime,
         inLanguage: i18n.language,
-        author: { "@type": "Person", name: articleAuthor },
+        url: canonicalUrl,
+        mainEntityOfPage: canonicalUrl
+          ? { "@type": "WebPage", "@id": canonicalUrl }
+          : undefined,
+        author: articleAuthor
+          ? { "@type": "Person", name: articleAuthor }
+          : undefined,
+        publisher: {
+          "@type": "Organization",
+          name: articleAuthor || "Omniseen",
+          logo: ogImage
+            ? { "@type": "ImageObject", url: ogImage }
+            : undefined,
+        },
       });
     }
 
@@ -203,16 +217,18 @@ export const SEOHead = ({
       });
     }
 
-    if (schemas.length > 0) {
+    // Emit one <script> per schema (Google-recommended format)
+    schemas.forEach(schema => {
       const schemaScript = document.createElement("script");
       schemaScript.type = "application/ld+json";
-      schemaScript.textContent = JSON.stringify(schemas.length === 1 ? schemas[0] : schemas);
+      schemaScript.textContent = JSON.stringify(schema);
       document.head.appendChild(schemaScript);
-    }
+    });
 
     return () => {
-      const schema = document.querySelector('script[type="application/ld+json"]');
-      if (schema) schema.remove();
+      // Clean up all JSON-LD scripts on unmount
+      const allSchemas = document.querySelectorAll('script[type="application/ld+json"]');
+      allSchemas.forEach(s => s.remove());
     };
   }, [title, description, ogImage, ogType, articlePublishedTime, articleAuthor, canonicalUrl, keywords, faq, favicon, territorial, i18n.language]);
 
