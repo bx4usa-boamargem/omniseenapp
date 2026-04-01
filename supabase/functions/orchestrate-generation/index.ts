@@ -4,6 +4,13 @@ import { QUALITY_GATE, getMinWordCount } from "../_shared/superPageEngine.ts";
 import { corsHeadersForRequest } from "../_shared/httpCors.ts";
 import { validateGenerationJobInput } from "../_shared/pipelineInputValidation.ts";
 import { generateText, generateImage } from '../_shared/omniseen-ai.ts';
+import { 
+  fetchGeoResearchData, 
+  buildTerritorialContext, 
+  buildResearchInjection, 
+  NICHE_EAT_PHRASES,
+  type GeoResearchData
+} from "../_shared/geoWriterCore.ts";
 
 
 /**
@@ -120,6 +127,7 @@ function resolveWordRange(jobInput: Record<string, unknown>, jobType: 'article' 
 const PUBLIC_STAGE_MAP: Record<string, { stage: string; progress: number; message: string }> = {
   'INPUT_VALIDATION':      { stage: 'ANALYZING_MARKET', progress: 2,  message: 'Inicializando...' },
   'SERP_ANALYSIS':         { stage: 'ANALYZING_MARKET', progress: 8,  message: 'Analisando SERP...' },
+  'GEO_RESEARCH':          { stage: 'ANALYZING_MARKET', progress: 11, message: 'Pesquisando dados reais da cidade...' },
   'SERP_GAP_ANALYSIS':    { stage: 'ANALYZING_MARKET', progress: 14, message: 'Detectando lacunas semânticas...' },
   'OUTLINE_GEN':          { stage: 'ANALYZING_MARKET', progress: 20, message: 'Criando estrutura...' },
   'AUTO_SECTION_EXPANSION': { stage: 'ANALYZING_MARKET', progress: 26, message: 'Expandindo seções...' },
@@ -137,6 +145,7 @@ const PUBLIC_STAGE_MAP: Record<string, { stage: string; progress: number; messag
 const PIPELINE_STEPS = [
   'INPUT_VALIDATION',
   'SERP_ANALYSIS',
+  'GEO_RESEARCH',
   'SERP_GAP_ANALYSIS',
   'OUTLINE_GEN',
   'AUTO_SECTION_EXPANSION',
@@ -1298,7 +1307,7 @@ async function executeImageGenGeminiNanoBanana(
         const { data: pub } = supabase.storage.from("article-images").getPublicUrl(fname);
         heroUrl = pub.publicUrl;
         heroAlt = (articleData.title as string) || keyword;
-        usedImageUrls.add(heroUrl); // Track hero URL to prevent reuse
+        if (heroUrl) usedImageUrls.add(heroUrl); // Track hero URL to prevent reuse
       }
     }
     if (!heroUrl) {
@@ -1309,14 +1318,31 @@ async function executeImageGenGeminiNanoBanana(
     await supabase.from("articles").update({ featured_image_url: heroUrl, featured_image_alt: heroAlt }).eq("id", articleId);
 
     const html = (articleData.html_article as string) || "";
-    const sectionCount = (html.match(/<h2[^>]*>/gi) || []).length;
     const articleWordCount = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().split(/\s+/).filter(Boolean).length;
+    
     // Limit images based on word count. 
     // Small articles (<1200) get max 3 images, larger articles get max 6 images.
     const maxTotalImages = articleWordCount >= 1200 ? 6 : 3;
-    const maxSectionImages = Math.min(sectionCount, Math.max(0, maxTotalImages - 1));
-    for (let i = 0; i < maxSectionImages; i++) {
-      const sectionTitle = outline.h2[i]?.title || `Section ${i + 1}`;
+    const targetImages = Math.max(0, maxTotalImages - 1);
+    
+    // Identificar H2 semanticamente aptos (Evitar: conclusões, repetições, "O que é")
+    const validSections = (outline.h2 || [])
+      .map((h: any, idx: number) => ({ title: h.title, index: idx }))
+      .filter((s: { title: string }) => !/conclus(ã|a)o|resumo|o que (é|e)|introdu(ç|c)(ã|a)o|considera(ç|c)(õ|o)es|refer(ê|e)ncias/i.test(s.title));
+      
+    const selectedSections = [];
+    if (validSections.length > 0) {
+      const actualTarget = Math.min(validSections.length, targetImages);
+      const step = validSections.length / actualTarget;
+      for (let i = 0; i < actualTarget; i++) {
+        const idx = Math.floor(i * step + step / 2);
+        if (validSections[idx]) selectedSections.push(validSections[idx]);
+      }
+    }
+
+    for (const sec of selectedSections) {
+      const sectionTitle = sec.title || `Section ${sec.index + 1}`;
+      const structuralIndex = sec.index + 1;
       const prompt = `${visualContextBrief} Section context: ${sectionTitle}. Show an editorial photograph illustrating this specific concept without repeating the hero image. NO TEXT ALLOWED.`;
       if (usedSectionPrompts.has(prompt)) continue;
       usedSectionPrompts.add(prompt);
@@ -1327,16 +1353,16 @@ async function executeImageGenGeminiNanoBanana(
         if (base64Match) {
           const fmt = base64Match[1];
           const bin = Uint8Array.from(atob(base64Match[2]), (c) => c.charCodeAt(0));
-          const fname = `${articleId}-section-${i + 1}-${Date.now()}.${fmt}`;
+          const fname = `${articleId}-section-${structuralIndex}-${Date.now()}.${fmt}`;
           await supabase.storage.from("article-images").upload(fname, bin, { contentType: `image/${fmt}`, upsert: true });
           const { data: pub } = supabase.storage.from("article-images").getPublicUrl(fname);
           url = pub.publicUrl;
         } else continue;
-      } else url = `https://picsum.photos/seed/${slug}-sec-${i}/800/450`;
+      } else url = `https://picsum.photos/seed/${slug}-sec-${sec.index}/800/450`;
       // Skip if this URL is already used (dedup)
       if (usedImageUrls.has(url)) continue;
       usedImageUrls.add(url);
-      contentImages.push({ context: sectionTitle, url, alt: sectionTitle, after_section: i + 1 });
+      contentImages.push({ context: sectionTitle, url, alt: sectionTitle, after_section: structuralIndex });
     }
 
     if (contentImages.length > 0) {
@@ -1412,6 +1438,10 @@ async function executeQualityGate(
   const aiScan = detectAiPatterns(html);
 
   const minWords = getMinWordCount(jobType);
+  const isCriticalWordCount = wordCount < (minWords * 0.6); // Abaixo de 60% do alvo
+  const isCriticalAi = aiScan.score > 85;                   // AI pura e dura
+  const isCriticalEntity = entityCoverageScore < (QUALITY_GATE.ENTITY_COVERAGE_MIN * 0.5);
+  
   const entityOk = entityCoverageScore >= QUALITY_GATE.ENTITY_COVERAGE_MIN;
   const wordOk = wordCount >= minWords;
   const faqOk = faqCount >= QUALITY_GATE.FAQ_MIN_ITEMS;
@@ -1419,6 +1449,9 @@ async function executeQualityGate(
   const aiOk = aiScan.passed;
 
   const passed = entityOk && wordOk && faqOk && scoreOk && aiOk;
+  // Fallback to NEEDS_IMPROVEMENT unless the errors are CRITICAL_BLOCK
+  const isCriticalBlock = !passed && (isCriticalWordCount || isCriticalAi || isCriticalEntity);
+
   const reasons: string[] = [];
   if (!entityOk) reasons.push(`entity_coverage ${entityCoverageScore} < ${QUALITY_GATE.ENTITY_COVERAGE_MIN}`);
   if (!wordOk) reasons.push(`word_count ${wordCount} < ${minWords}`);
@@ -1426,7 +1459,11 @@ async function executeQualityGate(
   if (!scoreOk) reasons.push(`semantic_score ${contentScore} < ${QUALITY_GATE.SEMANTIC_SCORE_MIN}`);
   if (!aiOk) reasons.push(`ai_voice_detected score=${aiScan.score} flags=[${aiScan.flags.slice(0, 3).join(',')}]`);
 
-  const qualityGateStatus = passed ? "approved" : "blocked";
+  let qualityGateStatus = "approved"; // PASS
+  if (!passed) {
+    qualityGateStatus = isCriticalBlock ? "blocked" : "needs_improvement";
+  }
+
   await supabase.from("articles").update({
     quality_gate_status: qualityGateStatus,
     ...(passed ? { ready_for_publish_at: new Date().toISOString() } : {}),
