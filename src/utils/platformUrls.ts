@@ -186,7 +186,7 @@ export const resolveCurrentTenantSlug = (): string | null => {
 export const isDevHost = (): boolean => {
   if (typeof window === 'undefined') return false;
   const hostname = window.location.hostname;
-  return hostname.startsWith('id-preview--') || hostname === 'localhost' || hostname === '127.0.0.1';
+  return hostname.startsWith('id-preview--') || hostname === 'localhost' || hostname === '127.0.0.1' || hostname.endsWith('.vercel.app');
 };
 
 /** @deprecated Use isDevHost() instead */
