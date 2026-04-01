@@ -1175,6 +1175,7 @@ export type Database = {
           ready_for_publish_at: string | null
           scheduled_at: string | null
           score_locked: boolean | null
+          seo_score_breakdown: Json | null
           serp_enhanced: boolean | null
           serp_enhanced_at: string | null
           serp_hash_at_calculation: string | null
@@ -1245,6 +1246,7 @@ export type Database = {
           ready_for_publish_at?: string | null
           scheduled_at?: string | null
           score_locked?: boolean | null
+          seo_score_breakdown?: Json | null
           serp_enhanced?: boolean | null
           serp_enhanced_at?: string | null
           serp_hash_at_calculation?: string | null
@@ -1315,6 +1317,7 @@ export type Database = {
           ready_for_publish_at?: string | null
           scheduled_at?: string | null
           score_locked?: boolean | null
+          seo_score_breakdown?: Json | null
           serp_enhanced?: boolean | null
           serp_enhanced_at?: string | null
           serp_hash_at_calculation?: string | null
@@ -2970,6 +2973,50 @@ export type Database = {
           prompt_snippet?: string
         }
         Relationships: []
+      }
+      content_calendars: {
+        Row: {
+          blog_id: string
+          created_at: string | null
+          frequency: string
+          id: string
+          ideas: Json
+          niche: string
+          status: string
+          theme: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          blog_id: string
+          created_at?: string | null
+          frequency: string
+          id?: string
+          ideas?: Json
+          niche: string
+          status?: string
+          theme?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          blog_id?: string
+          created_at?: string | null
+          frequency?: string
+          id?: string
+          ideas?: Json
+          niche?: string
+          status?: string
+          theme?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_calendars_blog_id_fkey"
+            columns: ["blog_id"]
+            isOneToOne: false
+            referencedRelation: "blogs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       content_clusters: {
         Row: {
