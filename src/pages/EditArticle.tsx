@@ -1432,7 +1432,16 @@ export default function EditArticle() {
                   isActive={isRegenerating}
                 />
 
-                {/* SEO Score */}
+                {/* Dual GEO + SEO Score */}
+                {article && (
+                  <DualScorePanel
+                    articleId={article.id}
+                    seoScoreBreakdown={seoScoreBreakdown}
+                    onRefresh={refreshScoreBreakdown}
+                  />
+                )}
+
+                {/* SEO Score Details */}
                 <SEOScoreAnalyzer
                   title={title}
                   content={article?.content || ""}
