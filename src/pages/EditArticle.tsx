@@ -181,7 +181,11 @@ export default function EditArticle() {
   // Publish with translation states
   const [showPublishTranslationDialog, setShowPublishTranslationDialog] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
-  const [existingTranslations, setExistingTranslations] = useState<string[]>([]);
+  // Quality Gate states
+  const [qualityGateStatus, setQualityGateStatus] = useState<string | null>(null);
+  const [qualityGateAttempts, setQualityGateAttempts] = useState<number | null>(null);
+  const [qualityGateResult, setQualityGateResult] = useState<any>(null);
+
 
   useEffect(() => {
     async function fetchArticle() {
