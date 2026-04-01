@@ -18,7 +18,8 @@ export async function createArticleFromOpportunity(
   opportunity: OpportunityInput,
   blogId: string,
   navigate: NavigateFunction,
-  targetWords: number = 2500
+  targetWords: number = 2500,
+  articleType: 'normal' | 'premium' = 'premium'
 ): Promise<{ success: boolean; job_id?: string }> {
   const normalizedKeyword = opportunity.suggested_title?.trim().toLowerCase();
 
