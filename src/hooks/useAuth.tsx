@@ -20,30 +20,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
-      }
-    );
+    let isMounted = true;
 
-    // THEN check for existing session with 3s timeout (was 10s - too slow for preview)
-    const sessionTimeout = new Promise<{ data: { session: null } }>(resolve =>
+    const applyAuthState = (nextSession: Session | null) => {
+      if (!isMounted) return;
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+      setLoading(false);
+    };
+
+    const failsafeTimer = setTimeout(() => {
+      console.warn("[AuthProvider] Auth initialization exceeded 5 seconds, forcing unauthenticated state.");
+      applyAuthState(null);
+    }, 5000);
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      clearTimeout(failsafeTimer);
+      applyAuthState(nextSession);
+    });
+
+    const sessionTimeout = new Promise<{ data: { session: null } }>((resolve) =>
       setTimeout(() => resolve({ data: { session: null } }), 3000)
     );
+
     Promise.race([supabase.auth.getSession(), sessionTimeout])
-      .then(({ data: { session } }) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        setLoading(false);
+      .then(({ data: { session: nextSession } }) => {
+        clearTimeout(failsafeTimer);
+        applyAuthState(nextSession);
       })
       .catch(() => {
-        setLoading(false);
+        clearTimeout(failsafeTimer);
+        applyAuthState(null);
       });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      clearTimeout(failsafeTimer);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string, fullName?: string) => {

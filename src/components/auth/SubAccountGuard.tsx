@@ -6,7 +6,7 @@
  * - Verifica se user tem tenant
  * - Se não tem tenant -> auto-provisiona
  */
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenantContext } from '@/contexts/TenantContext';
@@ -21,8 +21,39 @@ interface SubAccountGuardProps {
 export function SubAccountGuard({ children }: SubAccountGuardProps) {
   const { user, loading: authLoading } = useAuth();
   const { currentTenant, loading: tenantLoading, hasTenant, error, refetch } = useTenantContext();
+  const [forceLoginRedirect, setForceLoginRedirect] = useState(false);
 
   const isLoading = authLoading || tenantLoading;
+
+  useEffect(() => {
+    if (!isLoading) {
+      setForceLoginRedirect(false);
+      return;
+    }
+
+    const softRedirectTimer = window.setTimeout(() => {
+      if (!user) {
+        console.warn('[SubAccountGuard] Loading exceeded 3 seconds without user, redirecting to login.');
+        setForceLoginRedirect(true);
+      }
+    }, 3000);
+
+    const hardAuthTimer = window.setTimeout(() => {
+      if (authLoading) {
+        console.warn('[SubAccountGuard] Auth still loading after 5 seconds, forcing unauthenticated redirect.');
+        setForceLoginRedirect(true);
+      }
+    }, 5000);
+
+    return () => {
+      clearTimeout(softRedirectTimer);
+      clearTimeout(hardAuthTimer);
+    };
+  }, [isLoading, authLoading, user]);
+
+  if (forceLoginRedirect) {
+    return <Navigate to="/login" replace />;
+  }
 
   if (isLoading) {
     return (
@@ -51,13 +82,11 @@ export function SubAccountGuard({ children }: SubAccountGuardProps) {
     );
   }
 
-  // Not authenticated -> login
   if (!user) {
     console.log('[SubAccountGuard] No user, redirecting to /login');
     return <Navigate to="/login" replace />;
   }
 
-  // No tenant -> auto-provision (sem onboarding manual)
   if (!hasTenant || !currentTenant) {
     console.log('[SubAccountGuard] No tenant, auto-provisioning...');
     return <AutoProvisionTenant />;
