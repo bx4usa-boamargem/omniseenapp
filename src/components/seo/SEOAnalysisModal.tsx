@@ -181,10 +181,24 @@ export function SEOAnalysisModal({
     
     try {
       // Use the new centralized fix-seo-with-ai endpoint
+      // Ensure keywords are never empty - extract from title as fallback
+      let keywords = currentArticle.keywords && currentArticle.keywords.length > 0
+        ? currentArticle.keywords
+        : currentArticle.title
+            .toLowerCase()
+            .replace(/[^\w\sà-ú]/g, '')
+            .split(/\s+/)
+            .filter((w: string) => w.length > 3)
+            .slice(0, 5);
+
+      if (keywords.length === 0) {
+        keywords = [currentArticle.title.trim()];
+      }
+
       const { data, error } = await supabase.functions.invoke("fix-seo-with-ai", {
         body: {
           article_id: currentArticle.id,
-          keywords: currentArticle.keywords || [],
+          keywords,
           target_word_count_min: 1200,
           target_word_count_max: 3000
         }
