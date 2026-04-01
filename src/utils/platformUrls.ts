@@ -183,11 +183,14 @@ export const resolveCurrentTenantSlug = (): string | null => {
  * Published: omniseenapp.lovable.app (NÃO é preview)
  * Dev: localhost
  */
-export const isLovablePreviewHost = (): boolean => {
+export const isDevHost = (): boolean => {
   if (typeof window === 'undefined') return false;
   const hostname = window.location.hostname;
   return hostname.startsWith('id-preview--') || hostname === 'localhost' || hostname === '127.0.0.1';
 };
+
+/** @deprecated Use isDevHost() instead */
+export const isLovablePreviewHost = isDevHost;
 
 /**
  * Converte path relativo para URL absoluta usando origin atual
