@@ -126,8 +126,7 @@ export const isCustomDomainHost = (): boolean => {
   }
   
   // Exclude development/preview hosts
-  const devHosts = ['localhost', '127.0.0.1', '0.0.0.0'];
-  if (devHosts.some(h => host.includes(h)) || host.includes('lovable.app') || host.includes('lovableproject.com')) {
+  if (isDevHost()) {
     return false;
   }
   
