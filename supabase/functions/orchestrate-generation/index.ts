@@ -26,6 +26,54 @@ const MAX_API_CALLS = 10;
 const LOCK_TTL_MS = 120_000;
 
 // ============================================================
+// CONTENT TYPE HELPERS & AI DETECTION
+// ============================================================
+
+function getContentTypeTemplate(contentType: string): string {
+  switch (contentType) {
+    case 'como_fazer': return '[ANSWER-FIRST] Inicie com a resposta ou sumário direto. Cada passo do guia deve trazer [INFO-GAIN] prático e evitar introduções longas. Inclua sessão de erros comuns e FAQ.';
+    case 'lista': return '[ANSWER-FIRST] O primeiro H2 deve responder "Qual o melhor/top 1" diretamente. Cada item da lista deve focar em [INFO-GAIN] sobre benefícios e diferenciais claros.';
+    case 'faq': return 'Use estrutura de Pergunta e Resposta direta. Comece respondendo a dúvida principal [ANSWER-FIRST]. Cada resposta deve ser 100% útil e trazer [INFO-GAIN] em vez de enrolação.';
+    case 'comparativo': return '[ANSWER-FIRST] O primeiro H2 já deve dar o Veredicto Final. Faça um comparativo de critérios com prós, contras e cenário ideal para cada opção [INFO-GAIN].';
+    case 'seo_local': return 'Foco forte na geolocalização. Cite bairros, ruas de referência, tempo de deslocamento ou contexto hiperlocal [INFO-GAIN]. Use [INTERNAL-LINK] para áreas de atuação.';
+    case 'pagina_pilar': return 'Megaestrutura cobrindo 360 graus do tema. [ANSWER-FIRST] Explique "O que é" no começo. APROFUNDAMENTO progressivo. Use marcações para [INTERNAL-LINK] para posts satélites.';
+    case 'caso_de_sucesso': return 'Estrutura narrativa: Contexto, Desafio, Solução Aplicada (em detalhes - [INFO-GAIN]), Resultados Quantitativos, Depoimento. Seja realista e não promocional exagerado.';
+    default: return '[ANSWER-FIRST] Responda rápido à intenção de busca. Traga valor real e não óbvio [INFO-GAIN]. Seja direto e escaneável.';
+  }
+}
+
+const contentTypeOutlineHint: Record<string, string> = {
+  faq: 'H2 = categoria de dúvida, H3 = pergunta individual',
+  comparativo: 'H2 = critério de comparação (ex: Preço, Funcionalidades) + 1 H2 de "Veredicto Final"',
+  lista: 'H2 = Item da lista numérico focado em benefício descritivo (ex: "1. Tênis X - O mais leve")',
+  pagina_pilar: '7 a 9 H2s cobrindo o tópico de ponta a ponta',
+  caso_de_sucesso: 'H2s fixos recomendados: Contexto, Desafio, Solução, Resultados, Depoimento, Próximos Passos',
+  seo_local: 'H2s incluem áreas de atendimento local, bairros de referência, e como contratar',
+  como_fazer: 'H2s: O que é/Resposta Direta, Passo a Passo (H3 para passos), Erros Comuns, Dicas Extras, FAQ',
+};
+
+function detectAiPatterns(html: string): { score: number; flags: string[]; passed: boolean } {
+  const pureText = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').toLowerCase();
+  const patterns = [
+    'é importante ressaltar', 'diante do exposto', 'in conclusion', 'furthermore',
+    'em resumo', 'vale lembrar que', 'crucial entender', 'mergulhar fundo',
+    'desvendar os segredos', 'panorama completo', 'teia complexa', 'é fundamental notar',
+    'desta forma', 'sendo assim', 'em suma', 'por outro lado', 'no entanto, é importante',
+    'landscape', 'testament to', 'seamless', 'delve into', 'tailored', 'embark on', 'treasure trove',
+    'em última análise', 'ficar claro que'
+  ];
+  const flags: string[] = [];
+  let score = 0;
+  for (const p of patterns) {
+    if (pureText.includes(p)) {
+      flags.push(p);
+      score += 6;
+    }
+  }
+  return { score, flags, passed: score < 36 };
+}
+
+// ============================================================
 // WORD RANGE RESOLVER — uses target_words from job input
 // ============================================================
 
@@ -375,6 +423,7 @@ async function executeOutlineGen(
   const niche = (jobInput.niche as string) || '';
   const language = (jobInput.language as string) || 'pt-BR';
   const jobType = ((jobInput.job_type as string) || 'article') as 'article' | 'super_page';
+  const cType = (jobInput.content_type as string) || 'como_fazer';
 
   // Use target_words to calibrate outline size
   const wordRange = resolveWordRange(jobInput, jobType);
@@ -390,6 +439,9 @@ async function executeOutlineGen(
   } else {
     wordHint = `Support ~${targetWords || 2500} words: 5-6 H2 sections, 2-3 H3 per H2.`;
   }
+
+  const typeHint = contentTypeOutlineHint[cType] || contentTypeOutlineHint.como_fazer;
+  wordHint += `\nStructure hint based on Content Type (${cType}): ${typeHint}`;
 
   const prompt = `You are an SEO content architect. Create a strict outline for a blog article.
 
@@ -678,6 +730,7 @@ async function executeContentGenFromOutline(
   const language = (jobInput.language as string) || 'pt-BR';
   const whatsapp = (jobInput.whatsapp as string) || '';
   const businessName = (jobInput.business_name as string) || '';
+  const cType = (jobInput.content_type as string) || 'como_fazer';
 
   const ctaInfo = whatsapp
     ? `Include a WhatsApp CTA: ${whatsapp}${businessName ? ` (${businessName})` : ''}`
@@ -692,8 +745,9 @@ async function executeContentGenFromOutline(
   const outlineJson = JSON.stringify(outline, null, 0);
   const entitiesJson = JSON.stringify(entities, null, 0);
   const perSectionEntities = entityCoverage.assignment.map((a) => `Section "${a.sectionTitle}": cover these terms naturally: ${a.terms.slice(0, 8).join(', ')}`).join('\n');
+  const toneTemplate = getContentTypeTemplate(cType);
 
-  const prompt = `You are an elite SEO content strategist producing premium-quality articles. Write a FULL, in-depth article following this EXACT outline. Content type: ${jobType}.
+  const prompt = `You are an elite SEO content strategist producing premium-quality articles. Write a FULL, in-depth article following this EXACT outline. Content type: ${jobType} / ${cType}.
 
 INPUT:
 - keyword: ${keyword}
@@ -711,7 +765,10 @@ ${perSectionEntities}
 SEMANTIC ENTITIES (full list to weave in naturally):
 ${entitiesJson}
 
-=== PADRAO EDITORIAL OBRIGATORIO ===
+=== PADRAO EDITORIAL OBRIGATORIO E INTRUCOES DE ESTRUTURA ===
+
+DIRETRIZ EDITORIAL DO FORMATO (${cType}):
+${toneTemplate}
 
 REGRA DE TAMANHO — CRITICA E INEGOCIAVEL:
 - O artigo DEVE ter EXATAMENTE entre ${wordRange} palavras. NAO MAIS QUE ISSO.
@@ -1186,18 +1243,22 @@ async function executeQualityGate(
   const faqCount = Array.isArray(faq) ? faq.length : 0;
   const contentScore = Number(seoScoreResult?.score ?? seoScoreResult?.totalScore ?? 0);
 
+  const aiScan = detectAiPatterns(html);
+
   const minWords = getMinWordCount(jobType);
   const entityOk = entityCoverageScore >= QUALITY_GATE.ENTITY_COVERAGE_MIN;
   const wordOk = wordCount >= minWords;
   const faqOk = faqCount >= QUALITY_GATE.FAQ_MIN_ITEMS;
   const scoreOk = contentScore >= QUALITY_GATE.SEMANTIC_SCORE_MIN;
+  const aiOk = aiScan.passed;
 
-  const passed = entityOk && wordOk && faqOk && scoreOk;
+  const passed = entityOk && wordOk && faqOk && scoreOk && aiOk;
   const reasons: string[] = [];
   if (!entityOk) reasons.push(`entity_coverage ${entityCoverageScore} < ${QUALITY_GATE.ENTITY_COVERAGE_MIN}`);
   if (!wordOk) reasons.push(`word_count ${wordCount} < ${minWords}`);
   if (!faqOk) reasons.push(`faq_items ${faqCount} < ${QUALITY_GATE.FAQ_MIN_ITEMS}`);
   if (!scoreOk) reasons.push(`semantic_score ${contentScore} < ${QUALITY_GATE.SEMANTIC_SCORE_MIN}`);
+  if (!aiOk) reasons.push(`ai_voice_detected score=${aiScan.score} flags=[${aiScan.flags.slice(0, 3).join(',')}]`);
 
   const qualityGateStatus = passed ? "approved" : "blocked";
   await supabase.from("articles").update({
@@ -1215,7 +1276,7 @@ async function executeQualityGate(
     seo_score: Math.round(contentScore),
   });
 
-  return { passed, entityOk, wordOk, faqOk, scoreOk, reasons, quality_gate_status: qualityGateStatus };
+  return { passed, entityOk, wordOk, faqOk, scoreOk, aiOk, reasons, quality_gate_status: qualityGateStatus, aiDetection: aiScan };
 }
 
 // ============================================================

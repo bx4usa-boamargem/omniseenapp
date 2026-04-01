@@ -18,6 +18,16 @@ const COUNTRIES = [
   { value: 'AR', label: '🇦🇷 Argentina', lang: 'es-AR' },
 ];
 
+const CONTENT_TYPES = [
+  { value: 'como_fazer', label: 'Como Fazer (Tutorial/Guia)' },
+  { value: 'lista', label: 'Lista (Top X, Melhores)' },
+  { value: 'faq', label: 'FAQ (Perguntas Frequentes)' },
+  { value: 'comparativo', label: 'Comparativo (X vs Y)' },
+  { value: 'seo_local', label: 'SEO Local (Foco em cidade)' },
+  { value: 'pagina_pilar', label: 'Página Pilar (Guia Definitivo)' },
+  { value: 'caso_de_sucesso', label: 'Caso de Sucesso (Estudo de Caso)' },
+];
+
 export default function GenerationNew() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -34,7 +44,7 @@ export default function GenerationNew() {
     tone: 'profissional', person: 'nós',
     business_name: '', phone: '', whatsapp: '', website: '', avoid: '',
     country: 'BR', customNicheText: '',
-    generation_mode: 'economic',
+    generation_mode: 'economic', content_type: 'como_fazer',
   });
 
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
@@ -107,6 +117,7 @@ export default function GenerationNew() {
           language: selectedCountry.lang,
           niche: resolvedNiche,
         job_type: 'article',
+        content_type: form.content_type,
         intent: form.intent === 'auto' ? 'informational' : form.intent,
         target_words: parseInt(form.target_words),
         image_count: 4,
@@ -279,6 +290,23 @@ export default function GenerationNew() {
                     <span className="text-xs opacity-70">Alta conversão, rewrite OpenAI GPT-4.</span>
                   </div>
                 </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2 pt-2 border-t border-border">
+            <Label className="font-semibold text-primary flex items-center gap-2">
+              Tipo de Conteúdo
+            </Label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Define a estrutura editorial e o formato do artigo gerado.
+            </p>
+            <Select value={form.content_type} onValueChange={v => set('content_type', v)}>
+              <SelectTrigger className="w-full bg-background"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {CONTENT_TYPES.map(c => (
+                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
