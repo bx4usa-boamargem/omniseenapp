@@ -183,6 +183,12 @@ export default function EditArticle() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [existingTranslations, setExistingTranslations] = useState<string[]>([]);
 
+  // Quality Gate states
+  const [qualityGateStatus, setQualityGateStatus] = useState<string | null>(null);
+  const [qualityGateAttempts, setQualityGateAttempts] = useState<number | null>(null);
+  const [qualityGateResult, setQualityGateResult] = useState<any>(null);
+
+
   useEffect(() => {
     async function fetchArticle() {
       if (!user || !id) return;
@@ -246,6 +252,9 @@ export default function EditArticle() {
       setFeaturedImageAlt(data.featured_image_alt || "");
       setIsApproved(!!data.approved_at);
       setApprovedAt(data.approved_at ? new Date(data.approved_at) : null);
+      setQualityGateStatus((data as any).quality_gate_status || null);
+      setQualityGateAttempts((data as any).quality_gate_attempts || null);
+      setQualityGateResult((data as any).quality_gate_result || null);
       setLoading(false);
     }
 
@@ -253,6 +262,20 @@ export default function EditArticle() {
       fetchArticle();
     }
   }, [user, authLoading, id, navigate, toast]);
+
+  // Refresh quality gate data
+  const refreshQualityGate = useCallback(async () => {
+    if (!id) return;
+    const { data } = await supabase
+      .from("articles")
+      .select("quality_gate_status, quality_gate_attempts")
+      .eq("id", id)
+      .single();
+    if (data) {
+      setQualityGateStatus((data as any).quality_gate_status || null);
+      setQualityGateAttempts((data as any).quality_gate_attempts || null);
+    }
+  }, [id]);
 
   // Fetch version history
   const fetchVersions = useCallback(async () => {
@@ -1581,6 +1604,10 @@ export default function EditArticle() {
             onSchedule={() => setShowScheduleDialog(true)}
             onDelete={handleDelete}
             disabled={isRegenerating}
+            qualityGateStatus={qualityGateStatus}
+            qualityGateAttempts={qualityGateAttempts}
+            qualityGateResult={qualityGateResult}
+            onQualityGateRefresh={refreshQualityGate}
           />
         </div>
       </main>

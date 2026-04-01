@@ -32,6 +32,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ArticleTranslationPanel } from "./ArticleTranslationPanel";
+import { QualityGatePanel } from "./QualityGatePanel";
 
 interface ArticleSidebarProps {
   // Article ID for translations
@@ -84,6 +85,12 @@ interface ArticleSidebarProps {
   
   // Loading states
   disabled?: boolean;
+  
+  // Quality Gate
+  qualityGateStatus?: string | null;
+  qualityGateAttempts?: number | null;
+  qualityGateResult?: any;
+  onQualityGateRefresh?: () => void;
 }
 
 export function ArticleSidebar({
@@ -122,6 +129,10 @@ export function ArticleSidebar({
   onSchedule,
   onDelete,
   disabled,
+  qualityGateStatus,
+  qualityGateAttempts,
+  qualityGateResult,
+  onQualityGateRefresh,
 }: ArticleSidebarProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [tagInput, setTagInput] = useState("");
@@ -510,6 +521,19 @@ export function ArticleSidebar({
 
         {/* Translations */}
         <ArticleTranslationPanel articleId={articleId} isDisabled={disabled} />
+
+        <Separator />
+
+        {/* Quality Gate */}
+        {articleId && onQualityGateRefresh && (
+          <QualityGatePanel
+            articleId={articleId}
+            qualityGateStatus={qualityGateStatus || null}
+            qualityGateAttempts={qualityGateAttempts || null}
+            qualityGateResult={qualityGateResult}
+            onRefresh={onQualityGateRefresh}
+          />
+        )}
 
         <Separator />
         <Card className="border-destructive/50">
