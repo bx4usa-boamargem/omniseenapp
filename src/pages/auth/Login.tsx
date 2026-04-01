@@ -110,9 +110,9 @@ function LoginContent() {
     let timer: ReturnType<typeof setTimeout>;
     if (authLoading) {
       timer = setTimeout(() => {
-        console.warn('[Login] Loading timeout exceeded');
-        setLoadingTimeout(true);
-      }, 15000);
+        console.warn('[Login] Loading timeout exceeded, forcing skip');
+        setSkipAuthLoading(true);
+      }, 5000);
     } else {
       setLoadingTimeout(false);
     }
