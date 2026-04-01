@@ -7,7 +7,7 @@ const corsHeaders = {
 
 interface CMSPayload {
   action: "test" | "create" | "update" | "delete" | "detect-blog";
-  integrationId: string;
+  integrationId?: string;
   articleId?: string;
 }
 
@@ -176,7 +176,7 @@ async function testWordPressConnection(creds: WordPressCredentials): Promise<{ s
       const user = await response.json();
       return { success: true, message: `Conectado como ${user.name}` };
     } else if (response.status === 401) {
-      return { success: false, message: "Credenciais inválidas. Verifique o usuário e a senha de aplicativo." };
+      return { success: false, message: "Credenciais WordPress inválidas. Verifique usuário e Application Password." };
     } else {
       return { success: false, message: `Erro ao conectar: HTTP ${response.status}` };
     }
@@ -670,34 +670,82 @@ Deno.serve(async (req) => {
 
     const { action, integrationId, articleId } = await req.json() as CMSPayload;
 
-    console.log(`CMS action: ${action}, integration: ${integrationId}`);
+    console.log(`CMS action: ${action}, integration: ${integrationId || 'tenant'}, article: ${articleId}`);
 
-    // Fetch integration details from decrypted view
-    // CRITICAL: Only fetch ACTIVE integrations - prevents ghost state publishing
-    const { data: integration, error: integrationError } = await supabaseClient
-      .from("cms_integrations_decrypted")
-      .select("*")
-      .eq("id", integrationId)
-      .eq("is_active", true)  // SECURITY: Reject inactive integrations at backend level
-      .single();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let integration: any = null;
+    let isTenantWP = false;
 
-    if (integrationError || !integration) {
-      console.error("Integration not found or inactive:", integrationError);
+    // Feature 1: Tenant configuration from blogs table
+    if (!integrationId && articleId && (action === "create" || action === "update")) {
+      const { data: artContext } = await supabaseClient
+        .from("articles")
+        .select("blog_id")
+        .eq("id", articleId)
+        .single();
+        
+      if (artContext?.blog_id) {
+        const { data: blogConf } = await supabaseClient
+          .from("blogs")
+          .select("wp_site_url, wp_username, wp_app_password, wp_auto_publish")
+          .eq("id", artContext.blog_id)
+          .single();
+
+        if (blogConf?.wp_site_url && blogConf?.wp_username && blogConf?.wp_app_password) {
+           integration = {
+             platform: "wordpress",
+             site_url: blogConf.wp_site_url,
+             username: blogConf.wp_username,
+             api_key: blogConf.wp_app_password,
+             auth_type: "basic",
+             wp_auto_publish: blogConf.wp_auto_publish,
+           };
+           isTenantWP = true;
+        }
+      }
+    }
+
+    if (!integration && integrationId) {
+      // Fetch integration details from decrypted view
+      // CRITICAL: Only fetch ACTIVE integrations - prevents ghost state publishing
+      const { data: fetchedIntegration, error: integrationError } = await supabaseClient
+        .from("cms_integrations_decrypted")
+        .select("*")
+        .eq("id", integrationId)
+        .eq("is_active", true)  // SECURITY: Reject inactive integrations at backend level
+        .single();
+
+      if (integrationError || !fetchedIntegration) {
+        console.error("Integration not found or inactive:", integrationError);
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            code: "INTEGRATION_INACTIVE",
+            message: "Integração não encontrada ou desativada. Abra a Central de Integrações." 
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
+        );
+      }
+      
+      integration = fetchedIntegration;
+
+      // Log credential access for audit trail
+      await supabaseClient.from("cms_credential_access_log").insert({
+        integration_id: integrationId,
+        access_type: action === "test" ? "view" : "publish",
+      });
+    }
+
+    if (!integration) {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          code: "INTEGRATION_INACTIVE",
-          message: "Integração não encontrada ou desativada. Abra a Central de Integrações." 
+          code: "NO_CONFIG",
+          message: "Nenhuma integração encontrada e credenciais do blog ausentes." 
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 404 }
       );
     }
-
-    // Log credential access for audit trail
-    await supabaseClient.from("cms_credential_access_log").insert({
-      integration_id: integrationId,
-      access_type: action === "test" ? "view" : "publish",
-    });
 
     const platform = integration.platform;
     const isWordPressCom = platform === "wordpress-com" || 
@@ -865,12 +913,18 @@ Deno.serve(async (req) => {
         );
       }
 
+      let publishStatus = article.status === "published" ? "publish" : "draft";
+      
+      if (isTenantWP && integration.wp_auto_publish !== undefined && integration.wp_auto_publish !== null) {
+        publishStatus = integration.wp_auto_publish ? "publish" : "draft";
+      }
+
       const articleData: ArticleData = {
         title: article.title,
         content: article.content || "",
         excerpt: article.excerpt || "",
         featuredImageUrl: article.featured_image_url,
-        status: article.status === "published" ? "publish" : "draft",
+        status: publishStatus as "publish" | "draft",
         category: article.category,
         tags: article.tags,
       };
@@ -918,25 +972,43 @@ Deno.serve(async (req) => {
       }
 
       // Log the publish action
-      await supabaseClient.from("cms_publish_logs").insert({
-        article_id: articleId,
-        integration_id: integrationId,
-        action: action,
-        external_id: result.postId || null,
-        external_url: result.postUrl || null,
-        status: result.success ? "success" : "error",
-        error_message: result.success ? null : result.message,
-      });
+      if (!isTenantWP && integrationId) {
+        await supabaseClient.from("cms_publish_logs").insert({
+          article_id: articleId,
+          integration_id: integrationId,
+          action: action,
+          external_id: result.postId || null,
+          external_url: result.postUrl || null,
+          status: result.success ? "success" : "error",
+          error_message: result.success ? null : result.message,
+        });
+      }
 
       // Update article with external post info
       if (result.success && result.postId) {
-        await supabaseClient
-          .from("articles")
-          .update({
-            external_post_id: result.postId,
-            external_post_url: result.postUrl,
-          })
-          .eq("id", articleId);
+        if (isTenantWP) {
+          await supabaseClient
+            .from("articles")
+            .update({
+              wp_post_id: parseInt(result.postId, 10),
+              wp_published_url: result.postUrl,
+              wp_published_at: new Date().toISOString()
+            })
+            .eq("id", articleId);
+            
+          return new Response(
+            JSON.stringify({ success: true, wp_post_id: parseInt(result.postId, 10), wp_url: result.postUrl }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        } else {
+          await supabaseClient
+            .from("articles")
+            .update({
+              external_post_id: result.postId,
+              external_post_url: result.postUrl,
+            })
+            .eq("id", articleId);
+        }
       }
 
       return new Response(
