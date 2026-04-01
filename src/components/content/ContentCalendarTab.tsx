@@ -370,6 +370,9 @@ export function ContentCalendarTab({ blogId, isClientContext = false }: ContentC
                     isToday && "border-primary border-2 bg-primary/5",
                     !isToday && "border-border/50 hover:border-border"
                   )}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, day)}
                 >
                   {/* Day Number */}
                   <div className="flex items-center justify-between mb-2">
@@ -384,19 +387,23 @@ export function ContentCalendarTab({ blogId, isClientContext = false }: ContentC
                     </span>
                   </div>
 
-                  {/* Articles - All clickable and open editor */}
+                  {/* Articles - draggable + priority colored */}
                   <div className="flex-1 space-y-1.5 overflow-hidden">
                     {dayArticles.slice(0, 3).map((article) => (
                       <div
                         key={article.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, article.id)}
                         onClick={() => navigate(getEditRoute(article.id))}
                         className={cn(
-                          "p-2 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity",
-                          getStatusStyles(article.status)
+                          "p-2 rounded-lg border cursor-grab hover:opacity-80 transition-opacity group",
+                          getStatusStyles(article.status),
+                          getFunnelPriorityStyles(article)
                         )}
                       >
                         {/* Time and Source Icon */}
                         <div className="flex items-center gap-1.5 mb-1">
+                          <GripVertical className="h-3 w-3 opacity-0 group-hover:opacity-40 transition-opacity shrink-0" />
                           <span className="flex items-center gap-1 text-[10px] opacity-70">
                             <Clock className="h-2.5 w-2.5" />
                             {getArticleTime(article)}
@@ -427,6 +434,26 @@ export function ContentCalendarTab({ blogId, isClientContext = false }: ContentC
                 </div>
               );
             })}
+          </div>
+
+          {/* Priority Legend */}
+          <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-border/50">
+            <span className="text-xs font-medium text-muted-foreground">Etapa do funil:</span>
+            <div className="flex items-center gap-1.5 text-xs">
+              <div className="w-3 h-3 rounded-sm border-l-4 border-l-blue-500 bg-muted" />
+              <span className="text-muted-foreground">Topo</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs">
+              <div className="w-3 h-3 rounded-sm border-l-4 border-l-amber-500 bg-muted" />
+              <span className="text-muted-foreground">Meio</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs">
+              <div className="w-3 h-3 rounded-sm border-l-4 border-l-emerald-500 bg-muted" />
+              <span className="text-muted-foreground">Fundo</span>
+            </div>
+            <span className="text-[10px] text-muted-foreground/60 ml-auto">
+              Arraste artigos entre dias para reagendar
+            </span>
           </div>
         </CardContent>
       </Card>
