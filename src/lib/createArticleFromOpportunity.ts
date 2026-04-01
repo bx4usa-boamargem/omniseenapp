@@ -98,6 +98,7 @@ export async function createArticleFromOpportunity(
     image_count: 4,
     source: 'radar',
     opportunity_id: opportunity.id || null,
+    article_type: articleType,
   };
 
   // --- Call Engine v1 ---
