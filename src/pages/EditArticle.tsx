@@ -1441,6 +1441,14 @@ export default function EditArticle() {
                     onContentUpdate={handleContentUpdate}
                   />
                 )}
+
+                {/* Broken Links */}
+                {article && (
+                  <BrokenLinksPanel
+                    articleId={article.id}
+                    blogId={article.blog_id}
+                  />
+                )}
               </div>
             )}
             
