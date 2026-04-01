@@ -156,6 +156,12 @@ export function CreateContentModal({ open, onOpenChange, blogId, isClientContext
         onContinue={() => setFunnelModalOpen(false)}
         isClientContext={isClient}
       />
+
+      <BulkGenerationModal
+        open={bulkModalOpen}
+        onOpenChange={setBulkModalOpen}
+        blogId={blogId}
+      />
     </>
   );
 }
