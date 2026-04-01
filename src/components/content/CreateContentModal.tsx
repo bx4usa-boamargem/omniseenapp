@@ -64,6 +64,7 @@ export function CreateContentModal({ open, onOpenChange, blogId, isClientContext
   const isClient = isClientContext || location.pathname.startsWith('/client');
   const [quickModalOpen, setQuickModalOpen] = useState(false);
   const [funnelModalOpen, setFunnelModalOpen] = useState(false);
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
 
   const handleOptionClick = (optionId: ContentOption["id"]) => {
     onOpenChange(false);
@@ -74,6 +75,9 @@ export function CreateContentModal({ open, onOpenChange, blogId, isClientContext
         break;
       case "funnel":
         setFunnelModalOpen(true);
+        break;
+      case "bulk":
+        setBulkModalOpen(true);
         break;
       case "import":
         navigate(isClient ? "/client/articles/engine/new" : "/articles/new");
