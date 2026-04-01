@@ -258,6 +258,7 @@ export default function EditArticle() {
       setQualityGateStatus((data as any).quality_gate_status || null);
       setQualityGateAttempts((data as any).quality_gate_attempts || null);
       setQualityGateResult((data as any).quality_gate_result || null);
+      setSeoScoreBreakdown((data as any).seo_score_breakdown || null);
       setLoading(false);
     }
 
