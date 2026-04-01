@@ -151,6 +151,19 @@ export function ContentCalendarTab({ blogId, isClientContext = false }: ContentC
     });
   };
 
+  const getFunnelPriorityStyles = (article: Article) => {
+    switch (article.funnel_stage) {
+      case "top":
+        return "border-l-4 border-l-blue-500";
+      case "middle":
+        return "border-l-4 border-l-amber-500";
+      case "bottom":
+        return "border-l-4 border-l-emerald-500";
+      default:
+        return "border-l-4 border-l-transparent";
+    }
+  };
+
   const getStatusStyles = (status: string) => {
     switch (status) {
       case "scheduled":
@@ -163,6 +176,39 @@ export function ContentCalendarTab({ blogId, isClientContext = false }: ContentC
         return "bg-gray-500/20 text-gray-600 border-gray-500/30";
       default:
         return "bg-muted text-muted-foreground";
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, articleId: string) => {
+    e.dataTransfer.setData("articleId", articleId);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.currentTarget.classList.add("bg-primary/10", "ring-1", "ring-primary/40");
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.currentTarget.classList.remove("bg-primary/10", "ring-1", "ring-primary/40");
+  };
+
+  const handleDrop = async (e: React.DragEvent, day: Date) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove("bg-primary/10", "ring-1", "ring-primary/40");
+    const articleId = e.dataTransfer.getData("articleId");
+    if (!articleId) return;
+
+    const { error } = await supabase
+      .from("articles")
+      .update({ scheduled_at: day.toISOString(), status: "scheduled" })
+      .eq("id", articleId);
+
+    if (error) {
+      toast.error("Erro ao reagendar artigo");
+    } else {
+      toast.success("Artigo reagendado com sucesso!");
+      // Realtime will handle refresh
     }
   };
 
