@@ -8,7 +8,7 @@
  * Se não tem tenant -> auto-provisiona (sem onboarding manual)
  * Se tem tenant -> renderiza children
  */
-import { ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenantContext } from '@/contexts/TenantContext';
@@ -24,18 +24,48 @@ interface TenantGuardProps {
 export function TenantGuard({ children, requireAdmin = false }: TenantGuardProps) {
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
-  const { 
-    currentTenant, 
-    loading: tenantLoading, 
-    error, 
+  const {
+    currentTenant,
+    loading: tenantLoading,
+    error,
     hasTenant,
     isAdmin,
-    refetch 
+    refetch,
   } = useTenantContext();
 
+  const [forceLoginRedirect, setForceLoginRedirect] = useState(false);
   const isLoading = authLoading || tenantLoading;
 
-  // Loading state com fallback
+  useEffect(() => {
+    if (!isLoading) {
+      setForceLoginRedirect(false);
+      return;
+    }
+
+    const softRedirectTimer = window.setTimeout(() => {
+      if (!user) {
+        console.warn('[TenantGuard] Loading exceeded 3 seconds without user, redirecting to login.');
+        setForceLoginRedirect(true);
+      }
+    }, 3000);
+
+    const hardAuthTimer = window.setTimeout(() => {
+      if (authLoading) {
+        console.warn('[TenantGuard] Auth still loading after 5 seconds, forcing unauthenticated redirect.');
+        setForceLoginRedirect(true);
+      }
+    }, 5000);
+
+    return () => {
+      clearTimeout(softRedirectTimer);
+      clearTimeout(hardAuthTimer);
+    };
+  }, [isLoading, authLoading, user]);
+
+  if (forceLoginRedirect) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
@@ -45,7 +75,6 @@ export function TenantGuard({ children, requireAdmin = false }: TenantGuardProps
     );
   }
 
-  // Erro ao carregar tenant
   if (error) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4 p-4">
@@ -60,8 +89,8 @@ export function TenantGuard({ children, requireAdmin = false }: TenantGuardProps
               <RefreshCw className="h-4 w-4" />
               Tentar novamente
             </Button>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => window.location.href = '/login'}
               className="w-full"
             >
@@ -73,24 +102,20 @@ export function TenantGuard({ children, requireAdmin = false }: TenantGuardProps
     );
   }
 
-  // Não autenticado -> login
   if (!user) {
     console.log('[TenantGuard] No user, redirecting to login');
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Sem tenant -> auto-provisionar (sem onboarding manual)
   if (!hasTenant || !currentTenant) {
     console.log('[TenantGuard] No tenant, auto-provisioning...');
     return <AutoProvisionTenant />;
   }
 
-  // Requer admin mas não é admin
   if (requireAdmin && !isAdmin) {
     console.log('[TenantGuard] Not admin, access denied');
     return <Navigate to="/access-denied" replace />;
   }
 
-  // Tudo OK -> renderiza children
   return <>{children}</>;
 }
