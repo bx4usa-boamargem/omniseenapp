@@ -6,7 +6,7 @@
  * - Verifica se user tem tenant
  * - Se não tem tenant -> auto-provisiona
  */
-import { ReactNode, useEffect, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenantContext } from '@/contexts/TenantContext';
@@ -22,21 +22,31 @@ export function SubAccountGuard({ children }: SubAccountGuardProps) {
   const { user, loading: authLoading, signOut } = useAuth();
   const { currentTenant, loading: tenantLoading, hasTenant, error, refetch } = useTenantContext();
   const [forceLoginRedirect, setForceLoginRedirect] = useState(false);
+  const loadingStartedAtRef = useRef<number | null>(null);
 
   const isLoading = authLoading || tenantLoading;
 
   useEffect(() => {
     if (!isLoading) {
+      loadingStartedAtRef.current = null;
       setForceLoginRedirect(false);
       return;
     }
+
+    if (loadingStartedAtRef.current === null) {
+      loadingStartedAtRef.current = Date.now();
+    }
+
+    const elapsed = Date.now() - loadingStartedAtRef.current;
+    const softDelay = Math.max(0, 3000 - elapsed);
+    const hardDelay = Math.max(0, 5000 - elapsed);
 
     const softRedirectTimer = window.setTimeout(() => {
       if (!user) {
         console.warn('[SubAccountGuard] Loading exceeded 3 seconds without user, redirecting to login.');
         setForceLoginRedirect(true);
       }
-    }, 3000);
+    }, softDelay);
 
     const hardAuthTimer = window.setTimeout(() => {
       if (authLoading) {
@@ -49,7 +59,7 @@ export function SubAccountGuard({ children }: SubAccountGuardProps) {
         console.warn('[SubAccountGuard] Tenant resolution still loading after 5 seconds, clearing session and redirecting to login.');
         void signOut().finally(() => setForceLoginRedirect(true));
       }
-    }, 5000);
+    }, hardDelay);
 
     return () => {
       clearTimeout(softRedirectTimer);
