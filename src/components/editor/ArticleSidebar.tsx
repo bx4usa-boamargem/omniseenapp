@@ -85,6 +85,12 @@ interface ArticleSidebarProps {
   
   // Loading states
   disabled?: boolean;
+  
+  // Quality Gate
+  qualityGateStatus?: string | null;
+  qualityGateAttempts?: number | null;
+  qualityGateResult?: any;
+  onQualityGateRefresh?: () => void;
 }
 
 export function ArticleSidebar({
