@@ -8,9 +8,10 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Target, Upload, ArrowRight } from "lucide-react";
+import { Sparkles, Target, Upload, Layers, ArrowRight } from "lucide-react";
 import { QuickArticleModal } from "./QuickArticleModal";
 import { FunnelModal } from "./FunnelModal";
+import { BulkGenerationModal } from "./BulkGenerationModal";
 
 interface CreateContentModalProps {
   open: boolean;
@@ -20,7 +21,7 @@ interface CreateContentModalProps {
 }
 
 interface ContentOption {
-  id: "quick" | "funnel" | "import";
+  id: "quick" | "funnel" | "bulk" | "import";
   title: string;
   description: string;
   icon: React.ReactNode;
@@ -43,6 +44,12 @@ const contentOptions: ContentOption[] = [
     badge: { label: "Opcional", variant: "optional" },
   },
   {
+    id: "bulk",
+    title: "Geração em Massa",
+    description: "Gere múltiplos artigos de uma vez.",
+    icon: <Layers className="h-6 w-6" />,
+  },
+  {
     id: "import",
     title: "Importar Conteúdo",
     description: "PDF, vídeo, link ou texto.",
@@ -57,6 +64,7 @@ export function CreateContentModal({ open, onOpenChange, blogId, isClientContext
   const isClient = isClientContext || location.pathname.startsWith('/client');
   const [quickModalOpen, setQuickModalOpen] = useState(false);
   const [funnelModalOpen, setFunnelModalOpen] = useState(false);
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
 
   const handleOptionClick = (optionId: ContentOption["id"]) => {
     onOpenChange(false);
@@ -67,6 +75,9 @@ export function CreateContentModal({ open, onOpenChange, blogId, isClientContext
         break;
       case "funnel":
         setFunnelModalOpen(true);
+        break;
+      case "bulk":
+        setBulkModalOpen(true);
         break;
       case "import":
         navigate(isClient ? "/client/articles/engine/new" : "/articles/new");
@@ -144,6 +155,12 @@ export function CreateContentModal({ open, onOpenChange, blogId, isClientContext
         blogId={blogId}
         onContinue={() => setFunnelModalOpen(false)}
         isClientContext={isClient}
+      />
+
+      <BulkGenerationModal
+        open={bulkModalOpen}
+        onOpenChange={setBulkModalOpen}
+        blogId={blogId}
       />
     </>
   );
