@@ -263,6 +263,20 @@ export default function EditArticle() {
     }
   }, [user, authLoading, id, navigate, toast]);
 
+  // Refresh quality gate data
+  const refreshQualityGate = useCallback(async () => {
+    if (!id) return;
+    const { data } = await supabase
+      .from("articles")
+      .select("quality_gate_status, quality_gate_attempts")
+      .eq("id", id)
+      .single();
+    if (data) {
+      setQualityGateStatus((data as any).quality_gate_status || null);
+      setQualityGateAttempts((data as any).quality_gate_attempts || null);
+    }
+  }, [id]);
+
   // Fetch version history
   const fetchVersions = useCallback(async () => {
     if (!id) return;
