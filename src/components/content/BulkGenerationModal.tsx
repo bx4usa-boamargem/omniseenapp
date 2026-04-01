@@ -103,7 +103,7 @@ export function BulkGenerationModal({
         .single();
       if (data) {
         const progress = (data as any).public_progress || 0;
-        const isDone = data.status === "completed" || data.status === "failed" || data.status === "done";
+        const isDone = data.status === "completed" || data.status === "failed";
         setActiveJob({
           id: data.id,
           status: data.status,
