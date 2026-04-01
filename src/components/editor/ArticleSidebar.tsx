@@ -129,6 +129,10 @@ export function ArticleSidebar({
   onSchedule,
   onDelete,
   disabled,
+  qualityGateStatus,
+  qualityGateAttempts,
+  qualityGateResult,
+  onQualityGateRefresh,
 }: ArticleSidebarProps) {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const [tagInput, setTagInput] = useState("");
