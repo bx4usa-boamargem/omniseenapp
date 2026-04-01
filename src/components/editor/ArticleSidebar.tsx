@@ -523,6 +523,19 @@ export function ArticleSidebar({
         <ArticleTranslationPanel articleId={articleId} isDisabled={disabled} />
 
         <Separator />
+
+        {/* Quality Gate */}
+        {articleId && onQualityGateRefresh && (
+          <QualityGatePanel
+            articleId={articleId}
+            qualityGateStatus={qualityGateStatus || null}
+            qualityGateAttempts={qualityGateAttempts || null}
+            qualityGateResult={qualityGateResult}
+            onRefresh={onQualityGateRefresh}
+          />
+        )}
+
+        <Separator />
         <Card className="border-destructive/50">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-destructive">
