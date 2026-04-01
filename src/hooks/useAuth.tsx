@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext, ReactNode } from "react";
+import React, { useState, useEffect, createContext, useContext, ReactNode, useRef } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -18,25 +18,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const initialSessionResolvedRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
 
-    const applyAuthState = (nextSession: Session | null) => {
+    const syncAuthState = (nextSession: Session | null) => {
       if (!isMounted) return;
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
+    };
+
+    const finalizeAuthState = (nextSession: Session | null) => {
+      initialSessionResolvedRef.current = true;
+      syncAuthState(nextSession);
       setLoading(false);
     };
 
     const failsafeTimer = setTimeout(() => {
       console.warn("[AuthProvider] Auth initialization exceeded 5 seconds, forcing unauthenticated state.");
-      applyAuthState(null);
+      finalizeAuthState(null);
     }, 5000);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === 'INITIAL_SESSION' && !initialSessionResolvedRef.current) {
+        syncAuthState(nextSession);
+        return;
+      }
+
       clearTimeout(failsafeTimer);
-      applyAuthState(nextSession);
+      finalizeAuthState(nextSession);
     });
 
     const sessionTimeout = new Promise<{ data: { session: null } }>((resolve) =>
@@ -46,11 +57,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     Promise.race([supabase.auth.getSession(), sessionTimeout])
       .then(({ data: { session: nextSession } }) => {
         clearTimeout(failsafeTimer);
-        applyAuthState(nextSession);
+        finalizeAuthState(nextSession);
       })
       .catch(() => {
         clearTimeout(failsafeTimer);
-        applyAuthState(null);
+        finalizeAuthState(null);
       });
 
     return () => {
@@ -87,7 +98,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await Promise.race([
+        supabase.auth.signOut(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('SIGNOUT_TIMEOUT')), 3000)),
+      ]);
+    } catch (error) {
+      console.warn('[AuthProvider] Sign out failed, clearing local auth state anyway.', error);
+    } finally {
+      initialSessionResolvedRef.current = true;
+      setSession(null);
+      setUser(null);
+      setLoading(false);
+    }
   };
 
   const signInWithGoogle = async () => {
