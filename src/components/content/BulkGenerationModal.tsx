@@ -140,8 +140,7 @@ export function BulkGenerationModal({
   const isRunning =
     activeJob &&
     activeJob.status !== "completed" &&
-    activeJob.status !== "failed" &&
-    activeJob.status !== "done";
+    activeJob.status !== "failed";
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
