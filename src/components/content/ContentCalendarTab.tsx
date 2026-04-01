@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,8 +18,10 @@ import {
   ChevronDown,
   ChevronUp,
   RotateCcw,
-  Radar
+  Radar,
+  GripVertical
 } from "lucide-react";
+import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -149,6 +151,19 @@ export function ContentCalendarTab({ blogId, isClientContext = false }: ContentC
     });
   };
 
+  const getFunnelPriorityStyles = (article: Article) => {
+    switch (article.funnel_stage) {
+      case "top":
+        return "border-l-4 border-l-blue-500";
+      case "middle":
+        return "border-l-4 border-l-amber-500";
+      case "bottom":
+        return "border-l-4 border-l-emerald-500";
+      default:
+        return "border-l-4 border-l-transparent";
+    }
+  };
+
   const getStatusStyles = (status: string) => {
     switch (status) {
       case "scheduled":
@@ -161,6 +176,39 @@ export function ContentCalendarTab({ blogId, isClientContext = false }: ContentC
         return "bg-gray-500/20 text-gray-600 border-gray-500/30";
       default:
         return "bg-muted text-muted-foreground";
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, articleId: string) => {
+    e.dataTransfer.setData("articleId", articleId);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.currentTarget.classList.add("bg-primary/10", "ring-1", "ring-primary/40");
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.currentTarget.classList.remove("bg-primary/10", "ring-1", "ring-primary/40");
+  };
+
+  const handleDrop = async (e: React.DragEvent, day: Date) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove("bg-primary/10", "ring-1", "ring-primary/40");
+    const articleId = e.dataTransfer.getData("articleId");
+    if (!articleId) return;
+
+    const { error } = await supabase
+      .from("articles")
+      .update({ scheduled_at: day.toISOString(), status: "scheduled" })
+      .eq("id", articleId);
+
+    if (error) {
+      toast.error("Erro ao reagendar artigo");
+    } else {
+      toast.success("Artigo reagendado com sucesso!");
+      // Realtime will handle refresh
     }
   };
 
@@ -322,6 +370,9 @@ export function ContentCalendarTab({ blogId, isClientContext = false }: ContentC
                     isToday && "border-primary border-2 bg-primary/5",
                     !isToday && "border-border/50 hover:border-border"
                   )}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, day)}
                 >
                   {/* Day Number */}
                   <div className="flex items-center justify-between mb-2">
@@ -336,19 +387,23 @@ export function ContentCalendarTab({ blogId, isClientContext = false }: ContentC
                     </span>
                   </div>
 
-                  {/* Articles - All clickable and open editor */}
+                  {/* Articles - draggable + priority colored */}
                   <div className="flex-1 space-y-1.5 overflow-hidden">
                     {dayArticles.slice(0, 3).map((article) => (
                       <div
                         key={article.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, article.id)}
                         onClick={() => navigate(getEditRoute(article.id))}
                         className={cn(
-                          "p-2 rounded-lg border cursor-pointer hover:opacity-80 transition-opacity",
-                          getStatusStyles(article.status)
+                          "p-2 rounded-lg border cursor-grab hover:opacity-80 transition-opacity group",
+                          getStatusStyles(article.status),
+                          getFunnelPriorityStyles(article)
                         )}
                       >
                         {/* Time and Source Icon */}
                         <div className="flex items-center gap-1.5 mb-1">
+                          <GripVertical className="h-3 w-3 opacity-0 group-hover:opacity-40 transition-opacity shrink-0" />
                           <span className="flex items-center gap-1 text-[10px] opacity-70">
                             <Clock className="h-2.5 w-2.5" />
                             {getArticleTime(article)}
@@ -379,6 +434,26 @@ export function ContentCalendarTab({ blogId, isClientContext = false }: ContentC
                 </div>
               );
             })}
+          </div>
+
+          {/* Priority Legend */}
+          <div className="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-border/50">
+            <span className="text-xs font-medium text-muted-foreground">Etapa do funil:</span>
+            <div className="flex items-center gap-1.5 text-xs">
+              <div className="w-3 h-3 rounded-sm border-l-4 border-l-blue-500 bg-muted" />
+              <span className="text-muted-foreground">Topo</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs">
+              <div className="w-3 h-3 rounded-sm border-l-4 border-l-amber-500 bg-muted" />
+              <span className="text-muted-foreground">Meio</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs">
+              <div className="w-3 h-3 rounded-sm border-l-4 border-l-emerald-500 bg-muted" />
+              <span className="text-muted-foreground">Fundo</span>
+            </div>
+            <span className="text-[10px] text-muted-foreground/60 ml-auto">
+              Arraste artigos entre dias para reagendar
+            </span>
           </div>
         </CardContent>
       </Card>
@@ -414,15 +489,20 @@ export function ContentCalendarTab({ blogId, isClientContext = false }: ContentC
                 draftArticles.map((draft) => (
                   <div
                     key={draft.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, draft.id)}
                     onClick={() => navigate(getEditRoute(draft.id))}
-                    className="p-3 rounded-lg border bg-muted/30 hover:bg-muted cursor-pointer transition-colors"
+                    className="p-3 rounded-lg border bg-muted/30 hover:bg-muted cursor-grab transition-colors group"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{draft.title}</p>
-                        <span className="text-xs text-muted-foreground">
-                          Criado em {format(new Date(draft.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                        </span>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <GripVertical className="h-4 w-4 opacity-0 group-hover:opacity-40 transition-opacity shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{draft.title}</p>
+                          <span className="text-xs text-muted-foreground">
+                            Criado em {format(new Date(draft.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          </span>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         {getOriginBadge(draft)}
