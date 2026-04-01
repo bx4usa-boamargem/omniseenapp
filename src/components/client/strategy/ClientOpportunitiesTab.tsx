@@ -173,7 +173,7 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
     setSizeModalOpen(true);
   };
 
-  const handleCreateArticle = async (targetWords: number) => {
+  const handleCreateArticle = async (targetWords: number, articleType: 'normal' | 'premium' = 'premium') => {
     if (!selectedOpportunity || creatingId) return;
     setCreatingId(selectedOpportunity.id);
     setSizeModalOpen(false);
@@ -188,7 +188,8 @@ export function ClientOpportunitiesTab({ blogId }: ClientOpportunitiesTabProps) 
         },
         blogId,
         navigate,
-        targetWords
+        targetWords,
+        articleType
       );
     } finally {
       setCreatingId(null);

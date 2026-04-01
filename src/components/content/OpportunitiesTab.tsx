@@ -324,7 +324,7 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
     setSizeModalOpen(true);
   };
 
-  const handleCreateArticle = async (targetWords: number) => {
+  const handleCreateArticle = async (targetWords: number, articleType: 'normal' | 'premium' = 'premium') => {
     if (!selectedOpportunity || creatingId) return;
     setCreatingId(selectedOpportunity.id);
     setSizeModalOpen(false);
@@ -338,7 +338,8 @@ export function OpportunitiesTab({ blogId, isClientContext = false }: Opportunit
         },
         blogId,
         navigate,
-        targetWords
+        targetWords,
+        articleType
       );
     } finally {
       setCreatingId(null);
