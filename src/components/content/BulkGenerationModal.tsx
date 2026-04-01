@@ -98,19 +98,21 @@ export function BulkGenerationModal({
     const poll = async () => {
       const { data } = await supabase
         .from("generation_jobs")
-        .select(
-          "id, status, total_articles, completed_articles, failed_articles"
-        )
+        .select("id, status, public_progress, public_stage, public_message")
         .eq("id", activeJob.id)
         .single();
       if (data) {
-        setActiveJob(data as JobProgress);
-        if (
-          data.status === "completed" ||
-          data.status === "failed" ||
-          data.status === "done"
-        ) {
-          if (pollingRef.current) clearInterval(pollingRef.current);
+        const progress = (data as any).public_progress || 0;
+        const isDone = data.status === "completed" || data.status === "failed" || data.status === "done";
+        setActiveJob({
+          id: data.id,
+          status: data.status,
+          total_articles: topicList.length,
+          completed_articles: Math.round((progress / 100) * topicList.length),
+          failed_articles: data.status === "failed" ? 1 : 0,
+        });
+        if (isDone && pollingRef.current) {
+          clearInterval(pollingRef.current);
         }
       }
     };
