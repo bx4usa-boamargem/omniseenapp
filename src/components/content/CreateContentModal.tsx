@@ -8,9 +8,10 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Sparkles, Target, Upload, ArrowRight } from "lucide-react";
+import { Sparkles, Target, Upload, Layers, ArrowRight } from "lucide-react";
 import { QuickArticleModal } from "./QuickArticleModal";
 import { FunnelModal } from "./FunnelModal";
+import { BulkGenerationModal } from "./BulkGenerationModal";
 
 interface CreateContentModalProps {
   open: boolean;
