@@ -237,7 +237,7 @@ export function BulkGenerationModal({
               <p className="font-semibold">
                 {isRunning
                   ? "Gerando artigos..."
-                  : activeJob.status === "completed" || activeJob.status === "done"
+                  : activeJob.status === "completed"
                   ? "Geração concluída!"
                   : "Geração finalizada com erros"}
               </p>
