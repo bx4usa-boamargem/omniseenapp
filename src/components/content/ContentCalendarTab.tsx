@@ -489,15 +489,20 @@ export function ContentCalendarTab({ blogId, isClientContext = false }: ContentC
                 draftArticles.map((draft) => (
                   <div
                     key={draft.id}
+                    draggable
+                    onDragStart={(e) => handleDragStart(e, draft.id)}
                     onClick={() => navigate(getEditRoute(draft.id))}
-                    className="p-3 rounded-lg border bg-muted/30 hover:bg-muted cursor-pointer transition-colors"
+                    className="p-3 rounded-lg border bg-muted/30 hover:bg-muted cursor-grab transition-colors group"
                   >
                     <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{draft.title}</p>
-                        <span className="text-xs text-muted-foreground">
-                          Criado em {format(new Date(draft.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                        </span>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <GripVertical className="h-4 w-4 opacity-0 group-hover:opacity-40 transition-opacity shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{draft.title}</p>
+                          <span className="text-xs text-muted-foreground">
+                            Criado em {format(new Date(draft.created_at), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                          </span>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         {getOriginBadge(draft)}
