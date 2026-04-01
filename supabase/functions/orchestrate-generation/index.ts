@@ -38,6 +38,11 @@ function getContentTypeTemplate(contentType: string): string {
     case 'seo_local': return 'Foco forte na geolocalização. Cite bairros, ruas de referência, tempo de deslocamento ou contexto hiperlocal [INFO-GAIN]. Use [INTERNAL-LINK] para áreas de atuação.';
     case 'pagina_pilar': return 'Megaestrutura cobrindo 360 graus do tema. [ANSWER-FIRST] Explique "O que é" no começo. APROFUNDAMENTO progressivo. Use marcações para [INTERNAL-LINK] para posts satélites.';
     case 'caso_de_sucesso': return 'Estrutura narrativa: Contexto, Desafio, Solução Aplicada (em detalhes - [INFO-GAIN]), Resultados Quantitativos, Depoimento. Seja realista e não promocional exagerado.';
+    case 'industry_roundup': return 'Agrupamento e curadoria das melhores práticas ou ferramentas do setor. Divida as categorias em clusters, destacando tendências e por que elas importam agora [INFO-GAIN].';
+    case 'news_analysis': return 'Cobertura jornalística analítica. [ANSWER-FIRST] O que aconteceu? Por que isso importa hoje? E o que significa para o futuro? Use uma voz crítica e traga dados frescos [E-E-A-T].';
+    case 'product_review': return 'Análise isolada e profunda de um produto/serviço único. Comece com "Nota Final / Veredito". Liste prós/contras, e quem deve NÃO comprar esse produto [INFO-GAIN].';
+    case 'data_research': return 'Artigo quantitativo focado em apresentar pesquisas do mercado. Use muitos dados, estatísticas, listas numeradas e insights baseados em fatos [E-E-A-T].';
+    case 'thought_leadership': return 'Ensaio opinativo de autoridade. Escreva em primeira pessoa do plural com opiniões contundentes sobre o futuro. Sem clichês. Vá contra o senso comum e traga sua vivência [INFO-GAIN].';
     default: return '[ANSWER-FIRST] Responda rápido à intenção de busca. Traga valor real e não óbvio [INFO-GAIN]. Seja direto e escaneável.';
   }
 }
@@ -50,6 +55,11 @@ const contentTypeOutlineHint: Record<string, string> = {
   caso_de_sucesso: 'H2s fixos recomendados: Contexto, Desafio, Solução, Resultados, Depoimento, Próximos Passos',
   seo_local: 'H2s incluem áreas de atendimento local, bairros de referência, e como contratar',
   como_fazer: 'H2s: O que é/Resposta Direta, Passo a Passo (H3 para passos), Erros Comuns, Dicas Extras, FAQ',
+  industry_roundup: 'H2 = Categorias do setor, H3 = Entidade/Ferramenta citada com diferencial',
+  news_analysis: 'H2s: Resumo do Fato, O Impacto Genuíno, Como se Preparar (Ações Práticas)',
+  product_review: 'H2s: Veredicto, Prós e Contras, Para Quem É/Não É, Funcionalidades Chave, Conclusão',
+  data_research: 'H2s: Metodologia, Descoberta 1, Descoberta 2, Implicações para o Setor',
+  thought_leadership: 'Estrutura fluida de ensaio, H2s como reflexões baseadas no problema atual vs solução invisível',
 };
 
 function detectAiPatterns(html: string): { score: number; flags: string[]; passed: boolean } {
@@ -2061,6 +2071,18 @@ ${draftHtml.slice(0, 30000)}`;
     }).eq('id', qgStepId);
     await updatePublicStatus(supabase, jobId, 'QUALITY_GATE', true, lockId);
     console.log(`[V2] ✅ QUALITY_GATE passed=${qgOutput.passed} ${!qgOutput.passed ? `reasons=${(qgOutput.reasons as string[])?.join('; ')}` : ''}`);
+
+    // ============================================================
+    // STEP: GEO_READINESS (Async / Fire & Forget)
+    // ============================================================
+    try {
+      console.log(`[V2] Disparando evaluate-geo-readiness asincronamente...`);
+      fetch(`${supabaseUrl}/functions/v1/evaluate-geo-readiness`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${serviceKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ articleId: saveOutput.article_id })
+      }).catch(err => console.error(`[V2] ⚠️ Falha ao agendar GEO Readiness:`, err));
+    } catch (_) { /* ignore synchronous errors scheduling the fetch */ }
 
     // ============================================================
     // COMPLETED
