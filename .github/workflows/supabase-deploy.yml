@@ -8,7 +8,7 @@ on:
 
 env:
   SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-  SUPABASE_PROJECT_ID: oxbrvyinmpbkllicaxqk
+  SUPABASE_PROJECT_ID: efraktxestopfjnnhept
 
 jobs:
   deploy:
