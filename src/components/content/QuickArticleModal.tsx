@@ -9,8 +9,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Sparkles, ChevronDown, Loader2 } from "lucide-react";
+import { Sparkles, ChevronDown, Loader2, Zap, Crown } from "lucide-react";
 import { createArticleFromOpportunity } from '@/lib/createArticleFromOpportunity';
+
+type ArticleType = 'normal' | 'premium';
 
 interface QuickArticleModalProps {
   open: boolean;
@@ -19,19 +21,38 @@ interface QuickArticleModalProps {
   isClientContext?: boolean;
 }
 
+const ARTICLE_TYPES: { id: ArticleType; label: string; icon: React.ReactNode; description: string; targetWords: number }[] = [
+  {
+    id: 'normal',
+    label: 'Artigo Normal',
+    icon: <Zap className="h-5 w-5" />,
+    description: 'Conteúdo direto, Answer-First e focado na conversão rápida.',
+    targetWords: 1200,
+  },
+  {
+    id: 'premium',
+    label: 'Artigo Premium',
+    icon: <Crown className="h-5 w-5" />,
+    description: 'Alta autoridade, rico em dados, frameworks e otimizado ao extremo para Citação de IA.',
+    targetWords: 2500,
+  },
+];
+
 export function QuickArticleModal({ open, onOpenChange, blogId, isClientContext = false }: QuickArticleModalProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  // Detect client context from location if not explicitly passed
   const isClient = isClientContext || location.pathname.startsWith('/client');
   const [theme, setTheme] = useState("");
   const [loading, setLoading] = useState(false);
+  const [articleType, setArticleType] = useState<ArticleType>('premium');
 
   const handleGenerate = async () => {
     if (!theme.trim() || loading) return;
     
     setLoading(true);
     onOpenChange(false);
+
+    const selected = ARTICLE_TYPES.find(t => t.id === articleType)!;
     
     try {
       await createArticleFromOpportunity(
@@ -40,7 +61,9 @@ export function QuickArticleModal({ open, onOpenChange, blogId, isClientContext 
           suggested_title: theme.trim(),
         },
         blogId,
-        navigate
+        navigate,
+        selected.targetWords,
+        articleType
       );
     } finally {
       setLoading(false);
@@ -68,7 +91,7 @@ export function QuickArticleModal({ open, onOpenChange, blogId, isClientContext 
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-5 py-4">
           <div className="space-y-3">
             <Label htmlFor="theme" className="text-base font-medium">
               Tema do artigo
@@ -81,9 +104,40 @@ export function QuickArticleModal({ open, onOpenChange, blogId, isClientContext 
               className="min-h-[100px] resize-none"
               autoFocus
             />
-            <p className="text-sm text-muted-foreground text-center">
-              Digite apenas o tema. O sistema cuida do resto.
-            </p>
+          </div>
+
+          {/* Article Type Selector */}
+          <div className="space-y-3">
+            <Label className="text-base font-medium">Tipo do artigo</Label>
+            <div className="grid grid-cols-2 gap-3">
+              {ARTICLE_TYPES.map((type) => (
+                <button
+                  key={type.id}
+                  type="button"
+                  onClick={() => setArticleType(type.id)}
+                  className={`relative flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all text-center cursor-pointer ${
+                    articleType === type.id
+                      ? 'border-primary bg-primary/10 shadow-md shadow-primary/10'
+                      : 'border-border/40 bg-muted/10 hover:border-muted-foreground/30 hover:bg-muted/20'
+                  }`}
+                >
+                  <div className={`p-2 rounded-lg ${
+                    articleType === type.id
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground'
+                  }`}>
+                    {type.icon}
+                  </div>
+                  <span className="font-semibold text-sm">{type.label}</span>
+                  <p className="text-xs text-muted-foreground leading-tight">{type.description}</p>
+                  {type.id === 'premium' && (
+                    <span className="absolute -top-2 -right-2 text-xs bg-primary/15 text-primary px-2 py-0.5 rounded-full font-medium border border-primary/20">
+                      Recomendado
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
 
           <Button

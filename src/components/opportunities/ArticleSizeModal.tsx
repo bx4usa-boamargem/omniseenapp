@@ -1,47 +1,48 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Zap, Crown } from 'lucide-react';
 
 interface ArticleSizeModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
-  onConfirm: (targetWords: number) => void;
+  onConfirm: (targetWords: number, articleType: 'normal' | 'premium') => void;
   loading?: boolean;
 }
 
-const SIZES = [
+const TYPES = [
   {
-    id: 'quick',
-    label: '⚡ Rápido',
-    description: '400 a 1.000 palavras — ideal para ideias rápidas',
-    targetWords: 700,
+    id: 'normal' as const,
+    label: '⚡ Artigo Normal',
+    description: 'Conteúdo direto, Answer-First e focado na conversão rápida. (1.000–1.300 palavras)',
+    icon: <Zap className="h-5 w-5" />,
+    targetWords: 1200,
   },
   {
-    id: 'deep',
-    label: '🧠 Profundo',
-    description: '1.500 a 3.000 palavras — SEO completo',
+    id: 'premium' as const,
+    label: '👑 Artigo Premium',
+    description: 'Alta autoridade, rico em dados, frameworks e otimizado para Citação de IA. (1.800–2.600 palavras)',
+    icon: <Crown className="h-5 w-5" />,
     targetWords: 2500,
     recommended: true,
   },
 ];
 
 export function ArticleSizeModal({ open, onOpenChange, title, onConfirm, loading }: ArticleSizeModalProps) {
-  const [selected, setSelected] = useState('deep');
+  const [selected, setSelected] = useState<'normal' | 'premium'>('premium');
 
   const handleConfirm = () => {
-    const size = SIZES.find(s => s.id === selected);
-    onConfirm(size?.targetWords || 2500);
+    const type = TYPES.find(t => t.id === selected)!;
+    onConfirm(type.targetWords, selected);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md border-border/40 bg-card/95 backdrop-blur-xl">
         <DialogHeader>
-          <DialogTitle>Selecione o tamanho do artigo</DialogTitle>
+          <DialogTitle>Selecione o tipo do artigo</DialogTitle>
         </DialogHeader>
 
         <div className="py-2">
@@ -49,32 +50,38 @@ export function ArticleSizeModal({ open, onOpenChange, title, onConfirm, loading
             <span className="font-medium text-foreground">Título:</span> {title}
           </p>
 
-          <RadioGroup value={selected} onValueChange={setSelected} className="space-y-3">
-            {SIZES.map(size => (
+          <div className="space-y-3">
+            {TYPES.map(type => (
               <div
-                key={size.id}
-                className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
-                  selected === size.id
+                key={type.id}
+                className={`flex items-start gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                  selected === type.id
                     ? 'border-primary bg-primary/5 shadow-sm shadow-primary/10'
                     : 'border-border/40 hover:border-muted-foreground/30 bg-muted/10'
                 }`}
-                onClick={() => setSelected(size.id)}
+                onClick={() => setSelected(type.id)}
               >
-                <RadioGroupItem value={size.id} id={size.id} className="mt-0.5" />
-                <Label htmlFor={size.id} className="cursor-pointer flex-1">
+                <div className={`p-2 rounded-lg mt-0.5 ${
+                  selected === type.id
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted text-muted-foreground'
+                }`}>
+                  {type.icon}
+                </div>
+                <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{size.label}</span>
-                    {size.recommended && (
+                    <span className="font-medium">{type.label}</span>
+                    {type.recommended && (
                       <span className="text-xs bg-primary/15 text-primary px-2 py-0.5 rounded-full font-medium">
                         Recomendado
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground mt-1">{size.description}</p>
-                </Label>
+                  <p className="text-sm text-muted-foreground mt-1">{type.description}</p>
+                </div>
               </div>
             ))}
-          </RadioGroup>
+          </div>
         </div>
 
         <DialogFooter>

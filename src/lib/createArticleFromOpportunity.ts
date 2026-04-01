@@ -18,7 +18,8 @@ export async function createArticleFromOpportunity(
   opportunity: OpportunityInput,
   blogId: string,
   navigate: NavigateFunction,
-  targetWords: number = 2500
+  targetWords: number = 2500,
+  articleType: 'normal' | 'premium' = 'premium'
 ): Promise<{ success: boolean; job_id?: string }> {
   const normalizedKeyword = opportunity.suggested_title?.trim().toLowerCase();
 
@@ -97,6 +98,7 @@ export async function createArticleFromOpportunity(
     image_count: 4,
     source: 'radar',
     opportunity_id: opportunity.id || null,
+    article_type: articleType,
   };
 
   // --- Call Engine v1 ---
