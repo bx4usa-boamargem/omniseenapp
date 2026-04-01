@@ -19,7 +19,7 @@ interface SubAccountGuardProps {
 }
 
 export function SubAccountGuard({ children }: SubAccountGuardProps) {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const { currentTenant, loading: tenantLoading, hasTenant, error, refetch } = useTenantContext();
   const [forceLoginRedirect, setForceLoginRedirect] = useState(false);
 
@@ -41,7 +41,13 @@ export function SubAccountGuard({ children }: SubAccountGuardProps) {
     const hardAuthTimer = window.setTimeout(() => {
       if (authLoading) {
         console.warn('[SubAccountGuard] Auth still loading after 5 seconds, forcing unauthenticated redirect.');
-        setForceLoginRedirect(true);
+        void signOut().finally(() => setForceLoginRedirect(true));
+        return;
+      }
+
+      if (tenantLoading) {
+        console.warn('[SubAccountGuard] Tenant resolution still loading after 5 seconds, clearing session and redirecting to login.');
+        void signOut().finally(() => setForceLoginRedirect(true));
       }
     }, 5000);
 
@@ -49,7 +55,7 @@ export function SubAccountGuard({ children }: SubAccountGuardProps) {
       clearTimeout(softRedirectTimer);
       clearTimeout(hardAuthTimer);
     };
-  }, [isLoading, authLoading, user]);
+  }, [isLoading, authLoading, tenantLoading, user, signOut]);
 
   if (forceLoginRedirect) {
     return <Navigate to="/login" replace />;

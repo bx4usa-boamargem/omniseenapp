@@ -23,7 +23,7 @@ interface TenantGuardProps {
 
 export function TenantGuard({ children, requireAdmin = false }: TenantGuardProps) {
   const location = useLocation();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
   const {
     currentTenant,
     loading: tenantLoading,
@@ -52,7 +52,13 @@ export function TenantGuard({ children, requireAdmin = false }: TenantGuardProps
     const hardAuthTimer = window.setTimeout(() => {
       if (authLoading) {
         console.warn('[TenantGuard] Auth still loading after 5 seconds, forcing unauthenticated redirect.');
-        setForceLoginRedirect(true);
+        void signOut().finally(() => setForceLoginRedirect(true));
+        return;
+      }
+
+      if (tenantLoading) {
+        console.warn('[TenantGuard] Tenant resolution still loading after 5 seconds, clearing session and redirecting to login.');
+        void signOut().finally(() => setForceLoginRedirect(true));
       }
     }, 5000);
 
@@ -60,7 +66,7 @@ export function TenantGuard({ children, requireAdmin = false }: TenantGuardProps
       clearTimeout(softRedirectTimer);
       clearTimeout(hardAuthTimer);
     };
-  }, [isLoading, authLoading, user]);
+  }, [isLoading, authLoading, tenantLoading, user, signOut]);
 
   if (forceLoginRedirect) {
     return <Navigate to="/login" state={{ from: location }} replace />;
