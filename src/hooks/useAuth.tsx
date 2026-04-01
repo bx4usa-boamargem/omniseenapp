@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext, ReactNode, useRef } from "react";
+import React, { useState, useEffect, createContext, useContext, ReactNode, useRef, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signUp = async (email: string, password: string, fullName?: string) => {
+  const signUp = useCallback(async (email: string, password: string, fullName?: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signUp({
@@ -86,18 +86,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     
     return { error: error as Error | null };
-  };
+  }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
     
     return { error: error as Error | null };
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
       await Promise.race([
         supabase.auth.signOut(),
@@ -111,9 +111,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setLoading(false);
     }
-  };
+  }, []);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = useCallback(async () => {
     // Callback centralizado em app.omniseen.app para suporte a subdomínios
     // O return_to codifica a origem para redirecionamento final
     const returnTo = encodeURIComponent(window.location.origin + '/client/dashboard');
@@ -143,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     
     return { error: error as Error | null };
-  };
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signInWithGoogle, signOut }}>

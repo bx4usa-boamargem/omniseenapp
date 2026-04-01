@@ -22,21 +22,33 @@ export function SubAccountGuard({ children }: SubAccountGuardProps) {
   const { user, loading: authLoading, signOut } = useAuth();
   const { currentTenant, loading: tenantLoading, hasTenant, error, refetch } = useTenantContext();
   const [forceLoginRedirect, setForceLoginRedirect] = useState(false);
+  const loadingKey = 'subaccount_guard_loading_started_at';
 
   const isLoading = authLoading || tenantLoading;
 
   useEffect(() => {
     if (!isLoading) {
+      sessionStorage.removeItem(loadingKey);
       setForceLoginRedirect(false);
       return;
     }
+
+    const currentValue = sessionStorage.getItem(loadingKey);
+    if (!currentValue) {
+      sessionStorage.setItem(loadingKey, String(Date.now()));
+    }
+
+    const startedAt = Number(sessionStorage.getItem(loadingKey) ?? Date.now());
+    const elapsed = Date.now() - startedAt;
+    const softDelay = Math.max(0, 3000 - elapsed);
+    const hardDelay = Math.max(0, 5000 - elapsed);
 
     const softRedirectTimer = window.setTimeout(() => {
       if (!user) {
         console.warn('[SubAccountGuard] Loading exceeded 3 seconds without user, redirecting to login.');
         setForceLoginRedirect(true);
       }
-    }, 3000);
+    }, softDelay);
 
     const hardAuthTimer = window.setTimeout(() => {
       if (authLoading) {
@@ -49,7 +61,7 @@ export function SubAccountGuard({ children }: SubAccountGuardProps) {
         console.warn('[SubAccountGuard] Tenant resolution still loading after 5 seconds, clearing session and redirecting to login.');
         void signOut().finally(() => setForceLoginRedirect(true));
       }
-    }, 5000);
+    }, hardDelay);
 
     return () => {
       clearTimeout(softRedirectTimer);
