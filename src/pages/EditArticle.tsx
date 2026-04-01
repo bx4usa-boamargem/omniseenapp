@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArticlePreview } from "@/components/ArticlePreview";
 import { SEOScoreAnalyzer } from "@/components/seo/SEOScoreAnalyzer";
+import { DualScorePanel } from "@/components/seo/DualScorePanel";
 import { SEOChangeComparison, ComparisonData } from "@/components/seo/SEOChangeComparison";
 import { ArticleVersionHistory, ArticleVersion } from "@/components/seo/ArticleVersionHistory";
 import { GenerationProgress, GenerationStage } from "@/components/seo/GenerationProgress";
