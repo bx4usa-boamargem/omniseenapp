@@ -252,6 +252,9 @@ export default function EditArticle() {
       setFeaturedImageAlt(data.featured_image_alt || "");
       setIsApproved(!!data.approved_at);
       setApprovedAt(data.approved_at ? new Date(data.approved_at) : null);
+      setQualityGateStatus((data as any).quality_gate_status || null);
+      setQualityGateAttempts((data as any).quality_gate_attempts || null);
+      setQualityGateResult((data as any).quality_gate_result || null);
       setLoading(false);
     }
 
