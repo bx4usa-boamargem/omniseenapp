@@ -229,7 +229,7 @@ export function BulkGenerationModal({
             <div className="text-center space-y-2">
               {isRunning ? (
                 <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-              ) : activeJob.status === "completed" || activeJob.status === "done" ? (
+              ) : activeJob.status === "completed" ? (
                 <CheckCircle2 className="h-8 w-8 mx-auto text-green-500" />
               ) : (
                 <XCircle className="h-8 w-8 mx-auto text-destructive" />
