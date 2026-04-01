@@ -18,6 +18,7 @@ import { SchedulePublishDialog } from "@/components/scheduling/SchedulePublishDi
 import { InternalLinksSuggestions } from "@/components/seo/InternalLinksSuggestions";
 import { RichTextEditor } from "@/components/editor/RichTextEditor";
 import { ArticleSidebar } from "@/components/editor/ArticleSidebar";
+import { BrokenLinksPanel } from "@/components/editor/BrokenLinksPanel";
 import { SocialSharePanel } from "@/components/social/SocialSharePanel";
 import { ImproveArticleDialog } from "@/components/editor/ImproveArticleDialog";
 import { PublishWithTranslationDialog } from "@/components/editor/PublishWithTranslationDialog";
@@ -1438,6 +1439,14 @@ export default function EditArticle() {
                     blogId={article.blog_id}
                     content={article.content || ""}
                     onContentUpdate={handleContentUpdate}
+                  />
+                )}
+
+                {/* Broken Links */}
+                {article && (
+                  <BrokenLinksPanel
+                    articleId={article.id}
+                    blogId={article.blog_id}
                   />
                 )}
               </div>
