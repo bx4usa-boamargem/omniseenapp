@@ -233,7 +233,7 @@ export const smartNavigate = (
   navigate: (path: string) => void,
   path: string
 ): void => {
-  if (isLovablePreviewHost()) {
+  if (isDevHost()) {
     navigate(path);
   } else {
     window.location.assign(toAbsoluteUrl(path));
