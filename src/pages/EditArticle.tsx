@@ -281,6 +281,19 @@ export default function EditArticle() {
     }
   }, [id]);
 
+  // Refresh SEO score breakdown
+  const refreshScoreBreakdown = useCallback(async () => {
+    if (!id) return;
+    const { data } = await supabase
+      .from("articles")
+      .select("seo_score_breakdown")
+      .eq("id", id)
+      .single();
+    if (data) {
+      setSeoScoreBreakdown((data as any).seo_score_breakdown || null);
+    }
+  }, [id]);
+
   // Fetch version history
   const fetchVersions = useCallback(async () => {
     if (!id) return;
