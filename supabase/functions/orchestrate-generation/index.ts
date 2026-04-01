@@ -1531,7 +1531,7 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     await updatePublicStatus(supabase, jobId, 'CONTENT_GEN', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'CONTENT_GEN' }).eq('id', jobId);
 
-    const genStepId = await createStepOrFail(supabase, jobId, 'CONTENT_GEN', { keyword: jobInput.keyword, job_type: jobType, target_words: jobInput.target_words });
+    const genStepId = await createStepOrFail(supabase, jobId, 'CONTENT_GEN', { keyword: jobInput.keyword, job_type: jobType, target_words: jobInput.target_words, content_type: jobInput.content_type, generation_mode: generationMode });
     const genStart = Date.now();
     let articleData: Record<string, unknown>;
     try {
@@ -1542,8 +1542,11 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
       articleData = genResult.output;
       totalApiCalls++;
       totalCostUsd += genResult.aiResult.costUsd || 0;
+      const wordCount = ((articleData.html_article as string) || '').replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
       await supabase.from('generation_steps').update({
-        status: 'completed', output: { title: articleData.title }, latency_ms: Date.now() - genStart,
+        status: 'completed',
+        output: { title: articleData.title, content_type: jobInput.content_type, generation_mode: generationMode, word_count: wordCount },
+        latency_ms: Date.now() - genStart,
         completed_at: new Date().toISOString(), model_used: genResult.aiResult.model,
         provider: genResult.aiResult.provider, cost_usd: genResult.aiResult.costUsd,
       }).eq('id', genStepId);
@@ -1557,14 +1560,17 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
       articleData = retryResult.output;
       totalApiCalls++;
       totalCostUsd += retryResult.aiResult.costUsd || 0;
+      const wordCountRetry = ((articleData.html_article as string) || '').replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
       await supabase.from('generation_steps').update({
-        status: 'completed', output: { title: articleData.title, retried: true }, latency_ms: Date.now() - genStart,
+        status: 'completed',
+        output: { title: articleData.title, content_type: jobInput.content_type, generation_mode: generationMode, word_count: wordCountRetry, retried: true },
+        latency_ms: Date.now() - genStart,
         completed_at: new Date().toISOString(), model_used: retryResult.aiResult.model, provider: retryResult.aiResult.provider, cost_usd: retryResult.aiResult.costUsd,
       }).eq('id', genStepId);
     }
     await updatePublicStatus(supabase, jobId, 'CONTENT_GEN', true, lockId);
     await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
-    console.log(`[V2] ✅ CONTENT_GEN ${Date.now() - genStart}ms | title="${(articleData!.title as string || '').slice(0, 50)}"`);
+    console.log(`[V2] ✅ CONTENT_GEN ${Date.now() - genStart}ms | title="${(articleData!.title as string || '').slice(0, 50)}" | content_type=${jobInput.content_type} | mode=${generationMode}`);
 
     // ============================================================
     // STEP: REWRITE_PREMIUM (only in premium mode — GPT-4.1)
