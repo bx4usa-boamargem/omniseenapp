@@ -21,7 +21,7 @@ interface CreateContentModalProps {
 }
 
 interface ContentOption {
-  id: "quick" | "funnel" | "import";
+  id: "quick" | "funnel" | "bulk" | "import";
   title: string;
   description: string;
   icon: React.ReactNode;
@@ -42,6 +42,12 @@ const contentOptions: ContentOption[] = [
     description: "Conteúdo estratégico por etapa do funil.",
     icon: <Target className="h-6 w-6" />,
     badge: { label: "Opcional", variant: "optional" },
+  },
+  {
+    id: "bulk",
+    title: "Geração em Massa",
+    description: "Gere múltiplos artigos de uma vez.",
+    icon: <Layers className="h-6 w-6" />,
   },
   {
     id: "import",
