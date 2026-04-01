@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArticlePreview } from "@/components/ArticlePreview";
 import { SEOScoreAnalyzer } from "@/components/seo/SEOScoreAnalyzer";
+import { DualScorePanel } from "@/components/seo/DualScorePanel";
 import { SEOChangeComparison, ComparisonData } from "@/components/seo/SEOChangeComparison";
 import { ArticleVersionHistory, ArticleVersion } from "@/components/seo/ArticleVersionHistory";
 import { GenerationProgress, GenerationStage } from "@/components/seo/GenerationProgress";
@@ -188,6 +189,8 @@ export default function EditArticle() {
   const [qualityGateAttempts, setQualityGateAttempts] = useState<number | null>(null);
   const [qualityGateResult, setQualityGateResult] = useState<any>(null);
 
+  // Dual Score state
+  const [seoScoreBreakdown, setSeoScoreBreakdown] = useState<any>(null);
 
   useEffect(() => {
     async function fetchArticle() {
@@ -255,6 +258,7 @@ export default function EditArticle() {
       setQualityGateStatus((data as any).quality_gate_status || null);
       setQualityGateAttempts((data as any).quality_gate_attempts || null);
       setQualityGateResult((data as any).quality_gate_result || null);
+      setSeoScoreBreakdown((data as any).seo_score_breakdown || null);
       setLoading(false);
     }
 
@@ -274,6 +278,19 @@ export default function EditArticle() {
     if (data) {
       setQualityGateStatus((data as any).quality_gate_status || null);
       setQualityGateAttempts((data as any).quality_gate_attempts || null);
+    }
+  }, [id]);
+
+  // Refresh SEO score breakdown
+  const refreshScoreBreakdown = useCallback(async () => {
+    if (!id) return;
+    const { data } = await supabase
+      .from("articles")
+      .select("seo_score_breakdown")
+      .eq("id", id)
+      .single();
+    if (data) {
+      setSeoScoreBreakdown((data as any).seo_score_breakdown || null);
     }
   }, [id]);
 
@@ -1415,7 +1432,16 @@ export default function EditArticle() {
                   isActive={isRegenerating}
                 />
 
-                {/* SEO Score */}
+                {/* Dual GEO + SEO Score */}
+                {article && (
+                  <DualScorePanel
+                    articleId={article.id}
+                    seoScoreBreakdown={seoScoreBreakdown}
+                    onRefresh={refreshScoreBreakdown}
+                  />
+                )}
+
+                {/* SEO Score Details */}
                 <SEOScoreAnalyzer
                   title={title}
                   content={article?.content || ""}
