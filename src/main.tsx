@@ -105,6 +105,9 @@ let bootFinished = false;
 
 renderBootScreen("Carregando aplicação", "Inicializando autenticação e rotas...");
 
+const bootSoftRedirectMs = isPreviewOrDevHost() ? 8000 : 3000;
+const bootHardTimeoutMs = isPreviewOrDevHost() ? 20000 : 5000;
+
 const softRedirectTimer = window.setTimeout(() => {
   if (bootFinished) return;
 
@@ -112,10 +115,10 @@ const softRedirectTimer = window.setTimeout(() => {
     window.history.replaceState({}, "", "/login");
     renderBootScreen("Redirecionando para login", "A inicialização está demorando mais do que o esperado.");
   }
-}, 3000);
+}, bootSoftRedirectMs);
 
 const hardTimeout = new Promise<never>((_, reject) => {
-  window.setTimeout(() => reject(new Error("APP_BOOT_TIMEOUT")), 5000);
+  window.setTimeout(() => reject(new Error("APP_BOOT_TIMEOUT")), bootHardTimeoutMs);
 });
 
 Promise.race([loadApp(), hardTimeout])
