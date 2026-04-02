@@ -131,6 +131,14 @@ function SignupContent() {
 
       if (signInError) {
         console.error('Erro ao fazer auto-login:', signInError);
+        // Se login automático falhar, mostramos erro claro ao invés de redirecionar sem sessão
+        toast({
+          title: 'Conta criada, mas login falhou',
+          description: 'Sua conta foi criada com sucesso. Faça login manualmente.',
+          variant: 'default',
+        });
+        navigate(`/login?email=${encodeURIComponent(email)}`);
+        return;
       }
 
       toast({
@@ -139,16 +147,17 @@ function SignupContent() {
       });
       
       // Wait a moment for auth state to propagate before navigating
-      // This ensures the session is established before TenantGuard runs
       await new Promise(resolve => setTimeout(resolve, 800));
       
       // Redirect para app (auto-provisioning nos guards)
       navigate('/client/dashboard', { replace: true });
 
-    } catch (err) {
+    } catch (err: any) {
+      const errMsg = err?.message || 'Ocorreu um erro inesperado';
+      console.error('[Signup] Unexpected error:', err);
       toast({
-        title: 'Erro',
-        description: 'Ocorreu um erro inesperado',
+        title: 'Erro ao criar conta',
+        description: errMsg,
         variant: 'destructive',
       });
     } finally {
