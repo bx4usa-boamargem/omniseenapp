@@ -1149,6 +1149,9 @@ export type Database = {
           generation_progress: number | null
           generation_source: string | null
           generation_stage: string | null
+          geo_score: number | null
+          geo_score_breakdown: Json | null
+          geo_score_label: string | null
           highlights: Json | null
           id: string
           images_completed: number | null
@@ -1220,6 +1223,9 @@ export type Database = {
           generation_progress?: number | null
           generation_source?: string | null
           generation_stage?: string | null
+          geo_score?: number | null
+          geo_score_breakdown?: Json | null
+          geo_score_label?: string | null
           highlights?: Json | null
           id?: string
           images_completed?: number | null
@@ -1291,6 +1297,9 @@ export type Database = {
           generation_progress?: number | null
           generation_source?: string | null
           generation_stage?: string | null
+          geo_score?: number | null
+          geo_score_breakdown?: Json | null
+          geo_score_label?: string | null
           highlights?: Json | null
           id?: string
           images_completed?: number | null
