@@ -165,43 +165,72 @@ export function TenantProvider({ children }: TenantProviderProps) {
         console.warn('[TenantContext] RPC returned empty, trying direct query...');
       }
 
-      // MÉTODO 2: Query direta (pode falhar por RLS mas tenta)
+      // MÉTODO 2: Query direta EM DUAS ETAPAS (evita loop circular do RLS)
+      console.log('[TenantContext] Attempting 2-step direct query...');
       const membershipsResult = await withTimeout(
         Promise.resolve(
           supabase
             .from('tenant_members')
-            .select(`
-              id,
-              tenant_id,
-              user_id,
-              role,
-              joined_at,
-              tenant:tenants (
-                id,
-                name,
-                slug,
-                owner_user_id,
-                plan,
-                status,
-                created_at
-              )
-            `)
+            .select('*')
             .eq('user_id', user.id)
         ),
         15000,
         'MEMBERSHIPS_TIMEOUT'
       );
 
-      const { data: memberships, error: membershipsError } = membershipsResult;
+      const { data: rawMemberships, error: membershipsError } = membershipsResult;
 
       if (membershipsError) {
         console.warn('[TenantContext] Direct query error:', membershipsError.message);
       }
 
-      if (memberships && memberships.length > 0) {
-        // Query direta funcionou
-        console.log('[TenantContext] Direct query success:', memberships.length, 'memberships');
-        // processamento continua abaixo no código original
+      let joinedMemberships: any[] = [];
+
+      if (rawMemberships && rawMemberships.length > 0) {
+        const tenantIds = rawMemberships.map(m => m.tenant_id);
+        const { data: tenantsData } = await supabase
+          .from('tenants')
+          .select('*')
+          .in('id', tenantIds);
+
+        if (tenantsData) {
+          joinedMemberships = rawMemberships.map(m => {
+            const tenantMatch = tenantsData.find(t => t.id === m.tenant_id);
+            if (tenantMatch) {
+              return {
+                id: m.id,
+                tenant_id: m.tenant_id,
+                user_id: m.user_id,
+                role: m.role,
+                joined_at: m.joined_at,
+                tenant: tenantMatch
+              };
+            }
+            return null;
+          }).filter(Boolean);
+        }
+      }
+
+      if (joinedMemberships.length > 0) {
+        console.log('[TenantContext] 2-step query success:', joinedMemberships.length, 'memberships');
+        const formattedDirect: TenantMembership[] = joinedMemberships.map((m: any) => ({
+          id: m.id,
+          tenant_id: m.tenant_id,
+          user_id: m.user_id,
+          role: m.role as 'owner' | 'admin' | 'member',
+          joined_at: m.joined_at,
+          tenant: m.tenant,
+        }));
+
+        setAllMemberships(formattedDirect);
+        const ownerM = formattedDirect.find(m => m.role === 'owner');
+        const selected = ownerM || formattedDirect[0];
+        if (selected) {
+          setCurrentMembership(selected);
+          setCurrentTenant(selected.tenant);
+        }
+        setLoading(false);
+        return;
       } else {
         // MÉTODO 3: Fallback via blogs  
         console.warn('[TenantContext] Direct query empty, trying blogs fallback...');
@@ -221,27 +250,6 @@ export function TenantProvider({ children }: TenantProviderProps) {
         setCurrentMembership(null);
         setLoading(false);
         return;
-      }
-
-      const formattedMemberships: TenantMembership[] = memberships
-        .filter(m => m.tenant)
-        .map(m => ({
-          id: m.id,
-          tenant_id: m.tenant_id,
-          user_id: m.user_id,
-          role: m.role as 'owner' | 'admin' | 'member',
-          joined_at: m.joined_at,
-          tenant: m.tenant as unknown as Tenant,
-        }));
-
-      setAllMemberships(formattedMemberships);
-
-      const ownerMembership = formattedMemberships.find(m => m.role === 'owner');
-      const selectedMembership = ownerMembership || formattedMemberships[0];
-
-      if (selectedMembership) {
-        setCurrentMembership(selectedMembership);
-        setCurrentTenant(selectedMembership.tenant);
       }
 
     } catch (err) {
