@@ -978,6 +978,80 @@ async function executeSeoScoreStep(
 }
 
 // ============================================================
+// GEO SCORE — Local SEO quality score (0-100)
+// ============================================================
+
+interface GeoScoreBreakdown {
+  city_in_title: number;       // 0-25
+  has_faq: number;             // 0-20
+  has_citations: number;       // 0-15
+  entity_density: number;      // 0-20
+  word_count_score: number;    // 0-20
+}
+
+function calculateGeoScore(
+  title: string,
+  city: string,
+  faqItems: Array<unknown>,
+  htmlContent: string,
+  entities: EntityData,
+  wordCount: number,
+  targetWords: number
+): { score: number; label: string; breakdown: GeoScoreBreakdown } {
+  const breakdown: GeoScoreBreakdown = {
+    city_in_title: 0,
+    has_faq: 0,
+    has_citations: 0,
+    entity_density: 0,
+    word_count_score: 0,
+  };
+
+  // 1. City in title (0-25)
+  if (city && title.toLowerCase().includes(city.toLowerCase())) {
+    breakdown.city_in_title = 25;
+  } else if (city && htmlContent.toLowerCase().includes(city.toLowerCase())) {
+    breakdown.city_in_title = 10; // City in content but not title
+  }
+
+  // 2. FAQ section (0-20)
+  const faqCount = Array.isArray(faqItems) ? faqItems.length : 0;
+  if (faqCount >= 5) breakdown.has_faq = 20;
+  else if (faqCount >= 3) breakdown.has_faq = 15;
+  else if (faqCount >= 1) breakdown.has_faq = 10;
+
+  // 3. Citations/sources in content (0-15)
+  const citationPatterns = (htmlContent.match(/https?:\/\/[^\s<"']+/g) || []).length;
+  const hasDataReferences = /\b\d{4}\b/.test(htmlContent) || /\b\d+%\b/.test(htmlContent);
+  if (citationPatterns >= 3) breakdown.has_citations = 15;
+  else if (citationPatterns >= 1 || hasDataReferences) breakdown.has_citations = 10;
+  else if (hasDataReferences) breakdown.has_citations = 5;
+
+  // 4. Entity density (0-20)
+  const totalEntities = (entities.topics?.length || 0) + (entities.terms?.length || 0) + (entities.places?.length || 0);
+  if (totalEntities >= 15) breakdown.entity_density = 20;
+  else if (totalEntities >= 10) breakdown.entity_density = 15;
+  else if (totalEntities >= 5) breakdown.entity_density = 10;
+  else if (totalEntities >= 2) breakdown.entity_density = 5;
+
+  // 5. Word count vs target (0-20)
+  const ratio = wordCount / targetWords;
+  if (ratio >= 0.9 && ratio <= 1.15) breakdown.word_count_score = 20;
+  else if (ratio >= 0.75 && ratio <= 1.3) breakdown.word_count_score = 15;
+  else if (ratio >= 0.5) breakdown.word_count_score = 10;
+  else breakdown.word_count_score = 5;
+
+  const score = breakdown.city_in_title + breakdown.has_faq + breakdown.has_citations + breakdown.entity_density + breakdown.word_count_score;
+
+  let label: string;
+  if (score >= 85) label = 'Excelente';
+  else if (score >= 70) label = 'Bom';
+  else if (score >= 50) label = 'Regular';
+  else label = 'Precisa melhorar';
+
+  return { score, label, breakdown };
+}
+
+// ============================================================
 // STEP: IMAGE_GEN — Gemini Nano Banana (hero + section + contextual)
 // ============================================================
 
