@@ -1374,6 +1374,11 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : 'SERP failed';
       console.warn(`[V2] ⚠️ SERP_ANALYSIS failed (non-fatal): ${errMsg}`);
+      // Track research failure
+      await supabase.from('generation_jobs').update({
+        research_failed: true,
+        research_failed_reason: errMsg.substring(0, 500),
+      }).eq('id', jobId);
       if (serpStepId) {
         await supabase.from('generation_steps').update({
           status: 'completed', output: { serp_summary: '', error: errMsg }, latency_ms: Date.now() - serpStart,
