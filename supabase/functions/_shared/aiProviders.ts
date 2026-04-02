@@ -348,102 +348,35 @@ export async function callWriter(request: WriterRequest): Promise<AICallResult<W
   }
 }
 
-// ============================================================================
-// RESEARCH: Perplexity Sonar-Pro (Primary) → Google Gemini (Fallback)
-// ============================================================================
-
-async function callPerplexityResearch(request: ResearchRequest): Promise<ResearchResponse> {
-  const config = AI_CONFIG.research.primary;
-  const apiKey = getProviderApiKey('perplexity');
-  
-  if (!apiKey) {
-    throw new Error('PERPLEXITY_API_KEY not configured');
-  }
-  
-  const systemPrompt = request.systemPrompt || 
-    `Você é um pesquisador especializado. Retorne dados factuais em JSON: 
-    {"facts": [...], "trends": [...], "sources": [...]}`;
-  
-  const response = await fetchWithTimeout(
-    config.endpoint,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: request.query }
-        ],
-        temperature: 0.3,
-        max_tokens: request.maxTokens || 1000
-      })
-    },
-    20000 // V4.1: 20s timeout for research (fail-fast)
-  );
-  
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw new Error(`Perplexity error ${response.status}: ${errorText.substring(0, 200)}`);
-  }
-  
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content || '';
-  const citations = data.citations || [];
-  
-  // Try to parse JSON from content
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    try {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        content,
-        citations,
-        facts: parsed.facts || [],
-        trends: parsed.trends || [],
-        sources: parsed.sources || citations
-      };
-    } catch {
-      // Return raw content if JSON parsing fails
-    }
-  }
-  
-  return { content, citations };
-}
+// callPerplexityResearch removida — Perplexity não está no aiConfig.ts desta fase.
+// Research primário = Google Gemini com Grounding (aiConfig.research.primary)
 
 async function callGoogleResearch(request: ResearchRequest): Promise<ResearchResponse> {
-  const config = AI_CONFIG.research.fallback;
+  // Usa a config PRIMARY (Gemini com grounding) — NÃO a fallback
+  const config = AI_CONFIG.research.primary;
   const apiKey = getProviderApiKey('gemini');
-  
+
   if (!apiKey) {
     throw new Error('GOOGLE_AI_KEY not configured');
   }
-  
-  const systemPrompt = request.systemPrompt || 
-    `Você é um pesquisador. Retorne dados factuais em JSON: 
+
+  const systemPrompt = request.systemPrompt ||
+    `Você é um pesquisador especializado em SEO local. Retorne dados factuais em JSON:
     {"facts": [...], "trends": [...], "sources": [...]}`;
-  
+
   const url = `${config.endpoint}/${config.model}:generateContent?key=${apiKey}`;
-  
+
   const body: Record<string, unknown> = {
     contents: [{ role: 'user', parts: [{ text: request.query }] }],
     systemInstruction: { parts: [{ text: systemPrompt }] },
     generationConfig: {
       temperature: 0.3,
-      maxOutputTokens: request.maxTokens || 1000,
-      responseMimeType: 'application/json'
-    }
+      maxOutputTokens: request.maxTokens || 1500,
+      // Sem responseMimeType quando grounding está ativo (incompatível com Google Search)
+    },
+    // Grounding via Google Search — dados reais da internet
+    tools: [{ googleSearch: {} }],
   };
-  
-  // Add grounding if configured
-  if (config.useGrounding) {
-    body.tools = [{
-      googleSearch: {}
-    }];
-  }
   
   const response = await fetchWithTimeout(url, {
     method: 'POST',
@@ -484,45 +417,99 @@ async function callGoogleResearch(request: ResearchRequest): Promise<ResearchRes
 
 /**
  * RESEARCH ENTRY POINT
- * Primary: Perplexity Sonar-Pro
- * Fallback: Google Gemini with Grounding
+ * Primary:  Google Gemini 2.5 Flash com Google Search Grounding
+ * Fallback: OpenAI GPT-4.1 (pesquisa baseada em conhecimento)
+ *
+ * NOTA: Perplexity foi removido do aiConfig.ts — Gemini grounding é o primário.
  */
 export async function callResearch(request: ResearchRequest): Promise<AICallResult<ResearchResponse>> {
   const start = Date.now();
-  
-  // Try Perplexity first
+
+  // Primary: Gemini com Google Search Grounding (dados reais da internet)
   try {
-    console.log('[AI_CONFIG] Research: Calling Perplexity Sonar-Pro...');
-    const result = await callPerplexityResearch(request);
+    console.log('[AI_CONFIG] Research: Calling Google Gemini (Grounding)...');
+    const result = await callGoogleResearch(request);
     const duration = Date.now() - start;
-    logAICall('research', 'perplexity', true, duration);
-    
+    logAICall('research', 'gemini', true, duration);
+
     return {
       success: true,
       data: result,
-      provider: 'perplexity',
+      provider: 'gemini',
       usedFallback: false,
-      durationMs: duration
+      durationMs: duration,
     };
-  } catch (perplexityError) {
-    // V4.1: FAIL-FAST - NO Gemini fallback for research
-    // This eliminates +45s of potential stacking timeouts
-    const errorMsg = perplexityError instanceof Error ? perplexityError.message : 'Unknown error';
-    const duration = Date.now() - start;
-    
-    console.warn(`[AI_CONFIG] Research: Perplexity failed (${duration}ms) - ${errorMsg}`);
-    console.log('[AI_CONFIG] Research: ❌ NO FALLBACK - using minimal package (V4.1: fail-fast)');
-    
-    logAICall('research', 'perplexity', false, duration, false, errorMsg);
-    
-    // Return failure immediately - caller will use minimal package
-    return {
-      success: false,
-      provider: 'perplexity',
-      usedFallback: false,
-      fallbackReason: errorMsg,
-      durationMs: duration
-    };
+  } catch (geminiError) {
+    const geminiMsg = geminiError instanceof Error ? geminiError.message : 'Unknown error';
+    console.warn(`[AI_CONFIG] Research: Gemini failed (${Date.now() - start}ms) - ${geminiMsg}`);
+    console.log('[AI_CONFIG] Research: Falling back to OpenAI GPT-4.1...');
+
+    // Fallback: OpenAI como pesquisa baseada em conhecimento parametrizado
+    try {
+      const config = AI_CONFIG.research.fallback;
+      const apiKey = getProviderApiKey('openai');
+      if (!apiKey) throw new Error('OPENAI_API_KEY not configured');
+
+      const systemPrompt = request.systemPrompt ||
+        `Você é um pesquisador especializado. Retorne dados factuais em JSON:
+        {"facts": [...], "trends": [...], "sources": [...]}`;
+
+      const oaRes = await fetchWithTimeout(
+        config.endpoint,
+        {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: config.model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: request.query },
+            ],
+            temperature: config.temperature ?? 0.3,
+            max_tokens: request.maxTokens || 1000,
+            response_format: { type: 'json_object' },
+          }),
+        },
+        30000
+      );
+
+      if (!oaRes.ok) {
+        const errText = await oaRes.text().catch(() => '');
+        throw new Error(`OpenAI error ${oaRes.status}: ${errText.substring(0, 200)}`);
+      }
+
+      const oaData = await oaRes.json();
+      const content = oaData.choices?.[0]?.message?.content || '{}';
+      let parsed: ResearchResponse = { content };
+      try {
+        const obj = JSON.parse(content);
+        parsed = { content, facts: obj.facts || [], trends: obj.trends || [], sources: obj.sources || [] };
+      } catch { /* keep raw content */ }
+
+      const duration = Date.now() - start;
+      logAICall('research', 'openai', true, duration, true);
+
+      return {
+        success: true,
+        data: parsed,
+        provider: 'openai',
+        usedFallback: true,
+        fallbackReason: geminiMsg,
+        durationMs: duration,
+      };
+    } catch (openaiError) {
+      const duration = Date.now() - start;
+      const fallbackError = openaiError instanceof Error ? openaiError.message : 'Unknown error';
+      logAICall('research', 'openai', false, duration, true, fallbackError);
+
+      return {
+        success: false,
+        provider: 'openai',
+        usedFallback: true,
+        fallbackReason: `Gemini: ${geminiMsg} | OpenAI: ${fallbackError}`,
+        durationMs: duration,
+      };
+    }
   }
 }
 
