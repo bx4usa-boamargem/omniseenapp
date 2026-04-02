@@ -183,10 +183,36 @@ function LoginContent() {
 
         let description = 'Email ou senha incorretos. Use "Esqueceu a senha?" para recuperar.';
         if (isTimeoutOrNetworkError) description = 'O servidor está demorando para responder. Tente novamente em alguns instantes.';
-        if (isEmailNotConfirmed) description = 'O seu email ainda não foi confirmado no caso de uma conta antiga. Verifique a sua caixa de entrada.';
+        
+        if (isEmailNotConfirmed) {
+          toast({
+            title: 'Auto-confirmando email...',
+            description: 'Sua conta antiga precisava de verificação. Resolvendo...',
+          });
+          
+          try {
+            await supabase.functions.invoke('public-signup', {
+              body: { email, action: 'confirm_existing_user' }
+            });
+            
+            // Tenta logar de novo
+            const { error: retryError } = await supabase.auth.signInWithPassword({ email, password });
+            
+            if (!retryError) {
+              // Deu certo na segunda vez!
+              toast({ title: 'Credenciais confirmadas', description: 'Validando sua sessão...' });
+              setIsAwaitingSession(true);
+              return;
+            } else {
+              description = 'Erro ao confirmar a conta automaticamente. ' + retryError.message;
+            }
+          } catch (e: any) {
+            description = 'Erro ao confirmar a conta antiga: ' + e.message;
+          }
+        }
 
         toast({
-          title: isTimeoutOrNetworkError ? 'Backend indisponível' : (isEmailNotConfirmed ? 'Email não confirmado' : 'Erro no login'),
+          title: isTimeoutOrNetworkError ? 'Backend indisponível' : (isEmailNotConfirmed ? 'Falha na auto-confirmação' : 'Erro no login'),
           description: description,
           variant: 'destructive',
         });

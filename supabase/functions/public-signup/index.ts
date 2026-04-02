@@ -21,9 +21,36 @@ serve(async (req) => {
     });
 
     const body = await req.json();
-    const { email, password, fullName } = body;
+    const { email, password, fullName, action } = body;
 
-    if (!email || !password || !fullName) {
+    if (!email) {
+      return new Response(
+        JSON.stringify({ error: "Missing email field" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // SPECIAL ACTION: Confirm an existing user's email bypassing the requirement
+    if (action === "confirm_existing_user") {
+      const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
+      const existingUser = listData?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase());
+      
+      if (!existingUser) {
+         return new Response(JSON.stringify({ error: "User not found" }), { status: 404, headers: corsHeaders });
+      }
+
+      const { data: updatedUser, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+        existingUser.id,
+        { email_confirm: true }
+      );
+
+      if (updateError) {
+        return new Response(JSON.stringify({ error: updateError.message }), { status: 400, headers: corsHeaders });
+      }
+      return new Response(JSON.stringify({ success: true, message: "User confirmed" }), { headers: corsHeaders });
+    }
+
+    if (!password || !fullName) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
