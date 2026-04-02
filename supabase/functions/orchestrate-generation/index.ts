@@ -216,6 +216,123 @@ async function createStepOrFail(
 }
 
 // ============================================================
+// RESEARCH FAILED POLICY
+// ============================================================
+/**
+ * Determine o comportamento quando o passo de pesquisa falha.
+ * Regra definida por tipo de geração:
+ *
+ * | Contexto          | ao_falhar               | Publicar?  |
+ * |-------------------|-------------------------|------------|
+ * | article (normal)  | gera com SERP apenas    | sim        |
+ * | article (premium) | aborta — qualidade > vel| não        |
+ * | auto_publish      | gera com SERP apenas    | sim + log  |
+ * | preview           | gera sem bloquear       | sim        |
+ */
+type ResearchFailedBehavior = {
+  shouldAbort: boolean;
+  fallbackLabel: string;
+  logLevel: 'warn' | 'error';
+  noteForQualityGate: string;
+};
+
+function getResearchFailedPolicy(
+  generationMode: string,
+  isAutoPublish: boolean,
+  isPreview: boolean,
+): ResearchFailedBehavior {
+  if (isPreview) {
+    return {
+      shouldAbort: false,
+      fallbackLabel: 'serp_only_preview',
+      logLevel: 'warn',
+      noteForQualityGate: 'research_skipped:preview',
+    };
+  }
+  if (isAutoPublish) {
+    return {
+      shouldAbort: false,
+      fallbackLabel: 'serp_only_auto',
+      logLevel: 'warn',
+      noteForQualityGate: 'research_failed:auto_publish',
+    };
+  }
+  if (generationMode === 'premium') {
+    return {
+      shouldAbort: true,
+      fallbackLabel: 'blocked_premium',
+      logLevel: 'error',
+      noteForQualityGate: 'research_failed:premium_blocked',
+    };
+  }
+  // default: article normal
+  return {
+    shouldAbort: false,
+    fallbackLabel: 'serp_only_normal',
+    logLevel: 'warn',
+    noteForQualityGate: 'research_failed:serp_fallback',
+  };
+}
+
+// ============================================================
+// GEO SCORE — 5 critérios simples e auditáveis
+// ============================================================
+/**
+ * Calcula GEO Readiness Score (0–100) com 5 sinais claros.
+ * Não usa IA. Cada critério tem peso fixo e justificativa.
+ *
+ * | Critério             | Peso  | Sinal medido                           |
+ * |----------------------|-------|----------------------------------------|
+ * | city_in_title        | 20pts | Cidade/território no H1 do artigo      |
+ * | faq_present          | 20pts | Pelo menos 3 perguntas de FAQ          |
+ * | citation_blocks      | 20pts | Presença de [CITE] ou fonte citável    |
+ * | entity_density       | 20pts | ≥ 5 entidades locais/nicho no texto    |
+ * | word_count_ok        | 20pts | Mínimo de 800 palavras                 |
+ */
+export type GeoScoreResult = {
+  score: number;       // 0-100
+  breakdown: {
+    city_in_title: boolean;
+    faq_present: boolean;
+    citation_blocks: boolean;
+    entity_density: boolean;
+    word_count_ok: boolean;
+  };
+  passed: boolean;     // score >= 60
+  label: 'excellent' | 'good' | 'needs_work' | 'poor';
+};
+
+export function calculateGeoScore(params: {
+  title: string;
+  htmlContent: string;
+  city: string;
+  faqCount: number;
+  entities: { topics?: string[]; terms?: string[] };
+}): GeoScoreResult {
+  const { title, htmlContent, city, faqCount, entities } = params;
+  const text = htmlContent.replace(/<[^>]*>/g, ' ').toLowerCase();
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  const cityLower = (city || '').toLowerCase().trim();
+
+  const city_in_title = cityLower.length > 0 && title.toLowerCase().includes(cityLower);
+  const faq_present = faqCount >= 3;
+  const citation_blocks = text.includes('[cite]') || /\b(segundo|fonte|pesquisa|estudo|dados de|ibge|statista)\b/.test(text);
+  const allEntities = [...(entities.topics || []), ...(entities.terms || [])];
+  const entity_density = allEntities.filter(e => text.includes(e.toLowerCase())).length >= 5;
+  const word_count_ok = wordCount >= 800;
+
+  const breakdown = { city_in_title, faq_present, citation_blocks, entity_density, word_count_ok };
+  const score = Object.values(breakdown).filter(Boolean).length * 20;
+  const passed = score >= 60;
+  const label: GeoScoreResult['label'] =
+    score >= 100 ? 'excellent' :
+    score >= 80  ? 'good'      :
+    score >= 60  ? 'needs_work': 'poor';
+
+  return { score, breakdown, passed, label };
+}
+
+// ============================================================
 // AI ROUTER CALLER
 // ============================================================
 
@@ -1651,6 +1768,8 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
   const researchMode = job.research_mode || 'google_grounding';
   const rewriteModel = job.rewrite_model || 'gpt-4.1';
   const useGrounding = researchMode === 'google_grounding';
+  const isAutoPublish = !!job.auto_publish;
+  const isPreview = !!job.is_preview;
 
   console.log(`[ORCHESTRATOR:V2] job_id=${jobId} input=${JSON.stringify({ keyword: jobInput.keyword, city: jobInput.city, niche: jobInput.niche, job_type: jobType, target_words: jobInput.target_words, content_type: jobInput.content_type || 'article' })}`);
   console.log(`[ORCHESTRATOR:V2] Modes: gen=${generationMode}, res=${researchMode}, rew=${rewriteModel}, grd=${useGrounding}`);
@@ -1735,12 +1854,19 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
       console.log(`[V2] ✅ SERP_ANALYSIS ${Date.now() - serpStart}ms`);
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : 'SERP failed';
-      console.warn(`[V2] ⚠️ SERP_ANALYSIS failed (non-fatal): ${errMsg}`);
+      const researchPolicy = getResearchFailedPolicy(generationMode, isAutoPublish, isPreview);
+      console[researchPolicy.logLevel](`[V2] ⚠️ SERP_ANALYSIS ${researchPolicy.fallbackLabel}: ${errMsg}`);
       if (serpStepId) {
         await supabase.from('generation_steps').update({
-          status: 'completed', output: { serp_summary: '', error: errMsg }, latency_ms: Date.now() - serpStart,
+          status: 'completed',
+          output: { serp_summary: '', error: errMsg, research_policy: researchPolicy.fallbackLabel },
+          latency_ms: Date.now() - serpStart,
           completed_at: new Date().toISOString(), model_used: 'fallback', provider: 'fallback', error_message: errMsg,
         }).eq('id', serpStepId);
+      }
+      // PREMIUM: abortar pipeline se pesquisa falhou e modo premium está ativo
+      if (researchPolicy.shouldAbort) {
+        throw new Error(`RESEARCH_FAILED:PREMIUM_BLOCKED — ${errMsg}. Pesquisa real é obrigatória em modo premium.`);
       }
     }
     await updatePublicStatus(supabase, jobId, 'SERP_ANALYSIS', true, lockId);
@@ -2160,8 +2286,27 @@ ${draftHtml.slice(0, 30000)}`;
     console.log(`[V2] ✅ QUALITY_GATE passed=${qgOutput.passed} ai_score=${(qgOutput.ai_detection as any)?.score} ${!qgOutput.passed ? `reasons=${(qgOutput.reasons as string[])?.join('; ')}` : ''}`);
 
     // ============================================================
-    // STEP: GEO_READINESS (Async / Fire & Forget)
+    // STEP: GEO_SCORE (programmatic — sem custo de IA)
     // ============================================================
+    try {
+      const geoScore = calculateGeoScore({
+        title: (articleData!.title as string) || '',
+        htmlContent: (articleData!.html_article as string) || '',
+        city: (jobInput.city as string) || '',
+        faqCount: Array.isArray(articleData!.faq) ? (articleData!.faq as unknown[]).length : 0,
+        entities: (entities as { topics?: string[]; terms?: string[] }) || {},
+      });
+      await supabase.from('articles').update({
+        geo_score: geoScore.score,
+        geo_score_label: geoScore.label,
+        geo_score_breakdown: geoScore.breakdown,
+        geo_score_passed: geoScore.passed,
+        geo_score_calculated_at: new Date().toISOString(),
+      }).eq('id', saveOutput.article_id);
+      console.log(`[V2] ✅ GEO_SCORE ${geoScore.score}/100 (${geoScore.label}) city_in_title=${geoScore.breakdown.city_in_title} faq=${geoScore.breakdown.faq_present} citations=${geoScore.breakdown.citation_blocks} entities=${geoScore.breakdown.entity_density} words=${geoScore.breakdown.word_count_ok}`);
+    } catch (geoErr) {
+      console.warn(`[V2] ⚠️ GEO_SCORE failed (non-fatal):`, geoErr instanceof Error ? geoErr.message : geoErr);
+    }
     try {
       console.log(`[V2] Disparando evaluate-geo-readiness asincronamente...`);
       fetch(`${supabaseUrl}/functions/v1/evaluate-geo-readiness`, {
