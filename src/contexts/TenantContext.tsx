@@ -118,6 +118,54 @@ export function TenantProvider({ children }: TenantProviderProps) {
       setLoading(true);
       setError(null);
 
+      // MÉTODO 1: RPC com SECURITY DEFINER (bypassa RLS)
+      console.log('[TenantContext] Fetching via RPC get_my_memberships...');
+      const { data: rpcData, error: rpcError } = await withTimeout(
+        Promise.resolve(
+          (supabase.rpc as any)('get_my_memberships')
+        ),
+        15000,
+        'MEMBERSHIPS_TIMEOUT'
+      );
+
+      if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
+        console.log('[TenantContext] RPC success:', rpcData.length, 'memberships');
+        const formattedFromRpc: TenantMembership[] = rpcData.map((row: any) => ({
+          id: row.id,
+          tenant_id: row.tenant_id,
+          user_id: row.user_id,
+          role: row.role as 'owner' | 'admin' | 'member',
+          joined_at: row.joined_at,
+          tenant: {
+            id: row.tenant_id,
+            name: row.tenant_name,
+            slug: row.tenant_slug,
+            owner_user_id: row.tenant_owner_user_id,
+            plan: row.tenant_plan,
+            status: row.tenant_status,
+            created_at: row.tenant_created_at,
+          },
+        }));
+
+        setAllMemberships(formattedFromRpc);
+        const ownerM = formattedFromRpc.find(m => m.role === 'owner');
+        const selected = ownerM || formattedFromRpc[0];
+        if (selected) {
+          setCurrentMembership(selected);
+          setCurrentTenant(selected.tenant);
+        }
+        setLoading(false);
+        return;
+      }
+
+      // RPC falhou ou retornou vazio — log e tenta fallback
+      if (rpcError) {
+        console.warn('[TenantContext] RPC error (maybe not deployed yet):', rpcError.message);
+      } else {
+        console.warn('[TenantContext] RPC returned empty, trying direct query...');
+      }
+
+      // MÉTODO 2: Query direta (pode falhar por RLS mas tenta)
       const membershipsResult = await withTimeout(
         Promise.resolve(
           supabase
@@ -147,33 +195,16 @@ export function TenantProvider({ children }: TenantProviderProps) {
       const { data: memberships, error: membershipsError } = membershipsResult;
 
       if (membershipsError) {
-        console.warn('[TenantContext] membershipsError:', membershipsError.message);
-        if (retryCount < 2) {
-          setTimeout(() => fetchMemberships(retryCount + 1), (retryCount + 1) * 2000);
-          return;
-        }
-
-        // Tentar fallback via blogs
-        const fallback = await fetchTenantViaBlogs();
-        if (fallback) {
-          setAllMemberships([fallback]);
-          setCurrentMembership(fallback);
-          setCurrentTenant(fallback.tenant);
-          setLoading(false);
-          return;
-        }
-
-        // Em vez de setar error (que trava a UI), trata como "sem memberships"
-        // Os guards vão detectar hasTenant=false e disparar auto-provisioning
-        console.warn('[TenantContext] All retries + fallback failed, treating as no-tenant');
-        setAllMemberships([]);
-        setCurrentTenant(null);
-        setCurrentMembership(null);
-        setLoading(false);
-        return;
+        console.warn('[TenantContext] Direct query error:', membershipsError.message);
       }
 
-      if (!memberships || memberships.length === 0) {
+      if (memberships && memberships.length > 0) {
+        // Query direta funcionou
+        console.log('[TenantContext] Direct query success:', memberships.length, 'memberships');
+        // processamento continua abaixo no código original
+      } else {
+        // MÉTODO 3: Fallback via blogs  
+        console.warn('[TenantContext] Direct query empty, trying blogs fallback...');
         const fallback = await fetchTenantViaBlogs();
         if (fallback) {
           setAllMemberships([fallback]);
@@ -183,6 +214,8 @@ export function TenantProvider({ children }: TenantProviderProps) {
           return;
         }
 
+        // Nenhum método funcionou — sem tenant
+        console.warn('[TenantContext] All methods exhausted, no tenant found');
         setAllMemberships([]);
         setCurrentTenant(null);
         setCurrentMembership(null);
