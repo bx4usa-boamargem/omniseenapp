@@ -45,29 +45,29 @@ export function TenantGuard({ children, requireAdmin = false }: TenantGuardProps
     );
   }
 
-  // Erro ao carregar tenant
-  if (error) {
+  // Erro ao carregar tenant - se usuário está logado, tenta auto-provisionar
+  // (provision-tenant é idempotente - não cria duplicatas)
+  if (error && user) {
+    console.log('[TenantGuard] Error loading tenant, attempting auto-provision for:', user.email);
+    return <AutoProvisionTenant />;
+  }
+
+  // Erro sem usuário -> login
+  if (error && !user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4 p-4">
         <div className="bg-card border rounded-2xl p-8 max-w-md w-full text-center space-y-4">
           <div className="mx-auto w-16 h-16 bg-destructive/10 rounded-full flex items-center justify-center">
             <AlertTriangle className="h-8 w-8 text-destructive" />
           </div>
-          <h2 className="text-xl font-bold">Erro ao carregar</h2>
-          <p className="text-muted-foreground">{error}</p>
-          <div className="flex flex-col gap-2">
-            <Button onClick={() => refetch()} className="w-full gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Tentar novamente
-            </Button>
-            <Button 
-              variant="outline" 
-              onClick={() => window.location.href = '/login'}
-              className="w-full"
-            >
-              Voltar ao login
-            </Button>
-          </div>
+          <h2 className="text-xl font-bold">Sessão expirada</h2>
+          <p className="text-muted-foreground">Faça login novamente para acessar sua conta.</p>
+          <Button 
+            onClick={() => window.location.href = '/login'}
+            className="w-full"
+          >
+            Ir para o login
+          </Button>
         </div>
       </div>
     );
