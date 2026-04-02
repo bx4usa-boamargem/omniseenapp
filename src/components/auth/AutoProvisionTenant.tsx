@@ -45,15 +45,44 @@ export function AutoProvisionTenant() {
     }
 
     console.log('[AutoProvision] Starting provisioning for:', user.email);
-    setStatusMessage('Configurando sua conta...');
+    setStatusMessage('Verificando sua conta...');
     setError(null);
 
     try {
+      // PASSO 1: Tenta refetch primeiro — talvez o tenant já exista
+      // (a query anterior pode ter falhado por RLS timing)
+      console.log('[AutoProvision] Step 1: Trying refetch...');
+      await refetch();
+      
+      // Espera um momento para o estado se propagar
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Checa se o refetch achou um tenant (via ref do contexto)
+      const { data: quickCheck } = await supabase
+        .from('tenant_members')
+        .select('tenant_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+      
+      if (quickCheck?.tenant_id) {
+        console.log('[AutoProvision] Tenant found via direct check:', quickCheck.tenant_id);
+        setStatusMessage('Conta encontrada! Carregando...');
+        await refetch();
+        await new Promise(resolve => setTimeout(resolve, 800));
+        toast.success('Conta carregada com sucesso!');
+        safeRedirect('/client/dashboard');
+        return;
+      }
+
+      // PASSO 2: Sem tenant, chama a Edge Function para criar
+      console.log('[AutoProvision] Step 2: No tenant, calling provision-tenant...');
+      setStatusMessage('Configurando sua conta...');
+
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('PROVISION_TIMEOUT')), 15000);
+        setTimeout(() => reject(new Error('PROVISION_TIMEOUT')), 20000);
       });
 
-      // Single call to backend function (uses service_role, bypasses RLS)
       const { data, error: fnError } = await Promise.race([
         supabase.functions.invoke<ProvisionTenantResponse>('provision-tenant'),
         timeoutPromise,
@@ -62,9 +91,29 @@ export function AutoProvisionTenant() {
       if (fnError) {
         console.error('[AutoProvision] Function error:', fnError);
         
-        // Check if it's an auth error
         if (fnError.message?.includes('Unauthorized') || fnError.message?.includes('401')) {
           setError('Sessão expirada. Por favor, faça login novamente.');
+          return;
+        }
+        
+        // PASSO 3: Edge Function falhou — tenta refetch como último recurso
+        console.warn('[AutoProvision] Step 3: Edge Function failed, trying refetch as fallback...');
+        setStatusMessage('Verificando dados existentes...');
+        await refetch();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const { data: retryCheck } = await supabase
+          .from('tenant_members')
+          .select('tenant_id')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle();
+        
+        if (retryCheck?.tenant_id) {
+          console.log('[AutoProvision] Tenant found on retry:', retryCheck.tenant_id);
+          await refetch();
+          toast.success('Conta configurada!');
+          safeRedirect('/client/dashboard');
           return;
         }
         
@@ -76,30 +125,39 @@ export function AutoProvisionTenant() {
 
       if (data?.status === 'already_provisioned' || data?.status === 'provisioned') {
         setStatusMessage('Conta configurada! Redirecionando...');
-        
-        // Refresh tenant context
         await refetch();
-        
         toast.success('Conta configurada com sucesso!');
-        
-        // Navigate to onboarding wizard for new accounts
-        safeRedirect('/client/onboarding');
+        safeRedirect('/client/dashboard');
         return;
       }
 
-      // Unexpected response
       console.error('[AutoProvision] Unexpected response:', data);
       setError('Resposta inesperada do servidor. Tente novamente.');
 
     } catch (err) {
       if (err instanceof Error && err.message === 'PROVISION_TIMEOUT') {
         console.error('[AutoProvision] Provision timeout');
-        setError('A configuração da conta demorou demais porque o backend não respondeu a tempo.');
+        // Mesmo com timeout, tenta refetch — o backend pode ter criado mas demorou a responder
+        await refetch();
+        const { data: timeoutCheck } = await supabase
+          .from('tenant_members')
+          .select('tenant_id')
+          .eq('user_id', user.id)
+          .limit(1)
+          .maybeSingle();
+        
+        if (timeoutCheck?.tenant_id) {
+          toast.success('Conta configurada!');
+          safeRedirect('/client/dashboard');
+          return;
+        }
+        
+        setError('A configuração da conta demorou demais. Tente clicar em "Tentar novamente".');
         return;
       }
 
       console.error('[AutoProvision] Unexpected error:', err);
-      setError('Erro inesperado. Por favor, tente novamente.');
+      setError(`Erro inesperado: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 

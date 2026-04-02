@@ -147,6 +147,7 @@ export function TenantProvider({ children }: TenantProviderProps) {
       const { data: memberships, error: membershipsError } = membershipsResult;
 
       if (membershipsError) {
+        console.warn('[TenantContext] membershipsError:', membershipsError.message);
         if (retryCount < 2) {
           setTimeout(() => fetchMemberships(retryCount + 1), (retryCount + 1) * 2000);
           return;
@@ -162,7 +163,12 @@ export function TenantProvider({ children }: TenantProviderProps) {
           return;
         }
 
-        setError('Erro ao carregar dados do tenant. O backend pode estar instável.');
+        // Em vez de setar error (que trava a UI), trata como "sem memberships"
+        // Os guards vão detectar hasTenant=false e disparar auto-provisioning
+        console.warn('[TenantContext] All retries + fallback failed, treating as no-tenant');
+        setAllMemberships([]);
+        setCurrentTenant(null);
+        setCurrentMembership(null);
         setLoading(false);
         return;
       }
@@ -222,11 +228,19 @@ export function TenantProvider({ children }: TenantProviderProps) {
           return;
         }
 
-        setError('O backend está demorando para responder. Tente novamente em instantes.');
+        // Trata como "sem memberships" para que o auto-provisioning rode
+        console.warn('[TenantContext] Timeout after retries, treating as no-tenant');
+        setAllMemberships([]);
+        setCurrentTenant(null);
+        setCurrentMembership(null);
         return;
       }
 
-      setError('Erro inesperado ao carregar tenant');
+      console.error('[TenantContext] Unexpected fetch error:', err);
+      // Mesmo em erro inesperado, não trava - deixa os guards lidar
+      setAllMemberships([]);
+      setCurrentTenant(null);
+      setCurrentMembership(null);
     } finally {
       setLoading(false);
     }
