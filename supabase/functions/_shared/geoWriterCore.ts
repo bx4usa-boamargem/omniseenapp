@@ -7,7 +7,7 @@
 
 // REGRAS ABSOLUTAS DO GEO WRITER
 export const GEO_WRITER_RULES = {
-  word_count: { min: 1000, max: 3000 },
+  word_count: { min: 800, max: 2000 },
   max_retries: 3,
   
   structure: {
@@ -203,9 +203,9 @@ DIRETRIZES DE TOM E ESTILO:
 - E-E-A-T Real: Traga explicações causais. Nomeie tecnologias associadas, cite entidades do nicho.
 
 FLUXO OBRIGATÓRIO DE CONSTRUÇÃO DE TAMANHO (MUITO IMPORTANTE):
-- ARTIGO NORMAL: Alvo obrigatório de 800 a 1300 palavras. Você fará um artigo direto, cirúrgico, concentrado na dor. 
-- ARTIGO PREMIUM (quando especificado "super_page"): Alvo entre 1800 e 2600 palavras. Aqui requer altíssima densidade, casos práticos aprofundados, metodologias comparativas. 
-* Nota: Apenas passe esse teto se houver uma absurda justificativa de profundidade semântica exigida pela SERP.
+- ARTIGO NORMAL: Alvo obrigatório de 800 a 1200 palavras. Leitores odeiam artigos intermináveis. Seja absurdamente letal, direto e cirúrgico na dor. 
+- ARTIGO PREMIUM (quando especificado "super_page"): Alvo entre 1500 e 2000 palavras (TETO MÁXIMO ESTOURANDO DE 2000 PALAVRAS). Aqui requer densidade e casos práticos reais, mas NUNCA enrolação (fluff).
+* Nota: NENHUM artigo pode passar o tempo de 5 minutos de leitura. Reduza o volume textual e aumente a densidade de valor informativo!
 
 ARQUITETURA SEO OBRIGATÓRIA:
 - H1 Magnético, H2 e H3 práticos. Nada decorativo.

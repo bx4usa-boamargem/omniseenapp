@@ -11,7 +11,7 @@ import {
   NICHE_EAT_PHRASES,
   type GeoResearchData
 } from "../_shared/geoWriterCore.ts";
-
+import { fetchGooglePlacesPSEOContext } from "../_shared/googlePlaces.ts";
 
 /**
  * orchestrate-generation — OmniSeen TRUE SUPER PAGE ENGINE
@@ -103,22 +103,22 @@ function resolveWordRange(jobInput: Record<string, unknown>, jobType: 'article' 
   const targetWords = jobInput.target_words ? Number(jobInput.target_words) : null;
 
   if (jobType === 'super_page') {
-    if (targetWords && targetWords >= 2000) {
+    if (targetWords && targetWords >= 1500) {
       const upper = Math.round(targetWords * 1.2);
-      return `${targetWords}-${upper}`;
+      return `${Math.min(targetWords, 2000)}-${Math.min(upper, 2000)}`;
     }
-    return '3000-6000';
+    return '1500-2000';
   }
 
   // article
-  if (targetWords && targetWords >= 500 && targetWords <= 5000) {
+  if (targetWords && targetWords >= 500 && targetWords <= 2000) {
     // Allow ±15% tolerance so model has room, but stays close to target
     const lower = Math.max(500, Math.round(targetWords * 0.85));
     const upper = Math.round(targetWords * 1.15);
-    return `${lower}-${upper}`;
+    return `${lower}-${Math.min(upper, 1200)}`;
   }
 
-  return '1500-2500';
+  return '800-1200';
 }
 
 // ============================================================
@@ -742,7 +742,7 @@ async function executeOutlineGen(
   // Use target_words and content_type template to calibrate outline
   const wordRange = resolveWordRange(jobInput, jobType);
   const targetWords = jobInput.target_words ? Number(jobInput.target_words) : null;
-  const template = getContentTypeTemplate(contentType, language);
+  const template = getContentTypeTemplate(cType as any, language);
 
   let wordHint: string;
   if (jobType === 'super_page') {
@@ -1891,6 +1891,34 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     }
     await updatePublicStatus(supabase, jobId, 'SERP_ANALYSIS', true, lockId);
     await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
+
+    // STEP: GEO_RESEARCH (pSEO)
+    console.log(`[V2] Step: GEO_RESEARCH (pSEO)`);
+    await updatePublicStatus(supabase, jobId, 'GEO_RESEARCH', false, lockId);
+    await supabase.from('generation_jobs').update({ current_step: 'GEO_RESEARCH' }).eq('id', jobId);
+    const googleApiKey = Deno.env.get('GOOGLE_MAPS_API_KEY');
+    if (googleApiKey && jobInput.city) {
+      try {
+        const geoStepId = await createStepOrFail(supabase, jobId, 'GEO_RESEARCH', { keyword: jobInput.keyword, city: jobInput.city });
+        const geoStart = Date.now();
+        const geoResult = await fetchGooglePlacesPSEOContext(jobInput.keyword as string, jobInput.city as string, googleApiKey);
+        if (geoResult.success && geoResult.formattedMarkdownContext) {
+          // APPEND geo research to serp summary so that the next agents (outline, entity, writer) all have Grounding!
+          serpSummaryText += `\n\n${geoResult.formattedMarkdownContext}`;
+        }
+        await supabase.from('generation_steps').update({
+          status: 'completed', output: { success: geoResult.success, places_found: geoResult.places.length },
+          latency_ms: Date.now() - geoStart,
+          completed_at: new Date().toISOString(), model_used: 'google_places_api', provider: 'google',
+        }).eq('id', geoStepId);
+        console.log(`[V2] ✅ GEO_RESEARCH ${Date.now() - geoStart}ms | places=${geoResult.places.length}`);
+      } catch (e) {
+        console.warn(`[V2] ⚠️ GEO_RESEARCH failed (non-fatal):`, e);
+      }
+    } else {
+      console.log(`[V2] ⏭️ GEO_RESEARCH skipped (no GOOGLE_MAPS_API_KEY or city)`);
+    }
+    await updatePublicStatus(supabase, jobId, 'GEO_RESEARCH', true, lockId);
 
     // STEP: SERP_GAP_ANALYSIS
     let gapAnalysis: SerpGapResult = { semantic_gaps: [], competitor_topics: [] };
