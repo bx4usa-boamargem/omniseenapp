@@ -20,6 +20,7 @@ import { OmniseenLogo } from '@/components/ui/OmniseenLogo';
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher';
 import { Mail, Lock, User, ArrowRight, Loader2, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { z } from 'zod';
+import { supabase } from '@/integrations/supabase/client';
 
 // Error Boundary Fallback
 function SignupErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
@@ -96,13 +97,20 @@ function SignupContent() {
         return;
       }
 
-      const { error } = await signUp(email, password, fullName);
+      // 1. CHAMA A EDGE FUNCTION PARA CRIAR A CONTA SEM PRECISAR DE CONFIRMAÇÃO DE EMAIL
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('public-signup', {
+        body: { email, password, fullName }
+      });
 
-      if (error) {
+      if (fnError) {
+        throw new Error(fnError.message || 'Erro ao criar conta pela função.');
+      }
+      
+      if (fnData?.error) {
         // Verificar se é erro de email duplicado - redirecionar para login
-        if (error.message.includes('already registered') || 
-            error.message.includes('User already registered') ||
-            error.message.includes('already exists')) {
+        if (fnData.error.includes('already registered') || 
+            fnData.error.includes('User already registered') ||
+            fnData.error.includes('already exists')) {
           toast({
             title: 'Email já cadastrado',
             description: 'Redirecionando para o login...',
@@ -111,14 +119,18 @@ function SignupContent() {
           navigate(`/login?email=${encodeURIComponent(email)}`);
           return;
         }
-        
-        toast({
-          title: 'Erro',
-          description: error.message || 'Erro ao criar conta',
-          variant: 'destructive',
-        });
-        setIsLoading(false);
-        return;
+
+        throw new Error(fnData.error);
+      }
+
+      // 2. FAZ O LOGIN IMEDIATAMENTE APÓS A CONTA SER CRIADA
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (signInError) {
+        console.error('Erro ao fazer auto-login:', signInError);
       }
 
       toast({

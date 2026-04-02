@@ -178,12 +178,16 @@ function LoginContent() {
           message.includes('network') ||
           message.includes('fetch') ||
           message.includes('failed to fetch');
+        
+        const isEmailNotConfirmed = message.includes('email not confirmed');
+
+        let description = 'Email ou senha incorretos. Use "Esqueceu a senha?" para recuperar.';
+        if (isTimeoutOrNetworkError) description = 'O servidor está demorando para responder. Tente novamente em alguns instantes.';
+        if (isEmailNotConfirmed) description = 'O seu email ainda não foi confirmado no caso de uma conta antiga. Verifique a sua caixa de entrada.';
 
         toast({
-          title: isTimeoutOrNetworkError ? 'Backend indisponível' : 'Erro no login',
-          description: isTimeoutOrNetworkError
-            ? 'O servidor está demorando para responder. Tente novamente em alguns instantes.'
-            : 'Email ou senha incorretos. Use "Esqueceu a senha?" para recuperar.',
+          title: isTimeoutOrNetworkError ? 'Backend indisponível' : (isEmailNotConfirmed ? 'Email não confirmado' : 'Erro no login'),
+          description: description,
           variant: 'destructive',
         });
         setIsLoading(false);
