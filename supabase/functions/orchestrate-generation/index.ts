@@ -1694,6 +1694,35 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     console.log(`[V2] ✅ QUALITY_GATE passed=${qgOutput.passed} ${!qgOutput.passed ? `reasons=${(qgOutput.reasons as string[])?.join('; ')}` : ''}`);
 
     // ============================================================
+    // GEO SCORE CALCULATION
+    // ============================================================
+    try {
+      const htmlForGeo = (articleData!.html_article as string) || '';
+      const textForGeo = htmlForGeo.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      const geoWordCount = textForGeo.split(/\s+/).filter(Boolean).length;
+      const geoTargetWords = Number(jobInput.target_words) || (jobType === 'super_page' ? 3000 : 2000);
+      const geoResult = calculateGeoScore(
+        (articleData!.title as string) || '',
+        (jobInput.city as string) || '',
+        (articleData!.faq as Array<unknown>) || [],
+        htmlForGeo,
+        entities,
+        geoWordCount,
+        geoTargetWords
+      );
+      if (saveOutput.article_id) {
+        await supabase.from('articles').update({
+          geo_score: geoResult.score,
+          geo_score_label: geoResult.label,
+          geo_score_breakdown: geoResult.breakdown,
+        }).eq('id', saveOutput.article_id);
+      }
+      console.log(`[V2] ✅ GEO_SCORE score=${geoResult.score} label=${geoResult.label}`);
+    } catch (geoErr) {
+      console.warn(`[V2] ⚠️ GEO_SCORE failed (non-fatal): ${geoErr instanceof Error ? geoErr.message : 'unknown'}`);
+    }
+
+    // ============================================================
     // COMPLETED
     // ============================================================
     const { data: updatedJob } = await supabase
