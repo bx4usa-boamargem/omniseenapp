@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniSeen — Brand Identity</title>
+<style>
+  :root {
+    --os-ink: #0F1D2E;
+    --os-navy: #132A45;
+    --os-blue: #1A5FA8;
+    --os-cyan: #0EA8C9;
+    --os-mint: #0DD4A4;
+    --os-light: #E6F4FB;
+    --os-muted: #6B8BA4;
+    --os-surface: #F4F8FC;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'SF Mono', 'Fira Code', monospace;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --border: 0.5px solid rgba(0,0,0,0.1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font-sans);
+    background: #F4F8FC;
+    color: #0F1D2E;
+    padding: 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  h1 {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: #6B8BA4;
+    text-transform: uppercase;
+    margin-bottom: 2rem;
+  }
+
+  .section { margin-bottom: 2.5rem; }
+  .section-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: #6B8BA4;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  /* LOGO */
+  .logo-showcase { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .logo-card {
+    background: #ffffff;
+    border: var(--border);
+    border-radius: var(--radius-lg);
+    padding: 2rem 2.5rem;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    min-width: 220px;
+  }
+  .logo-card.dark { background: #0F1D2E; border-color: rgba(255,255,255,0.08); }
+  .logo-wordmark { font-size: 24px; font-weight: 500; letter-spacing: -0.02em; color: #0F1D2E; line-height: 1; }
+  .logo-wordmark span { color: #0EA8C9; }
+  .logo-wordmark.light { color: #ffffff; }
+  .logo-wordmark.light span { color: #0DD4A4; }
+  .logo-tagline { font-size: 11px; color: #6B8BA4; letter-spacing: 0.04em; margin-top: 3px; }
+  .logo-tagline.light { color: rgba(255,255,255,0.45); }
+
+  /* ICONS */
+  .icon-grid { display: flex; gap: 12px; flex-wrap: wrap; }
+  .icon-card {
+    background: #ffffff;
+    border: var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 100px;
+    text-align: center;
+  }
+  .icon-label { font-size: 11px; color: #6B8BA4; }
+
+  /* PALETTE */
+  .palette-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .swatch-col { display: flex; flex-direction: column; gap: 4px; min-width: 80px; flex: 1; }
+  .swatch { height: 52px; border-radius: var(--radius-md); }
+  .swatch-name { font-size: 11px; font-weight: 500; color: #0F1D2E; }
+  .swatch-hex { font-size: 11px; color: #6B8BA4; font-family: var(--font-mono); }
+
+  /* USAGE */
+  .usage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .usage-card { border-radius: var(--radius-lg); padding: 1.2rem; }
+  .usage-title { font-size: 12px; font-weight: 500; }
+  .usage-use { font-size: 11px; margin-top: 4px; }
+  .uc-ink { background: #0F1D2E; }
+  .uc-ink .usage-title { color: rgba(255,255,255,0.9); }
+  .uc-ink .usage-use { color: rgba(255,255,255,0.45); }
+  .uc-blue { background: #1A5FA8; }
+  .uc-blue .usage-title { color: rgba(255,255,255,0.9); }
+  .uc-blue .usage-use { color: rgba(255,255,255,0.5); }
+  .uc-cyan { background: #0EA8C9; }
+  .uc-cyan .usage-title { color: rgba(255,255,255,0.9); }
+  .uc-cyan .usage-use { color: rgba(255,255,255,0.55); }
+  .uc-mint { background: #0DD4A4; }
+  .uc-mint .usage-title { color: #0A4A3A; }
+  .uc-mint .usage-use { color: #0F6E56; }
+  .uc-ice { background: #E6F4FB; border: 0.5px solid #D4E4F0; }
+  .uc-ice .usage-title { color: #0F1D2E; }
+  .uc-ice .usage-use { color: #6B8BA4; }
+
+  /* TYPOGRAPHY */
+  .type-sample {
+    background: #ffffff;
+    border: var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+  }
+  .ts-display { font-size: 28px; font-weight: 500; letter-spacing: -0.03em; color: #0F1D2E; line-height: 1.15; }
+  .ts-body { font-size: 14px; color: #6B8BA4; line-height: 1.6; margin-top: 8px; }
+
+  /* HEX REFERENCE TABLE */
+  .hex-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .hex-table th { text-align: left; padding: 8px 12px; font-weight: 500; font-size: 11px; color: #6B8BA4; border-bottom: 0.5px solid rgba(0,0,0,0.08); }
+  .hex-table td { padding: 8px 12px; border-bottom: 0.5px solid rgba(0,0,0,0.05); }
+  .hex-table tr:last-child td { border-bottom: none; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 8px; }
+  .mono { font-family: var(--font-mono); font-size: 12px; color: #6B8BA4; }
+  .hex-wrap { background: #ffffff; border: var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+
+  footer { margin-top: 3rem; font-size: 11px; color: #6B8BA4; text-align: center; padding-top: 1.5rem; border-top: 0.5px solid rgba(0,0,0,0.08); }
+</style>
+</head>
+<body>
+
+<h1>OmniSeen — Identidade Visual</h1>
+
+<!-- LOGO -->
+<div class="section">
+  <p class="section-label">Logo principal</p>
+  <div class="logo-showcase">
+    <!-- Light version -->
+    <div class="logo-card">
+      <svg viewBox="0 0 48 48" width="48" height="48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="48" height="48" rx="12" fill="#0F1D2E"/>
+        <circle cx="24" cy="24" r="10" stroke="#1A5FA8" stroke-width="2" fill="none"/>
+        <circle cx="24" cy="24" r="5.5" fill="#0EA8C9"/>
+        <circle cx="24" cy="24" r="2.5" fill="#0DD4A4"/>
+        <line x1="24" y1="8" x2="24" y2="12" stroke="#0EA8C9" stroke-width="2" stroke-linecap="round"/>
+        <line x1="24" y1="36" x2="24" y2="40" stroke="#0EA8C9" stroke-width="2" stroke-linecap="round"/>
+        <line x1="8" y1="24" x2="12" y2="24" stroke="#0EA8C9" stroke-width="2" stroke-linecap="round"/>
+        <line x1="36" y1="24" x2="40" y2="24" stroke="#0EA8C9" stroke-width="2" stroke-linecap="round"/>
+        <line x1="13.2" y1="13.2" x2="16" y2="16" stroke="#1A5FA8" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="32" y1="32" x2="34.8" y2="34.8" stroke="#1A5FA8" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="34.8" y1="13.2" x2="32" y2="16" stroke="#1A5FA8" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="16" y1="32" x2="13.2" y2="34.8" stroke="#1A5FA8" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div class="logo-wordmark">Omni<span>Seen</span></div>
+        <div class="logo-tagline">Visibilidade que importa</div>
+      </div>
+    </div>
+    <!-- Dark version -->
+    <div class="logo-card dark">
+      <svg viewBox="0 0 48 48" width="48" height="48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="48" height="48" rx="12" fill="#132A45"/>
+        <circle cx="24" cy="24" r="10" stroke="#0EA8C9" stroke-width="1.5" fill="none"/>
+        <circle cx="24" cy="24" r="5.5" fill="#0EA8C9"/>
+        <circle cx="24" cy="24" r="2.5" fill="#0DD4A4"/>
+        <line x1="24" y1="8" x2="24" y2="12" stroke="#0DD4A4" stroke-width="2" stroke-linecap="round"/>
+        <line x1="24" y1="36" x2="24" y2="40" stroke="#0DD4A4" stroke-width="2" stroke-linecap="round"/>
+        <line x1="8" y1="24" x2="12" y2="24" stroke="#0DD4A4" stroke-width="2" stroke-linecap="round"/>
+        <line x1="36" y1="24" x2="40" y2="24" stroke="#0DD4A4" stroke-width="2" stroke-linecap="round"/>
+        <line x1="13.2" y1="13.2" x2="16" y2="16" stroke="#0EA8C9" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="32" y1="32" x2="34.8" y2="34.8" stroke="#0EA8C9" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="34.8" y1="13.2" x2="32" y2="16" stroke="#0EA8C9" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="16" y1="32" x2="13.2" y2="34.8" stroke="#0EA8C9" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div class="logo-wordmark light">Omni<span>Seen</span></div>
+        <div class="logo-tagline light">Visibilidade que importa</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ICONS -->
+<div class="section">
+  <p class="section-label">Variações do ícone</p>
+  <div class="icon-grid">
+    <div class="icon-card">
+      <svg viewBox="0 0 56 56" width="56" height="56" fill="none">
+        <rect width="56" height="56" rx="14" fill="#0F1D2E"/>
+        <circle cx="28" cy="28" r="11" stroke="#1A5FA8" stroke-width="2" fill="none"/>
+        <circle cx="28" cy="28" r="6" fill="#0EA8C9"/>
+        <circle cx="28" cy="28" r="2.8" fill="#0DD4A4"/>
+        <line x1="28" y1="11" x2="28" y2="15" stroke="#0EA8C9" stroke-width="2" stroke-linecap="round"/>
+        <line x1="28" y1="41" x2="28" y2="45" stroke="#0EA8C9" stroke-width="2" stroke-linecap="round"/>
+        <line x1="11" y1="28" x2="15" y2="28" stroke="#0EA8C9" stroke-width="2" stroke-linecap="round"/>
+        <line x1="41" y1="28" x2="45" y2="28" stroke="#0EA8C9" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span class="icon-label">App / dark</span>
+    </div>
+    <div class="icon-card">
+      <svg viewBox="0 0 56 56" width="56" height="56" fill="none">
+        <rect width="56" height="56" rx="14" fill="#E6F4FB"/>
+        <circle cx="28" cy="28" r="11" stroke="#1A5FA8" stroke-width="2" fill="none"/>
+        <circle cx="28" cy="28" r="6" fill="#0EA8C9"/>
+        <circle cx="28" cy="28" r="2.8" fill="#0DD4A4"/>
+        <line x1="28" y1="11" x2="28" y2="15" stroke="#1A5FA8" stroke-width="2" stroke-linecap="round"/>
+        <line x1="28" y1="41" x2="28" y2="45" stroke="#1A5FA8" stroke-width="2" stroke-linecap="round"/>
+        <line x1="11" y1="28" x2="15" y2="28" stroke="#1A5FA8" stroke-width="2" stroke-linecap="round"/>
+        <line x1="41" y1="28" x2="45" y2="28" stroke="#1A5FA8" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span class="icon-label">App / light</span>
+    </div>
+    <div class="icon-card">
+      <svg viewBox="0 0 56 56" width="56" height="56" fill="none">
+        <rect width="56" height="56" rx="28" fill="#0F1D2E"/>
+        <circle cx="28" cy="28" r="11" stroke="#0EA8C9" stroke-width="1.5" fill="none"/>
+        <circle cx="28" cy="28" r="6" fill="#0EA8C9"/>
+        <circle cx="28" cy="28" r="2.8" fill="#0DD4A4"/>
+        <line x1="28" y1="11" x2="28" y2="15" stroke="#0DD4A4" stroke-width="2" stroke-linecap="round"/>
+        <line x1="28" y1="41" x2="28" y2="45" stroke="#0DD4A4" stroke-width="2" stroke-linecap="round"/>
+        <line x1="11" y1="28" x2="15" y2="28" stroke="#0DD4A4" stroke-width="2" stroke-linecap="round"/>
+        <line x1="41" y1="28" x2="45" y2="28" stroke="#0DD4A4" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span class="icon-label">Avatar / círculo</span>
+    </div>
+    <div class="icon-card">
+      <svg viewBox="0 0 56 56" width="56" height="56" fill="none">
+        <circle cx="28" cy="28" r="12" stroke="#1A5FA8" stroke-width="2" fill="none"/>
+        <circle cx="28" cy="28" r="6.5" fill="#0EA8C9"/>
+        <circle cx="28" cy="28" r="3" fill="#0DD4A4"/>
+        <line x1="28" y1="10" x2="28" y2="15" stroke="#0EA8C9" stroke-width="2" stroke-linecap="round"/>
+        <line x1="28" y1="41" x2="28" y2="46" stroke="#0EA8C9" stroke-width="2" stroke-linecap="round"/>
+        <line x1="10" y1="28" x2="15" y2="28" stroke="#0EA8C9" stroke-width="2" stroke-linecap="round"/>
+        <line x1="41" y1="28" x2="46" y2="28" stroke="#0EA8C9" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <span class="icon-label">Monoline</span>
+    </div>
+  </div>
+</div>
+
+<!-- PALETTE -->
+<div class="section">
+  <p class="section-label">Paleta de cores</p>
+  <div class="palette-row">
+    <div class="swatch-col">
+      <div class="swatch" style="background:#0F1D2E;"></div>
+      <div class="swatch-name">Ink</div>
+      <div class="swatch-hex">#0F1D2E</div>
+    </div>
+    <div class="swatch-col">
+      <div class="swatch" style="background:#132A45;"></div>
+      <div class="swatch-name">Navy</div>
+      <div class="swatch-hex">#132A45</div>
+    </div>
+    <div class="swatch-col">
+      <div class="swatch" style="background:#1A5FA8;"></div>
+      <div class="swatch-name">Blue</div>
+      <div class="swatch-hex">#1A5FA8</div>
+    </div>
+    <div class="swatch-col">
+      <div class="swatch" style="background:#0EA8C9;"></div>
+      <div class="swatch-name">Cyan</div>
+      <div class="swatch-hex">#0EA8C9</div>
+    </div>
+    <div class="swatch-col">
+      <div class="swatch" style="background:#0DD4A4;"></div>
+      <div class="swatch-name">Mint</div>
+      <div class="swatch-hex">#0DD4A4</div>
+    </div>
+    <div class="swatch-col">
+      <div class="swatch" style="background:#E6F4FB; border: 0.5px solid #D4E4F0;"></div>
+      <div class="swatch-name">Ice</div>
+      <div class="swatch-hex">#E6F4FB</div>
+    </div>
+    <div class="swatch-col">
+      <div class="swatch" style="background:#6B8BA4;"></div>
+      <div class="swatch-name">Muted</div>
+      <div class="swatch-hex">#6B8BA4</div>
+    </div>
+  </div>
+</div>
+
+<!-- USAGE -->
+<div class="section">
+  <p class="section-label">Uso de cor por contexto</p>
+  <div class="usage-grid">
+    <div class="usage-card uc-ink">
+      <div class="usage-title">Ink #0F1D2E</div>
+      <div class="usage-use">Hero, nav, texto principal</div>
+    </div>
+    <div class="usage-card uc-blue">
+      <div class="usage-title">Blue #1A5FA8</div>
+      <div class="usage-use">Botões, links, ações</div>
+    </div>
+    <div class="usage-card uc-cyan">
+      <div class="usage-title">Cyan #0EA8C9</div>
+      <div class="usage-use">Destaques, ícones, badges</div>
+    </div>
+    <div class="usage-card uc-mint">
+      <div class="usage-title">Mint #0DD4A4</div>
+      <div class="usage-use">Sucesso, CTA secundário</div>
+    </div>
+    <div class="usage-card uc-ice">
+      <div class="usage-title">Ice #E6F4FB</div>
+      <div class="usage-use">Fundos, cards, hover</div>
+    </div>
+  </div>
+</div>
+
+<!-- TYPOGRAPHY -->
+<div class="section">
+  <p class="section-label">Tipografia</p>
+  <div class="type-sample">
+    <div class="ts-display">Visto. Encontrado. Escolhido.</div>
+    <div class="ts-body">Gere conteúdo SEO de alto desempenho para qualquer nicho e cidade — automaticamente, em português brasileiro, pronto para ranquear no Google e ser citado por IA.</div>
+  </div>
+</div>
+
+<!-- HEX REFERENCE -->
+<div class="section">
+  <p class="section-label">Referência de tokens</p>
+  <div class="hex-wrap">
+    <table class="hex-table">
+      <thead>
+        <tr>
+          <th>Token</th>
+          <th>Hex</th>
+          <th>Uso</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="dot" style="background:#0F1D2E;"></span>--os-ink</td>
+          <td class="mono">#0F1D2E</td>
+          <td>Texto principal, hero background</td>
+        </tr>
+        <tr>
+          <td><span class="dot" style="background:#132A45;"></span>--os-navy</td>
+          <td class="mono">#132A45</td>
+          <td>Dark cards, nav background</td>
+        </tr>
+        <tr>
+          <td><span class="dot" style="background:#1A5FA8;"></span>--os-blue</td>
+          <td class="mono">#1A5FA8</td>
+          <td>Botões primários, links</td>
+        </tr>
+        <tr>
+          <td><span class="dot" style="background:#0EA8C9;"></span>--os-cyan</td>
+          <td class="mono">#0EA8C9</td>
+          <td>Ícones, badges, "Seen" no wordmark</td>
+        </tr>
+        <tr>
+          <td><span class="dot" style="background:#0DD4A4;"></span>--os-mint</td>
+          <td class="mono">#0DD4A4</td>
+          <td>Sucesso, CTA secundário, núcleo do ícone</td>
+        </tr>
+        <tr>
+          <td><span class="dot" style="background:#E6F4FB; border: 0.5px solid #D4E4F0;"></span>--os-light</td>
+          <td class="mono">#E6F4FB</td>
+          <td>Fundos de seção, cards, hover states</td>
+        </tr>
+        <tr>
+          <td><span class="dot" style="background:#6B8BA4;"></span>--os-muted</td>
+          <td class="mono">#6B8BA4</td>
+          <td>Texto secundário, labels, tagline</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<footer>OmniSeen Brand Identity — BX4 Technology Solutions &mdash; docs/brand/omniseen-brand-identity.html</footer>
+
+</body>
+</html>
