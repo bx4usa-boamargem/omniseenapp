@@ -1,13 +1,18 @@
 /**
- * OmniSeen AI Router — v2.0 (Direct API)
+ * OmniSeen AI Router — v2.1 (Direct API)
  *
  * REGRA ABSOLUTA: Este é o ÚNICO ponto de entrada para chamadas de IA.
  * Nenhum fetch direto para OpenAI, Google ou qualquer gateway fora deste arquivo.
  *
  * Providers diretos:
- *   - Google Gemini 2.5 Flash  (texto)
- *   - Google Gemini 2.5 Flash  (imagem via responseModalities)
- *   - OpenAI GPT-4.1           (QA / revisão premium / fallback)
+ *   - Google Gemini 2.5 Flash  (texto estruturado, SEO, análise, outline)
+ *   - OpenAI GPT-4.1           (escrita de artigos, conteúdo premium, QA)
+ *
+ * MUDANÇA v2.1:
+ *   - article_gen_from_outline → GPT-4.1 como primário (qualidade PT-BR superior)
+ *   - article_gen_single_pass  → GPT-4.1 como primário
+ *   - content_gen              → GPT-4.1 como primário
+ *   - Gemini mantido para: outline, entidades, SERP, análise, SEO (rápido + barato)
  *
  * Secrets necessários (Supabase Edge Function Secrets):
  *   - GOOGLE_AI_KEY   → Google AI Studio key
@@ -89,22 +94,31 @@ const DEFAULT_ROUTE: RouteConfig = {
 };
 
 const ROUTES: Record<string, Partial<RouteConfig>> = {
-  // Content generation — Gemini (fast + cheap), OpenAI fallback
+  // ===================================================================
+  // CONTENT WRITING — GPT-4.1 como primário (qualidade PT-BR superior)
+  // Gemini como fallback para garantir disponibilidade
+  // ===================================================================
+  article_gen_from_outline: { primary: 'openai', fallback: 'gemini', temperature: 0.5, maxTokens: 12000 },
+  article_gen_single_pass:  { primary: 'openai', fallback: 'gemini', temperature: 0.5, maxTokens: 8000 },
+  content_gen:              { primary: 'openai', fallback: 'gemini', temperature: 0.5, maxTokens: 8000 },
+  landing_page_gen:         { primary: 'openai', fallback: 'gemini', temperature: 0.5, maxTokens: 8000 },
+  ebook_gen:                { primary: 'openai', fallback: 'gemini', temperature: 0.5, maxTokens: 8000 },
+  translate:                { primary: 'openai', fallback: 'gemini', temperature: 0.2, maxTokens: 8000 },
+
+  // ===================================================================
+  // ESTRUTURA E OUTLINE — Gemini (rápido, barato, estruturado)
+  // ===================================================================
   outline_gen:              { temperature: 0.4, maxTokens: 8000 },
-  content_gen:              { temperature: 0.5, maxTokens: 8000 },
-  article_gen_single_pass:  { temperature: 0.4, maxTokens: 6000 },
-  article_gen_from_outline: { temperature: 0.4, maxTokens: 12000 },
   section_expansion:        { temperature: 0.3, maxTokens: 4000 },
-  title_gen:                { temperature: 0.7, maxTokens: 8000 },
-  meta_gen:                 { temperature: 0.3, maxTokens: 4000, fallback: null },
-  landing_page_gen:         { temperature: 0.5, maxTokens: 8000 },
-  ebook_gen:                { temperature: 0.5, maxTokens: 8000 },
+  title_gen:                { temperature: 0.7, maxTokens: 2000 },
+  meta_gen:                 { temperature: 0.3, maxTokens: 1000, fallback: null },
   funnel_gen:               { temperature: 0.4, maxTokens: 8000 },
   concept_gen:              { temperature: 0.6, maxTokens: 4000 },
   persona_gen:              { temperature: 0.5, maxTokens: 4000 },
-  translate:                { temperature: 0.3, maxTokens: 8000 },
 
-  // SEO & analysis — Gemini (fast, no fallback for simple tasks)
+  // ===================================================================
+  // SEO & ANÁLISE — Gemini (sem fallback, tarefas simples)
+  // ===================================================================
   serp_analysis:            { temperature: 0.3, maxTokens: 8000, fallback: null },
   serp_summary:             { temperature: 0.3, maxTokens: 2000, fallback: null },
   serp_gap_analysis:        { temperature: 0.2, maxTokens: 4000, fallback: null },
@@ -124,29 +138,40 @@ const ROUTES: Record<string, Partial<RouteConfig>> = {
   broken_link_fix:          { temperature: 0.3, maxTokens: 4000, fallback: null },
   trend_analysis:           { temperature: 0.3, maxTokens: 4000, fallback: null },
   market_intel:             { temperature: 0.3, maxTokens: 4000, fallback: null },
+  content_calendar:         { temperature: 0.4, maxTokens: 4000, fallback: null },
 
-  // Optimization — Gemini
-  boost_score:              { temperature: 0.3, maxTokens: 8000 },
-  auto_fix:                 { temperature: 0.3, maxTokens: 8000 },
-  polish_final:             { temperature: 0.3, maxTokens: 8000 },
-  optimize_performance:     { temperature: 0.3, maxTokens: 8000 },
-  improve_complete:         { temperature: 0.4, maxTokens: 8000 },
+  // ===================================================================
+  // OTIMIZAÇÃO DE ARTIGOS — GPT-4.1 (revisão editorial)
+  // ===================================================================
+  boost_score:              { primary: 'openai', fallback: 'gemini', temperature: 0.3, maxTokens: 8000 },
+  auto_fix:                 { primary: 'openai', fallback: 'gemini', temperature: 0.3, maxTokens: 8000 },
+  polish_final:             { primary: 'openai', fallback: 'gemini', temperature: 0.3, maxTokens: 8000 },
+  optimize_performance:     { primary: 'openai', fallback: 'gemini', temperature: 0.3, maxTokens: 8000 },
+  improve_complete:         { primary: 'openai', fallback: 'gemini', temperature: 0.4, maxTokens: 8000 },
 
-  // QA & review — OpenAI as primary (higher quality editorial judgment)
+  // ===================================================================
+  // QA & REVISÃO — OpenAI como primário (julgamento editorial)
+  // ===================================================================
   content_critic:           { primary: 'openai', fallback: 'gemini', temperature: 0.1, maxTokens: 4000 },
   review_article:           { primary: 'openai', fallback: 'gemini', temperature: 0.2, maxTokens: 4000 },
   quality_gate:             { primary: 'openai', fallback: 'gemini', temperature: 0.1, maxTokens: 4000 },
 
-  // Chat — Gemini
+  // ===================================================================
+  // CHAT — Gemini (latência baixa)
+  // ===================================================================
   chat:                     { temperature: 0.6, maxTokens: 4000, fallback: null },
   support_chat:             { temperature: 0.5, maxTokens: 4000, fallback: null },
   sales_agent:              { temperature: 0.5, maxTokens: 4000, fallback: null },
   article_chat:             { temperature: 0.5, maxTokens: 4000, fallback: null },
 
-  // Image — handled by generateImage(), not generateText()
+  // ===================================================================
+  // IMAGE — via generateImage(), não generateText()
+  // ===================================================================
   image_gen:                { temperature: 0.7, maxTokens: 4000, fallback: null },
 
-  // Utilities — Gemini
+  // ===================================================================
+  // UTILIDADES — Gemini
+  // ===================================================================
   summarize:                { temperature: 0.2, maxTokens: 4000, fallback: null },
   instagram_import:         { temperature: 0.3, maxTokens: 4000, fallback: null },
 
@@ -166,7 +191,6 @@ function getRoute(task: TaskType): RouteConfig {
 const COST_PER_1M: Record<string, { input: number; output: number }> = {
   'gemini-2.5-flash':   { input: 0.15, output: 0.60 },
   'gpt-4.1':            { input: 2.00, output: 8.00 },
-  
 };
 
 function estimateCost(model: string, tokensIn: number, tokensOut: number): number {
@@ -209,7 +233,6 @@ async function callGemini(
     };
   }
 
-  // Convert OpenAI-style messages to Gemini format
   const systemMessage = messages.find(m => m.role === 'system');
   const contents = messages
     .filter(m => m.role !== 'system')
@@ -245,7 +268,7 @@ async function callGemini(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
-    }, 120000); // 2min timeout
+    }, 120000);
 
     const latencyMs = Date.now() - startMs;
 
@@ -342,7 +365,7 @@ async function callOpenAI(
         },
         body: JSON.stringify(body),
       },
-      120000, // 2min timeout
+      120000,
     );
 
     const latencyMs = Date.now() - startMs;
@@ -361,7 +384,6 @@ async function callOpenAI(
 
     const data = await response.json();
 
-    // Extract content — handle tool_calls and regular content
     let content = '';
     const choice = data.choices?.[0];
 
@@ -437,7 +459,7 @@ async function callGeminiImage(prompt: string): Promise<ImageResult> {
           responseModalities: ['IMAGE', 'TEXT'],
         },
       }),
-    }, 60000); // 60s timeout for images
+    }, 60000);
 
     const latencyMs = Date.now() - startMs;
 
@@ -451,8 +473,6 @@ async function callGeminiImage(prompt: string): Promise<ImageResult> {
     }
 
     const data = await response.json();
-
-    // Extract image from Gemini native response
     const parts = data.candidates?.[0]?.content?.parts || [];
     const imagePart = parts.find((p: Record<string, unknown>) => p.inlineData);
 
@@ -493,15 +513,6 @@ async function callGeminiImage(prompt: string): Promise<ImageResult> {
 // PUBLIC API: generateText
 // ============================================================================
 
-/**
- * Generate text using the AI router.
- * Routes to the appropriate provider based on TaskType.
- * Includes automatic fallback when configured.
- *
- * @param task - The task type (determines model routing)
- * @param messages - OpenAI-format messages array
- * @param opts - Optional overrides for temperature, maxTokens, etc.
- */
 export async function generateText(
   task: TaskType,
   messages: AIMessage[],
@@ -519,19 +530,16 @@ export async function generateText(
 
   console.log(`[OMNISEEN-AI] ${task}: → ${primaryProvider}/${primaryModel} (temp=${temperature}${useGrounding ? ', grounded' : ''})`);
 
-  // Call primary provider
   const callProvider = primaryProvider === 'openai' ? callOpenAI : callGemini;
   const primaryResult = await callProvider(messages, primaryModel, temperature, maxTokens, responseFormat, useGrounding);
 
   if (primaryResult.success) return primaryResult;
 
-  // If no fallback configured, or payment required (don't retry), return failure
   const fallbackProvider = route.fallback;
   if (!fallbackProvider || forcedProvider || primaryResult.error?.includes('PAYMENT_REQUIRED')) {
     return primaryResult;
   }
 
-  // Fallback
   const fallbackModel = route.model[fallbackProvider];
   console.log(`[OMNISEEN-AI] ${task}: ⚠️ ${primaryProvider} failed (${primaryResult.error}), falling back to ${fallbackProvider}/${fallbackModel}`);
 
@@ -549,13 +557,6 @@ export async function generateText(
 // PUBLIC API: generateImage
 // ============================================================================
 
-/**
- * Generate an image using Gemini Image API.
- * Falls back to Unsplash/Picsum placeholder on failure.
- *
- * @param prompt - Image generation prompt
- * @param _opts - Optional image options (reserved for future use)
- */
 export async function generateImage(
   prompt: string,
   _opts?: ImageOptions,
@@ -564,7 +565,6 @@ export async function generateImage(
 
   if (result.success) return result;
 
-  // Fallback: Picsum placeholder
   console.log(`[OMNISEEN-AI] Image: ⚠️ Gemini failed, using Picsum fallback`);
   const seed = prompt.replace(/[^a-zA-Z0-9]/g, '').substring(0, 50) + Date.now();
   const fallbackUrl = `https://picsum.photos/seed/${seed}/1024/576`;
@@ -580,23 +580,14 @@ export async function generateImage(
 }
 
 // ============================================================================
-// PUBLIC API: reviewText (alias for QA-priority tasks)
+// PUBLIC API: reviewText
 // ============================================================================
 
-/**
- * Review/QA text content. Uses OpenAI as primary for higher quality editorial judgment.
- * This is a convenience wrapper around generateText with QA-priority routing.
- *
- * @param task - Review task type
- * @param messages - Messages for the review
- * @param opts - Optional overrides
- */
 export async function reviewText(
   task: TaskType,
   messages: AIMessage[],
   opts?: TextOptions,
 ): Promise<AIResult> {
-  // Force OpenAI for review tasks unless explicitly overridden
   const reviewOpts: TextOptions = {
     ...opts,
     forceProvider: opts?.forceProvider || 'openai',
@@ -605,13 +596,9 @@ export async function reviewText(
 }
 
 // ============================================================================
-// RETRY WRAPPER (for callers that need retry logic)
+// RETRY WRAPPER
 // ============================================================================
 
-/**
- * Call generateText with exponential backoff retry.
- * Only retries on transient errors (429, 5xx, network).
- */
 export async function generateTextWithRetry(
   task: TaskType,
   messages: AIMessage[],
@@ -625,7 +612,6 @@ export async function generateTextWithRetry(
 
     if (result.success) return result;
 
-    // Don't retry non-transient errors
     if (result.error?.includes('PAYMENT_REQUIRED') || result.error?.includes('FORBIDDEN')) {
       return result;
     }
@@ -637,6 +623,5 @@ export async function generateTextWithRetry(
     }
   }
 
-  // Final attempt (should not reach here normally)
   return generateText(task, messages, opts);
 }

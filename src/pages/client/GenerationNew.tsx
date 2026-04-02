@@ -47,6 +47,16 @@ export default function GenerationNew() {
     generation_mode: 'economic', content_type: 'como_fazer',
   });
 
+  const CONTENT_TYPES = [
+    { value: 'how-to',      label: '📋 Como fazer',      desc: 'Guia passo a passo' },
+    { value: 'listicle',    label: '📌 Lista',            desc: 'X melhores / dicas' },
+    { value: 'faq',         label: '❓ FAQ',              desc: 'Perguntas e respostas' },
+    { value: 'comparison',  label: '⚖️ Comparativo',     desc: 'X vs Y — qual escolher' },
+    { value: 'local-seo',   label: '📍 SEO Local',        desc: 'Serviço em cidade/região' },
+    { value: 'pillar',      label: '🏛️ Página pilar',    desc: 'Conteúdo completo e extenso' },
+    { value: 'case-study',  label: '🔬 Caso de sucesso',  desc: 'Resultado real documentado' },
+  ];
+
   const set = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }));
 
   // Validation
@@ -121,6 +131,7 @@ export default function GenerationNew() {
         intent: form.intent === 'auto' ? 'informational' : form.intent,
         target_words: parseInt(form.target_words),
         image_count: 4,
+        content_type: form.content_type,
         brand_voice: { tone: form.tone, person: form.person, avoid: form.avoid ? form.avoid.split(',').map(s => s.trim()) : [] },
         generation_mode: form.generation_mode,
       };
@@ -225,6 +236,27 @@ export default function GenerationNew() {
               </SelectContent>
             </Select>
           )}
+        </div>
+
+        <div className="space-y-2">
+          <Label>Tipo de conteúdo *</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {CONTENT_TYPES.map(ct => (
+              <button
+                key={ct.value}
+                type="button"
+                onClick={() => set('content_type', ct.value)}
+                className={`flex flex-col items-start p-3 rounded-lg border text-left transition-all ${
+                  form.content_type === ct.value
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border bg-card hover:border-primary/50 text-foreground'
+                }`}
+              >
+                <span className="text-sm font-medium">{ct.label}</span>
+                <span className="text-xs text-muted-foreground mt-0.5">{ct.desc}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-4">

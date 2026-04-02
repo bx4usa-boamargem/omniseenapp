@@ -112,7 +112,7 @@ function resolveWordRange(jobInput: Record<string, unknown>, jobType: 'article' 
 
   // article
   if (targetWords && targetWords >= 500 && targetWords <= 5000) {
-    // Allow ±20% tolerance so model has room, but stays close to target
+    // Allow ±15% tolerance so model has room, but stays close to target
     const lower = Math.max(500, Math.round(targetWords * 0.85));
     const upper = Math.round(targetWords * 1.15);
     return `${lower}-${upper}`;
@@ -432,6 +432,169 @@ interface OutlineData {
   cta?: string;
 }
 
+// ============================================================
+// CONTENT TYPE TEMPLATES (inspired by claude-blog framework)
+// Templates define structure, markers and quality rules per type
+// ============================================================
+
+type ContentTypeKey = 'how-to' | 'listicle' | 'faq' | 'comparison' | 'local-seo' | 'pillar' | 'case-study' | 'article';
+
+interface ContentTypeTemplate {
+  structureHint: string;
+  answerFirstRule: string;
+  qualityMarkers: string;
+  outlineSizeHint: string;
+}
+
+function getContentTypeTemplate(contentType: ContentTypeKey, language: string): ContentTypeTemplate {
+  const isPtBr = language === 'pt-BR' || language.startsWith('pt');
+
+  const templates: Record<ContentTypeKey, ContentTypeTemplate> = {
+    'how-to': {
+      structureHint: isPtBr
+        ? 'Estrutura: Introdução com problema → Por que isso importa → Passo 1 → Passo 2 → ... → Erros comuns → Conclusão → FAQ'
+        : 'Structure: Intro with problem → Why it matters → Step 1 → Step 2 → ... → Common mistakes → Conclusion → FAQ',
+      answerFirstRule: isPtBr
+        ? '[ANSWER-FIRST] A primeira frase da introdução DEVE responder diretamente "como fazer X". Não comece com contexto — comece com a resposta.'
+        : '[ANSWER-FIRST] The first sentence MUST directly answer "how to do X". Do not start with context — start with the answer.',
+      qualityMarkers: isPtBr
+        ? '- [NUMBERED-STEPS] Cada passo deve ter número, título em H3 e pelo menos 2 parágrafos de instrução real\n- [INFO-GAIN] Inclua ao menos 1 dado ou dica que não aparece nos primeiros resultados do Google\n- [INTERNAL-LINK] Reserve 1 H2 para "Veja também" com links para artigos relacionados\n- Proibido passos vazios como "Verifique o resultado" sem instrução concreta'
+        : '- [NUMBERED-STEPS] Each step must have number, H3 title and at least 2 paragraphs\n- [INFO-GAIN] Include at least 1 data point not in top Google results\n- [INTERNAL-LINK] Reserve 1 H2 for related articles\n- No empty steps',
+      outlineSizeHint: '5-7 H2 sections with numbered steps as H3',
+    },
+    'listicle': {
+      structureHint: isPtBr
+        ? 'Estrutura: Introdução com número + promessa → Item 1 (H2) com subtópicos (H3) → ... → Comparativo final → Conclusão → FAQ'
+        : 'Structure: Intro with number + promise → Item 1 (H2) with subtopics (H3) → ... → Final comparison → Conclusion → FAQ',
+      answerFirstRule: isPtBr
+        ? '[ANSWER-FIRST] O título H1 DEVE conter o número exato de itens. A introdução deve revelar o critério de seleção na primeira frase.'
+        : '[ANSWER-FIRST] The H1 MUST contain the exact number of items. The intro reveals the selection criteria in the first sentence.',
+      qualityMarkers: isPtBr
+        ? '- [CADA-ITEM] Cada item da lista deve ter: título H2 com o nome, 3-4 parágrafos de análise, prós e contras se aplicável\n- [INFO-GAIN] Ao menos 3 itens devem ter dado concreto (preço, estatística, caso real)\n- [RANKING-LOGIC] Explique brevemente por que cada item está na posição que está\n- Proibido itens com apenas 1 parágrafo genérico'
+        : '- [EACH-ITEM] Each item: H2 title, 3-4 analysis paragraphs, pros/cons if applicable\n- [INFO-GAIN] At least 3 items with concrete data\n- [RANKING-LOGIC] Brief explanation of ranking position',
+      outlineSizeHint: '6-10 H2 sections (one per item) with H3 for sub-analysis',
+    },
+    'faq': {
+      structureHint: isPtBr
+        ? 'Estrutura: Introdução temática → Grupo 1 de perguntas (H2) com perguntas individuais (H3) → Grupo 2 → ... → FAQ Rápido → Conclusão'
+        : 'Structure: Thematic intro → Question group 1 (H2) with individual questions (H3) → Group 2 → ... → Quick FAQ → Conclusion',
+      answerFirstRule: isPtBr
+        ? '[ANSWER-FIRST] Cada resposta (H3) DEVE começar com a resposta direta em 1-2 frases, DEPOIS o contexto e detalhes.'
+        : '[ANSWER-FIRST] Each answer (H3) MUST start with the direct answer in 1-2 sentences, THEN context and details.',
+      qualityMarkers: isPtBr
+        ? '- [SCHEMA-READY] Cada par pergunta/resposta deve ser marcado claramente — será transformado em FAQPage schema\n- [INFO-GAIN] Ao menos 30% das perguntas devem abordar dúvidas que não aparecem na primeira página do Google\n- [CONCISE] Respostas entre 80-200 palavras — diretas, sem enrolação\n- [AGRUPAMENTO] Agrupe perguntas por tema em H2, não coloque todas as perguntas soltas'
+        : '- [SCHEMA-READY] Clear Q&A pairs for FAQPage schema\n- [INFO-GAIN] 30% of questions covering gaps not in top Google results\n- [CONCISE] 80-200 word answers\n- [GROUPING] Group questions by theme in H2',
+      outlineSizeHint: '4-6 H2 topic groups, each with 3-5 H3 question-answer pairs',
+    },
+    'comparison': {
+      structureHint: isPtBr
+        ? 'Estrutura: Introdução com contexto da escolha → Opção A (H2) detalhada → Opção B (H2) detalhada → Comparativo direto (H2) → Quando escolher cada um (H2) → Veredicto → FAQ'
+        : 'Structure: Intro with decision context → Option A (H2) detailed → Option B (H2) detailed → Direct comparison (H2) → When to choose each (H2) → Verdict → FAQ',
+      answerFirstRule: isPtBr
+        ? '[ANSWER-FIRST] O veredicto final deve estar visível já na introdução (1-2 frases). O leitor não precisa ler o artigo inteiro para saber a resposta.'
+        : '[ANSWER-FIRST] The final verdict must be visible in the intro (1-2 sentences). Reader should not need to read the whole article for the answer.',
+      qualityMarkers: isPtBr
+        ? '- [TABELA-COMPARATIVA] Inclua uma tabela HTML (<table>) com os critérios de comparação lado a lado\n- [INFO-GAIN] Ao menos 2 critérios de comparação que concorrentes no Google ignoram\n- [BALANCED] Dê o mesmo nível de profundidade para cada opção — não favoreça artificialmente\n- [CENARIOS] A seção "quando escolher cada um" deve ter cenários REAIS e específicos, não genéricos'
+        : '- [COMPARISON-TABLE] Include HTML table with side-by-side criteria\n- [INFO-GAIN] At least 2 comparison criteria competitors ignore\n- [BALANCED] Equal depth for each option\n- [SCENARIOS] Real and specific use cases',
+      outlineSizeHint: '6-8 H2 sections with balanced analysis for each option',
+    },
+    'local-seo': {
+      structureHint: isPtBr
+        ? 'Estrutura: Introdução com cidade/região → O que é o serviço (H2) → Como funciona na região (H2) → Melhores opções/bairros (H2) → Preços locais (H2) → Como contratar (H2) → FAQ local'
+        : 'Structure: Intro with city/region → What is the service (H2) → How it works in the region (H2) → Best options/areas (H2) → Local prices (H2) → How to hire (H2) → Local FAQ',
+      answerFirstRule: isPtBr
+        ? '[ANSWER-FIRST] O H1 DEVE conter o nome da cidade/região. A introdução deve mencionar bairros, referências geográficas ou características locais reais nos primeiros 2 parágrafos.'
+        : '[ANSWER-FIRST] The H1 MUST contain the city/region name. Intro must mention neighborhoods or local geographic references in the first 2 paragraphs.',
+      qualityMarkers: isPtBr
+        ? '- [LOCAL-SIGNALS] Mencione pelo menos 3 referências geográficas locais reais (bairros, monumentos, vias)\n- [INFO-GAIN] Inclua informações específicas da cidade que não aparecem em guias genéricos\n- [PRICE-RANGE] Se possível, mencione faixas de preço típicas da região\n- [CTA-LOCAL] O CTA deve mencionar o serviço específico + cidade + forma de contato local\n- [SCHEMA] O artigo será marcado com LocalBusiness schema — estruture para isso'
+        : '- [LOCAL-SIGNALS] Mention at least 3 real local geographic references\n- [INFO-GAIN] City-specific info not in generic guides\n- [PRICE-RANGE] Include typical local price ranges\n- [CTA-LOCAL] CTA with service + city + local contact\n- [SCHEMA] Structured for LocalBusiness schema',
+      outlineSizeHint: '6-8 H2 sections with strong local geographic context throughout',
+    },
+    'pillar': {
+      structureHint: isPtBr
+        ? 'Estrutura: Introdução completa → Definição/conceito (H2) → Histórico/contexto (H2) → Como funciona (H2) com subtópicos H3 → Tipos/variações (H2) → Aplicações práticas (H2) → Erros/mitos (H2) → Recursos avançados (H2) → FAQ completo → Conclusão'
+        : 'Structure: Full intro → Definition/concept (H2) → Background (H2) → How it works (H2) with H3 → Types (H2) → Practical applications (H2) → Myths/mistakes (H2) → Advanced resources (H2) → Complete FAQ → Conclusion',
+      answerFirstRule: isPtBr
+        ? '[ANSWER-FIRST] A introdução deve ter um TL;DR (resumo em 3-5 pontos) após o primeiro parágrafo para leitores que querem o essencial rapidamente.'
+        : '[ANSWER-FIRST] The intro must have a TL;DR (3-5 bullet summary) after the first paragraph for quick readers.',
+      qualityMarkers: isPtBr
+        ? '- [COMPREHENSIVE] Página pilar deve cobrir o tema exaustivamente — mínimo 7 H2 com conteúdo substantivo\n- [INFO-GAIN] Ao menos 3 informações avançadas que artigos básicos sobre o tema não cobrem\n- [INTERNAL-LINKS] Crie ancoras H2 com IDs para linking interno\n- [TL;DR] Inclua sumário executivo após a introdução\n- [VISUAL] Descreva pelo menos 2 imagens/diagramas que ilustrariam conceitos complexos'
+        : '- [COMPREHENSIVE] Pillar must cover topic exhaustively — minimum 7 H2 sections\n- [INFO-GAIN] At least 3 advanced facts not in basic articles\n- [INTERNAL-LINKS] H2 anchors with IDs for internal linking\n- [TL;DR] Executive summary after intro\n- [VISUAL] Describe at least 2 diagrams for complex concepts',
+      outlineSizeHint: '8-12 H2 sections covering the topic comprehensively',
+    },
+    'case-study': {
+      structureHint: isPtBr
+        ? 'Estrutura: Contexto do cliente/situação (H2) → O problema enfrentado (H2) → A solução implementada (H2) → Resultados mensuráveis (H2) → Lições aprendidas (H2) → Como replicar (H2) → FAQ'
+        : 'Structure: Client/situation context (H2) → The problem faced (H2) → Solution implemented (H2) → Measurable results (H2) → Lessons learned (H2) → How to replicate (H2) → FAQ',
+      answerFirstRule: isPtBr
+        ? '[ANSWER-FIRST] O resultado principal (ex: "aumento de 40% em vendas") deve aparecer no H1 e no primeiro parágrafo. Não esconda o resultado no final.'
+        : '[ANSWER-FIRST] The main result (e.g., "40% increase in sales") must appear in H1 and first paragraph. Do not hide the result at the end.',
+      qualityMarkers: isPtBr
+        ? '- [METRICAS] Resultados DEVEM ser expressos em números concretos — porcentagens, valores, tempo economizado\n- [CREDIBILIDADE] Inclua detalhes específicos (setor, porte da empresa, período) mesmo que fictícios mas verossímeis\n- [REPLICAVEL] A seção "como replicar" deve ter passos acionáveis\n- [QUOTES] Inclua 1-2 citações atribuídas (mesmo que representativas, não inventadas por completo)'
+        : '- [METRICS] Results MUST be in concrete numbers\n- [CREDIBILITY] Specific details (industry, company size, period)\n- [REPLICABLE] "How to replicate" section with actionable steps\n- [QUOTES] 1-2 attributed quotes',
+      outlineSizeHint: '6-8 H2 sections following the case study narrative arc',
+    },
+    'article': {
+      structureHint: 'Standard article structure with introduction, main sections, conclusion and FAQ',
+      answerFirstRule: '[ANSWER-FIRST] The first sentence must directly address the main topic.',
+      qualityMarkers: '- [INFO-GAIN] Include at least 1 unique insight or data point\n- [FAQ] End with 3-5 relevant questions',
+      outlineSizeHint: '4-6 H2 sections',
+    },
+  };
+
+  return templates[contentType] || templates['article'];
+}
+
+// ============================================================
+// AI WRITING PATTERN DETECTOR (post-generation quality check)
+// Based on claude-blog burstiness analysis — detects AI phrases
+// ============================================================
+
+const AI_WRITING_PATTERNS = [
+  // Common AI filler phrases (EN)
+  'it is worth noting', 'it is important to note', 'it is crucial to',
+  'in conclusion,', 'in summary,', 'to summarize,',
+  'delve into', 'dive into', 'let us explore',
+  'in the realm of', 'in the world of', 'landscape of',
+  'it goes without saying', 'needless to say',
+  'as an ai', 'as a language model',
+  // Portuguese patterns (PT-BR)
+  'é importante ressaltar', 'é fundamental destacar', 'cabe ressaltar',
+  'nesse contexto,', 'neste contexto,', 'no contexto atual',
+  'é válido mencionar', 'vale mencionar que', 'vale ressaltar',
+  'em suma,', 'em resumo,', 'concluindo,',
+  'no âmbito', 'no universo', 'no mundo do',
+  'mergulhar em', 'explorar a fundo',
+];
+
+function detectAiPatterns(html: string): { score: number; flaggedPhrases: string[]; passed: boolean } {
+  const text = html.replace(/<[^>]*>/g, ' ').toLowerCase();
+  const flaggedPhrases: string[] = [];
+
+  for (const pattern of AI_WRITING_PATTERNS) {
+    if (text.includes(pattern.toLowerCase())) {
+      flaggedPhrases.push(pattern);
+    }
+  }
+
+  // Burstiness proxy: sentence length variance (higher = more human-like)
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 10);
+  const avgLen = sentences.reduce((a, s) => a + s.length, 0) / Math.max(sentences.length, 1);
+  const variance = sentences.reduce((a, s) => a + Math.pow(s.length - avgLen, 2), 0) / Math.max(sentences.length, 1);
+  const burstinessScore = Math.sqrt(variance) / Math.max(avgLen, 1);
+
+  // Score: 0-100, higher = more human-like
+  const patternPenalty = Math.min(flaggedPhrases.length * 8, 50);
+  const burstinessBonus = Math.min(burstinessScore * 30, 30);
+  const score = Math.max(0, Math.min(100, 70 - patternPenalty + burstinessBonus));
+
+  return {
+    score: Math.round(score),
+    flaggedPhrases,
+    passed: flaggedPhrases.length <= 2 && score >= 45,
+  };
+}
+
 async function executeOutlineGen(
   jobInput: Record<string, unknown>,
   serpSummary: string,
@@ -446,19 +609,20 @@ async function executeOutlineGen(
   const jobType = ((jobInput.job_type as string) || 'article') as 'article' | 'super_page';
   const cType = (jobInput.content_type as string) || 'como_fazer';
 
-  // Use target_words to calibrate outline size
+  // Use target_words and content_type template to calibrate outline
   const wordRange = resolveWordRange(jobInput, jobType);
   const targetWords = jobInput.target_words ? Number(jobInput.target_words) : null;
+  const template = getContentTypeTemplate(contentType, language);
 
   let wordHint: string;
   if (jobType === 'super_page') {
-    wordHint = 'Support 3000-6000 words: 6-10 H2 sections, 2-4 H3 per H2.';
+    wordHint = `Support 3000-6000 words. Outline: ${template.outlineSizeHint}`;
   } else if (targetWords && targetWords <= 1600) {
-    wordHint = `Support ~${targetWords} words: 3-4 H2 sections, 1-2 H3 per H2. Keep sections focused and concise.`;
+    wordHint = `Support ~${targetWords} words. Outline: ${template.outlineSizeHint}. Keep sections concise.`;
   } else if (targetWords && targetWords <= 2200) {
-    wordHint = `Support ~${targetWords} words: 4-5 H2 sections, 2 H3 per H2.`;
+    wordHint = `Support ~${targetWords} words. Outline: ${template.outlineSizeHint}.`;
   } else {
-    wordHint = `Support ~${targetWords || 2500} words: 5-6 H2 sections, 2-3 H3 per H2.`;
+    wordHint = `Support ~${targetWords || 2500} words. Outline: ${template.outlineSizeHint}.`;
   }
 
   const typeHint = contentTypeOutlineHint[cType] || contentTypeOutlineHint.como_fazer;
@@ -470,8 +634,11 @@ Keyword: ${keyword}
 City/region: ${city || 'Brazil'}
 Niche: ${niche}
 Language: ${language}
-Content type: ${jobType}
+Content type: ${contentType}
 Target word count: ${wordRange} words
+
+CONTENT TYPE STRUCTURE (${contentType.toUpperCase()}):
+${template.structureHint}
 
 SERP context (use to inform structure and gaps):
 ${serpSummary || 'No SERP data.'}
@@ -662,12 +829,10 @@ function executeEntityCoverage(outline: OutlineData, entities: EntityData): Enti
 // ============================================================
 
 function enforceHeadingStructure(html: string, outline: OutlineData): string {
-  // Check if HTML already has proper headings
   const hasH1 = /<h1[\s>]/i.test(html);
   const hasH2 = /<h2[\s>]/i.test(html);
 
   if (hasH1 && hasH2) {
-    // Already structured, just ensure <style> exists
     if (!html.includes('<style>')) {
       html = '<style>h1{font-size:2em;margin-bottom:0.5em;font-weight:700}h2{font-size:1.5em;margin-top:1.5em;margin-bottom:0.5em;font-weight:600}h3{font-size:1.2em;margin-top:1em;margin-bottom:0.4em;font-weight:600}p{line-height:1.8;margin-bottom:1em}</style>' + html;
     }
@@ -675,58 +840,38 @@ function enforceHeadingStructure(html: string, outline: OutlineData): string {
   }
 
   console.warn('[enforceHeadingStructure] HTML missing proper headings, attempting fix...');
-
   let fixed = html;
 
-  // Convert <p><strong>Title Text</strong></p> patterns to headings
-  // Match outline H2 titles in bold paragraphs
   for (const section of outline.h2) {
     const escapedTitle = section.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    // Match bold-only paragraphs that contain the section title
-    const boldPattern = new RegExp(
-      `<p[^>]*>\\s*<(?:strong|b)>\\s*${escapedTitle}\\s*</(?:strong|b)>\\s*</p>`,
-      'gi'
-    );
+    const boldPattern = new RegExp(`<p[^>]*>\\s*<(?:strong|b)>\\s*${escapedTitle}\\s*</(?:strong|b)>\\s*</p>`, 'gi');
     fixed = fixed.replace(boldPattern, `<h2>${section.title}</h2>`);
 
-    // Also try without <p> wrapping
-    const loosePattern = new RegExp(
-      `<(?:strong|b)>\\s*${escapedTitle}\\s*</(?:strong|b)>`,
-      'gi'
-    );
-    // Only replace if not already inside an h2/h3
+    const loosePattern = new RegExp(`<(?:strong|b)>\\s*${escapedTitle}\\s*</(?:strong|b)>`, 'gi');
     fixed = fixed.replace(loosePattern, (match) => {
-      // Check if already inside a heading
       const idx = fixed.indexOf(match);
       const before = fixed.substring(Math.max(0, idx - 10), idx);
       if (/<h[1-6][^>]*>$/i.test(before)) return match;
       return `<h2>${section.title}</h2>`;
     });
 
-    // Convert H3s
     for (const h3Title of section.h3) {
       const escapedH3 = h3Title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const h3Pattern = new RegExp(
-        `<p[^>]*>\\s*<(?:strong|b)>\\s*${escapedH3}\\s*</(?:strong|b)>\\s*</p>`,
-        'gi'
-      );
+      const h3Pattern = new RegExp(`<p[^>]*>\\s*<(?:strong|b)>\\s*${escapedH3}\\s*</(?:strong|b)>\\s*</p>`, 'gi');
       fixed = fixed.replace(h3Pattern, `<h3>${h3Title}</h3>`);
     }
   }
 
-  // If still no H1, inject one from the outline
   if (!/<h1[\s>]/i.test(fixed)) {
     fixed = `<h1>${outline.h1}</h1>\n` + fixed;
   }
 
-  // Ensure <style> tag
   if (!fixed.includes('<style>')) {
     fixed = '<style>h1{font-size:2em;margin-bottom:0.5em;font-weight:700}h2{font-size:1.5em;margin-top:1.5em;margin-bottom:0.5em;font-weight:600}h3{font-size:1.2em;margin-top:1em;margin-bottom:0.4em;font-weight:600}p{line-height:1.8;margin-bottom:1em}</style>' + fixed;
   }
 
   const newH2Count = (fixed.match(/<h2[\s>]/gi) || []).length;
   console.log(`[enforceHeadingStructure] Fixed: hasH1=${/<h1[\s>]/i.test(fixed)}, h2Count=${newH2Count}`);
-
   return fixed;
 }
 
@@ -888,11 +1033,10 @@ async function executeContentGenFromOutline(
     ? `Include a WhatsApp CTA: ${whatsapp}${businessName ? ` (${businessName})` : ''}`
     : businessName ? `Include a CTA for ${businessName}` : 'Include a strong contact CTA';
 
-  // *** FIX: use target_words from job input, not hardcoded range ***
   const wordRange = resolveWordRange(jobInput, jobType);
   const targetWords = jobInput.target_words ? Number(jobInput.target_words) : null;
 
-  console.log(`[CONTENT_GEN] wordRange=${wordRange} target_words=${targetWords} job_type=${jobType}`);
+  console.log(`[CONTENT_GEN] wordRange=${wordRange} target_words=${targetWords} job_type=${jobType} content_type=${contentType}`);
 
   const outlineJson = JSON.stringify(outline, null, 0);
   const entitiesJson = JSON.stringify(entities, null, 0);
@@ -906,7 +1050,16 @@ INPUT:
 - city: ${city || 'Brazil'}
 - niche: ${niche}
 - language: ${language}
+- content_type: ${contentType}
 - serp_summary: ${serpSummary || 'No competitive data'}
+
+=== CONTENT TYPE RULES (${contentType.toUpperCase()}) ===
+${template.structureHint}
+
+${template.answerFirstRule}
+
+QUALITY MARKERS — apply these throughout:
+${template.qualityMarkers}
 
 MANDATORY OUTLINE (follow this structure exactly; write each H2 and H3 section with depth):
 ${outlineJson}
@@ -1015,7 +1168,6 @@ OUTPUT FORMAT (STRICT JSON only):
   if (!parsed.title) throw new Error('CONTENT_GEN: missing title');
   if (!parsed.html_article) throw new Error('CONTENT_GEN: missing html_article');
 
-  // Post-process: enforce heading structure if AI returned plain text headings
   parsed.html_article = enforceHeadingStructure(parsed.html_article as string, outline);
 
   // ── Melhoria 2: Inject "Last Updated" timestamp ─────────────────────────────
@@ -1086,12 +1238,10 @@ async function executeSaveArticle(
   const imagePrompt = (articleData.image_prompt as string) || '';
   const schemaJson = (articleData.schema_faq as string) ?? null;
 
-  // Validate HTML
   if (!htmlArticle || htmlArticle.length < 200) {
     throw new Error('SAVE_ARTICLE: HTML content too short');
   }
 
-  // Generate unique slug (with timestamp suffix to avoid duplicates)
   const baseSlug = title.toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9\s-]/g, '')
@@ -1099,23 +1249,18 @@ async function executeSaveArticle(
     .substring(0, 70);
   const slug = `${baseSlug}-${Date.now().toString(36)}`;
 
-  // Generate excerpt
   const excerpt = metaDescription || title;
-
-  // Calculate word count and target
   const textContent = htmlArticle.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   const wordCount = textContent.split(/\s+/).filter(Boolean).length;
   const readingTime = Math.ceil(wordCount / 200);
   const wordCountTarget = jobInput.target_words ? Number(jobInput.target_words) : (contentType === 'super_page' ? 4500 : 2250);
 
-  // Fetch CTA config from blog
   const { data: blogData } = await supabase
     .from('blogs')
     .select('cta_type, cta_url, cta_text, header_cta_text, header_cta_url, city')
     .eq('id', blogId)
     .single();
 
-  // Build CTA: prioritize job input, fallback to blog config
   const whatsapp = (jobInput.whatsapp as string) || '';
   const businessName = (jobInput.business_name as string) || '';
   const city = (jobInput.city as string) || blogData?.city || '';
@@ -1132,7 +1277,6 @@ async function executeSaveArticle(
     };
   }
 
-  // Inject CTA into HTML
   const finalHtml = injectCtaIntoHtml(htmlArticle, cta);
 
   const insertPayload: Record<string, unknown> = {
@@ -1154,7 +1298,6 @@ async function executeSaveArticle(
     source_payload: { image_prompt: imagePrompt, content_type: contentType, word_count_target: wordCountTarget, schema_json: schemaJson } as unknown,
   };
 
-  // 3x retry insert
   let articleId: string | null = null;
   for (let attempt = 1; attempt <= 3; attempt++) {
     const { data: article, error: articleError } = await supabase
@@ -1179,7 +1322,6 @@ async function executeSaveArticle(
     }).eq('id', jobId);
   }
 
-  // Update generation_jobs with article_id
   await supabase.from('generation_jobs').update({
     article_id: articleId,
     output: {
@@ -1286,11 +1428,10 @@ async function executeImageGenGeminiNanoBanana(
   const slug = keyword.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
   const visualContextBrief = `[Visual Context: Topic is "${keyword}" in "${city}", niche "${niche}". Aesthetic: Premium, photorealistic, cinematic. ZERO text/words/letters/typography in image.]`;
-
   const heroPrompt = `${visualContextBrief} Hero scene: ${heroPromptRaw}`;
 
   const contentImages: { context: string; url: string; alt?: string; after_section: number }[] = [];
-  const usedImageUrls = new Set<string>(); // Dedup: track all generated URLs
+  const usedImageUrls = new Set<string>();
   const usedSectionPrompts = new Set<string>();
   let heroUrl: string | null = null;
   let heroAlt: string | null = null;
@@ -1378,7 +1519,7 @@ async function executeImageGenGeminiNanoBanana(
 }
 
 // ============================================================
-// STEP: INTERNAL_LINK_ENGINE (cluster links between articles/super pages)
+// STEP: INTERNAL_LINK_ENGINE
 // ============================================================
 
 async function executeInternalLinkEngine(
@@ -1399,7 +1540,6 @@ async function executeInternalLinkEngine(
       .limit(10);
     if (!candidates?.length) return { inserted: 0, reason: "no_candidates" };
     const links: { source_article_id: string; target_article_id: string; anchor_text: string }[] = [];
-    const words = (keyword + " " + title).toLowerCase().split(/\s+/).filter((w) => w.length > 2);
     for (const t of candidates.slice(0, 5)) {
       const anchor = t.title?.slice(0, 60) || t.slug || "";
       if (!anchor) continue;
@@ -1416,7 +1556,7 @@ async function executeInternalLinkEngine(
 }
 
 // ============================================================
-// STEP: QUALITY_GATE (block publish if thresholds not met)
+// STEP: QUALITY_GATE (with AI Detection)
 // ============================================================
 
 async function executeQualityGate(
@@ -1477,17 +1617,19 @@ async function executeQualityGate(
     failures: reasons,
     word_count: wordCount,
     seo_score: Math.round(contentScore),
+    ai_detection_score: aiDetection.score,
+    ai_flagged_phrases: aiDetection.flaggedPhrases,
   });
 
   return { passed, entityOk, wordOk, faqOk, scoreOk, aiOk, reasons, quality_gate_status: qualityGateStatus, aiDetection: aiScan };
 }
 
 // ============================================================
-// ORCHESTRATOR CORE (TRUE SUPER PAGE ENGINE)
+// ORCHESTRATOR CORE
 // ============================================================
 
 async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, serviceKey: string): Promise<void> {
- try { // TOP-LEVEL SAFETY NET
+ try {
   const jobStart = Date.now();
 
   const { data: job, error: jobError } = await supabase.from('generation_jobs').select('*').eq('id', jobId).single();
@@ -1496,7 +1638,6 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
 
   const jobType = ((job.job_type ?? job.input?.job_type) || 'article') as 'article' | 'super_page';
 
-  // Signal boot
   await supabase.from('generation_jobs').update({
     public_stage: 'ANALYZING_MARKET',
     public_progress: 3,
@@ -1511,10 +1652,9 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
   const rewriteModel = job.rewrite_model || 'gpt-4.1';
   const useGrounding = researchMode === 'google_grounding';
 
-  console.log(`[ORCHESTRATOR:V2] job_id=${jobId} input=${JSON.stringify({ keyword: jobInput.keyword, city: jobInput.city, niche: jobInput.niche, job_type: jobType, target_words: jobInput.target_words })}`);
+  console.log(`[ORCHESTRATOR:V2] job_id=${jobId} input=${JSON.stringify({ keyword: jobInput.keyword, city: jobInput.city, niche: jobInput.niche, job_type: jobType, target_words: jobInput.target_words, content_type: jobInput.content_type || 'article' })}`);
   console.log(`[ORCHESTRATOR:V2] Modes: gen=${generationMode}, res=${researchMode}, rew=${rewriteModel}, grd=${useGrounding}`);
 
-  // Lock
   if (job.locked_at) {
     const lockAge = Date.now() - new Date(job.locked_at).getTime();
     if (lockAge < LOCK_TTL_MS) {
@@ -1544,7 +1684,6 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
   }
   console.log(`[ENGINE] LOCK_ACQUIRED job_id=${jobId} lockId=${lockId}`);
 
-  // Heartbeat
   let heartbeatRunning = true;
   const heartbeatInterval = setInterval(async () => {
     if (!heartbeatRunning) return;
@@ -1559,19 +1698,14 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
   let totalCostUsd = job.cost_usd || 0;
 
   try {
-    // ============================================================
-    // STEP 1: INPUT_VALIDATION (programmatic)
-    // ============================================================
-    console.log(`[V2] Step 1/8: INPUT_VALIDATION`);
+    // STEP 1: INPUT_VALIDATION
+    console.log(`[V2] Step 1: INPUT_VALIDATION`);
     await updatePublicStatus(supabase, jobId, 'INPUT_VALIDATION', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'INPUT_VALIDATION' }).eq('id', jobId);
-
     const valStepId = await createStepOrFail(supabase, jobId, 'INPUT_VALIDATION', { job_input: job.input });
-
     const valStart = Date.now();
     const valOutput = executeInputValidation(jobInput);
     const valLatency = Date.now() - valStart;
-
     await supabase.from('generation_steps').update({
       status: 'completed', output: valOutput, latency_ms: valLatency,
       completed_at: new Date().toISOString(), model_used: 'validation', provider: 'programmatic',
@@ -1579,22 +1713,16 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     await updatePublicStatus(supabase, jobId, 'INPUT_VALIDATION', true, lockId);
     console.log(`[V2] ✅ INPUT_VALIDATION ${valLatency}ms`);
 
-    // ============================================================
     // STEP 2: SERP_ANALYSIS
-    // ============================================================
-    console.log(`[V2] Step 2/8: SERP_ANALYSIS`);
+    console.log(`[V2] Step 2: SERP_ANALYSIS`);
     await updatePublicStatus(supabase, jobId, 'SERP_ANALYSIS', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'SERP_ANALYSIS' }).eq('id', jobId);
-
     let serpStepId: string | null = null;
     let serpSummaryText = '';
     const serpStart = Date.now();
     try {
       serpStepId = await createStepOrFail(supabase, jobId, 'SERP_ANALYSIS', { keyword: jobInput.keyword, city: jobInput.city });
-      const serpResult = await withTimeout(
-        executeSerpSummary(jobInput, supabaseUrl, serviceKey, useGrounding),
-        30_000, 'SERP_ANALYSIS'
-      );
+      const serpResult = await withTimeout(executeSerpSummary(jobInput, supabaseUrl, serviceKey, useGrounding), 30_000, 'SERP_ANALYSIS');
       serpSummaryText = (serpResult.output.serp_summary as string) || '';
       totalApiCalls++;
       totalCostUsd += serpResult.aiResult.costUsd || 0;
@@ -1618,9 +1746,7 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     await updatePublicStatus(supabase, jobId, 'SERP_ANALYSIS', true, lockId);
     await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
 
-    // ============================================================
     // STEP: SERP_GAP_ANALYSIS
-    // ============================================================
     let gapAnalysis: SerpGapResult = { semantic_gaps: [], competitor_topics: [] };
     console.log(`[V2] Step: SERP_GAP_ANALYSIS`);
     await updatePublicStatus(supabase, jobId, 'SERP_GAP_ANALYSIS', false, lockId);
@@ -1632,25 +1758,20 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
       totalApiCalls++;
       totalCostUsd += gapResult.aiResult.costUsd || 0;
       await supabase.from('generation_steps').update({
-        status: 'completed', output: gapResult.output, completed_at: new Date().toISOString(), model_used: gapResult.aiResult.model, provider: gapResult.aiResult.provider, cost_usd: gapResult.aiResult.costUsd,
+        status: 'completed', output: gapResult.output, completed_at: new Date().toISOString(),
+        model_used: gapResult.aiResult.model, provider: gapResult.aiResult.provider, cost_usd: gapResult.aiResult.costUsd,
       }).eq('id', gapStepId);
     } catch (_) { /* non-fatal */ }
     await updatePublicStatus(supabase, jobId, 'SERP_GAP_ANALYSIS', true, lockId);
     await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
 
-    // ============================================================
-    // STEP: OUTLINE_GEN (mandatory)
-    // ============================================================
+    // STEP: OUTLINE_GEN
     console.log(`[V2] Step: OUTLINE_GEN`);
     await updatePublicStatus(supabase, jobId, 'OUTLINE_GEN', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'OUTLINE_GEN' }).eq('id', jobId);
-
-    const outlineStepId = await createStepOrFail(supabase, jobId, 'OUTLINE_GEN', { keyword: jobInput.keyword });
+    const outlineStepId = await createStepOrFail(supabase, jobId, 'OUTLINE_GEN', { keyword: jobInput.keyword, content_type: jobInput.content_type || 'article' });
     const outlineStart = Date.now();
-    const outlineResult = await withTimeout(
-      executeOutlineGen(jobInput, serpSummaryText, supabaseUrl, serviceKey, useGrounding),
-      45_000, 'OUTLINE_GEN'
-    );
+    const outlineResult = await withTimeout(executeOutlineGen(jobInput, serpSummaryText, supabaseUrl, serviceKey, useGrounding), 45_000, 'OUTLINE_GEN');
     let outline = outlineResult.output.outline;
     totalApiCalls++;
     totalCostUsd += outlineResult.aiResult.costUsd || 0;
@@ -1663,9 +1784,7 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
     console.log(`[V2] ✅ OUTLINE_GEN ${Date.now() - outlineStart}ms | h1="${outline.h1?.slice(0, 40)}"`);
 
-    // ============================================================
     // STEP: AUTO_SECTION_EXPANSION
-    // ============================================================
     let expandedOutline = outline;
     console.log(`[V2] Step: AUTO_SECTION_EXPANSION`);
     await updatePublicStatus(supabase, jobId, 'AUTO_SECTION_EXPANSION', false, lockId);
@@ -1679,25 +1798,20 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
         totalCostUsd += expResult.aiResult.costUsd || 0;
       }
       await supabase.from('generation_steps').update({
-        status: 'completed', output: { outline: expandedOutline }, completed_at: new Date().toISOString(), model_used: expResult.aiResult.model || 'none', provider: expResult.aiResult.provider || 'none',
+        status: 'completed', output: { outline: expandedOutline }, completed_at: new Date().toISOString(),
+        model_used: expResult.aiResult.model || 'none', provider: expResult.aiResult.provider || 'none',
       }).eq('id', expStepId);
-    } catch (_) { /* non-fatal, use original outline */ }
+    } catch (_) { /* non-fatal */ }
     await updatePublicStatus(supabase, jobId, 'AUTO_SECTION_EXPANSION', true, lockId);
     outline = expandedOutline;
 
-    // ============================================================
     // STEP: ENTITY_EXTRACTION
-    // ============================================================
     console.log(`[V2] Step: ENTITY_EXTRACTION`);
     await updatePublicStatus(supabase, jobId, 'ENTITY_EXTRACTION', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'ENTITY_EXTRACTION' }).eq('id', jobId);
-
     const entityStepId = await createStepOrFail(supabase, jobId, 'ENTITY_EXTRACTION', { keyword: jobInput.keyword });
     const entityStart = Date.now();
-    const entityResult = await withTimeout(
-      executeEntityExtraction(jobInput, serpSummaryText, outline, supabaseUrl, serviceKey),
-      30_000, 'ENTITY_EXTRACTION'
-    );
+    const entityResult = await withTimeout(executeEntityExtraction(jobInput, serpSummaryText, outline, supabaseUrl, serviceKey), 30_000, 'ENTITY_EXTRACTION');
     const entities = entityResult.output.entities;
     totalApiCalls++;
     totalCostUsd += entityResult.aiResult.costUsd || 0;
@@ -1710,13 +1824,10 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
     console.log(`[V2] ✅ ENTITY_EXTRACTION ${Date.now() - entityStart}ms`);
 
-    // ============================================================
-    // STEP: ENTITY_COVERAGE (distribute entities, score)
-    // ============================================================
+    // STEP: ENTITY_COVERAGE
     console.log(`[V2] Step: ENTITY_COVERAGE`);
     await updatePublicStatus(supabase, jobId, 'ENTITY_COVERAGE', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'ENTITY_COVERAGE' }).eq('id', jobId);
-
     const covStepId = await createStepOrFail(supabase, jobId, 'ENTITY_COVERAGE', { entity_count: (entities.topics?.length || 0) + (entities.terms?.length || 0) });
     const covStart = Date.now();
     const entityCoverage = executeEntityCoverage(outline, entities);
@@ -1727,9 +1838,7 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     await updatePublicStatus(supabase, jobId, 'ENTITY_COVERAGE', true, lockId);
     console.log(`[V2] ✅ ENTITY_COVERAGE score=${entityCoverage.coverageScore}`);
 
-    // ============================================================
-    // STEP: CONTENT_GEN (outline-driven + entity coverage)
-    // ============================================================
+    // STEP: CONTENT_GEN
     console.log(`[V2] Step: CONTENT_GEN`);
     await updatePublicStatus(supabase, jobId, 'CONTENT_GEN', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'CONTENT_GEN' }).eq('id', jobId);
@@ -1775,43 +1884,29 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
     console.log(`[V2] ✅ CONTENT_GEN ${Date.now() - genStart}ms | title="${(articleData!.title as string || '').slice(0, 50)}" | content_type=${jobInput.content_type} | mode=${generationMode}`);
 
-    // ============================================================
-    // STEP: REWRITE_PREMIUM (only in premium mode — GPT-4.1)
-    // Runs BEFORE SAVE_ARTICLE so the final saved content is the
-    // humanised, quality-reviewed version.
-    // ============================================================
+    // STEP: REWRITE_PREMIUM (premium mode only)
     if (generationMode === 'premium') {
-      console.log(`[V2] Step: REWRITE_PREMIUM | mode=${generationMode} | model=${rewriteModel} | provider=openai`);
+      console.log(`[V2] Step: REWRITE_PREMIUM | mode=${generationMode} | model=${rewriteModel}`);
       await updatePublicStatus(supabase, jobId, 'REWRITE_PREMIUM', false, lockId);
       await supabase.from('generation_jobs').update({ current_step: 'REWRITE_PREMIUM' }).eq('id', jobId);
-
-      const rwStepId = await createStepOrFail(supabase, jobId, 'REWRITE_PREMIUM', {
-        keyword: jobInput.keyword, model: rewriteModel, provider: 'openai',
-      });
+      const rwStepId = await createStepOrFail(supabase, jobId, 'REWRITE_PREMIUM', { keyword: jobInput.keyword, model: rewriteModel, provider: 'openai' });
       const rwStart = Date.now();
-
       try {
         const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
         if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not set');
-
-        const draftHtml = (articleData!.html_article as string) || (articleData!.content as string) || '';
-        const rewritePrompt = `You are an elite editorial writer and SEO expert. Your task is to humanise and elevate the following article draft. Rules:
+        const draftHtml = (articleData!.html_article as string) || '';
+        const rewritePrompt = `You are an elite editorial writer and SEO expert. Humanise and elevate the following article draft. Rules:
 1. Preserve ALL factual information, structure, headings, and HTML tags.
 2. Make the prose natural, direct, and authoritative — NOT robotic or generic.
 3. Add answer-first structuring: the first paragraph after each H2 must state the answer clearly.
-4. Ensure named entities, local context, and brand references are used precisely.
-5. Do NOT truncate. Return the FULL revised HTML article.
-6. Return ONLY the revised HTML. No markdown, no code block.
+4. Do NOT truncate. Return the FULL revised HTML article.
+5. Return ONLY the revised HTML. No markdown, no code block.
 
 DRAFT ARTICLE:
 ${draftHtml.slice(0, 30000)}`;
-
         const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model: rewriteModel,
             messages: [
@@ -1822,63 +1917,45 @@ ${draftHtml.slice(0, 30000)}`;
             max_tokens: 8000,
           }),
         });
-
         if (!openaiRes.ok) {
           const errBody = await openaiRes.text();
           throw new Error(`OpenAI API error ${openaiRes.status}: ${errBody.slice(0, 200)}`);
         }
-
         const openaiData = await openaiRes.json();
         const revisedHtml = openaiData.choices?.[0]?.message?.content?.trim();
         const tokensIn = openaiData.usage?.prompt_tokens || 0;
         const tokensOut = openaiData.usage?.completion_tokens || 0;
-        const costUsd = (tokensIn * 0.000002) + (tokensOut * 0.000008); // GPT-4.1 pricing estimate
-
+        const costUsd = (tokensIn * 0.000002) + (tokensOut * 0.000008);
         if (revisedHtml && revisedHtml.length > 500) {
-          // Patch articleData with the premium-rewritten HTML
           articleData!.html_article = revisedHtml;
           articleData!.rewrite_premium_applied = true;
           articleData!.rewrite_model_used = rewriteModel;
         }
-
         totalApiCalls++;
         totalCostUsd += costUsd;
-
         await supabase.from('generation_steps').update({
           status: 'completed',
-          output: {
-            model: rewriteModel, provider: 'openai',
-            tokens_in: tokensIn, tokens_out: tokensOut, cost_usd: costUsd,
-            rewrite_applied: true,
-          },
+          output: { model: rewriteModel, provider: 'openai', tokens_in: tokensIn, tokens_out: tokensOut, cost_usd: costUsd, rewrite_applied: true },
           latency_ms: Date.now() - rwStart,
           completed_at: new Date().toISOString(),
-          model_used: rewriteModel, provider: 'openai',
-          cost_usd: costUsd, tokens_in: tokensIn, tokens_out: tokensOut,
+          model_used: rewriteModel, provider: 'openai', cost_usd: costUsd, tokens_in: tokensIn, tokens_out: tokensOut,
         }).eq('id', rwStepId);
-
-        console.log(`[V2] ✅ REWRITE_PREMIUM ${Date.now() - rwStart}ms | model=${rewriteModel} | tokens_in=${tokensIn} tokens_out=${tokensOut} | cost=$${costUsd.toFixed(4)}`);
-
+        console.log(`[V2] ✅ REWRITE_PREMIUM ${Date.now() - rwStart}ms | model=${rewriteModel}`);
       } catch (rwErr) {
-        // Fallback: keep original Gemini draft, log the error, continue
         const errMsg = rwErr instanceof Error ? rwErr.message : 'REWRITE_PREMIUM failed';
-        console.warn(`[V2] ⚠️ REWRITE_PREMIUM failed (non-fatal, keeping Gemini draft): ${errMsg}`);
+        console.warn(`[V2] ⚠️ REWRITE_PREMIUM failed (non-fatal): ${errMsg}`);
         await supabase.from('generation_steps').update({
           status: 'failed',
           output: { error: errMsg, fallback: 'gemini_draft_kept', rewrite_applied: false },
           latency_ms: Date.now() - rwStart,
           completed_at: new Date().toISOString(),
-          model_used: rewriteModel, provider: 'openai',
-          error_message: errMsg,
+          model_used: rewriteModel, provider: 'openai', error_message: errMsg,
         }).eq('id', rwStepId);
       }
-
       await updatePublicStatus(supabase, jobId, 'REWRITE_PREMIUM', true, lockId);
       await supabase.from('generation_jobs').update({ total_api_calls: totalApiCalls, cost_usd: totalCostUsd }).eq('id', jobId);
-
     } else {
-      // Explicit skip log for economic mode — visible in Supabase logs
-      console.log(`[V2] ⏭️ REWRITE_PREMIUM skipped (mode=${generationMode}) — economic path uses Gemini draft directly`);
+      console.log(`[V2] ⏭️ REWRITE_PREMIUM skipped (mode=${generationMode})`);
     }
 
     // ============================================================
@@ -1962,7 +2039,6 @@ ${draftHtml.slice(0, 30000)}`;
 
     await updatePublicStatus(supabase, jobId, 'SAVE_ARTICLE', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'SAVE_ARTICLE' }).eq('id', jobId);
-
     const saveStepId = await createStepOrFail(supabase, jobId, 'SAVE_ARTICLE', { title: articleData!.title });
     const saveStart = Date.now();
     const saveOutput = await executeSaveArticle(jobId, articleData!, jobInput, supabase, totalApiCalls, totalCostUsd, jobType);
@@ -1974,54 +2050,31 @@ ${draftHtml.slice(0, 30000)}`;
     await updatePublicStatus(supabase, jobId, 'SAVE_ARTICLE', true, lockId);
     console.log(`[V2] ✅ SAVE_ARTICLE ${saveLatency}ms | article_id=${saveOutput.article_id}`);
 
-    // ============================================================
-    // STEP: IMAGE_GEN (ASYNC — fire-and-forget to avoid timeout)
-    // ============================================================
+    // STEP: IMAGE_GEN
     console.log(`[V2] Step: IMAGE_GEN`);
     await updatePublicStatus(supabase, jobId, 'IMAGE_GEN', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'IMAGE_GEN' }).eq('id', jobId);
     try {
       const imgStepId = await createStepOrFail(supabase, jobId, 'IMAGE_GEN', { article_id: saveOutput.article_id });
-
-      // Mark article as images_pending so the UI knows to poll
       await supabase.from('articles').update({ images_pending: true, images_total: 1 + (outline?.h2?.length || 0), images_completed: 0 }).eq('id', saveOutput.article_id);
-
-      // Run image generation inline (wait for it) to ensure images are ready before completing
-      console.log(`[V2] IMAGE_GEN starting inline for article ${saveOutput.article_id}...`);
       const imgResult = await withTimeout(
-        executeImageGenGeminiNanoBanana(
-          saveOutput.article_id as string,
-          articleData!,
-          outline,
-          jobInput,
-          supabase
-        ),
-        90_000,
-        'IMAGE_GEN'
+        executeImageGenGeminiNanoBanana(saveOutput.article_id as string, articleData!, outline, jobInput, supabase),
+        90_000, 'IMAGE_GEN'
       );
-
-      // Mark images done
       await supabase.from('articles').update({ images_pending: false }).eq('id', saveOutput.article_id);
-
-      await supabase.from('articles').update({ images_pending: false }).eq('id', saveOutput.article_id);
-
       await supabase.from('generation_steps').update({
         status: 'completed', output: imgResult, completed_at: new Date().toISOString(),
         model_used: GEMINI_IMAGE_MODEL, provider: 'gemini',
       }).eq('id', imgStepId);
-
-      console.log(`[V2] ✅ IMAGE_GEN completed: hero=${imgResult.heroUrl ? 'yes' : 'no'}, sections=${imgResult.sectionCount || 0}`);
+      console.log(`[V2] ✅ IMAGE_GEN hero=${imgResult.heroUrl ? 'yes' : 'no'}, sections=${imgResult.sectionCount || 0}`);
     } catch (imgErr) {
       const imgErrMsg = imgErr instanceof Error ? imgErr.message : 'Image gen failed';
       console.warn(`[V2] ⚠️ IMAGE_GEN failed (non-fatal): ${imgErrMsg}`);
-      // Ensure images_pending is cleared even on failure
       await supabase.from('articles').update({ images_pending: false }).eq('id', saveOutput.article_id);
     }
     await updatePublicStatus(supabase, jobId, 'IMAGE_GEN', true, lockId);
 
-    // ============================================================
     // STEP: INTERNAL_LINK_ENGINE
-    // ============================================================
     console.log(`[V2] Step: INTERNAL_LINK_ENGINE`);
     await updatePublicStatus(supabase, jobId, 'INTERNAL_LINK_ENGINE', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'INTERNAL_LINK_ENGINE' }).eq('id', jobId);
@@ -2037,27 +2090,25 @@ ${draftHtml.slice(0, 30000)}`;
     } catch (_) { /* non-fatal */ }
     await updatePublicStatus(supabase, jobId, 'INTERNAL_LINK_ENGINE', true, lockId);
 
-    // ============================================================
-    // STEP: SEO_SCORE (non-fatal)
-    // ============================================================
+    // STEP: SEO_SCORE
     console.log(`[V2] Step: SEO_SCORE`);
     await updatePublicStatus(supabase, jobId, 'SEO_SCORE', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'SEO_SCORE' }).eq('id', jobId);
     let seoStepId: string | null = null;
     try {
       seoStepId = await createStepOrFail(supabase, jobId, 'SEO_SCORE', { article_id: saveOutput.article_id });
-      const htmlForScore = (articleData!.html_article as string) || '';
       const seoOutput = await executeSeoScoreStep(
         saveOutput.article_id as string | null,
         (articleData!.title as string) || '',
-        htmlForScore,
+        (articleData!.html_article as string) || '',
         (jobInput.keyword as string) || '',
         (jobInput.blog_id as string) || '',
         supabaseUrl,
         serviceKey
       );
       await supabase.from('generation_steps').update({
-        status: 'completed', output: seoOutput, completed_at: new Date().toISOString(), model_used: 'calculate-content-score', provider: 'programmatic',
+        status: 'completed', output: seoOutput, completed_at: new Date().toISOString(),
+        model_used: 'calculate-content-score', provider: 'programmatic',
       }).eq('id', seoStepId);
       console.log(`[V2] ✅ SEO_SCORE ${seoOutput.skipped ? '(skipped)' : '(done)'}`);
     } catch (seoErr) {
@@ -2071,9 +2122,7 @@ ${draftHtml.slice(0, 30000)}`;
     }
     await updatePublicStatus(supabase, jobId, 'SEO_SCORE', true, lockId);
 
-    // ============================================================
-    // STEP: QUALITY_GATE (block publish if thresholds not met)
-    // ============================================================
+    // STEP: QUALITY_GATE
     let seoScoreData: Record<string, unknown> = {};
     try {
       const scoreResp = await fetch(`${supabaseUrl}/functions/v1/calculate-content-score`, {
@@ -2104,10 +2153,11 @@ ${draftHtml.slice(0, 30000)}`;
       supabase
     );
     await supabase.from('generation_steps').update({
-      status: 'completed', output: qgOutput, completed_at: new Date().toISOString(), model_used: 'programmatic', provider: 'quality_gate',
+      status: 'completed', output: qgOutput, completed_at: new Date().toISOString(),
+      model_used: 'programmatic', provider: 'quality_gate',
     }).eq('id', qgStepId);
     await updatePublicStatus(supabase, jobId, 'QUALITY_GATE', true, lockId);
-    console.log(`[V2] ✅ QUALITY_GATE passed=${qgOutput.passed} ${!qgOutput.passed ? `reasons=${(qgOutput.reasons as string[])?.join('; ')}` : ''}`);
+    console.log(`[V2] ✅ QUALITY_GATE passed=${qgOutput.passed} ai_score=${(qgOutput.ai_detection as any)?.score} ${!qgOutput.passed ? `reasons=${(qgOutput.reasons as string[])?.join('; ')}` : ''}`);
 
     // ============================================================
     // STEP: GEO_READINESS (Async / Fire & Forget)
@@ -2123,7 +2173,6 @@ ${draftHtml.slice(0, 30000)}`;
 
     // ============================================================
     // COMPLETED
-    // ============================================================
     const { data: updatedJob } = await supabase
       .from('generation_jobs')
       .select('article_id, output')
@@ -2151,7 +2200,6 @@ ${draftHtml.slice(0, 30000)}`;
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Unknown orchestration error';
     console.error(`[ORCHESTRATOR:V2] ❌ Job ${jobId} FAILED:`, errorMsg);
-
     await supabase.from('generation_jobs').update({
       status: 'failed', error_message: errorMsg,
       cost_usd: totalCostUsd, total_api_calls: totalApiCalls,
@@ -2160,8 +2208,7 @@ ${draftHtml.slice(0, 30000)}`;
       public_message: 'Ocorreu um problema. Tente novamente.',
       public_updated_at: new Date().toISOString(),
     }).eq('id', jobId);
-
-    console.log(`[ORCHESTRATOR:V2:FAILED] job_id=${jobId} error=${errorMsg} api_calls=${totalApiCalls} duration=${Date.now() - jobStart}ms`);
+    console.log(`[ORCHESTRATOR:V2:FAILED] job_id=${jobId} error=${errorMsg} duration=${Date.now() - jobStart}ms`);
   } finally {
     heartbeatRunning = false;
     clearInterval(heartbeatInterval);
@@ -2210,7 +2257,6 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "job_id is required" }), { status: 400, headers: { ...cors, "Content-Type": "application/json" } });
     }
 
-    // Idempotency guard
     const { data: existingJob } = await supabase
       .from('generation_jobs')
       .select('status')
