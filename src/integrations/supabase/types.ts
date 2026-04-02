@@ -1149,6 +1149,9 @@ export type Database = {
           generation_progress: number | null
           generation_source: string | null
           generation_stage: string | null
+          geo_score: number | null
+          geo_score_breakdown: Json | null
+          geo_score_label: string | null
           highlights: Json | null
           id: string
           images_completed: number | null
@@ -1220,6 +1223,9 @@ export type Database = {
           generation_progress?: number | null
           generation_source?: string | null
           generation_stage?: string | null
+          geo_score?: number | null
+          geo_score_breakdown?: Json | null
+          geo_score_label?: string | null
           highlights?: Json | null
           id?: string
           images_completed?: number | null
@@ -1291,6 +1297,9 @@ export type Database = {
           generation_progress?: number | null
           generation_source?: string | null
           generation_stage?: string | null
+          geo_score?: number | null
+          geo_score_breakdown?: Json | null
+          geo_score_label?: string | null
           highlights?: Json | null
           id?: string
           images_completed?: number | null
@@ -3622,6 +3631,8 @@ export type Database = {
           published: boolean | null
           published_at: string | null
           published_url: string | null
+          research_failed: boolean | null
+          research_failed_reason: string | null
           retry_count: number
           seo_breakdown: Json | null
           seo_score: number | null
@@ -3663,6 +3674,8 @@ export type Database = {
           published?: boolean | null
           published_at?: string | null
           published_url?: string | null
+          research_failed?: boolean | null
+          research_failed_reason?: string | null
           retry_count?: number
           seo_breakdown?: Json | null
           seo_score?: number | null
@@ -3704,6 +3717,8 @@ export type Database = {
           published?: boolean | null
           published_at?: string | null
           published_url?: string | null
+          research_failed?: boolean | null
+          research_failed_reason?: string | null
           retry_count?: number
           seo_breakdown?: Json | null
           seo_score?: number | null

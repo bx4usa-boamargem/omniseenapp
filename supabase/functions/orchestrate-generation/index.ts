@@ -978,6 +978,80 @@ async function executeSeoScoreStep(
 }
 
 // ============================================================
+// GEO SCORE — Local SEO quality score (0-100)
+// ============================================================
+
+interface GeoScoreBreakdown {
+  city_in_title: number;       // 0-25
+  has_faq: number;             // 0-20
+  has_citations: number;       // 0-15
+  entity_density: number;      // 0-20
+  word_count_score: number;    // 0-20
+}
+
+function calculateGeoScore(
+  title: string,
+  city: string,
+  faqItems: Array<unknown>,
+  htmlContent: string,
+  entities: EntityData,
+  wordCount: number,
+  targetWords: number
+): { score: number; label: string; breakdown: GeoScoreBreakdown } {
+  const breakdown: GeoScoreBreakdown = {
+    city_in_title: 0,
+    has_faq: 0,
+    has_citations: 0,
+    entity_density: 0,
+    word_count_score: 0,
+  };
+
+  // 1. City in title (0-25)
+  if (city && title.toLowerCase().includes(city.toLowerCase())) {
+    breakdown.city_in_title = 25;
+  } else if (city && htmlContent.toLowerCase().includes(city.toLowerCase())) {
+    breakdown.city_in_title = 10; // City in content but not title
+  }
+
+  // 2. FAQ section (0-20)
+  const faqCount = Array.isArray(faqItems) ? faqItems.length : 0;
+  if (faqCount >= 5) breakdown.has_faq = 20;
+  else if (faqCount >= 3) breakdown.has_faq = 15;
+  else if (faqCount >= 1) breakdown.has_faq = 10;
+
+  // 3. Citations/sources in content (0-15)
+  const citationPatterns = (htmlContent.match(/https?:\/\/[^\s<"']+/g) || []).length;
+  const hasDataReferences = /\b\d{4}\b/.test(htmlContent) || /\b\d+%\b/.test(htmlContent);
+  if (citationPatterns >= 3) breakdown.has_citations = 15;
+  else if (citationPatterns >= 1 || hasDataReferences) breakdown.has_citations = 10;
+  else if (hasDataReferences) breakdown.has_citations = 5;
+
+  // 4. Entity density (0-20)
+  const totalEntities = (entities.topics?.length || 0) + (entities.terms?.length || 0) + (entities.places?.length || 0);
+  if (totalEntities >= 15) breakdown.entity_density = 20;
+  else if (totalEntities >= 10) breakdown.entity_density = 15;
+  else if (totalEntities >= 5) breakdown.entity_density = 10;
+  else if (totalEntities >= 2) breakdown.entity_density = 5;
+
+  // 5. Word count vs target (0-20)
+  const ratio = wordCount / targetWords;
+  if (ratio >= 0.9 && ratio <= 1.15) breakdown.word_count_score = 20;
+  else if (ratio >= 0.75 && ratio <= 1.3) breakdown.word_count_score = 15;
+  else if (ratio >= 0.5) breakdown.word_count_score = 10;
+  else breakdown.word_count_score = 5;
+
+  const score = breakdown.city_in_title + breakdown.has_faq + breakdown.has_citations + breakdown.entity_density + breakdown.word_count_score;
+
+  let label: string;
+  if (score >= 85) label = 'Excelente';
+  else if (score >= 70) label = 'Bom';
+  else if (score >= 50) label = 'Regular';
+  else label = 'Precisa melhorar';
+
+  return { score, label, breakdown };
+}
+
+// ============================================================
 // STEP: IMAGE_GEN — Gemini Nano Banana (hero + section + contextual)
 // ============================================================
 
@@ -1300,6 +1374,11 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     } catch (e) {
       const errMsg = e instanceof Error ? e.message : 'SERP failed';
       console.warn(`[V2] ⚠️ SERP_ANALYSIS failed (non-fatal): ${errMsg}`);
+      // Track research failure
+      await supabase.from('generation_jobs').update({
+        research_failed: true,
+        research_failed_reason: errMsg.substring(0, 500),
+      }).eq('id', jobId);
       if (serpStepId) {
         await supabase.from('generation_steps').update({
           status: 'completed', output: { serp_summary: '', error: errMsg }, latency_ms: Date.now() - serpStart,
@@ -1613,6 +1692,35 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     }).eq('id', qgStepId);
     await updatePublicStatus(supabase, jobId, 'QUALITY_GATE', true, lockId);
     console.log(`[V2] ✅ QUALITY_GATE passed=${qgOutput.passed} ${!qgOutput.passed ? `reasons=${(qgOutput.reasons as string[])?.join('; ')}` : ''}`);
+
+    // ============================================================
+    // GEO SCORE CALCULATION
+    // ============================================================
+    try {
+      const htmlForGeo = (articleData!.html_article as string) || '';
+      const textForGeo = htmlForGeo.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      const geoWordCount = textForGeo.split(/\s+/).filter(Boolean).length;
+      const geoTargetWords = Number(jobInput.target_words) || (jobType === 'super_page' ? 3000 : 2000);
+      const geoResult = calculateGeoScore(
+        (articleData!.title as string) || '',
+        (jobInput.city as string) || '',
+        (articleData!.faq as Array<unknown>) || [],
+        htmlForGeo,
+        entities,
+        geoWordCount,
+        geoTargetWords
+      );
+      if (saveOutput.article_id) {
+        await supabase.from('articles').update({
+          geo_score: geoResult.score,
+          geo_score_label: geoResult.label,
+          geo_score_breakdown: geoResult.breakdown,
+        }).eq('id', saveOutput.article_id);
+      }
+      console.log(`[V2] ✅ GEO_SCORE score=${geoResult.score} label=${geoResult.label}`);
+    } catch (geoErr) {
+      console.warn(`[V2] ⚠️ GEO_SCORE failed (non-fatal): ${geoErr instanceof Error ? geoErr.message : 'unknown'}`);
+    }
 
     // ============================================================
     // COMPLETED

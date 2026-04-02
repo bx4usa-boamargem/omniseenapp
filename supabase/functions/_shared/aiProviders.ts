@@ -347,73 +347,10 @@ export async function callWriter(request: WriterRequest): Promise<AICallResult<W
 }
 
 // ============================================================================
-// RESEARCH: Perplexity Sonar-Pro (Primary) → Google Gemini (Fallback)
+// RESEARCH: Google Gemini + Google Search Grounding (Primary) → OpenAI GPT-4.1 (Fallback)
 // ============================================================================
 
-async function callPerplexityResearch(request: ResearchRequest): Promise<ResearchResponse> {
-  const config = AI_CONFIG.research.primary;
-  const apiKey = getProviderApiKey('perplexity');
-  
-  if (!apiKey) {
-    throw new Error('PERPLEXITY_API_KEY not configured');
-  }
-  
-  const systemPrompt = request.systemPrompt || 
-    `Você é um pesquisador especializado. Retorne dados factuais em JSON: 
-    {"facts": [...], "trends": [...], "sources": [...]}`;
-  
-  const response = await fetchWithTimeout(
-    config.endpoint,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: request.query }
-        ],
-        temperature: 0.3,
-        max_tokens: request.maxTokens || 1000
-      })
-    },
-    20000 // V4.1: 20s timeout for research (fail-fast)
-  );
-  
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => '');
-    throw new Error(`Perplexity error ${response.status}: ${errorText.substring(0, 200)}`);
-  }
-  
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content || '';
-  const citations = data.citations || [];
-  
-  // Try to parse JSON from content
-  const jsonMatch = content.match(/\{[\s\S]*\}/);
-  if (jsonMatch) {
-    try {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        content,
-        citations,
-        facts: parsed.facts || [],
-        trends: parsed.trends || [],
-        sources: parsed.sources || citations
-      };
-    } catch {
-      // Return raw content if JSON parsing fails
-    }
-  }
-  
-  return { content, citations };
-}
-
-async function callGoogleResearch(request: ResearchRequest): Promise<ResearchResponse> {
-  const config = AI_CONFIG.research.fallback;
+async function callGoogleResearchGrounded(request: ResearchRequest): Promise<ResearchResponse> {
   const apiKey = getProviderApiKey('google');
   
   if (!apiKey) {
@@ -421,27 +358,22 @@ async function callGoogleResearch(request: ResearchRequest): Promise<ResearchRes
   }
   
   const systemPrompt = request.systemPrompt || 
-    `Você é um pesquisador. Retorne dados factuais em JSON: 
+    `Você é um pesquisador especializado. Retorne dados factuais em JSON: 
     {"facts": [...], "trends": [...], "sources": [...]}`;
   
-  const url = `${config.endpoint}/${config.model}:generateContent?key=${apiKey}`;
+  const model = 'gemini-2.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   
   const body: Record<string, unknown> = {
     contents: [{ role: 'user', parts: [{ text: request.query }] }],
     systemInstruction: { parts: [{ text: systemPrompt }] },
     generationConfig: {
       temperature: 0.3,
-      maxOutputTokens: request.maxTokens || 1000,
+      maxOutputTokens: request.maxTokens || 2000,
       responseMimeType: 'application/json'
-    }
+    },
+    tools: [{ googleSearch: {} }]
   };
-  
-  // Add grounding if configured
-  if (config.useGrounding) {
-    body.tools = [{
-      googleSearch: {}
-    }];
-  }
   
   const response = await fetchWithTimeout(url, {
     method: 'POST',
@@ -451,15 +383,16 @@ async function callGoogleResearch(request: ResearchRequest): Promise<ResearchRes
   
   if (!response.ok) {
     const errorText = await response.text().catch(() => '');
-    throw new Error(`Google error ${response.status}: ${errorText.substring(0, 200)}`);
+    throw new Error(`Google Grounded Research error ${response.status}: ${errorText.substring(0, 200)}`);
   }
   
   const data = await response.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   
-  // Extract grounding sources if available
+  // Extract grounding sources
   const groundingMetadata = data.candidates?.[0]?.groundingMetadata;
-  const sources = groundingMetadata?.webSearchQueries || [];
+  const groundingSources = groundingMetadata?.groundingChunks?.map((c: any) => c.web?.uri).filter(Boolean) || [];
+  const searchQueries = groundingMetadata?.webSearchQueries || [];
   
   // Try to parse JSON
   const jsonMatch = text.match(/\{[\s\S]*\}/);
@@ -468,59 +401,132 @@ async function callGoogleResearch(request: ResearchRequest): Promise<ResearchRes
       const parsed = JSON.parse(jsonMatch[0]);
       return {
         content: text,
+        citations: groundingSources,
         facts: parsed.facts || [],
         trends: parsed.trends || [],
-        sources: parsed.sources || sources
+        sources: parsed.sources || groundingSources
       };
     } catch {
       // Return raw content
     }
   }
   
-  return { content: text, sources };
+  return { content: text, citations: groundingSources, sources: groundingSources.length > 0 ? groundingSources : searchQueries };
+}
+
+async function callOpenAIResearch(request: ResearchRequest): Promise<ResearchResponse> {
+  const apiKey = getProviderApiKey('openai');
+  
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY not configured');
+  }
+  
+  const systemPrompt = request.systemPrompt || 
+    `Você é um pesquisador especializado. Retorne dados factuais em JSON: 
+    {"facts": [...], "trends": [...], "sources": [...]}`;
+  
+  const response = await fetchWithTimeout(
+    'https://api.openai.com/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4.1',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: request.query }
+        ],
+        temperature: 0.3,
+        max_tokens: request.maxTokens || 2000,
+        response_format: { type: 'json_object' }
+      })
+    },
+    60000
+  );
+  
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`OpenAI Research error ${response.status}: ${errorText.substring(0, 200)}`);
+  }
+  
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content || '';
+  
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        content,
+        facts: parsed.facts || [],
+        trends: parsed.trends || [],
+        sources: parsed.sources || []
+      };
+    } catch {
+      // Return raw content
+    }
+  }
+  
+  return { content };
 }
 
 /**
  * RESEARCH ENTRY POINT
- * Primary: Perplexity Sonar-Pro
- * Fallback: Google Gemini with Grounding
+ * Primary: Google Gemini 2.5 Flash + Google Search Grounding
+ * Fallback: OpenAI GPT-4.1
  */
 export async function callResearch(request: ResearchRequest): Promise<AICallResult<ResearchResponse>> {
   const start = Date.now();
   
-  // Try Perplexity first
+  // Try Google Gemini with Grounding first
   try {
-    console.log('[AI_CONFIG] Research: Calling Perplexity Sonar-Pro...');
-    const result = await callPerplexityResearch(request);
+    console.log('[AI_CONFIG] Research: Calling Google Gemini + Google Search Grounding...');
+    const result = await callGoogleResearchGrounded(request);
     const duration = Date.now() - start;
-    logAICall('research', 'perplexity', true, duration);
+    logAICall('research', 'google', true, duration);
     
     return {
       success: true,
       data: result,
-      provider: 'perplexity',
+      provider: 'google',
       usedFallback: false,
       durationMs: duration
     };
-  } catch (perplexityError) {
-    // V4.1: FAIL-FAST - NO Gemini fallback for research
-    // This eliminates +45s of potential stacking timeouts
-    const errorMsg = perplexityError instanceof Error ? perplexityError.message : 'Unknown error';
-    const duration = Date.now() - start;
+  } catch (googleError) {
+    const errorMsg = googleError instanceof Error ? googleError.message : 'Unknown error';
+    console.warn(`[AI_CONFIG] Research: Google Grounded failed - ${errorMsg}`);
+    console.log('[AI_CONFIG] Research: Falling back to OpenAI GPT-4.1...');
     
-    console.warn(`[AI_CONFIG] Research: Perplexity failed (${duration}ms) - ${errorMsg}`);
-    console.log('[AI_CONFIG] Research: ❌ NO FALLBACK - using minimal package (V4.1: fail-fast)');
-    
-    logAICall('research', 'perplexity', false, duration, false, errorMsg);
-    
-    // Return failure immediately - caller will use minimal package
-    return {
-      success: false,
-      provider: 'perplexity',
-      usedFallback: false,
-      fallbackReason: errorMsg,
-      durationMs: duration
-    };
+    // Fallback to OpenAI GPT-4.1
+    try {
+      const result = await callOpenAIResearch(request);
+      const duration = Date.now() - start;
+      logAICall('research', 'openai', true, duration, true);
+      
+      return {
+        success: true,
+        data: result,
+        provider: 'openai',
+        usedFallback: true,
+        fallbackReason: errorMsg,
+        durationMs: duration
+      };
+    } catch (openaiError) {
+      const duration = Date.now() - start;
+      const fallbackError = openaiError instanceof Error ? openaiError.message : 'Unknown error';
+      logAICall('research', 'openai', false, duration, true, fallbackError);
+      
+      return {
+        success: false,
+        provider: 'openai',
+        usedFallback: true,
+        fallbackReason: `Primary (Google): ${errorMsg}, Fallback (OpenAI): ${fallbackError}`,
+        durationMs: duration
+      };
+    }
   }
 }
 
