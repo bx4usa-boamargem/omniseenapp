@@ -3631,6 +3631,8 @@ export type Database = {
           published: boolean | null
           published_at: string | null
           published_url: string | null
+          research_failed: boolean | null
+          research_failed_reason: string | null
           retry_count: number
           seo_breakdown: Json | null
           seo_score: number | null
@@ -3672,6 +3674,8 @@ export type Database = {
           published?: boolean | null
           published_at?: string | null
           published_url?: string | null
+          research_failed?: boolean | null
+          research_failed_reason?: string | null
           retry_count?: number
           seo_breakdown?: Json | null
           seo_score?: number | null
@@ -3713,6 +3717,8 @@ export type Database = {
           published?: boolean | null
           published_at?: string | null
           published_url?: string | null
+          research_failed?: boolean | null
+          research_failed_reason?: string | null
           retry_count?: number
           seo_breakdown?: Json | null
           seo_score?: number | null
