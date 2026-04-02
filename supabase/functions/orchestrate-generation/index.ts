@@ -234,6 +234,8 @@ type ResearchFailedBehavior = {
   fallbackLabel: string;
   logLevel: 'warn' | 'error';
   noteForQualityGate: string;
+  requiresManualReview: boolean; // bloqueia auto-publish, exige revisão no dashboard
+  draftOnly: boolean;            // artigo fica como draft mesmo se QG passar
 };
 
 function getResearchFailedPolicy(
@@ -247,6 +249,8 @@ function getResearchFailedPolicy(
       fallbackLabel: 'serp_only_preview',
       logLevel: 'warn',
       noteForQualityGate: 'research_skipped:preview',
+      requiresManualReview: false,
+      draftOnly: false,
     };
   }
   if (isAutoPublish) {
@@ -255,14 +259,21 @@ function getResearchFailedPolicy(
       fallbackLabel: 'serp_only_auto',
       logLevel: 'warn',
       noteForQualityGate: 'research_failed:auto_publish',
+      requiresManualReview: false,
+      draftOnly: false,
     };
   }
   if (generationMode === 'premium') {
+    // Premium: não aborta (usuário não fica sem artigo), mas exige revisão manual.
+    // Motivo: pesquisa real é parte do valor premium — artigo sem ela não pode
+    // ser publicado automaticamente. O editor decide se serve ou não.
     return {
-      shouldAbort: true,
-      fallbackLabel: 'blocked_premium',
-      logLevel: 'error',
-      noteForQualityGate: 'research_failed:premium_blocked',
+      shouldAbort: false,
+      fallbackLabel: 'serp_only_premium_review',
+      logLevel: 'warn',
+      noteForQualityGate: 'research_failed:premium_needs_review',
+      requiresManualReview: true,
+      draftOnly: true,
     };
   }
   // default: article normal
@@ -271,6 +282,8 @@ function getResearchFailedPolicy(
     fallbackLabel: 'serp_only_normal',
     logLevel: 'warn',
     noteForQualityGate: 'research_failed:serp_fallback',
+    requiresManualReview: false,
+    draftOnly: false,
   };
 }
 
@@ -1864,9 +1877,16 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
           completed_at: new Date().toISOString(), model_used: 'fallback', provider: 'fallback', error_message: errMsg,
         }).eq('id', serpStepId);
       }
-      // PREMIUM: abortar pipeline se pesquisa falhou e modo premium está ativo
-      if (researchPolicy.shouldAbort) {
-        throw new Error(`RESEARCH_FAILED:PREMIUM_BLOCKED — ${errMsg}. Pesquisa real é obrigatória em modo premium.`);
+      // PREMIUM: artigo gerado mas marcado como draft para revisão obrigatória.
+      // Razão: pesquisa real é parte do valor premium. O editor decide se publica.
+      if (researchPolicy.draftOnly) {
+        await supabase.from('generation_jobs').update({
+          research_failed: true,
+          research_failed_reason: errMsg,
+          research_failed_policy: researchPolicy.fallbackLabel,
+          public_message: '⚠️ Pesquisa indisponível — artigo gerado com SERP apenas. Revisão manual necessária antes de publicar.',
+        }).eq('id', jobId);
+        console.warn(`[V2] PREMIUM research_failed — artigo ficará como DRAFT até revisão manual.`);
       }
     }
     await updatePublicStatus(supabase, jobId, 'SERP_ANALYSIS', true, lockId);
