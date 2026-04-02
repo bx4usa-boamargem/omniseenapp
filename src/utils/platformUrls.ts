@@ -125,9 +125,14 @@ export const isCustomDomainHost = (): boolean => {
     return false;
   }
   
-  // Exclude development/preview hosts
-  const devHosts = ['localhost', '127.0.0.1', '0.0.0.0'];
-  if (devHosts.some(h => host.includes(h)) || host.includes('lovable.app') || host.includes('lovableproject.com')) {
+  // Exclude development/preview/PaaS hosts broadly
+  if (
+    host.includes('localhost') || 
+    host.includes('127.0.0.1') || 
+    host.includes('0.0.0.0') || 
+    host.includes('lovable') || 
+    host.includes('vercel.app')
+  ) {
     return false;
   }
   
@@ -186,7 +191,7 @@ export const resolveCurrentTenantSlug = (): string | null => {
 export const isLovablePreviewHost = (): boolean => {
   if (typeof window === 'undefined') return false;
   const hostname = window.location.hostname;
-  return hostname.startsWith('id-preview--') || hostname === 'localhost' || hostname === '127.0.0.1';
+  return hostname.includes('lovable') || hostname === 'localhost' || hostname === '127.0.0.1';
 };
 
 /**
