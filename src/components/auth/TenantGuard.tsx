@@ -1,12 +1,10 @@
 /**
  * TenantGuard - Guard para rotas protegidas do app
  * 
- * Verifica:
- * 1. User está autenticado?
- * 2. User tem pelo menos um tenant?
- * 
- * Se não tem tenant -> auto-provisiona (sem onboarding manual)
- * Se tem tenant -> renderiza children
+ * - Verifica autenticação
+ * - Verifica se user tem tenant
+ * - Se não tem tenant -> auto-provisiona
+ * - NUNCA faz signOut automático por timeout
  */
 import { ReactNode, useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
@@ -23,7 +21,7 @@ interface TenantGuardProps {
 
 export function TenantGuard({ children, requireAdmin = false }: TenantGuardProps) {
   const location = useLocation();
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const {
     currentTenant,
     loading: tenantLoading,
@@ -33,62 +31,42 @@ export function TenantGuard({ children, requireAdmin = false }: TenantGuardProps
     refetch,
   } = useTenantContext();
 
-  const [forceLoginRedirect, setForceLoginRedirect] = useState(false);
-  const loadingKey = 'tenant_guard_loading_started_at';
+  const [showManualAction, setShowManualAction] = useState(false);
   const isLoading = authLoading || tenantLoading;
 
+  // After 8s of loading, show manual action (never force logout)
   useEffect(() => {
     if (!isLoading) {
-      sessionStorage.removeItem(loadingKey);
-      setForceLoginRedirect(false);
+      setShowManualAction(false);
       return;
     }
 
-    const currentValue = sessionStorage.getItem(loadingKey);
-    if (!currentValue) {
-      sessionStorage.setItem(loadingKey, String(Date.now()));
-    }
+    const timer = setTimeout(() => {
+      setShowManualAction(true);
+    }, 8000);
 
-    const startedAt = Number(sessionStorage.getItem(loadingKey) ?? Date.now());
-    const elapsed = Date.now() - startedAt;
-    const softDelay = Math.max(0, 3000 - elapsed);
-    const hardDelay = Math.max(0, 5000 - elapsed);
-
-    const softRedirectTimer = window.setTimeout(() => {
-      if (!user) {
-        console.warn('[TenantGuard] Loading exceeded 3 seconds without user, redirecting to login.');
-        setForceLoginRedirect(true);
-      }
-    }, softDelay);
-
-    const hardAuthTimer = window.setTimeout(() => {
-      if (authLoading) {
-        console.warn('[TenantGuard] Auth still loading after 5 seconds, forcing unauthenticated redirect.');
-        void signOut().finally(() => setForceLoginRedirect(true));
-        return;
-      }
-
-      if (tenantLoading) {
-        console.warn('[TenantGuard] Tenant resolution still loading after 5 seconds, clearing session and redirecting to login.');
-        void signOut().finally(() => setForceLoginRedirect(true));
-      }
-    }, hardDelay);
-
-    return () => {
-      clearTimeout(softRedirectTimer);
-      clearTimeout(hardAuthTimer);
-    };
-  }, [isLoading, authLoading, tenantLoading, user, signOut]);
-
-  if (forceLoginRedirect) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
+    return () => clearTimeout(timer);
+  }, [isLoading]);
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Carregando...</p>
+        {showManualAction && (
+          <div className="flex flex-col items-center gap-2 mt-4">
+            <p className="text-xs text-muted-foreground">O carregamento está demorando mais que o esperado.</p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Recarregar
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => window.location.href = '/login'}>
+                Ir para login
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }

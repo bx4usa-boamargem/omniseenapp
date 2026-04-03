@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 // UNIFICADO: Usando apenas Sonner para evitar conflitos de DOM
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -268,16 +269,36 @@ const ClientRoutes = () => (
 
 const PlatformEntryRedirect = () => {
   const { user, loading } = useAuth();
+  const [showFallback, setShowFallback] = useState(false);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background px-4">
-        <p className="text-sm text-muted-foreground">Carregando sua conta...</p>
-      </div>
-    );
+  useEffect(() => {
+    if (loading) {
+      const timer = setTimeout(() => setShowFallback(true), 5000);
+      return () => clearTimeout(timer);
+    }
+    setShowFallback(false);
+  }, [loading]);
+
+  // Auth resolved: redirect deterministically
+  if (!loading) {
+    return <Navigate to={user ? "/client/dashboard" : "/login"} replace />;
   }
 
-  return <Navigate to={user ? "/client/dashboard" : "/login"} replace />;
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 gap-4">
+      <p className="text-sm text-muted-foreground">Carregando sua conta...</p>
+      {showFallback && (
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => window.location.href = '/login'}>
+            Ir para login
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => window.location.reload()}>
+            Recarregar
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 };
 
 // Platform routes - for app.omniseen.app only

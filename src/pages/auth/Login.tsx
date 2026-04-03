@@ -105,16 +105,17 @@ function LoginContent() {
     }
   }, [searchParams, email]);
 
-  // Timeout para loading infinito
+  // Timeout para loading infinito - show form after 3s
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
     if (authLoading) {
       timer = setTimeout(() => {
-        console.warn('[Login] Loading timeout exceeded, forcing skip');
+        console.warn('[Login] Loading timeout exceeded, forcing skip to show form');
         setSkipAuthLoading(true);
-      }, 5000);
+      }, 3000);
     } else {
       setLoadingTimeout(false);
+      setSkipAuthLoading(false);
     }
     return () => clearTimeout(timer);
   }, [authLoading]);

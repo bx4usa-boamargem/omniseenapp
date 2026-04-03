@@ -1,10 +1,10 @@
 /**
  * SubAccountGuard - Guard para rotas /client/*
  * 
- * REBUILD v3: Auto-provisioning sem onboarding manual
  * - Verifica autenticação
  * - Verifica se user tem tenant
  * - Se não tem tenant -> auto-provisiona
+ * - NUNCA faz signOut automático por timeout
  */
 import { ReactNode, useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
@@ -19,65 +19,45 @@ interface SubAccountGuardProps {
 }
 
 export function SubAccountGuard({ children }: SubAccountGuardProps) {
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { currentTenant, loading: tenantLoading, hasTenant, error, refetch } = useTenantContext();
-  const [forceLoginRedirect, setForceLoginRedirect] = useState(false);
-  const loadingKey = 'subaccount_guard_loading_started_at';
+  const [showManualAction, setShowManualAction] = useState(false);
 
   const isLoading = authLoading || tenantLoading;
 
+  // After 8s of loading, show a manual action button (but never force logout)
   useEffect(() => {
     if (!isLoading) {
-      sessionStorage.removeItem(loadingKey);
-      setForceLoginRedirect(false);
+      setShowManualAction(false);
       return;
     }
 
-    const currentValue = sessionStorage.getItem(loadingKey);
-    if (!currentValue) {
-      sessionStorage.setItem(loadingKey, String(Date.now()));
-    }
+    const timer = setTimeout(() => {
+      setShowManualAction(true);
+    }, 8000);
 
-    const startedAt = Number(sessionStorage.getItem(loadingKey) ?? Date.now());
-    const elapsed = Date.now() - startedAt;
-    const softDelay = Math.max(0, 3000 - elapsed);
-    const hardDelay = Math.max(0, 5000 - elapsed);
-
-    const softRedirectTimer = window.setTimeout(() => {
-      if (!user) {
-        console.warn('[SubAccountGuard] Loading exceeded 3 seconds without user, redirecting to login.');
-        setForceLoginRedirect(true);
-      }
-    }, softDelay);
-
-    const hardAuthTimer = window.setTimeout(() => {
-      if (authLoading) {
-        console.warn('[SubAccountGuard] Auth still loading after 5 seconds, forcing unauthenticated redirect.');
-        void signOut().finally(() => setForceLoginRedirect(true));
-        return;
-      }
-
-      if (tenantLoading) {
-        console.warn('[SubAccountGuard] Tenant resolution still loading after 5 seconds, clearing session and redirecting to login.');
-        void signOut().finally(() => setForceLoginRedirect(true));
-      }
-    }, hardDelay);
-
-    return () => {
-      clearTimeout(softRedirectTimer);
-      clearTimeout(hardAuthTimer);
-    };
-  }, [isLoading, authLoading, tenantLoading, user, signOut]);
-
-  if (forceLoginRedirect) {
-    return <Navigate to="/login" replace />;
-  }
+    return () => clearTimeout(timer);
+  }, [isLoading]);
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-2">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Carregando...</p>
+        {showManualAction && (
+          <div className="flex flex-col items-center gap-2 mt-4">
+            <p className="text-xs text-muted-foreground">O carregamento está demorando mais que o esperado.</p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+                <RefreshCw className="h-3 w-3 mr-1" />
+                Recarregar
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => window.location.href = '/login'}>
+                Ir para login
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -91,10 +71,15 @@ export function SubAccountGuard({ children }: SubAccountGuardProps) {
           </div>
           <h2 className="text-xl font-bold">Erro ao carregar</h2>
           <p className="text-muted-foreground">{error}</p>
-          <Button onClick={() => refetch()} className="w-full gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Tentar novamente
-          </Button>
+          <div className="flex flex-col gap-2">
+            <Button onClick={() => refetch()} className="w-full gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Tentar novamente
+            </Button>
+            <Button variant="outline" onClick={() => window.location.href = '/login'} className="w-full">
+              Voltar ao login
+            </Button>
+          </div>
         </div>
       </div>
     );

@@ -18,55 +18,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const initialSessionResolvedRef = useRef(false);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
     let isMounted = true;
 
-    const syncAuthState = (nextSession: Session | null) => {
-      if (!isMounted) return;
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-    };
+    const initialize = async () => {
+      // 1. Restore session from storage FIRST (recommended pattern)
+      try {
+        const { data: { session: restoredSession } } = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<{ data: { session: null } }>((resolve) =>
+            setTimeout(() => resolve({ data: { session: null } }), 8000)
+          ),
+        ]);
 
-    const finalizeAuthState = (nextSession: Session | null) => {
-      initialSessionResolvedRef.current = true;
-      syncAuthState(nextSession);
-      setLoading(false);
-    };
+        if (!isMounted) return;
 
-    const failsafeTimer = setTimeout(() => {
-      console.warn("[AuthProvider] Auth initialization exceeded 5 seconds, forcing unauthenticated state.");
-      finalizeAuthState(null);
-    }, 5000);
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
-      if (event === 'INITIAL_SESSION' && !initialSessionResolvedRef.current) {
-        syncAuthState(nextSession);
-        return;
+        setSession(restoredSession);
+        setUser(restoredSession?.user ?? null);
+      } catch {
+        if (!isMounted) return;
+        console.warn("[AuthProvider] getSession failed or timed out");
       }
 
-      clearTimeout(failsafeTimer);
-      finalizeAuthState(nextSession);
-    });
+      // Mark as ready regardless
+      if (isMounted) {
+        initializedRef.current = true;
+        setLoading(false);
+      }
+    };
 
-    const sessionTimeout = new Promise<{ data: { session: null } }>((resolve) =>
-      setTimeout(() => resolve({ data: { session: null } }), 3000)
+    // 2. Listen for subsequent auth changes (sign in/out/token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, nextSession) => {
+        if (!isMounted) return;
+        setSession(nextSession);
+        setUser(nextSession?.user ?? null);
+        // If we were still loading and this fires, mark ready
+        if (!initializedRef.current) {
+          initializedRef.current = true;
+          setLoading(false);
+        }
+      }
     );
 
-    Promise.race([supabase.auth.getSession(), sessionTimeout])
-      .then(({ data: { session: nextSession } }) => {
-        clearTimeout(failsafeTimer);
-        finalizeAuthState(nextSession);
-      })
-      .catch(() => {
-        clearTimeout(failsafeTimer);
-        finalizeAuthState(null);
-      });
+    initialize();
 
     return () => {
       isMounted = false;
-      clearTimeout(failsafeTimer);
       subscription.unsubscribe();
     };
   }, []);
@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.warn('[AuthProvider] Sign out failed, clearing local auth state anyway.', error);
     } finally {
-      initialSessionResolvedRef.current = true;
+      initializedRef.current = true;
       setSession(null);
       setUser(null);
       setLoading(false);
@@ -114,8 +114,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
-    // Callback centralizado em app.omniseen.app para suporte a subdomínios
-    // O return_to codifica a origem para redirecionamento final
     const returnTo = encodeURIComponent(window.location.origin + '/client/dashboard');
     const redirectTo = `https://app.omniseen.app/oauth/callback?return_to=${returnTo}`;
     
@@ -132,7 +130,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (error) {
       console.error('Google OAuth error:', error);
-      // Check for provider not enabled error
       if (error.message?.toLowerCase().includes('provider') || 
           error.message?.toLowerCase().includes('enabled') ||
           error.message?.toLowerCase().includes('not enabled')) {
