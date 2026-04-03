@@ -218,57 +218,10 @@ export const ArticleContent = ({ content, contentImages = [], hideFirstH1 = fals
     }
 
     return (
-      <article className="prose prose-lg max-w-none text-foreground prose-headings:font-heading prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground prose-h1:text-4xl prose-h1:font-black prose-h1:leading-tight prose-h1:mb-8 md:prose-h1:text-5xl prose-h2:text-3xl prose-h2:font-bold prose-h2:tracking-tight prose-h2:mt-12 prose-h2:mb-6 prose-h2:border-b prose-h2:border-border prose-h2:pb-3 md:prose-h2:text-4xl prose-h3:text-2xl prose-h3:font-semibold prose-h3:mt-8 prose-h3:mb-4 prose-p:my-5 prose-p:leading-8 prose-ul:my-5 prose-ol:my-5 prose-li:my-1 prose-blockquote:not-italic">
-        <style>{`
-          article.prose h2 {
-            font-size: 1.75rem !important;
-            font-weight: 700 !important;
-            color: inherit !important;
-            margin-top: 2rem !important;
-            margin-bottom: 1rem !important;
-            line-height: 1.3 !important;
-          }
-          article.prose h3 {
-            font-size: 1.35rem !important;
-            font-weight: 600 !important;
-            color: inherit !important;
-            margin-top: 1.5rem !important;
-            margin-bottom: 0.75rem !important;
-            line-height: 1.4 !important;
-          }
-          article.prose p {
-            margin-bottom: 1rem !important;
-          }
-          article.prose ul,
-          article.prose ol {
-            margin: 1rem 0 !important;
-            padding-left: 1.5rem !important;
-          }
-          article.prose li {
-            margin-bottom: 0.5rem !important;
-          }
-          .whatsapp-cta-inline {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            background-color: #25D366;
-            color: white !important;
-            border-radius: 0.5rem;
-            font-weight: 600;
-            text-decoration: none !important;
-            transition: all 0.2s;
-          }
-          .whatsapp-cta-inline:hover {
-            background-color: #1da851;
-            transform: scale(1.02);
-          }
-          .article-inline-image {
-            max-height: 400px;
-          }
-        `}</style>
-        <div dangerouslySetInnerHTML={{ __html: sanitizeHTML(processedHtml) }} />
-      </article>
+      <article
+        className="article-content-html prose prose-lg max-w-none text-foreground prose-headings:font-heading prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground prose-h1:text-4xl prose-h1:font-black prose-h1:leading-tight prose-h1:mb-8 md:prose-h1:text-5xl prose-h2:text-3xl prose-h2:font-bold prose-h2:tracking-tight prose-h2:mt-12 prose-h2:mb-6 prose-h2:border-b prose-h2:border-border prose-h2:pb-3 md:prose-h2:text-4xl prose-h3:text-2xl prose-h3:font-semibold prose-h3:mt-8 prose-h3:mb-4 prose-p:my-5 prose-p:leading-8 prose-ul:my-5 prose-ol:my-5 prose-li:my-1 prose-blockquote:not-italic"
+        dangerouslySetInnerHTML={{ __html: sanitizeHTML(processedHtml) }}
+      />
     );
   }
 
@@ -554,24 +507,6 @@ export const ArticleContent = ({ content, contentImages = [], hideFirstH1 = fals
 
   return (
     <article className="prose prose-lg max-w-none prose-headings:font-heading prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground prose-h2:text-2xl prose-h2:mt-8 prose-h2:mb-4 prose-h3:text-xl prose-h3:mt-6 prose-h3:mb-3 prose-p:leading-relaxed prose-ul:my-4 prose-ol:my-4 prose-li:my-1 prose-blockquote:not-italic">
-      <style>{`
-        .whatsapp-cta-inline {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.5rem 1rem;
-          background-color: #25D366;
-          color: white !important;
-          border-radius: 0.5rem;
-          font-weight: 600;
-          text-decoration: none !important;
-          transition: all 0.2s;
-        }
-        .whatsapp-cta-inline:hover {
-          background-color: #1da851;
-          transform: scale(1.02);
-        }
-      `}</style>
       {formatContent(content)}
     </article>
   );
