@@ -42,15 +42,14 @@ function BootScreen({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-sm space-y-5">
-        <div className="mx-auto h-12 w-12 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-        <div className="space-y-2">
-          <h1 className="text-xl font-semibold text-foreground">{title}</h1>
-          <p className="text-sm text-muted-foreground">{description}</p>
-        </div>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0a0a0f', padding: '1rem' }}>
+      <div style={{ width: '100%', maxWidth: '28rem', borderRadius: '1rem', border: '1px solid #2a2a3a', background: '#14141f', padding: '2rem', textAlign: 'center' }}>
+        <div style={{ margin: '0 auto 1.25rem', height: '3rem', width: '3rem', borderRadius: '50%', border: '4px solid rgba(139,92,246,0.2)', borderTopColor: '#8b5cf6', animation: 'spin 1s linear infinite' }} />
+        <h1 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#e4e4e7', marginBottom: '0.5rem' }}>{title}</h1>
+        <p style={{ fontSize: '0.875rem', color: '#71717a' }}>{description}</p>
         {actions}
       </div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
