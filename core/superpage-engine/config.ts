@@ -7,10 +7,10 @@ import type { ContentType, PipelineConfig } from './types';
 export const DEFAULT_CONFIG: Record<ContentType, PipelineConfig> = {
   super_page: {
     contentType: 'super_page',
-    wordCountMin: 3000,
-    wordCountMax: 6000,
+    wordCountMin: 1800,
+    wordCountMax: 3000,
     generateSectionImages: true,
-    maxSectionImages: 8,
+    maxSectionImages: 7,
     runSeoScore: true,
     publishAfterSave: false,
   },
