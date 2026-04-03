@@ -26,6 +26,41 @@ const MAX_JOB_TIME_MS = 240_000;
 const MAX_API_CALLS = 10;
 const LOCK_TTL_MS = 120_000;
 
+function getDefaultTargetWords(jobType: 'article' | 'super_page'): number {
+  return jobType === 'super_page' ? 2200 : 2000;
+}
+
+function getEffectiveTargetWords(
+  jobInput: Record<string, unknown>,
+  jobType: 'article' | 'super_page'
+): number {
+  const rawTargetWords = Number(jobInput.target_words);
+  return Number.isFinite(rawTargetWords) && rawTargetWords > 0
+    ? rawTargetWords
+    : getDefaultTargetWords(jobType);
+}
+
+function getPlannedImageCounts(
+  jobType: 'article' | 'super_page',
+  sectionCount: number,
+  targetWords: number
+): { totalImages: number; sectionImages: number } {
+  if (jobType === 'super_page') {
+    const desiredTotalImages = Math.max(4, Math.min(8, Math.round(targetWords / 450) + 1));
+    const totalImages = Math.min(sectionCount + 1, desiredTotalImages);
+    return {
+      totalImages,
+      sectionImages: Math.max(0, totalImages - 1),
+    };
+  }
+
+  const totalImages = targetWords >= 2200 ? 4 : 3;
+  return {
+    totalImages,
+    sectionImages: Math.min(sectionCount, Math.max(0, totalImages - 1)),
+  };
+}
+
 // ============================================================
 // PUBLIC STAGE MAPPING (client-facing progress)
 // ============================================================
@@ -346,15 +381,73 @@ async function executeOutlineGen(
   const niche = (jobInput.niche as string) || '';
   const language = (jobInput.language as string) || 'pt-BR';
   const jobType = ((jobInput.job_type as string) || 'article') as 'article' | 'super_page';
-  const targetWords = Number(jobInput.target_words) || (jobType === 'super_page' ? 3000 : 2000);
+  const targetWords = getEffectiveTargetWords(jobInput, jobType);
   const outlineSize = computeOutlineSize(targetWords);
   const wordRange = computeWordRange(targetWords);
+  const researchPack = serpSummary || 'Research pack unavailable. Preserve the premium structure, use only broadly verifiable guidance, and do not invent fresh statistics or competitor claims.';
 
   console.log(`[OUTLINE_GEN] target_words=${targetWords} job_type=${jobType} outlineSize=${JSON.stringify(outlineSize)} wordRange=${wordRange.min}-${wordRange.max}`);
 
   const wordHint = `The article must be ${wordRange.min}-${wordRange.max} words. Structure: ${outlineSize.minH2}-${outlineSize.maxH2} H2 sections, max ${outlineSize.maxH3PerH2} H3 per H2. Do NOT create more sections than needed — match the outline size to the word count target of ${targetWords} words.`;
 
-  const prompt = `You are an SEO content architect. Create a strict outline for a blog article.
+  const prompt = jobType === 'super_page'
+    ? `You are the OmniSeen Super Page Engine. Create a premium authority-page outline, not a generic blog article.
+
+PRIMARY GOALS:
+- Rank in Google
+- Be easy for AI systems to cite
+- Help the reader make a decision
+- Convert for the business
+
+INPUT:
+Keyword: ${keyword}
+City/region: ${city || 'Brazil'}
+Niche: ${niche}
+Language: ${language}
+Content type: ${jobType}
+Target word count: ${targetWords} words
+
+RESEARCH PACK (use as the factual backbone):
+${researchPack}
+
+MANDATORY SUPER PAGE RULES:
+- The opening 20-30% must be answer-first
+- No generic introductions
+- No encyclopedia-style sections
+- H2s must have a real decision-making function
+- Include structures that support comparison, checklist logic, FAQ, and contextual CTAs
+- Consider local context when applicable
+- Preferred page size: 1800-2600 words. Absolute maximum: 3000 words.
+- Plan the outline so the page can support 4-8 semantically distributed images
+- Favor quotable, extractable blocks that are easy for AI to cite
+
+MANDATORY PAGE ARCHITECTURE:
+- The intro layer will handle hero + CTA + immediate answer
+- The TOC will be rendered from the H2 structure, so create highly scannable H2s
+- The H2 flow must cover, in this order:
+  1. Diagnosis / overview
+  2. Decision criteria
+  3. Common mistakes
+  4. Local or contextual application${city ? ` for ${city}` : ''}
+  5. FAQ
+  6. Final CTA / next step
+- You MAY add 1-2 extra H2s only if they improve clarity, comparison, or conversion
+- Use H3s for comparisons, checklists, scenarios, implementation steps, or trust-building details
+
+${wordHint}
+Include a clear CTA idea at the end.
+Return ONLY a valid JSON object in this exact format (no markdown, no code blocks):
+{
+  "outline": {
+    "h1": "Authority title with keyword and ${city || 'location context'}",
+    "h2": [
+      { "title": "Section title", "h3": ["Subsection 1", "Subsection 2"] }
+    ],
+    "meta_description": "Optional meta description max 155 chars",
+    "cta": "Optional CTA message"
+  }
+}`
+    : `You are an SEO content architect. Create a strict outline for a blog article.
 
 Keyword: ${keyword}
 City/region: ${city || 'Brazil'}
@@ -364,7 +457,7 @@ Content type: ${jobType}
 Target word count: ${targetWords} words (this is the user's chosen size — respect it)
 
 SERP context (use to inform structure and gaps):
-${serpSummary || 'No SERP data.'}
+${researchPack}
 
 ${wordHint}
 Include a clear CTA idea at the end.
@@ -414,6 +507,12 @@ async function executeAutoSectionExpansion(
   supabaseUrl: string,
   serviceKey: string
 ): Promise<{ output: { outline: OutlineData }; aiResult: AIRouterResult }> {
+  if (jobType === 'super_page') {
+    return {
+      output: { outline },
+      aiResult: { success: true, content: '', model: 'programmatic', provider: 'programmatic', tokensIn: 0, tokensOut: 0, costUsd: 0, latencyMs: 0 },
+    };
+  }
   if (!gapAnalysis.semantic_gaps?.length) {
     return { output: { outline }, aiResult: { success: true, content: '', model: '', provider: '', tokensIn: 0, tokensOut: 0, costUsd: 0, latencyMs: 0 } };
   }
@@ -645,9 +744,11 @@ async function executeContentGenFromOutline(
     ? `Include a WhatsApp CTA: ${whatsapp}${businessName ? ` (${businessName})` : ''}`
     : businessName ? `Include a CTA for ${businessName}` : 'Include a strong contact CTA';
 
-  const targetWords = Number(jobInput.target_words) || (jobType === 'super_page' ? 3000 : 2000);
+  const targetWords = getEffectiveTargetWords(jobInput, jobType);
   const wordRangeObj = computeWordRange(targetWords);
   const wordRange = `${wordRangeObj.min}-${wordRangeObj.max}`;
+  const researchPack = serpSummary || 'Research pack unavailable. Use only broadly verifiable guidance, avoid fabricated live claims, and preserve a strong premium structure.';
+  const hardMaxWords = jobType === 'super_page' ? Math.min(wordRangeObj.max, 3000) : wordRangeObj.max;
 
   console.log(`[CONTENT_GEN] wordRange=${wordRange} target_words=${targetWords} job_type=${jobType} h2_count=${outline.h2.length}`);
 
@@ -655,14 +756,99 @@ async function executeContentGenFromOutline(
   const entitiesJson = JSON.stringify(entities, null, 0);
   const perSectionEntities = entityCoverage.assignment.map((a) => `Section "${a.sectionTitle}": cover these terms naturally: ${a.terms.slice(0, 8).join(', ')}`).join('\n');
 
-  const prompt = `You are an elite SEO content strategist. Write a FULL article following the EXACT outline below. Content type: ${jobType}.
+  const prompt = jobType === 'super_page'
+    ? `You are the OmniSeen Super Page Engine. Write a premium authority page following the EXACT outline below. This is not a generic long-form article.
+
+GOALS:
+1. Rank in Google
+2. Be easy for AI systems to cite
+3. Help the reader make a decision
+4. Convert for the business
 
 INPUT:
 - keyword: ${keyword}
 - city: ${city || 'Brazil'}
 - niche: ${niche}
 - language: ${language}
-- serp_summary: ${serpSummary || 'No competitive data'}
+- research_pack: ${researchPack}
+
+MANDATORY OUTLINE (follow this structure exactly):
+${outlineJson}
+
+ENTITY COVERAGE - distribute and cover these per section:
+${perSectionEntities}
+
+SEMANTIC ENTITIES:
+${entitiesJson}
+
+MANDATORY SUPER PAGE RULES:
+- Work from the research pack as the factual backbone
+- The first 20-30% of the page must be answer-first
+- Do NOT use generic introductions
+- Do NOT repeat ideas to inflate length
+- Do NOT turn the page into an encyclopedia
+- Write like a practical specialist, not a robotic copywriter
+- Every H2 must perform a real job in the decision journey
+- Include at least one comparison block and one checklist block
+- Include contextual CTAs inside the page, not only at the end
+- Include local context when relevant
+- Make the page highly quotable and easy for AI to extract
+
+MANDATORY PAGE FLOW:
+1. Start with an <h1>
+2. Immediately below, write a hero-style opening block with 2-3 short paragraphs that answer the query fast and include a CTA sentence
+3. Immediately after the opening block, add a TOC using <nav aria-label="Table of contents"><ul>...</ul></nav>
+4. Continue with the exact H2/H3 outline
+5. Make sure the page clearly covers diagnosis/overview, decision criteria, common mistakes, local/contextual application, FAQ, and final CTA
+6. End with a strong conversion-oriented CTA section
+
+WORD COUNT:
+- Keep the page between ${wordRange} words. Target: ${targetWords} words.
+- Preferred super page range: 1800-2600 words.
+- Absolute maximum for super_page: 3000 words.
+- Never exceed ${hardMaxWords} words.
+- Depth over filler.
+
+SEO / CITABILITY:
+- Use natural keyword variation with no stuffing
+- Write snippet-ready paragraphs, bullets, and comparison blocks
+- Use <ul>, <ol>, and when useful a compact <table> for decision criteria or comparisons
+- Add concrete facts, examples, or constrained references only when supported by the research pack
+- Avoid fabricated claims, invented statistics, or fake authority signals
+
+IMAGES:
+- Write with 4-8 semantic image opportunities in mind
+- Make each major section visually distinct so hero and section imagery can be distributed without repetition
+
+REQUIREMENTS:
+1) Use the exact H1 and H2/H3 from the outline. Do not skip or merge sections.
+2) Use short paragraphs and strong scanning rhythm.
+3) ${ctaInfo}
+4) FAQ section with 4-6 questions at the end.
+5) If city exists, ground examples and decision criteria in ${city || 'the local market'}.
+6) Tone: authoritative, practical, human. No fluff.
+
+CRITICAL HTML STRUCTURE RULES (MANDATORY - DO NOT IGNORE):
+- The html_article MUST use proper semantic HTML heading tags: <h1>, <h2>, <h3>
+- The FIRST element in html_article MUST be an <h1> tag with the main title
+- The opening answer-first block must appear before the first <h2>
+- The TOC must appear before the first <h2>
+- Every section from the outline MUST start with an <h2> tag
+- Every subsection MUST use an <h3> tag
+- NEVER write headings as plain text, bold text, or <p> tags
+- Paragraphs MUST use <p> tags
+- Lists MUST use <ul>/<ol> and <li> tags
+- Include a <style> tag at the beginning with premium typography styles and TOC styling
+- Use semantic HTML that is easy to render and excerpt
+- Example correct structure:`
+    : `You are an elite SEO content strategist. Write a FULL article following the EXACT outline below. Content type: ${jobType}.
+
+INPUT:
+- keyword: ${keyword}
+- city: ${city || 'Brazil'}
+- niche: ${niche}
+- language: ${language}
+- serp_summary: ${researchPack}
 
 MANDATORY OUTLINE (follow this structure exactly):
 ${outlineJson}
@@ -677,7 +863,7 @@ ${entitiesJson}
 
 CRITICAL WORD COUNT RULE:
 - The article MUST be between ${wordRange} words. Target: ${targetWords} words.
-- Do NOT exceed ${wordRangeObj.max} words under any circumstances.
+- Do NOT exceed ${hardMaxWords} words under any circumstances.
 - Do NOT pad content with filler, redundancy, or empty phrases to increase length.
 - Match depth to the requested ${targetWords} words — shorter articles must have fewer details per section.
 - Shorter requested articles must have tighter, more concise explanations.
@@ -718,7 +904,7 @@ SEO ON-PAGE:
 - Estrutura de leitura para featured snippets quando aplicavel
 
 REQUIREMENTS:
-1) Word count: ${wordRange} words (target: ${targetWords}). THIS IS MANDATORY. Do NOT exceed ${wordRangeObj.max} words. Count carefully.
+1) Word count: ${wordRange} words (target: ${targetWords}). THIS IS MANDATORY. Do NOT exceed ${hardMaxWords} words. Count carefully.
 2) Use the exact H1 and H2/H3 from the outline. Do not skip or merge sections.
 3) Answer-first introduction. Real-world examples for the city.
 4) ${ctaInfo}
@@ -752,11 +938,16 @@ OUTPUT FORMAT (STRICT JSON only):
   "meta_description": "... max 155 chars ...",
   "html_article": "<style>...</style><h1>Title</h1><p>...</p><h2>Section</h2><p>...</p>",
   "faq": [{"question": "...", "answer": "..."}],
-  "image_prompt": "... detailed hero image description ..."
-}`;
+   "image_prompt": "... detailed hero image description ..."
+ }`;
 
   const aiResult = await callAIRouter(supabaseUrl, serviceKey, 'article_gen_from_outline', [
-    { role: 'system', content: `You are an elite SEO content writer for ${niche} in ${language}. You produce articles with EXACTLY the word count requested — no more, no less. Target: ${targetWords} words (range: ${wordRange}). Do NOT exceed the upper limit. Shorter articles must be tighter and more concise. You MUST return valid JSON with html_article containing proper semantic HTML: <h1>, <h2>, <h3>, <p>, <ul>/<ol>. Every paragraph must be short (2-5 lines). NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks.` },
+    {
+      role: 'system',
+      content: jobType === 'super_page'
+        ? `You are the OmniSeen Super Page Engine for ${niche} in ${language}. Produce premium super pages that stay inside the requested range (${wordRange}) and never exceed ${hardMaxWords} words. The first 20-30% must be answer-first, the page must include a TOC before the first H2, and the content must be highly citable, practical, and conversion-aware. You MUST return valid JSON with html_article containing proper semantic HTML: <h1>, <h2>, <h3>, <p>, <nav>, <ul>/<ol>, and optionally <table>. Every paragraph must be short. NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks.`
+        : `You are an elite SEO content writer for ${niche} in ${language}. You produce articles inside the requested range (${wordRange}) and never exceed ${hardMaxWords} words. Shorter articles must be tighter and more concise. You MUST return valid JSON with html_article containing proper semantic HTML: <h1>, <h2>, <h3>, <p>, <ul>/<ol>. Every paragraph must be short (2-5 lines). NEVER write headings as plain text. Return ONLY valid JSON. No markdown, no code blocks.`,
+    },
     { role: 'user', content: prompt },
   ]);
 
@@ -840,7 +1031,7 @@ async function executeSaveArticle(
   const textContent = htmlArticle.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   const wordCount = textContent.split(/\s+/).filter(Boolean).length;
   const readingTime = Math.ceil(wordCount / 200);
-  const wordCountTarget = Number(jobInput.target_words) || (contentType === 'super_page' ? 3000 : 2000);
+  const wordCountTarget = getEffectiveTargetWords(jobInput, contentType);
 
   // Fetch CTA config from blog
   const { data: blogData } = await supabase
@@ -1086,6 +1277,8 @@ async function executeImageGenGeminiNanoBanana(
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey) return { skipped: true, reason: "LOVABLE_API_KEY not set" };
 
+  const jobType = ((jobInput.job_type as string) || 'article') as 'article' | 'super_page';
+  const targetWords = getEffectiveTargetWords(jobInput, jobType);
   const heroPrompt = (articleData.image_prompt as string) || (articleData.title as string) || (jobInput.keyword as string) || "professional blog";
   const keyword = (jobInput.keyword as string) || "article";
   const slug = keyword.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -1120,10 +1313,8 @@ async function executeImageGenGeminiNanoBanana(
 
     const html = (articleData.html_article as string) || "";
     const sectionCount = (html.match(/<h2[^>]*>/gi) || []).length;
-    const articleWordCount = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().split(/\s+/).filter(Boolean).length;
-    // Total images = hero (1) + section images. Max 4 total for long, 3 for short.
-    const maxTotalImages = articleWordCount >= 2200 ? 4 : 3;
-    const maxSectionImages = Math.min(sectionCount, Math.max(0, maxTotalImages - 1));
+    const plannedImages = getPlannedImageCounts(jobType, sectionCount, targetWords);
+    const maxSectionImages = plannedImages.sectionImages;
     for (let i = 0; i < maxSectionImages; i++) {
       const sectionTitle = outline.h2[i]?.title || `Section ${i + 1}`;
       const prompt = `Article theme: ${keyword}. Section focus: ${sectionTitle}. Unique editorial slot: section ${i + 1} of ${maxSectionImages}. Create a realistic editorial photograph connected to this section topic, showing authentic environments, objects and narrative context. NO TEXT, NO WORDS, NO LETTERS, NO TYPOGRAPHY OVERLAID on the image. Pure photographic/artistic image only. CRITICAL: absolutely ZERO text, ZERO letters, ZERO words, ZERO numbers, ZERO labels, ZERO banners, ZERO overlays in the image. Do not repeat the hero scene or any previous section composition.`;
@@ -1277,7 +1468,7 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
   console.log('[ORCHESTRATOR_BOOT:V2]', jobId, 'job_type=', jobType);
 
   const jobInput = { ...(job.input as Record<string, unknown> || {}), job_type: jobType };
-  const resolvedTargetWords = Number(jobInput.target_words) || (jobType === 'super_page' ? 3000 : 2000);
+  const resolvedTargetWords = getEffectiveTargetWords(jobInput, jobType);
   const resolvedRange = computeWordRange(resolvedTargetWords);
   console.log(`[ORCHESTRATOR:V2] job_id=${jobId} target_words=${resolvedTargetWords} resolvedWordRange=${resolvedRange.min}-${resolvedRange.max} job_type=${jobType} keyword=${jobInput.keyword} city=${jobInput.city} niche=${jobInput.niche}`);
   // Lock
@@ -1568,7 +1759,12 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
       const imgStepId = await createStepOrFail(supabase, jobId, 'IMAGE_GEN', { article_id: saveOutput.article_id });
 
       // Mark article as images_pending so the UI knows to poll
-      await supabase.from('articles').update({ images_pending: true, images_total: 1 + (outline?.h2?.length || 0), images_completed: 0 }).eq('id', saveOutput.article_id);
+      const plannedImages = getPlannedImageCounts(
+        jobType,
+        outline?.h2?.length || 0,
+        getEffectiveTargetWords(jobInput, jobType)
+      );
+      await supabase.from('articles').update({ images_pending: true, images_total: plannedImages.totalImages, images_completed: 0 }).eq('id', saveOutput.article_id);
 
       // Run image generation inline (wait for it) to ensure images are ready before completing
       console.log(`[V2] IMAGE_GEN starting inline for article ${saveOutput.article_id}...`);
@@ -1676,7 +1872,7 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
     await updatePublicStatus(supabase, jobId, 'QUALITY_GATE', false, lockId);
     await supabase.from('generation_jobs').update({ current_step: 'QUALITY_GATE' }).eq('id', jobId);
     const qgStepId = await createStepOrFail(supabase, jobId, 'QUALITY_GATE', { article_id: saveOutput.article_id });
-    const targetWordsForGate = Number(jobInput.target_words) || (jobType === 'super_page' ? 3000 : 2000);
+    const targetWordsForGate = getEffectiveTargetWords(jobInput, jobType);
     const qgOutput = await executeQualityGate(
       saveOutput.article_id as string | null,
       (jobInput.blog_id as string) || '',
@@ -1700,7 +1896,7 @@ async function orchestrate(jobId: string, supabase: any, supabaseUrl: string, se
       const htmlForGeo = (articleData!.html_article as string) || '';
       const textForGeo = htmlForGeo.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       const geoWordCount = textForGeo.split(/\s+/).filter(Boolean).length;
-      const geoTargetWords = Number(jobInput.target_words) || (jobType === 'super_page' ? 3000 : 2000);
+      const geoTargetWords = getEffectiveTargetWords(jobInput, jobType);
       const geoResult = calculateGeoScore(
         (articleData!.title as string) || '',
         (jobInput.city as string) || '',

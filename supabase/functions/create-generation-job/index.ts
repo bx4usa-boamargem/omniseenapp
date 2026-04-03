@@ -43,6 +43,14 @@ function validateInput(body: Record<string, unknown>): { valid: boolean; input?:
     return { valid: false, error: 'blog_id is required' };
   }
 
+  const jobType = (body.job_type as 'article' | 'super_page') || 'article';
+  const defaultTargetWords = jobType === 'super_page' ? 2200 : 2500;
+  const minTargetWords = jobType === 'super_page' ? 1800 : 800;
+  const maxTargetWords = jobType === 'super_page' ? 3000 : 5000;
+  const defaultImageCount = jobType === 'super_page' ? 6 : 4;
+  const minImageCount = jobType === 'super_page' ? 4 : 1;
+  const maxImageCount = jobType === 'super_page' ? 8 : 10;
+
   const input: GenerationInput = {
     keyword: keyword.trim(),
     blog_id,
@@ -51,10 +59,10 @@ function validateInput(body: Record<string, unknown>): { valid: boolean; input?:
     state: (body.state as string) || undefined,
     language: (body.language as string) || 'pt-BR',
     niche: (body.niche as string) || 'default',
-    job_type: (body.job_type as 'article' | 'super_page') || 'article',
+    job_type: jobType,
     intent: (body.intent as GenerationInput['intent']) || 'informational',
-    target_words: Math.max(800, Math.min(5000, Number(body.target_words) || 2500)),
-    image_count: Math.max(1, Math.min(10, Number(body.image_count) || 4)),
+    target_words: Math.max(minTargetWords, Math.min(maxTargetWords, Number(body.target_words) || defaultTargetWords)),
+    image_count: Math.max(minImageCount, Math.min(maxImageCount, Number(body.image_count) || defaultImageCount)),
     brand_voice: body.brand_voice as GenerationInput['brand_voice'],
     business: body.business as GenerationInput['business'],
     layout_preferences: (body.layout_preferences as GenerationInput['layout_preferences']) || {
