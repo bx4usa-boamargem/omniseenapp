@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { ErrorBoundary } from "react-error-boundary";
-import { AuthProvider } from "@/hooks/useAuth";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { TenantProvider } from "@/contexts/TenantContext";
 import { TenantGuard } from "@/components/auth/TenantGuard";
 import { PlatformAdminGuard } from "@/components/auth/PlatformAdminGuard";
@@ -266,11 +266,25 @@ const ClientRoutes = () => (
   </SubAccountGuard>
 );
 
+const PlatformEntryRedirect = () => {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <p className="text-sm text-muted-foreground">Carregando sua conta...</p>
+      </div>
+    );
+  }
+
+  return <Navigate to={user ? "/client/dashboard" : "/login"} replace />;
+};
+
 // Platform routes - for app.omniseen.app only
 const PlatformRoutes = () => (
   <Routes>
-    {/* Redirect root to login */}
-    <Route path="/" element={<Navigate to="/login" replace />} />
+    {/* Root entry - authenticated users go straight to dashboard */}
+    <Route path="/" element={<PlatformEntryRedirect />} />
 
     {/* New Auth routes */}
     <Route path="/login" element={<Login />} />
