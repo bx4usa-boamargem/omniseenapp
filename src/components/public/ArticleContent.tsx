@@ -507,24 +507,6 @@ export const ArticleContent = ({ content, contentImages = [], hideFirstH1 = fals
 
   return (
     <article className="prose prose-lg max-w-none prose-headings:font-heading prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground prose-li:text-muted-foreground prose-h2:text-2xl prose-h2:mt-8 prose-h2:mb-4 prose-h3:text-xl prose-h3:mt-6 prose-h3:mb-3 prose-p:leading-relaxed prose-ul:my-4 prose-ol:my-4 prose-li:my-1 prose-blockquote:not-italic">
-      <style>{`
-        .whatsapp-cta-inline {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.5rem 1rem;
-          background-color: #25D366;
-          color: white !important;
-          border-radius: 0.5rem;
-          font-weight: 600;
-          text-decoration: none !important;
-          transition: all 0.2s;
-        }
-        .whatsapp-cta-inline:hover {
-          background-color: #1da851;
-          transform: scale(1.02);
-        }
-      `}</style>
       {formatContent(content)}
     </article>
   );
