@@ -268,7 +268,7 @@ const ClientRoutes = () => (
 
 const PlatformEntryRedirect = () => {
   const { user, loading } = useAuth();
-  const [showFallback, setShowFallback] = React.useState(false);
+  const [showFallback, setShowFallback] = useState(false);
 
   React.useEffect(() => {
     if (loading) {
