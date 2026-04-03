@@ -271,7 +271,7 @@ const PlatformEntryRedirect = () => {
   const { user, loading } = useAuth();
   const [showFallback, setShowFallback] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (loading) {
       const timer = setTimeout(() => setShowFallback(true), 5000);
       return () => clearTimeout(timer);
