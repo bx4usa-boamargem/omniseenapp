@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState, type ComponentType } from "react";
 // UNIFICADO: Usando apenas Sonner para evitar conflitos de DOM
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -16,7 +16,7 @@ import { SubAccountLayout } from "@/components/layout/SubAccountLayout";
 import { isPlatformHost, isSubaccountHost, isCustomDomainHost } from "@/utils/platformUrls";
 import Login from "./pages/auth/Login";
 
-const lazyWithRetry = <T,>(importer: () => Promise<{ default: T }>) =>
+const lazyWithRetry = <T extends ComponentType<any>>(importer: () => Promise<{ default: T }>) =>
   lazy(async () => {
     let lastError: unknown;
 
