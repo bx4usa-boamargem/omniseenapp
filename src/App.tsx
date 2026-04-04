@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState, type ComponentType } from "react";
 // UNIFICADO: Usando apenas Sonner para evitar conflitos de DOM
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { ErrorBoundary } from "react-error-boundary";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
@@ -14,99 +14,90 @@ import { PlatformAdminGuard } from "@/components/auth/PlatformAdminGuard";
 import { SubAccountGuard } from "@/components/auth/SubAccountGuard";
 import { SubAccountLayout } from "@/components/layout/SubAccountLayout";
 import { isPlatformHost, isSubaccountHost, isCustomDomainHost } from "@/utils/platformUrls";
-import { BlogRoutes } from "@/routes/BlogRoutes";
-
-// New Auth Pages
 import Login from "./pages/auth/Login";
-import Signup from "./pages/auth/Signup";
 
-// Legacy pages (to be migrated)
-import Dashboard from "./pages/Dashboard";
-import Articles from "./pages/Articles";
-import NewArticle from "./pages/NewArticle";
-import NewArticleChat from "./pages/NewArticleChat";
-import EditArticle from "./pages/EditArticle";
-import AutomationSettings from "./pages/AutomationSettings";
-import PublicBlog from "./pages/PublicBlog";
-import PublicArticle from "./pages/PublicArticle";
-import PublicLandingPage from "./pages/PublicLandingPage";
-import CustomDomainBlog from "./pages/CustomDomainBlog";
-import CustomDomainArticle from "./pages/CustomDomainArticle";
-import CustomDomainLandingPage from "./pages/CustomDomainLandingPage";
-import Pricing from "./pages/Pricing";
-import Subscription from "./pages/Subscription";
-import Analytics from "./pages/Analytics";
-import Clusters from "./pages/Clusters";
-import Keywords from "./pages/Keywords";
-import Settings from "./pages/Settings";
-import Strategy from "./pages/Strategy";
-import Calendar from "./pages/Calendar";
-import Performance from "./pages/Performance";
-import QueryDetails from "./pages/QueryDetails";
-import Ebooks from "./pages/Ebooks";
-import EbookDetails from "./pages/EbookDetails";
-import NotFound from "./pages/NotFound";
-import Admin from "./pages/Admin";
-import PublicEbook from "./pages/PublicEbook";
-import ClientReview from "./pages/ClientReview";
-import Help from "./pages/Help";
-import HelpArticle from "./pages/HelpArticle";
-import Account from "./pages/Account";
-import AccessDenied from "./pages/AccessDenied";
-import AcceptInvite from "./pages/AcceptInvite";
-import Profile from "./pages/Profile";
-import MyBlog from "./pages/MyBlog";
-import ValidationDashboard from "./pages/ValidationDashboard";
-import Referrals from "./pages/Referrals";
-import QuickAccess from "./pages/QuickAccess";
-import ResetPassword from "./pages/ResetPassword";
-import Blocked from "./pages/Blocked";
-import TermsOfUse from "./pages/TermsOfUse";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import Services from "./pages/Services";
-import TermsOfUseEN from "./pages/en/TermsOfUseEN";
-import PrivacyPolicyEN from "./pages/en/PrivacyPolicyEN";
-import ServicesEN from "./pages/en/ServicesEN";
-import Integrations from "./pages/Integrations";
-import OAuthCallback from "./pages/auth/OAuthCallback";
-import ArticleQueuePage from "./pages/ArticleQueuePage";
+const lazyWithRetry = <T extends ComponentType<any>>(importer: () => Promise<{ default: T }>) =>
+  lazy(async () => {
+    let lastError: unknown;
 
-// Client (SubAccount) pages
-import ClientDashboard from "./pages/client/ClientDashboard";
-import ClientArticleEditor from "./pages/client/ClientArticleEditor";
-import ClientSite from "./pages/client/ClientSite";
-import ClientAutomation from "./pages/client/ClientAutomation";
-import ClientCompany from "./pages/client/ClientCompany";
-import ClientAccount from "./pages/client/ClientAccount";
-import ClientProfile from "./pages/client/ClientProfile";
-import ClientLandingPages from "./pages/client/ClientLandingPages";
-import ClientLandingPageEditor from "./pages/client/ClientLandingPageEditor";
-import ClientSEO from "./pages/client/ClientSEO";
-import ClientArticles from "./pages/client/ClientArticles";
-import ClientReviewCenter from "./pages/client/ClientReviewCenter";
-import ClientStrategy from "./pages/client/ClientStrategy";
-import ClientConsultantMetrics from "./pages/client/ClientConsultantMetrics";
-import ClientNotificationSettings from "./pages/client/ClientNotificationSettings";
-import ClientPosts from "./pages/client/ClientPosts";
-import ClientTerritoryAnalytics from "./pages/client/ClientTerritoryAnalytics";
-import ClientHelp from "./pages/client/ClientHelp";
-import ClientHelpCategory from "./pages/client/ClientHelpCategory";
-import ClientHelpArticle from "./pages/client/ClientHelpArticle";
-import ClientHelpSearch from "./pages/client/ClientHelpSearch";
-import ClientLeads from "./pages/client/ClientLeads";
-import ClientEbooks from "./pages/client/ClientEbooks";
-import ClientEbookEditor from "./pages/client/ClientEbookEditor";
-import ClientDomains from "./pages/client/ClientDomains";
-import ClientSettings from "./pages/client/ClientSettings";
-import ArticleGenerator from "./pages/client/ArticleGenerator";
-import ArticleAdvancedPreview from "./pages/client/ArticleAdvancedPreview";
-import GenerationDashboard from "./pages/client/GenerationDashboard";
-import GenerationNew from "./pages/client/GenerationNew";
-import GenerationDetail from "./pages/client/GenerationDetail";
-import ClientOnboarding from "./pages/client/ClientOnboarding";
-import WordPressCallback from "./pages/cms/WordPressCallback";
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        return await importer();
+      } catch (error) {
+        lastError = error;
+        await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+      }
+    }
+
+    throw lastError;
+  });
+
+const BlogRoutes = lazyWithRetry(() => import("@/routes/BlogRoutes").then((module) => ({ default: module.BlogRoutes })));
+const Signup = lazyWithRetry(() => import("./pages/auth/Signup"));
+const PublicBlog = lazyWithRetry(() => import("./pages/PublicBlog"));
+const PublicArticle = lazyWithRetry(() => import("./pages/PublicArticle"));
+const PublicLandingPage = lazyWithRetry(() => import("./pages/PublicLandingPage"));
+const Pricing = lazyWithRetry(() => import("./pages/Pricing"));
+const NotFound = lazyWithRetry(() => import("./pages/NotFound"));
+const Admin = lazyWithRetry(() => import("./pages/Admin"));
+const PublicEbook = lazyWithRetry(() => import("./pages/PublicEbook"));
+const ClientReview = lazyWithRetry(() => import("./pages/ClientReview"));
+const Help = lazyWithRetry(() => import("./pages/Help"));
+const HelpArticle = lazyWithRetry(() => import("./pages/HelpArticle"));
+const AccessDenied = lazyWithRetry(() => import("./pages/AccessDenied"));
+const AcceptInvite = lazyWithRetry(() => import("./pages/AcceptInvite"));
+const ValidationDashboard = lazyWithRetry(() => import("./pages/ValidationDashboard"));
+const ResetPassword = lazyWithRetry(() => import("./pages/ResetPassword"));
+const Blocked = lazyWithRetry(() => import("./pages/Blocked"));
+const TermsOfUse = lazyWithRetry(() => import("./pages/TermsOfUse"));
+const PrivacyPolicy = lazyWithRetry(() => import("./pages/PrivacyPolicy"));
+const Services = lazyWithRetry(() => import("./pages/Services"));
+const TermsOfUseEN = lazyWithRetry(() => import("./pages/en/TermsOfUseEN"));
+const PrivacyPolicyEN = lazyWithRetry(() => import("./pages/en/PrivacyPolicyEN"));
+const ServicesEN = lazyWithRetry(() => import("./pages/en/ServicesEN"));
+const OAuthCallback = lazyWithRetry(() => import("./pages/auth/OAuthCallback"));
+const WordPressCallback = lazyWithRetry(() => import("./pages/cms/WordPressCallback"));
+const ClientDashboard = lazyWithRetry(() => import("./pages/client/ClientDashboard"));
+const ClientArticleEditor = lazyWithRetry(() => import("./pages/client/ClientArticleEditor"));
+const ClientSite = lazyWithRetry(() => import("./pages/client/ClientSite"));
+const ClientAutomation = lazyWithRetry(() => import("./pages/client/ClientAutomation"));
+const ClientCompany = lazyWithRetry(() => import("./pages/client/ClientCompany"));
+const ClientAccount = lazyWithRetry(() => import("./pages/client/ClientAccount"));
+const ClientProfile = lazyWithRetry(() => import("./pages/client/ClientProfile"));
+const ClientLandingPages = lazyWithRetry(() => import("./pages/client/ClientLandingPages"));
+const ClientLandingPageEditor = lazyWithRetry(() => import("./pages/client/ClientLandingPageEditor"));
+const ClientSEO = lazyWithRetry(() => import("./pages/client/ClientSEO"));
+const ClientArticles = lazyWithRetry(() => import("./pages/client/ClientArticles"));
+const ClientReviewCenter = lazyWithRetry(() => import("./pages/client/ClientReviewCenter"));
+const ClientStrategy = lazyWithRetry(() => import("./pages/client/ClientStrategy"));
+const ClientConsultantMetrics = lazyWithRetry(() => import("./pages/client/ClientConsultantMetrics"));
+const ClientTerritoryAnalytics = lazyWithRetry(() => import("./pages/client/ClientTerritoryAnalytics"));
+const ClientHelp = lazyWithRetry(() => import("./pages/client/ClientHelp"));
+const ClientHelpCategory = lazyWithRetry(() => import("./pages/client/ClientHelpCategory"));
+const ClientHelpArticle = lazyWithRetry(() => import("./pages/client/ClientHelpArticle"));
+const ClientHelpSearch = lazyWithRetry(() => import("./pages/client/ClientHelpSearch"));
+const ClientLeads = lazyWithRetry(() => import("./pages/client/ClientLeads"));
+const ClientEbooks = lazyWithRetry(() => import("./pages/client/ClientEbooks"));
+const ClientEbookEditor = lazyWithRetry(() => import("./pages/client/ClientEbookEditor"));
+const ClientDomains = lazyWithRetry(() => import("./pages/client/ClientDomains"));
+const ClientSettings = lazyWithRetry(() => import("./pages/client/ClientSettings"));
+const ArticleGenerator = lazyWithRetry(() => import("./pages/client/ArticleGenerator"));
+const ArticleAdvancedPreview = lazyWithRetry(() => import("./pages/client/ArticleAdvancedPreview"));
+const GenerationDashboard = lazyWithRetry(() => import("./pages/client/GenerationDashboard"));
+const GenerationNew = lazyWithRetry(() => import("./pages/client/GenerationNew"));
+const GenerationDetail = lazyWithRetry(() => import("./pages/client/GenerationDetail"));
+const ClientOnboarding = lazyWithRetry(() => import("./pages/client/ClientOnboarding"));
 
 const queryClient = new QueryClient();
+
+function RouteLoader() {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-3">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/20 border-t-primary" />
+      <p className="text-sm text-muted-foreground">Carregando...</p>
+    </div>
+  );
+}
 
 // Redirect component for dynamic article routes
 const ArticleEditRedirect = () => {
@@ -502,7 +493,9 @@ const App = () => (
               {/* UNIFICADO: Usando apenas Sonner para evitar conflitos de DOM */}
               <Sonner />
               <BrowserRouter>
-                <AppRoutes />
+                <Suspense fallback={<RouteLoader />}>
+                  <AppRoutes />
+                </Suspense>
               </BrowserRouter>
             </TooltipProvider>
           </TenantProvider>

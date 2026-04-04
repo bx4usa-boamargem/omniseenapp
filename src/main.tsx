@@ -2,6 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import "./i18n";
+import App from "./App";
 
 const rootElement = document.getElementById("root");
 
@@ -90,66 +91,37 @@ window.addEventListener("load", () => {
   sessionStorage.removeItem(CHUNK_RELOAD_KEY);
 });
 
-const loadApp = async (attempt = 1): Promise<{ default: React.ComponentType }> => {
-  try {
-    return await import("./App.tsx");
-  } catch (error) {
-    if (attempt >= 3) throw error;
-    await new Promise((resolve) => setTimeout(resolve, attempt * 700));
-    return loadApp(attempt + 1);
-  }
-};
-
-let bootFinished = false;
-
 renderBootScreen("Carregando aplicação", "Inicializando autenticação e rotas...");
 
-const bootSoftRedirectMs = isPreviewOrDevHost() ? 8000 : 3000;
-const bootHardTimeoutMs = isPreviewOrDevHost() ? 20000 : 5000;
-
-const softRedirectTimer = window.setTimeout(() => {
-  if (bootFinished) return;
+try {
+  window.requestAnimationFrame(() => {
+    root.render(<App />);
+  });
+} catch (error) {
+  console.error("[AppBoot] Failed to initialize app:", error);
 
   if (isProtectedEntryRoute(window.location.pathname) && !isAuthRoute(window.location.pathname)) {
     window.history.replaceState({}, "", "/login");
-    renderBootScreen("Redirecionando para login", "A inicialização está demorando mais do que o esperado.");
   }
-}, bootSoftRedirectMs);
 
-const hardTimeout = new Promise<never>((_, reject) => {
-  window.setTimeout(() => reject(new Error("APP_BOOT_TIMEOUT")), bootHardTimeoutMs);
-});
-
-Promise.race([loadApp(), hardTimeout])
-  .then((module) => {
-    bootFinished = true;
-    clearTimeout(softRedirectTimer);
-    const App = module.default;
-    root.render(<App />);
-  })
-  .catch((error) => {
-    bootFinished = true;
-    clearTimeout(softRedirectTimer);
-    console.error("[AppBoot] Failed to initialize app:", error);
-
-    renderBootScreen(
-      "Não foi possível iniciar o app",
-      "O carregamento excedeu o tempo limite. Você pode abrir o login ou recarregar a página.",
-      <div className="flex flex-col sm:flex-row gap-3 justify-center">
-        <button
-          type="button"
-          onClick={() => window.location.assign("/login")}
-          className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
-        >
-          Ir para login
-        </button>
-        <button
-          type="button"
-          onClick={() => window.location.reload()}
-          className="inline-flex items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-foreground"
-        >
-          Recarregar
-        </button>
-      </div>
-    );
-  });
+  renderBootScreen(
+    "Não foi possível iniciar o app",
+    "Houve uma falha ao inicializar a aplicação. Você pode abrir o login ou recarregar a página.",
+    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+      <button
+        type="button"
+        onClick={() => window.location.assign("/login")}
+        className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
+      >
+        Ir para login
+      </button>
+      <button
+        type="button"
+        onClick={() => window.location.reload()}
+        className="inline-flex items-center justify-center rounded-md border border-border bg-background px-4 py-2 text-sm font-medium text-foreground"
+      >
+        Recarregar
+      </button>
+    </div>
+  );
+}
